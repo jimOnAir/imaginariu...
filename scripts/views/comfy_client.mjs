@@ -11,7 +11,8 @@ export const DEFAULT_COMFY_URL = 'http://127.0.0.1:8190';
 
 // ComfyUI install: env ASTRA_COMFY_DIR, else <app>/runtime/ComfyUI
 export function comfyDir() { return process.env.ASTRA_COMFY_DIR || path.join(APP_ROOT, 'runtime', 'ComfyUI'); }
-export function pythonExe() { return path.join(comfyDir(), '.venv', 'Scripts', 'python.exe'); }
+// Windows venv layout is Scripts/python.exe, POSIX is bin/python (mirrors server/storage.mjs).
+export function pythonExe() { return path.join(comfyDir(), '.venv', ...(process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'])); }
 
 async function jsonFetch(url, options = {}) {
   const res = await fetch(url, { ...options, signal: options.signal || AbortSignal.timeout(20000) });

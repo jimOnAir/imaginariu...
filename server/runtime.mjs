@@ -2,14 +2,14 @@ import { spawn } from 'node:child_process';
 import { openSync,closeSync,existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { data, comfyDir } from './storage.mjs';
+import { data, comfyDir, venvPython } from './storage.mjs';
 import { stopOwnedPixal3d } from './pixal3d.mjs';
 let child=null;
 export async function startRuntime(){
  if(child&&!child.killed)return {running:true,pid:child.pid};
  try{const res=await fetch('http://127.0.0.1:8190/system_stats',{signal:AbortSignal.timeout(1500)});if(res.ok){const v=await res.json();const owned=v.system?.argv?.includes(path.join(data,'runtime','input'));if(owned)return {running:true,reused:true};throw new Error('Port 8190 is used by another ComfyUI. Connect its address in the settings or free the port.');}}catch(e){if(e.message.startsWith('Port 8190'))throw e;}
  const comfy=comfyDir();
- const python=path.join(comfy,'.venv','Scripts','python.exe');
+ const python=venvPython(comfy);
  if(!existsSync(python)||!existsSync(path.join(comfy,'main.py')))throw new Error('ComfyUI not found. Set ASTRA_COMFY_DIR or connect your own server in the settings.');
  const folders=path.join(data,'runtime');
  const yaml=path.join(folders,'models.yaml');

@@ -1,9 +1,9 @@
 import { spawn } from 'node:child_process';
 import { existsSync,promises as fs } from 'node:fs';
 import path from 'node:path';
-import {root,data,assetInfo,saveAsset,comfyDir} from './storage.mjs';
+import {root,data,assetInfo,saveAsset,comfyDir,venvPython} from './storage.mjs';
 export async function prepareConcept(imageId,jobId,signal,mode='auto'){
- const comfy=comfyDir();const python=path.join(comfy,'.venv','Scripts','python.exe');
+ const comfy=comfyDir();const python=venvPython(comfy);
  if(!existsSync(python))throw new Error('Background removal requires the local Python from ComfyUI.');
  const asset=await assetInfo(imageId);const source=path.join(data,'assets',asset.id+asset.extension),output=path.join(data,'runtime','temp',jobId+'-concept.png'),reference=path.join(data,'runtime','temp',jobId+'-reference.png'),metadata=path.join(data,'runtime','temp',jobId+'-reference.json');
  const cache=path.join(data,'models','background');await fs.mkdir(cache,{recursive:true});

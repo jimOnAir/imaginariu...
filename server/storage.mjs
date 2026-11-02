@@ -6,6 +6,8 @@ export const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'
 export const data=path.join(root,'data');
 // ComfyUI install used for its Python (.venv) and main.py: env ASTRA_COMFY_DIR, else <app>/runtime/ComfyUI
 export const comfyDir=()=>process.env.ASTRA_COMFY_DIR||path.join(root,'runtime','ComfyUI');
+// Python of the ComfyUI venv: Windows layout Scripts/python.exe, POSIX layout bin/python.
+export const venvPython=(comfy=comfyDir())=>path.join(comfy,'.venv',process.platform==='win32'?path.join('Scripts','python.exe'):path.join('bin','python'));
 export async function init(){for(const folder of ['assets','exports','projects','jobs','runtime','runtime/input','runtime/output','runtime/temp','runtime/user'])await fs.mkdir(path.join(data,folder),{recursive:true});}
 export async function readJson(file,fallback){try{return JSON.parse(await fs.readFile(file,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
 export async function writeJson(file,value){const temp=file+'.'+randomUUID()+'.tmp';await fs.writeFile(temp,JSON.stringify(value,null,2));await fs.rename(temp,file);}

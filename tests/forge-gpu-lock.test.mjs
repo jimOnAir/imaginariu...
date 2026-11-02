@@ -1,4 +1,4 @@
-// Real cross-process GPU mutex (Windows named mutex via a PowerShell holder).
+// Real cross-process GPU lock: Windows named mutex via a PowerShell holder, Linux flock(1) via an sh holder.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -6,6 +6,8 @@ import { randomUUID } from 'node:crypto';
 import { GPU_MUTEX_NAME, acquireGpuLock, gpuLockName, gpuLockState } from '../server/gpu-lock.mjs';
 
 const isWin = process.platform === 'win32';
+const isLinux = process.platform === 'linux';
+const bothImpls = (!isWin && !isLinux) ? 'Windows and Linux only' : false;
 const testName = () => `Local\\AF_TEST_${randomUUID()}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -17,7 +19,7 @@ test('GPU mutex name: default Global\\AF_GPU_RENDER, ASTRA_GPU_LOCK_NAME overrid
   assert.equal(gpuLockName({ ASTRA_GPU_MUTEX: 'Local\\Old', ASTRA_GPU_LOCK_NAME: 'Local\\New' }), 'Local\\New');
 });
 
-test('two acquirers of the real mutex are serialised', { skip: !isWin && 'Windows only' }, async () => {
+test('two acquirers of the real mutex are serialised', { skip: bothImpls }, async () => {
   const name = testName();
   const a = await acquireGpuLock({ name, timeoutMs: 20000 });
   let b = null;
@@ -45,7 +47,7 @@ test('two acquirers of the real mutex are serialised', { skip: !isWin && 'Window
   }
 });
 
-test('an abandoned mutex (holder killed) is acquirable', { skip: !isWin && 'Windows only' }, async () => {
+test('an abandoned mutex (holder killed) is acquirable', { skip: bothImpls }, async () => {
   const name = testName();
   const a = await acquireGpuLock({ name, timeoutMs: 20000 });
   let b = null;
@@ -54,22 +56,23 @@ test('an abandoned mutex (holder killed) is acquirable', { skip: !isWin && 'Wind
     const waiting = new Promise((r) => { markWaiting = r; });
     const pending = acquireGpuLock({ name, timeoutMs: 20000, onWait: () => markWaiting() });
     await waiting;
-    process.kill(a.pid, 'SIGKILL'); // TerminateProcess: Windows marks the mutex abandoned
+    process.kill(a.pid, 'SIGKILL'); // Windows: TerminateProcess marks the mutex abandoned; Linux: the kernel drops the flock
     b = await pending;
-    assert.equal(b.abandoned, true);
+    assert.equal(b.abandoned, isWin, isWin ? 'the abandoned mutex is reported' : 'flock releases silently when the holder dies');
   } finally {
     await b?.release();
     await a.release(); // releasing a dead holder is a no-op
   }
   // With no other handle open the mutex object disappears entirely; a fresh acquire still works.
   const c = await acquireGpuLock({ name, timeoutMs: 20000 });
-  spawnSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { windowsHide: true });
+  if (isWin) spawnSync('taskkill', ['/PID', String(c.pid), '/T', '/F'], { windowsHide: true });
+  else process.kill(c.pid, 'SIGKILL');
   const d = await acquireGpuLock({ name, timeoutMs: 20000 });
   await d.release();
   await c.release();
 });
 
-test('waiting for the mutex honours timeout and abort', { skip: !isWin && 'Windows only' }, async () => {
+test('waiting for the mutex honours timeout and abort', { skip: bothImpls }, async () => {
   const name = testName();
   const a = await acquireGpuLock({ name, timeoutMs: 20000 });
   try {

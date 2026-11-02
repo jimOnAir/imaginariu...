@@ -6,20 +6,33 @@
 // enforces timeouts, kills the whole process tree on cancel and serialises runs through a
 // FIFO queue (ASTRA_BLENDER_CONCURRENCY, default 1). GPU steps also take the shared GPU mutex.
 import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync, promises as fs } from 'node:fs';
+import { accessSync, constants, createWriteStream, existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { acquireGpuLock } from './gpu-lock.mjs';
 
 export const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 export const DEFAULT_BLENDER = 'C:/Program Files/Blender Foundation/Blender 5.0/blender.exe';
+
+/** Absolute path of an executable found on PATH (null when it is not installed). */
+function whichSync(name, env = process.env) {
+  if (name.includes('/') || name.includes('\\')) return existsSync(name) ? name : null;
+  for (const dir of (env.PATH || '').split(path.delimiter)) {
+    if (!dir) continue;
+    const candidate = path.join(dir, name);
+    try { accessSync(candidate, constants.X_OK); return candidate; } catch { /* keep looking */ }
+  }
+  return null;
+}
 export const AF_RUN = path.join(PROJECT_ROOT, 'scripts', 'blender', 'af_run.py');
 export const DEFAULT_TIMEOUT_SEC = 15 * 60;
 export const RENDER_TIMEOUT_SEC = 60 * 60;
 const TAIL_LINES = 40;
 
 export function blenderPath(env = process.env) {
-  return env.ASTRA_BLENDER || DEFAULT_BLENDER;
+  if (env.ASTRA_BLENDER) return env.ASTRA_BLENDER;
+  if (process.platform !== 'win32') return whichSync('blender', env) || 'blender';   // system Blender on PATH
+  return DEFAULT_BLENDER;
 }
 
 // ------------------------------------------------------------------ errors
@@ -102,14 +115,29 @@ export function blenderInfo({ path: exe = blenderPath(), refresh = false } = {})
   return probe;
 }
 
-const GODOT_CANDIDATE_DIRS = [
+const GODOT_CANDIDATE_DIRS = process.platform === 'win32' ? [
   'C:/Program Files/Godot',
   'C:/Godot',
   process.env.LOCALAPPDATA ? path.join(process.env.LOCALAPPDATA, 'Programs', 'Godot') : null,
-].filter(Boolean);
+].filter(Boolean) : [];
 
 async function findGodotPath() {
   if (process.env.ASTRA_GODOT) return process.env.ASTRA_GODOT;
+  if (process.platform !== 'win32') {
+    // the app-local folder the Linux installer unpacks into first, then the system package (godot / godot4)
+    const linuxDirs = [path.join(PROJECT_ROOT, 'runtime', 'Godot')];
+    const linuxFound = [];
+    for (const dir of linuxDirs) {
+      let names = [];
+      try { names = await fs.readdir(dir); } catch { continue; }
+      for (const name of names) {
+        const m = /^Godot_v(\d+)\.(\d+)(?:\.(\d+))?-stable_linux(?:\.x86_64|_x86_64)?$/i.exec(name);
+        if (m) linuxFound.push({ file: path.join(dir, name), v: [Number(m[1]), Number(m[2]), Number(m[3] || 0)] });
+      }
+    }
+    linuxFound.sort((a, b) => (b.v[0] - a.v[0]) || (b.v[1] - a.v[1]) || (b.v[2] - a.v[2]));
+    return linuxFound[0]?.file || whichSync('godot') || whichSync('godot4') || null;
+  }
   const found = [];
   for (const dir of GODOT_CANDIDATE_DIRS) {
     let names = [];

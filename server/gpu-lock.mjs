@@ -1,13 +1,16 @@
-// Cross-process GPU mutex: every studio job (and any other tool that opts in) serialises GPU work
-// on one Windows named mutex.
+// Cross-process GPU lock: every studio job (and any other tool that opts in) serialises GPU work
+// on one system lock.
 //
 // Name: env ASTRA_GPU_LOCK_NAME (ASTRA_GPU_MUTEX is accepted as an older alias), default
 // 'Global\AF_GPU_RENDER'. Another pipeline that should take turns with the studio uses the same
-// name (or the studio is pointed at its name). Node cannot own a Win32 mutex, so a hidden PowerShell "holder"
-// process creates/acquires the mutex, prints LOCKED and keeps it until it reads a line on
+// name (or the studio is pointed at its name). Node cannot own a Win32 mutex, so on Windows a hidden PowerShell
+// "holder" process creates/acquires the mutex, prints LOCKED and keeps it until it reads a line on
 // stdin (release) or its stdin closes (our process died). If the holder itself is killed,
 // Windows marks the mutex abandoned and the next waiter acquires it normally.
+// On Linux the same holder protocol runs on `sh` + flock(1) over a lock file: the kernel releases
+// the lock when the holder dies, so a killed holder is simply acquirable again (no abandoned state).
 import { spawn } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 
 export const GPU_MUTEX_NAME = 'Global\\AF_GPU_RENDER';
@@ -56,7 +59,7 @@ export function gpuLockState() {
     held: state.held > 0,
     holders: state.held,
     waiting: state.waiting,
-    supported: process.platform === 'win32',
+    supported: process.platform === 'win32' || process.platform === 'linux',
     lastAbandoned: state.lastAbandoned,
   };
 }
@@ -88,13 +91,13 @@ function noopLock(name, warning) {
 }
 
 /**
- * Acquire the GPU mutex.
+ * Acquire the GPU lock.
  * @param {object} [opts]
- * @param {string} [opts.name] mutex name (default env ASTRA_GPU_LOCK_NAME, else Global\AF_GPU_RENDER)
+ * @param {string} [opts.name] lock name (default env ASTRA_GPU_LOCK_NAME, else Global\AF_GPU_RENDER)
  * @param {number} [opts.timeoutMs] -1 = wait forever
  * @param {AbortSignal} [opts.signal]
  * @param {boolean} [opts.failOpen] if the holder cannot start, resolve with a no-op lock
- * @param {() => void} [opts.onWait] called once when the mutex is busy and we start waiting
+ * @param {() => void} [opts.onWait] called once when the lock is busy and we start waiting
  * @returns {Promise<{name:string, abandoned:boolean, noop?:boolean, release:() => Promise<void>}>}
  */
 export function acquireGpuLock(opts = {}) {
@@ -102,10 +105,35 @@ export function acquireGpuLock(opts = {}) {
   const timeoutMs = Number.isFinite(opts.timeoutMs) ? Math.max(-1, Math.round(opts.timeoutMs)) : -1;
   const { signal, failOpen = false, onWait } = opts;
   if (signal?.aborted) return Promise.reject(abortError());
-  if (process.platform !== 'win32') {
-    return Promise.resolve(noopLock(name, 'The cross-process GPU lock works on Windows only.'));
+  if (process.platform === 'win32') {
+    return startHolder({ name, timeoutMs, signal, failOpen, onWait, command: powershellPath(), args: [
+      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', ENCODED_SCRIPT,
+    ], env: { ...process.env, AF_GPU_MUTEX: name, AF_GPU_TIMEOUT_MS: String(timeoutMs), AF_GPU_PARENT: String(process.pid) },
+    failed: (m) => `Failed to start PowerShell for the GPU lock: ${m}` });
   }
+  if (process.platform === 'linux') return startHolder({ ...flockHolderSpec(name, timeoutMs), signal, failOpen, onWait });
+  return Promise.resolve(noopLock(name, 'The cross-process GPU lock works on Windows and Linux only.'));
+}
 
+/** Lock file of the flock holder: ASTRA_GPU_LOCK_FILE overrides, else a name-derived file in the temp folder. */
+export function posixLockFile(name, env = process.env) {
+  return env.ASTRA_GPU_LOCK_FILE || path.join(os.tmpdir(), `astraforge-gpu-${name.replace(/[^A-Za-z0-9._-]+/g, '_')}.lock`);
+}
+
+/** The PowerShell holder protocol on sh + flock(1): the kernel drops the lock even if the holder is killed. */
+function flockHolderSpec(name, timeoutMs) {
+  // integer seconds only: flock parses -w with the locale's decimal separator, so a dot would be "invalid timeout" under e.g. ru_RU
+  const waitCmd = timeoutMs >= 0 ? `flock -w ${Math.max(1, Math.ceil(timeoutMs / 1000))} 9` : 'flock 9';
+  const script = ['exec 9>"$AF_GPU_LOCK_FILE" || exit 2',
+    `if ! flock -n 9; then printf 'WAITING\\n'; if ! ${waitCmd}; then printf 'TIMEOUT\\n'; exit 3; fi; fi`,
+    `printf 'LOCKED\\n'`, 'read _'].join('\n');
+  return { name, timeoutMs, command: 'sh', args: ['-c', script], env: { ...process.env, LC_ALL: 'C', AF_GPU_LOCK_FILE: posixLockFile(name) },
+    failed: (m) => `Failed to start the flock holder for the GPU lock: ${m}`,
+    exitHint: (code) => (code === 127 ? 'flock(1) is not available on this system. ' : '') };
+}
+
+function startHolder(spec) {
+  const { name, timeoutMs, signal, failOpen = false, onWait } = spec;
   return new Promise((resolve, reject) => {
     let settled = false;
     let locked = false;
@@ -115,13 +143,7 @@ export function acquireGpuLock(opts = {}) {
     let startupTimer = null;
     state.waiting += 1;
 
-    const child = spawn(powershellPath(), [
-      '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', ENCODED_SCRIPT,
-    ], {
-      windowsHide: true,
-      stdio: ['pipe', 'pipe', 'pipe'],
-      env: { ...process.env, AF_GPU_MUTEX: name, AF_GPU_TIMEOUT_MS: String(timeoutMs), AF_GPU_PARENT: String(process.pid) },
-    });
+    const child = spawn(spec.command, spec.args, { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'], env: spec.env });
 
     const finishWaiting = () => {
       if (startupTimer) clearTimeout(startupTimer);
@@ -211,7 +233,7 @@ export function acquireGpuLock(opts = {}) {
     child.stderr.setEncoding('utf8');
     child.stderr.on('data', (chunk) => { stderr = (stderr + chunk).slice(-2000); });
     child.stdin.on('error', () => {});
-    child.on('error', (err) => failSoft(`Failed to start PowerShell for the GPU lock: ${err.message}`));
+    child.on('error', (err) => failSoft(spec.failed(err.message)));
     // 'close' fires after stdout is drained, so LOCKED/TIMEOUT lines are always seen first.
     child.on('close', (code) => {
       if (locked) {
@@ -221,7 +243,7 @@ export function acquireGpuLock(opts = {}) {
         return;
       }
       if (!settled) {
-        failSoft(`The GPU lock process exited before acquiring the lock (code ${code}). ${stderr.trim().slice(0, 300)}`.trim());
+        failSoft(`The GPU lock process exited before acquiring the lock (code ${code}). ${spec.exitHint?.(code) || ''}${stderr.trim().slice(0, 300)}`.trim());
       }
     });
   });
