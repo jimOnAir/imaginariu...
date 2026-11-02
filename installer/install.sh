@@ -67,7 +67,9 @@ Download() { # <url> <dst>
   mkdir -p "$(dirname "$2")"
   if [ -f "$2" ]; then say "    already downloaded: $(basename "$2")"; return 0; fi
   say "    downloading $1"
-  if ! curl -L --fail --retry 5 --retry-delay 3 -C - --progress-bar -o "$2.part" "$1"; then
+  local resume=()
+  [ -f "$2.part" ] && resume=(-C -)   # resume only with an existing partial: some GitHub archives refuse byte ranges
+  if ! curl -L --fail --retry 5 --retry-delay 3 "${resume[@]}" --progress-bar -o "$2.part" "$1"; then
     say "  Download failed: $1 (run the installer again - the download will resume)."
     return 1
   fi
@@ -107,7 +109,10 @@ DownloadChecked() { # <url> <dst> [size] [sha256]
 # Run <exe> <what it is> [args...]
 Run() {
   say "    $2"
-  if ! "$1" "${@:3}"; then say "  $2 - failed (code $?)"; return 1; fi
+  "$1" "${@:3}"
+  local rc=$?
+  [ "$rc" = 0 ] || say "  $2 - failed (code $rc)"
+  return $rc
 }
 
 # config/paths.json through node (the same file scripts/start.sh reads)
@@ -345,6 +350,11 @@ PullLlm() {
    c.provider="ollama";c.ollamaModel=process.argv[1];c.ollamaUrl="http://127.0.0.1:11434";
    fs.mkdirSync("data",{recursive:true});fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n")' "$1")
 }
+InstallVfx() {
+  local dir; dir="$(CfgGet vfxTools)"; [ -n "$dir" ] || dir="$RT/vfx"
+  CfgSet vfxTools "$dir"
+  "$ROOT/scripts/vfx/install-vfx.sh" -Root "$dir"
+}
 InstallClips() {
   local src="$DL/actionforge" base='https://actionforge.app/assets/animation-library' n f
   n="$(NodeBin)"
@@ -368,8 +378,7 @@ InstallOllama() {
   return 1
 }
 
-# wired with its own phases of the Linux port; honest placeholders, never silent
-InstallVfx() { say '  VFX texture generators for Linux are wired with their own phase (see docs/linux.md).'; return 1; }
+# wired with its final phase of the Linux port; an honest placeholder, never silent
 InstallPixal3d() { say '  Pixal3D for Linux is wired with its final phase (see docs/linux.md).'; return 1; }
 
 InstallMvadapter() {

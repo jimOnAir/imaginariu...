@@ -23,6 +23,10 @@
       "tags": ["procedural", "noise", "free"],
       "ru": "Node-based procedural texture and material generator built on Godot: noise, masks, PBR, PNG export.",
       "local": { "exe": "apps/material-maker/material_maker.exe" },
+      "linux": {
+        "local": { "exe": "apps/material-maker/material_maker.x86_64" },
+        "download": { "url": "https://github.com/RodZill4/material-maker/releases/download/1.7/material_maker_1_7_linux.tar.gz", "unzip": "apps/material-maker" }
+      },
       "download": { "url": "https://github.com/RodZill4/material-maker/releases/download/1.7/material_maker_1_7_windows.zip", "unzip": "apps/material-maker", "strip": "material_maker_1_7_windows" }
     },
     {
@@ -35,6 +39,7 @@
       "tags": ["flow"],
       "ru": "Brush painting of flow maps for water, smoke and magic streams.",
       "local": { "exe": "apps/flowmap-painter/FlowMapPainter.exe" },
+      "linux": { "unsupported": "FlowMap Painter: the vendor ships Windows binaries only." },
       "download": { "url": "https://teckArtist.com/ToolsnStuff/FlowMapPainter-0.9.2-win32.zip", "unzip": "apps/flowmap-painter", "strip": "FlowMapPainter-0.9.2-win32" }
     },
     {
@@ -47,6 +52,10 @@
       "tags": ["volume", "smoke", "cloud"],
       "ru": "Generator of pseudo-volume 3D textures (slice sheets) for clouds and smoke.",
       "local": { "exe": "apps/pseudo-volume/*.exe" },
+      "linux": {
+        "local": { "exe": "apps/pseudo-volume/*.x86_64" },
+        "manualNote": "A Linux build exists on itch.io (3D Volume Generator 2.7 Linux.zip): open the page, Download Now, No thanks, put the zip into downloads and run the install again."
+      },
       "download": { "manual": "https://acetix.itch.io/pseudo-volume-generator", "unzip": "apps/pseudo-volume", "strip": "3D Volume Generator 2.7 Win", "note": "itch.io serves the file only through the Download Now button, then No thanks, just take me to the downloads. Put 3D Volume Generator 2.7 Win.zip in downloads and run the install again." }
     },
     {
@@ -59,6 +68,7 @@
       "tags": ["procedural", "noise", "free"],
       "ru": "Node-based image editor and texture builder: noise, masks, normals, PBR.",
       "local": { "installer": "downloads/PixaFlux.20260528.exe", "find": { "hints": ["PixaFlux"], "exe": "PixaFlux.exe" }, "extras": ["downloads/pixaflux_blender_addon.zip", "apps/pixaflux-samples"] },
+      "linux": { "unsupported": "PixaFlux: the vendor ships a Windows installer only." },
       "download": { "url": "http://pixaflux.com/bin/PixaFlux.20260528.exe", "file": "downloads/PixaFlux.20260528.exe", "extra": [ { "url": "http://pixaflux.com/blender/pixaflux.zip", "file": "downloads/pixaflux_blender_addon.zip" }, { "url": "http://pixaflux.com/wiki/samples/Samples.zip", "unzip": "apps/pixaflux-samples" } ] }
     },
     {
@@ -71,6 +81,7 @@
       "tags": ["cloud", "smoke", "dust"],
       "ru": "Generator of clouds, smoke and dust: renders volumetric clouds to images and sequences.",
       "local": { "installer": "downloads/KumoWorksSetup.exe", "find": { "hints": ["KumoWorks", "OpenToonz"], "exe": "KumoWorks.exe" } },
+      "linux": { "unsupported": "KumoWorks: the releases ship Windows and macOS installers only." },
       "download": { "url": "https://github.com/opentoonz/kumoworks/releases/download/v1.0.1/KumoWorksSetup.exe", "file": "downloads/KumoWorksSetup.exe" }
     },
     {
@@ -83,6 +94,7 @@
       "tags": ["flow", "flipbook"],
       "ru": "Builds flipbooks and sprite sheets from sequences, with preview and flow texture preparation.",
       "local": { "installer": "downloads/Slate_Installer.exe", "find": { "hints": ["Slate", "FacedownFX"], "exe": "Slate.exe" } },
+      "linux": { "unsupported": "Slate: the vendor package pinned here is a Windows installer; no Linux build is distributed (checked 2026-11-02)." },
       "download": { "url": "https://s3.eu-west-2.amazonaws.com/facedownfx/Slate/Builds/Slate_Installer.zip", "unzip": "downloads" }
     },
     {

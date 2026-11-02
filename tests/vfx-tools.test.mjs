@@ -12,7 +12,10 @@ import express from 'express';
 import { registerVfxTools, resolveInside, validateCatalog, loadCatalog, isTextureName, findInstalled, findExe, defaultSearchRoots } from '../server/vfx-tools.mjs';
 
 const PNG = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(24, 7)]);
+const IS_WIN = process.platform === 'win32';
+const OPENER = IS_WIN ? 'explorer.exe' : 'xdg-open';
 const root = mkdtempSync(path.join(tmpdir(), 'af-vfx-root-'));
+const MM_EXE = path.join(root, 'apps', 'material-maker', IS_WIN ? 'material_maker.exe' : 'material_maker.x86_64');
 const programs = mkdtempSync(path.join(tmpdir(), 'af-vfx-programs-'));
 const catalog = loadCatalog();
 const calls = [];
@@ -35,8 +38,10 @@ const tool = async (id) => (await (await fetch(base + '/api/vfx-tools')).json())
 
 before(async () => {
   put('apps/material-maker/material_maker.exe');
+  if (!IS_WIN) put('apps/material-maker/material_maker.x86_64', '#!/bin/sh\n');   // the catalog's linux.local binary name
   put('apps/pseudo-volume/Pseudo/UnityCrashHandler64.exe');
   put('apps/pseudo-volume/Pseudo/Volume Generator.exe');
+  if (!IS_WIN) put('apps/pseudo-volume/Pseudo/Volume Generator.x86_64', '#!/bin/sh\n');
   put('apps/material-maker-files/impact_decal.ptex', '{}');
   put('downloads/PixaFlux.20260528.exe');
   put('web/texture-generator/index.html', '<!doctype html><title>tg</title>');
@@ -122,17 +127,24 @@ test('GET /api/vfx-tools: state from the actual files, download is not returned'
   assert.deepEqual(Object.keys(body.kinds), Object.keys(catalog.kinds));
   assert.equal(body.tools.length, catalog.tools.length);
   assert.ok(body.tools.every((t) => !('download' in t)));
+  assert.ok(body.tools.every((t) => !('linux' in t)));
   const by = Object.fromEntries(body.tools.map((t) => [t.id, t]));
 
   assert.equal(by['material-maker'].available, true);
   assert.equal(by['material-maker'].launchable, true);
   assert.equal(by['flowmap-painter'].available, false);
   assert.equal(by['flowmap-painter'].launchable, false);
-  assert.equal(by['pseudo-volume'].available, true);          // "*.exe" did not pick UnityCrashHandler
-
-  assert.equal(by['pixaflux'].installerAvailable, true);
-  assert.equal(by['pixaflux'].installed, true);                // found in programs/PixaFlux/bin
-  assert.equal(by['pixaflux'].launchable, true);
+  assert.equal(by['pseudo-volume'].available, true);          // the glob did not pick UnityCrashHandler
+  if (IS_WIN) {
+    assert.equal(by['pixaflux'].installerAvailable, true);
+    assert.equal(by['pixaflux'].installed, true);                // found in programs/PixaFlux/bin
+    assert.equal(by['pixaflux'].launchable, true);
+  } else {   // the vendor ships no Linux binary: the tab shows it as unavailable, not as "not downloaded"
+    assert.equal(by['pixaflux'].available, false);
+    assert.match(by['pixaflux'].unsupportedHere, /Windows installer/);
+    assert.match(by['kumoworks'].unsupportedHere, /macOS installers/);
+    assert.match(by['slate'].unsupportedHere, /no Linux build/i);
+  }
   assert.equal(by['kumoworks'].installerAvailable, false);
   assert.equal(by['kumoworks'].installed, false);
   assert.equal(by['kumoworks'].available, false);
@@ -174,7 +186,8 @@ test('findExe and findInstalled', async () => {
   assert.match(await findInstalled({ hints: ['pixaflux'], exe: 'pixaflux.exe' }, [programs]), /PixaFlux\.exe$/);
   assert.equal(await findInstalled({ hints: ['Slate'], exe: 'Slate.exe' }, [programs]), null);
   assert.equal(await findInstalled({ hints: ['Slate'], exe: 'Slate.exe' }, [path.join(programs, 'no')]), null);
-  assert.ok(defaultSearchRoots({ ProgramFiles: 'C:\\P', LOCALAPPDATA: 'C:\\L' }).some((p) => /Programs$/.test(p)));
+  if (IS_WIN) assert.ok(defaultSearchRoots({ ProgramFiles: 'C:\\P', LOCALAPPDATA: 'C:\\L' }).some((p) => /Programs$/.test(p)));
+  else assert.deepEqual(defaultSearchRoots({ HOME: '/home/x' }), []);   // the installer-kind tools are Windows-only
 });
 
 test('web generators live on a separate port: /vfx-web/:id serves files, everything else returns 404', async () => {
@@ -291,7 +304,7 @@ test('launch: desktop, an installed program, a template in Material Maker; error
   calls.length = 0;
   assert.equal((await post('/api/vfx-tools/material-maker/launch')).status, 200);
   assert.equal(calls.length, 1);
-  assert.equal(calls[0].exe, path.join(root, 'apps', 'material-maker', 'material_maker.exe'));
+  assert.equal(calls[0].exe, MM_EXE);
   assert.deepEqual(calls[0].args, []);
   assert.equal(calls[0].opts.cwd, path.join(root, 'apps', 'material-maker'));
   assert.equal(calls[0].opts.detached, true);
@@ -299,24 +312,30 @@ test('launch: desktop, an installed program, a template in Material Maker; error
 
   calls.length = 0;
   assert.equal((await post('/api/vfx-tools/pseudo-volume/launch')).status, 200);
-  assert.match(calls[0].exe, /Volume Generator\.exe$/);
+  assert.match(calls[0].exe, IS_WIN ? /Volume Generator\.exe$/ : /Volume Generator\.x86_64$/);
 
-  calls.length = 0;
-  assert.equal((await post('/api/vfx-tools/pixaflux/launch')).status, 200);
-  assert.equal(calls[0].exe, path.join(programs, 'PixaFlux', 'bin', 'PixaFlux.exe'));
+  if (IS_WIN) {
+    calls.length = 0;
+    assert.equal((await post('/api/vfx-tools/pixaflux/launch')).status, 200);
+    assert.equal(calls[0].exe, path.join(programs, 'PixaFlux', 'bin', 'PixaFlux.exe'));
+  } else {
+    const off = await post('/api/vfx-tools/pixaflux/launch');
+    assert.equal(off.status, 400);
+    assert.match((await off.json()).error, /Windows installer/);
+  }
 
   calls.length = 0;
   assert.equal((await post('/api/vfx-tools/impact-decal/launch')).status, 200);
-  assert.equal(calls[0].exe, path.join(root, 'apps', 'material-maker', 'material_maker.exe'));
+  assert.equal(calls[0].exe, MM_EXE);
   assert.deepEqual(calls[0].args, [path.join(root, 'apps', 'material-maker-files', 'impact_decal.ptex')]);
 
   calls.length = 0;
   const missing = await post('/api/vfx-tools/flowmap-painter/launch');
   assert.equal(missing.status, 400);
-  assert.match((await missing.json()).error, /is not downloaded/);
+  assert.match((await missing.json()).error, IS_WIN ? /is not downloaded/ : /Windows binaries only/);
   const notInstalled = await post('/api/vfx-tools/slate/launch');
   assert.equal(notInstalled.status, 400);
-  assert.match((await notInstalled.json()).error, /is not installed/);
+  assert.match((await notInstalled.json()).error, IS_WIN ? /is not installed/ : /no Linux build/i);
   const online = await post('/api/vfx-tools/tgen/launch');
   assert.equal(online.status, 400);
   assert.equal((await post('/api/vfx-tools/no-such-tool/launch')).status, 404);
@@ -324,20 +343,26 @@ test('launch: desktop, an installed program, a template in Material Maker; error
   assert.equal(calls.length, 0);
 });
 
-test('install and folders: from the catalog only, explorer.exe with the tool folder', async () => {
+test(`install and folders: from the catalog only, ${IS_WIN ? 'explorer.exe' : 'xdg-open'} with the tool folder`, async () => {
   calls.length = 0;
-  assert.equal((await post('/api/vfx-tools/pixaflux/install')).status, 200);
-  assert.equal(calls[0].exe, path.join(root, 'downloads', 'PixaFlux.20260528.exe'));
+  if (IS_WIN) {
+    assert.equal((await post('/api/vfx-tools/pixaflux/install')).status, 200);
+    assert.equal(calls[0].exe, path.join(root, 'downloads', 'PixaFlux.20260528.exe'));
 
-  calls.length = 0;
-  const noInstaller = await post('/api/vfx-tools/kumoworks/install');
-  assert.equal(noInstaller.status, 400);
-  assert.match((await noInstaller.json()).error, /is not downloaded/);
+    calls.length = 0;
+    const noInstaller = await post('/api/vfx-tools/kumoworks/install');
+    assert.equal(noInstaller.status, 400);
+    assert.match((await noInstaller.json()).error, /is not downloaded/);
+  } else {   // no installer-kind tool has a Linux build: install explains, it never runs the .exe
+    const off = await post('/api/vfx-tools/pixaflux/install');
+    assert.equal(off.status, 400);
+    assert.match((await off.json()).error, /Windows installer/);
+  }
   assert.equal((await post('/api/vfx-tools/material-maker/install')).status, 400);   // not an installer
   assert.equal(calls.length, 0);
 
   assert.equal((await post('/api/vfx-tools/material-maker/folder')).status, 200);
-  assert.deepEqual([calls[0].exe, calls[0].args], ['explorer.exe', [path.join(root, 'apps', 'material-maker')]]);
+  assert.deepEqual([calls[0].exe, calls[0].args], [OPENER, [path.join(root, 'apps', 'material-maker')]]);
   assert.equal((await post('/api/vfx-tools/texture-generator-online/folder')).status, 200);
   assert.deepEqual(calls[1].args, [path.join(root, 'web', 'texture-generator')]);
   assert.equal((await post('/api/vfx-tools/flowmap-painter/folder')).status, 400);
@@ -346,7 +371,7 @@ test('install and folders: from the catalog only, explorer.exe with the tool fol
   calls.length = 0;
   rmSync(path.join(root, 'textures'), { recursive: true, force: true });
   assert.equal((await post('/api/vfx-tools/folder')).status, 200);
-  assert.deepEqual([calls[0].exe, calls[0].args], ['explorer.exe', [path.resolve(root)]]);
+  assert.deepEqual([calls[0].exe, calls[0].args], [OPENER, [path.resolve(root)]]);
   assert.ok(existsSync(path.join(root, 'textures')), 'textures/ created');
   assert.equal((await post('/api/vfx-tools/folder', { where: 'textures' })).status, 200);
   assert.deepEqual(calls[1].args, [path.join(root, 'textures')]);

@@ -18,14 +18,16 @@ import path from 'node:path';
 import { promises as fs, readFileSync } from 'node:fs';
 import { spawn as nodeSpawn } from 'node:child_process';
 import { createServer } from 'node:http';
-import { saveAsset as defaultSaveAsset } from './storage.mjs';
+import { saveAsset as defaultSaveAsset, root as appRoot } from './storage.mjs';
 
-export const DEFAULT_ROOT = 'C:\\AstraForge\\tools\\vfx';
+const IS_WIN = process.platform === 'win32';   // vendors and shell helpers differ off Windows (docs/linux.md)
+export const DEFAULT_ROOT = IS_WIN ? 'C:\\AstraForge\\tools\\vfx' : path.join(appRoot, 'runtime', 'vfx');
 export const DEFAULT_WEB_PORT = 3211;
 export const CACHE_MS = 30000;
 const TEXTURE_LIMIT = 200;
 const TEXTURE_MAX_BYTES = 100 * 1024 * 1024;
-const INSTALL_HINT = 'Run scripts\\vfx\\Install-VfxTools.ps1.';
+const INSTALL_HINT = IS_WIN ? 'Run scripts\\vfx\\Install-VfxTools.ps1.' : 'Run scripts/vfx/install-vfx.sh.';
+const FOLDER_OPENER = IS_WIN ? 'explorer.exe' : 'xdg-open';
 
 const fail = (message, status = 400) => Object.assign(new Error(message), { status });
 const notFound = (res) => res.status(404).type('text/plain; charset=utf-8').send('Not found');
@@ -78,8 +80,9 @@ export function validateCatalog(catalog) {
   return problems;
 }
 
-/** Roots where installed programs are searched for. */
+/** Roots where installed programs are searched for (the installer kinds are Windows-only tools). */
 export function defaultSearchRoots(env = process.env) {
+  if (!IS_WIN) return [];
   const roots = [env.ProgramFiles, env['ProgramFiles(x86)'], env.LOCALAPPDATA && path.join(env.LOCALAPPDATA, 'Programs')];
   return [...new Set(roots.filter(Boolean))];
 }
@@ -109,13 +112,14 @@ export async function findFile(dir, test, maxDepth) {
   return null;
 }
 
-/** Program exe by the catalog path. A path with "*" in the name: the first matching .exe in the folder (up to 2 levels), excluding UnityCrashHandler*. */
+/** Program executable by the catalog path. A path with "*" in the name: the first matching file of that extension in the folder (up to 2 levels), excluding UnityCrashHandler*. */
 export async function findExe(root, rel) {
   const full = resolveInside(root, rel);
   const name = path.basename(full);
   if (!name.includes('*')) return (await isFile(full)) ? full : null;
+  const ext = path.extname(name).toLowerCase() || (IS_WIN ? '.exe' : '');
   const match = globRegExp(name);
-  return findFile(path.dirname(full), (n) => /\.exe$/i.test(n) && match.test(n) && !/^UnityCrashHandler/i.test(n), 2);
+  return findFile(path.dirname(full), (n) => (!ext || n.toLowerCase().endsWith(ext)) && match.test(n) && !/^UnityCrashHandler/i.test(n), 2);
 }
 
 /** Installed program: child folders of the roots whose name contains the hint and, inside (up to 3 levels), an exe. */
@@ -149,14 +153,18 @@ function startProcess(spawnFn, exe, args = [], { cwd, elevate = true } = {}) {
     try { child = spawnFn(exe, args, { detached: true, stdio: 'ignore', cwd, windowsHide: false }); } catch (e) { return reject(bad(e)); }
     child.once('error', (e) => {
       // Installers often need administrator rights: CreateProcess answers EACCES/UNKNOWN (error 740), while the Windows shell shows a UAC prompt.
-      if (elevate && !args.length && ['EACCES', 'EPERM', 'UNKNOWN'].includes(e.code)) return startProcess(spawnFn, 'explorer.exe', [exe], { cwd, elevate: false }).then(resolve, reject);
+      if (elevate && IS_WIN && !args.length && ['EACCES', 'EPERM', 'UNKNOWN'].includes(e.code)) return startProcess(spawnFn, 'explorer.exe', [exe], { cwd, elevate: false }).then(resolve, reject);
       reject(bad(e));
     });
     child.once('spawn', () => { child.unref(); resolve(); });
   });
 }
 
-const stripDownload = ({ download, ...tool }) => tool;
+const stripDownload = ({ download, linux, ...tool }) => tool;
+
+/** Catalog entries may override local paths for Linux (linux.local) or say the vendor ships no Linux binary (linux.unsupported). */
+const localSpec = (t) => (!IS_WIN && t?.linux?.local) ? t.linux.local : (t?.local || {});
+const unsupportedHere = (t) => (!IS_WIN && t?.linux?.unsupported) ? String(t.linux.unsupported) : null;
 
 export function createVfxTools(options = {}) {
   const root = path.resolve(options.root || process.env.ASTRA_VFX_TOOLS || DEFAULT_ROOT);
@@ -179,32 +187,35 @@ export function createVfxTools(options = {}) {
   async function installedExe(t, fresh = false) {
     const hit = installedCache.get(t.id);
     if (!fresh && hit && Date.now() - hit.at < CACHE_MS) return hit.exe;
-    const exe = await findInstalled(t.local.find, searchRoots);
+    const exe = await findInstalled(localSpec(t).find, searchRoots);
     installedCache.set(t.id, { at: Date.now(), exe });
     return exe;
   }
 
   /** Program executable (desktop - downloaded, installer - installed) or null. */
   async function exeOf(t, fresh = false) {
-    if (t.kind === 'desktop') return findExe(root, t.local.exe);
+    if (t.kind === 'desktop') return findExe(root, localSpec(t).exe);
     if (t.kind === 'installer') return installedExe(t, fresh);
     return null;
   }
 
-  const openerOf = (t) => { const o = byId.get(t.local?.openWith); return o ? exeOf(o) : null; };
+  const openerOf = (t) => { const o = byId.get(localSpec(t).openWith); return o ? exeOf(o) : null; };
 
   async function stateOf(t) {
     const s = { available: false, launchable: false, installerAvailable: false, installed: false };
+    const off = unsupportedHere(t);
+    if (off) return { ...s, unsupportedHere: off };
+    const local = localSpec(t);
     try {
-      if (t.kind === 'desktop') s.available = s.launchable = !!(await findExe(root, t.local.exe));
+      if (t.kind === 'desktop') s.available = s.launchable = !!(await findExe(root, local.exe));
       else if (t.kind === 'installer') {
-        s.installerAvailable = await isFile(resolveInside(root, t.local.installer));
+        s.installerAvailable = await isFile(resolveInside(root, local.installer));
         s.installed = !!(await installedExe(t));
         s.launchable = s.installed;
         s.available = s.installed || s.installerAvailable;
-      } else if (t.kind === 'web-local') s.available = await isFile(path.join(resolveInside(root, t.local.web), 'index.html'));
+      } else if (t.kind === 'web-local') s.available = await isFile(path.join(resolveInside(root, local.web), 'index.html'));
       else if (t.kind === 'file') {
-        s.available = await isFile(resolveInside(root, t.local.file));
+        s.available = await isFile(resolveInside(root, local.file));
         s.launchable = s.available && !!(await openerOf(t));
       }
     } catch { /* a broken catalog entry must not break the whole list */ }
@@ -230,11 +241,14 @@ export function createVfxTools(options = {}) {
 
   async function launch(id) {
     const t = tool(id);
+    const off = unsupportedHere(t);
+    if (off) throw fail(off);
+    const local = localSpec(t);
     if (t.kind === 'file') {
       const exe = await openerOf(t);
-      const file = resolveInside(root, t.local.file);
+      const file = resolveInside(root, local.file);
       if (!(await isFile(file))) throw fail(`File "${path.basename(file)}" is not downloaded. ${INSTALL_HINT}`);
-      if (!exe) throw fail(`Opening requires "${byId.get(t.local.openWith)?.name || t.local.openWith}", which is not downloaded. ${INSTALL_HINT}`);
+      if (!exe) throw fail(`Opening requires "${byId.get(local.openWith)?.name || local.openWith}", which is not downloaded. ${INSTALL_HINT}`);
       await startProcess(spawnFn, exe, [file], { cwd: path.dirname(exe) });
     } else if (t.kind === 'desktop' || t.kind === 'installer') {
       const exe = await exeOf(t, true);
@@ -247,7 +261,9 @@ export function createVfxTools(options = {}) {
   async function install(id) {
     const t = tool(id);
     if (t.kind !== 'installer') throw fail('This tool has no installer.');
-    const file = resolveInside(root, t.local.installer);
+    const off = unsupportedHere(t);
+    if (off) throw fail(off);
+    const file = resolveInside(root, localSpec(t).installer);
     if (!(await isFile(file))) throw fail(`Installer "${path.basename(file)}" is not downloaded. ${INSTALL_HINT}`);
     installedCache.delete(t.id);
     await startProcess(spawnFn, file, [], { cwd: path.dirname(file) });
@@ -256,13 +272,14 @@ export function createVfxTools(options = {}) {
 
   /** Tool folder: for a program, the exe folder; for a web generator, the site folder; for a template, the file folder. */
   async function toolFolder(t) {
+    const local = localSpec(t);
     let dir = null;
-    if (t.kind === 'desktop') { const exe = await findExe(root, t.local.exe); dir = exe && path.dirname(exe); }
+    if (t.kind === 'desktop') { const exe = await findExe(root, local.exe); dir = exe && path.dirname(exe); }
     else if (t.kind === 'installer') {
       const exe = await installedExe(t, true);
-      dir = exe ? path.dirname(exe) : (await isFile(resolveInside(root, t.local.installer))) ? path.dirname(resolveInside(root, t.local.installer)) : null;
-    } else if (t.kind === 'web-local') dir = resolveInside(root, t.local.web);
-    else if (t.kind === 'file') dir = path.dirname(resolveInside(root, t.local.file));
+      dir = exe ? path.dirname(exe) : (await isFile(resolveInside(root, local.installer))) ? path.dirname(resolveInside(root, local.installer)) : null;
+    } else if (t.kind === 'web-local') dir = resolveInside(root, local.web);
+    else if (t.kind === 'file') dir = path.dirname(resolveInside(root, local.file));
     else throw fail('This tool has no local folder.');
     if (!dir || !(await isDir(dir))) throw fail(`Folder of "${t.name}" not found: the tool is not downloaded. ${INSTALL_HINT}`);
     return dir;
@@ -270,13 +287,13 @@ export function createVfxTools(options = {}) {
 
   async function openFolder(id) {
     const dir = await toolFolder(tool(id));
-    await startProcess(spawnFn, 'explorer.exe', [dir], { elevate: false });
+    await startProcess(spawnFn, FOLDER_OPENER, [dir], { elevate: false });
     return { ok: true };
   }
 
   async function openRoot(where) {
     await fs.mkdir(texturesDir(), { recursive: true });
-    await startProcess(spawnFn, 'explorer.exe', [where === 'textures' ? texturesDir() : root], { elevate: false });
+    await startProcess(spawnFn, FOLDER_OPENER, [where === 'textures' ? texturesDir() : root], { elevate: false });
     return { ok: true };
   }
 
