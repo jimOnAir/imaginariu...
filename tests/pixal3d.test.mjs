@@ -247,9 +247,14 @@ test('runtime start: the environment drops system CUDA / Python variables like t
   const env = pixal3dEnv(cfg, { cuda_path: 'x', CUDA_HOME: 'y', PYTHONPATH: 'z', VIRTUAL_ENV: 'v', Path: 'C:\\Tools', windir: 'C:\\Windows', KEEP: '1' });
   for (const k of ['cuda_path', 'CUDA_HOME', 'PYTHONPATH', 'VIRTUAL_ENV']) assert.equal(env[k], undefined, k);
   assert.equal(env.KEEP, '1');
-  assert.match(env.Path, /^C:\\Windows[\\/]System32;.*C:\\Tools$/, 'System32 first, the old PATH kept, one PATH key only');
   assert.equal(Object.keys(env).filter((k) => k.toUpperCase() === 'PATH').length, 1);
-  assert.match(pixal3dEnv(cfg, {}).PATH, /^C:\\Windows[\\/]System32;/, 'default Windows folder when windir is unset');
+  if (process.platform === 'win32') {
+    assert.match(env.Path, /^C:\\Windows[\\/]System32;.*C:\\Tools$/, 'System32 first, the old PATH kept, one PATH key only');
+    assert.match(pixal3dEnv(cfg, {}).PATH, /^C:\\Windows[\\/]System32;/, 'default Windows folder when windir is unset');
+  } else {   // the System32 injection is the bat-file trick; on POSIX PATH is inherited untouched
+    assert.equal(env.Path, 'C:\\Tools', 'PATH inherited unchanged on POSIX');
+    assert.equal(pixal3dEnv(cfg, { PATH: '/usr/bin' }).PATH, '/usr/bin');
+  }
   const args = pixal3dArgs({ port: 8200 }, 'T');
   assert.equal(args[args.indexOf('--port') + 1], '8200');
   assert.deepEqual(args.slice(-3), ['--disable-auto-launch', '--temp-directory', 'T']);

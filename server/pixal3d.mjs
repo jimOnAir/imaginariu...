@@ -105,13 +105,15 @@ export function pixal3dEnv(cfg, base = process.env) {
   const env = { ...base };
   const drop = new Set(['CUDA_PATH', 'CUDA_HOME', 'CUDA_BIN_PATH', 'CUDNN_PATH', 'PYTHONPATH', 'PYTHONHOME', 'VIRTUAL_ENV', 'CONDA_PREFIX']);
   for (const k of Object.keys(env)) if (drop.has(k.toUpperCase())) delete env[k];   // Windows names are case-insensitive
-  const win = base.windir || base.SystemRoot || 'C:\\Windows';
   const pathKey = Object.keys(env).find((k) => k.toUpperCase() === 'PATH') || 'PATH';
   Object.assign(env, {
     HF_HOME: path.join(cfg.dir, 'cache', 'huggingface'), TORCH_HOME: path.join(cfg.dir, 'cache', 'torch'),
     HF_HUB_DISABLE_TELEMETRY: '1', HF_HUB_DISABLE_SYMLINKS_WARNING: '1', PYTHONUTF8: '1',
-    [pathKey]: [path.join(win, 'System32'), path.join(win, 'System32', 'WindowsPowerShell', 'v1.0'), env[pathKey] || ''].join(path.delimiter),
   });
+  if (process.platform === 'win32') {   // the bat file's System32-first PATH is Windows-only; POSIX inherits PATH untouched
+    const win = base.windir || base.SystemRoot || 'C:\\Windows';
+    env[pathKey] = [path.join(win, 'System32'), path.join(win, 'System32', 'WindowsPowerShell', 'v1.0'), env[pathKey] || ''].join(path.delimiter);
+  }
   return env;
 }
 

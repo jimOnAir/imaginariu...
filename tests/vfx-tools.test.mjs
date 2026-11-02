@@ -101,8 +101,10 @@ test('resolveInside: a path inside root passes, ".." and absolute paths are reje
   assert.equal(resolveInside(root, 'apps/x/y.exe'), path.join(root, 'apps', 'x', 'y.exe'));
   assert.equal(resolveInside(root, 'apps/pseudo-volume/*.exe'), path.join(root, 'apps', 'pseudo-volume', '*.exe'));
   assert.equal(resolveInside(root, 'a/../b'), path.join(root, 'b'));
-  for (const bad of ['../x', 'a/../../x', '..\\x', '..', path.resolve(root, '..', 'x'), 'C:\\Windows\\notepad.exe', '/etc/passwd', '', 'a\0b']) {
-    assert.throws(() => resolveInside(root, bad), Error, JSON.stringify(bad));
+  const bad = ['../x', 'a/../../x', '..', path.resolve(root, '..', 'x'), '/etc/passwd', '', 'a\0b'];
+  if (path.sep === '\\') bad.push('..\\x', 'C:\\Windows\\notepad.exe');   // backslashes are separators only on Windows; on POSIX they are literal file names inside root
+  for (const b of bad) {
+    assert.throws(() => resolveInside(root, b), Error, JSON.stringify(b));
   }
 });
 
