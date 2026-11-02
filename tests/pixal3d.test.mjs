@@ -117,7 +117,7 @@ test('generation schema: engine defaults to hunyuan (old API clients unchanged),
 test('settings: ASTRA_PIXAL3D_DIR beats config/paths.json beats the default; the URL must be local', () => {
   const app = path.join(tmp, 'app1');
   mkdirSync(path.join(app, 'config'), { recursive: true });
-  assert.equal(pixal3dConfig({ env: {}, appRoot: app }).dir, path.resolve(DEFAULT_PIXAL3D_DIR));
+  assert.equal(pixal3dConfig({ env: {}, appRoot: app }).dir, process.platform === 'win32' ? path.resolve(DEFAULT_PIXAL3D_DIR) : path.join(app, 'runtime', 'ComfyUI-Pixal3D'));
   assert.equal(pixal3dConfig({ env: {}, appRoot: app }).source, 'default');
   assert.equal(pixal3dConfig({ env: {}, appRoot: app }).url, DEFAULT_PIXAL3D_URL);
   writeFileSync(path.join(app, 'config', 'paths.json'), JSON.stringify({ pixal3dDir: 'D:/Engines/Pixal3D' }));

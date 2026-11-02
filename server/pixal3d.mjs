@@ -39,7 +39,8 @@ function readPathsJson(rootDir) {
  */
 export function pixal3dConfig({ env = process.env, appRoot = root } = {}) {
   const paths = readPathsJson(appRoot);
-  let dir = DEFAULT_PIXAL3D_DIR, source = 'default';
+  // the Windows default is the short folder from the README; on POSIX the app-local runtime folder mirrors it
+  let dir = process.platform === 'win32' ? DEFAULT_PIXAL3D_DIR : path.join(appRoot, 'runtime', 'ComfyUI-Pixal3D'), source = 'default';
   if (env.ASTRA_PIXAL3D_DIR) { dir = env.ASTRA_PIXAL3D_DIR; source = 'env'; }
   else if (typeof paths.pixal3dDir === 'string' && paths.pixal3dDir.trim()) { dir = paths.pixal3dDir.trim(); source = 'paths.json'; }
   let url = DEFAULT_PIXAL3D_URL;
