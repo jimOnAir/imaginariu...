@@ -378,8 +378,12 @@ InstallOllama() {
   return 1
 }
 
-# wired with its final phase of the Linux port; an honest placeholder, never silent
-InstallPixal3d() { say '  Pixal3D for Linux is wired with its final phase (see docs/linux.md).'; return 1; }
+# Pixal3D for Linux: installer/pixal3d/install-pixal3d.sh (engine|weights|test), same manifest pins
+Pixal3dComponent() { # engine|weights|test
+  local dir; dir="$(CfgGet pixal3dDir)"; [ -n "$dir" ] || dir="${ASTRA_PIXAL3D_DIR:-$RT/ComfyUI-Pixal3D}"
+  CfgSet pixal3dDir "$dir"
+  "$ROOT/installer/pixal3d/install-pixal3d.sh" "$1" "$dir"
+}
 
 InstallMvadapter() {
   local man="$ROOT/installer/mvadapter/manifest.json" n py
@@ -550,7 +554,9 @@ for e in "${plan[@]}"; do
     vlm) PullModel "$VlmName" || err=$? ;;
     mvadapter) InstallMvadapter || err=$? ;;
     vfx) InstallVfx || err=$? ;;
-    pixal3d|pixal3dw|pixal3dtest) InstallPixal3d || err=$? ;;
+    pixal3d) { Pixal3dComponent engine && Pixal3dComponent test; } || err=$? ;;
+    pixal3dw) Pixal3dComponent weights || err=$? ;;
+    pixal3dtest) Pixal3dComponent test || err=$? ;;
     *) say "  not implemented yet: $id"; err=1 ;;
   esac
   if [ -z "$err" ]; then

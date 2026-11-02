@@ -10,9 +10,12 @@ import { localUrl } from './schema.mjs';
 export const DEFAULT_PIXAL3D_DIR = 'C:/AstraForge/ComfyUI-Pixal3D';
 export const DEFAULT_PIXAL3D_URL = 'http://127.0.0.1:8191';
 
+/** Python of the portable install: Windows ships python_embeded, the Linux install is a uv venv. */
+export const PIXAL3D_PYTHON_REL = process.platform === 'win32' ? 'python_embeded/python.exe' : '.venv/bin/python';
+
 /** What has to be on disk for Pixal3D (shape only). [relative path inside the install folder, what it is]. */
 export const PIXAL3D_REQUIREMENTS = [
-  ['python_embeded/python.exe', 'Python for ComfyUI-Pixal3D'],
+  [PIXAL3D_PYTHON_REL, 'Python for ComfyUI-Pixal3D'],
   ['ComfyUI/main.py', 'ComfyUI'],
   ['ComfyUI/custom_nodes/ComfyUI-Trellis2/nodes.py', 'Trellis2/Pixal3D nodes'],
   ['ComfyUI/models/TencentARC/Pixal3D/ckpts/ss_flow_img_dit_1_3B_64_bf16.safetensors', 'Pixal3D weights: coarse shape (single view)'],
@@ -125,8 +128,10 @@ export function pixal3dEnv(cfg, base = process.env) {
  * ComfyUI/user/comfyui.db (found when a second instance was started on another port).
  */
 export function pixal3dArgs(cfg, tempDir, dbFile) {
-  const args = ['-I', '-W', 'ignore::FutureWarning', path.join('ComfyUI', 'main.py'), '--windows-standalone-build', '--listen', '127.0.0.1',
-    '--port', String(cfg.port), '--disable-auto-launch', '--temp-directory', tempDir];
+  // -I and --windows-standalone-build belong to the Windows portable layout; a Linux venv must not run isolated (it drops the script folder from sys.path)
+  const args = [...(process.platform === 'win32' ? ['-I'] : []), '-W', 'ignore::FutureWarning', path.join('ComfyUI', 'main.py'),
+    ...(process.platform === 'win32' ? ['--windows-standalone-build'] : []),
+    '--listen', '127.0.0.1', '--port', String(cfg.port), '--disable-auto-launch', '--temp-directory', tempDir];
   if (dbFile) args.push('--database-url', 'sqlite:///' + dbFile.replaceAll('\\', '/'));
   return args;
 }
@@ -152,7 +157,7 @@ export async function startPixal3dRuntime(o = {}) {
     onProgress?.('Pixal3D is already starting');
   } else {
     onProgress?.('Starting the Pixal3D engine (the first start takes 1-2 minutes)');
-    const python = path.join(cfg.dir, 'python_embeded', 'python.exe'), tempDir = pixal3dTempDir(runtimeDir), logFile = pixal3dLogFile(runtimeDir);
+    const python = path.join(cfg.dir, ...PIXAL3D_PYTHON_REL.split('/')), tempDir = pixal3dTempDir(runtimeDir), logFile = pixal3dLogFile(runtimeDir);
     await fs.mkdir(tempDir, { recursive: true });   // also creates runtimeDir
     const fd = openSync(logFile, 'a');
     try {
@@ -181,7 +186,7 @@ export async function startPixal3dRuntime(o = {}) {
 export function stopOwnedPixal3d() {
   if (!child) return;
   if (process.platform === 'win32') spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true, stdio: 'ignore' }).on('error', () => {});
-  else child.kill();
+  else { try { process.kill(-child.pid, 'SIGKILL'); } catch { try { child.kill('SIGKILL'); } catch { /* gone */ } } }   // the engine runs in its own process group
   child = null;
 }
 

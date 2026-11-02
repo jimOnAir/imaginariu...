@@ -221,5 +221,34 @@
         "sha256": "043a0d7fc7ee81792fcb22f836c91f5aaf69f4fda15e25c38488db13dd7b77ec"
       }
     ]
+  },
+  "linux": {
+    "_comment": "Linux counterpart of the Windows pins (installer/pixal3d/install-pixal3d.sh): the node archive carries prebuilt wheels under wheels/Linux/Torch291 for PyTorch 2.9.1+cu128; triton replaces triton-windows; FlashAttention and NATTEN come from the official GitHub releases as the cp312 linux_x86_64 wheels matching that torch (checksums verified on download, computed 2026-11-02).",
+    "wheelDir": "wheels/Linux/Torch291",
+    "wheels": [
+      "cumesh-1.0-cp312-cp312-linux_x86_64.whl",
+      "custom_rasterizer-0.1-cp312-cp312-linux_x86_64.whl",
+      "flex_gemm-0.0.1-cp312-cp312-linux_x86_64.whl",
+      "nvdiffrast-0.4.0-cp312-cp312-linux_x86_64.whl",
+      "nvdiffrec_render-0.0.0-cp312-cp312-linux_x86_64.whl",
+      "o_voxel-0.0.1-cp312-cp312-linux_x86_64.whl"
+    ],
+    "torch": {
+      "packages": ["torch==2.9.1", "torchvision", "torchaudio"],
+      "index": "https://download.pytorch.org/whl/cu128"
+    },
+    "triton": "triton==3.4.0",
+    "flashAttn": {
+      "file": "flash_attn-2.8.3+cu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl",
+      "url": "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/flash_attn-2.8.3%2Bcu12torch2.9cxx11abiTRUE-cp312-cp312-linux_x86_64.whl",
+      "size": 253780426,
+      "sha256": "4e2f9e39313266b1544b68138b15b91ee6221eccf14f7902b7c6620351340810"
+    },
+    "natten": {
+      "file": "natten-0.21.5+torch290cu128-cp312-cp312-linux_x86_64.whl",
+      "url": "https://github.com/SHI-Labs/NATTEN/releases/download/v0.21.5/natten-0.21.5%2Btorch290cu128-cp312-cp312-linux_x86_64.whl",
+      "size": 367937060,
+      "sha256": "8c20be9bd68195c99a526c21504c10cb4ce42cf0b7e13be1329933fd846a19c0"
+    }
   }
 }

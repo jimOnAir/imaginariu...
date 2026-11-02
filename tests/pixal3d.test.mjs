@@ -11,7 +11,7 @@ import { WebSocketServer } from 'ws';
 import { generationSchema, pixal3dWorkflow, PIXAL3D_MODEL, MV_SLOTS } from '../server/schema.mjs';
 import {
   pixal3dConfig, pixal3dInstallState, pixal3dStatus, resolveEngine, startPixal3dRuntime, pixal3dArgs, pixal3dEnv,
-  PIXAL3D_REQUIREMENTS, _resetPixal3dRuntime, DEFAULT_PIXAL3D_DIR, DEFAULT_PIXAL3D_URL,
+  PIXAL3D_REQUIREMENTS, PIXAL3D_PYTHON_REL, _resetPixal3dRuntime, DEFAULT_PIXAL3D_DIR, DEFAULT_PIXAL3D_URL,
 } from '../server/pixal3d.mjs';
 import { normalizeGlb, buildGlb, parseGlb, glbBounds } from '../server/glb-normalize.mjs';
 import { generatePixal3d, explainPixal3dError, PIXAL3D_PHASES } from '../server/pixal3d-run.mjs';
@@ -224,15 +224,15 @@ test('runtime start: spawns the portable python hidden, with the same arguments 
   });
   assert.equal(r.running, true);
   assert.equal(r.pid, 4242);
-  assert.equal(spawnedArgs.exe, path.join(cfg.dir, 'python_embeded', 'python.exe'));
+  assert.equal(spawnedArgs.exe, path.join(cfg.dir, ...PIXAL3D_PYTHON_REL.split('/')));
   assert.equal(spawnedArgs.options.cwd, cfg.dir);
   assert.equal(spawnedArgs.options.windowsHide, true);
   const a = spawnedArgs.args;
-  assert.deepEqual(a.slice(0, 3), ['-I', '-W', 'ignore::FutureWarning']);
+  assert.deepEqual(a.slice(0, process.platform === 'win32' ? 3 : 2), process.platform === 'win32' ? ['-I', '-W', 'ignore::FutureWarning'] : ['-W', 'ignore::FutureWarning']);
   assert.equal(a[a.indexOf('--port') + 1], '8191');
   assert.equal(a[a.indexOf('--listen') + 1], '127.0.0.1');
   assert.ok(a.includes('--disable-auto-launch'));
-  assert.ok(a.includes('--windows-standalone-build'));
+  assert.equal(a.includes('--windows-standalone-build'), process.platform === 'win32', 'the Windows portable-layout flag');
   assert.equal(a[a.indexOf('--temp-directory') + 1], path.join(runtimeDir, 'pixal3d-temp'), 'the marker scripts/Stop.ps1 uses to find the instance the studio started');
   assert.equal(a[a.indexOf('--database-url') + 1], 'sqlite:///' + path.join(runtimeDir, 'pixal3d.db').replaceAll('\\', '/'), 'own database: no clash with an instance started by hand');
   assert.equal(spawnedArgs.options.env.HF_HOME, path.join(cfg.dir, 'cache', 'huggingface'));
