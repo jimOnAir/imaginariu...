@@ -26,6 +26,8 @@ Use a short Latin-only install path such as `C:\AstraForge`.
 
 ## Quick start with Claude Code
 
+> **Linux?** The `linux-support` branch adds full Linux support: `installer/install.sh` (same components and flags as the PowerShell wizard), `scripts/start.sh` / `stop.sh`, the flock GPU lock and the Pixal3D Linux recipe. See [docs/linux.md](docs/linux.md).
+
 You need [Claude Code](https://claude.com/claude-code).
 
 ```powershell
