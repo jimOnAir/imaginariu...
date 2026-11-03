@@ -38,6 +38,28 @@ ASSET_ID_RE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
 ISO8 = [("S", 0.0), ("SW", -45.0), ("W", -90.0), ("NW", -135.0),
         ("N", 180.0), ("NE", 135.0), ("E", 90.0), ("SE", 45.0)]
 
+# heroes_gates profile - the "Gates of Heroes" sprite contract (docs/forge/export.md): 100 px/m,
+# camera elevation 25 deg, the model turned -25 deg in the base view, cells/anchors as below.
+HG_PX_PER_M = 100.0
+HG_ELEVATION_DEG = 25.0
+HG_MODEL_YAW_DEG = -25.0
+HG_CELLS = {"unit": (320, 320, 160, 272), "hero": (448, 448, 224, 384)}
+# Adaptive unit cell (render_sprites adaptive_cell): a wide stance or a long weapon that overflows the 320 px unit
+# cell takes the next size instead of failing cell_fit. The game honours the cell and anchor of every sprites.json
+# entry (frame regions come from the entry's cell, the sprite offset is -anchor) and scales every unit by one
+# display_scale, so the body keeps 100 px/m; the ground line sits 48 px above the bottom in the 320 unit cell and
+# 64 px in the 448 hero cell - 384 takes the middle (56 px). Square cells.
+HG_CELL_STEPS = [(320, 320, 160, 272), (384, 384, 192, 328), (448, 448, 224, 384)]
+# (view name, world heading of the character in degrees from +X CCW, sheet suffix)
+HG_VIEWS = [("base", HG_MODEL_YAW_DEG, ""), ("nw", 135.0, "_nw"), ("se", -45.0, "_se")]
+HG_COUNTS = {"idle": 12, "walk": 12, "attack": 12, "death": 12, "hit": 6, "cast": 12, "shoot": 12}
+HG_HERO_COUNTS = {"idle": 16, "cast": 16}
+# Default event frames = the most common value in the shipped data/sprites.json (units: attack 6 with a
+# 4..9 spread, cast 6, shoot 8). Heroes have no default: the shipped heroes cast on 7 and on 9.
+HG_EVENT_DEFAULTS = {"unit": {"attack": 6, "cast": 6, "shoot": 8}, "hero": {}}
+HG_COLS = 4
+HG_FPS = 12
+
 LOOPING = {"idle", "walk", "run"}
 # camera rig lights (build_camera_rig): warm sun from the upper-left-front of the screen, cool sky
 SUN_COLOR = (1.0, 0.94, 0.84)
@@ -73,6 +95,25 @@ def is_rig_pivot(name, game_socket=None):
 # texture side above GODOT_TEXTURE_MAX.
 SHEET_MAX_PX = 8192
 GODOT_TEXTURE_MAX = 16384
+
+
+def hg_event_frame(kind, clip, n_frames, explicit=None):
+    """heroes_gates event frame for a clip: (frame or None, warning or None)."""
+    explicit = explicit or {}
+    if clip in explicit:
+        ev = int(explicit[clip])
+        if not 0 <= ev < n_frames:
+            raise ValueError("event_frames[%r]=%d outside 0..%d" % (clip, ev, n_frames - 1))
+        return ev, None
+    defaults = HG_EVENT_DEFAULTS.get(kind, {})
+    if clip in defaults:
+        ev = min(defaults[clip], n_frames - 1)
+        return ev, ("heroes_gates %s '%s' event_frame defaulted to %d (shipped units use 4..9 for attack); "
+                    "pass params.event_frames" % (kind, clip, ev))
+    if kind == "hero" and clip == "cast":
+        return None, ("heroes_gates hero 'cast' has no default event_frame (shipped heroes use 7 and 9): entry "
+                      "written without it; pass params.event_frames {\"cast\": n}")
+    return None, None
 
 
 def default_asset_id(name):
@@ -116,6 +157,11 @@ def sheet_layout(n, cw, ch, n_views, cols=None, per_view=False, max_side=SHEET_M
                          "texture limit; lower pixels_per_meter or frames, or fix the model scale (height_m)"
                          % (w, h, cw, ch, n, n_views, GODOT_TEXTURE_MAX))
     return {"cols": c, "rows": rows, "layout": layout, "sheet": [w, h], "over_soft": max(w, h) > max_side}
+
+
+def heading_to_yaw(heading_deg):
+    """Model yaw for a -Y facing character to look along world heading (deg from +X, CCW)."""
+    return heading_deg + 90.0
 
 
 def clip_base(name):

@@ -1,9 +1,9 @@
-"""render_sprites — sprite sheets of an (animated) model: 8-direction isometric (iso8) or custom views.
+"""render_sprites — sprite sheets of an (animated) model: 8-direction isometric, heroes_gates or pixel-art profile.
 
 inputs.mesh  animated GLB/FBX/... (or inputs.blend, opened by af_run.py)
 inputs.manifest  optional asset.json: kind ship/prop/turret/... sets forward '+Y'
 params (all optional):
-  profile        'iso8' (default) | 'custom' | 'pixel' (iso8 render + pixel-art post-process,
+  profile        'iso8' (default) | 'heroes_gates' | 'custom' | 'pixel' (iso8 render + pixel-art post-process,
                  see "pixel profile" below)
   asset_id       snake_case id used for file names / registry snippets (default: input file name, made
                  snake_case with an 'a_' prefix when it starts with a digit)
@@ -12,30 +12,39 @@ params (all optional):
   clips          'all' (default) or [names]; names may be the base name ('idle') or the action name
   clip_names     {action name: clip name} renames
   loop           {clip: bool} overrides ('-loop'/'_loop' suffix and idle/walk/run imply looping)
-  frames         int or {clip: int}; default = clip duration x fps (capped by max_frames=48)
-  fps            default 12
+  frames         int or {clip: int}; iso8 default = clip duration x fps (capped by max_frames=48),
+                 heroes_gates default idle/walk/attack/death 12, hit 6 (hero idle/cast 16)
+  fps            iso8 default 12 (heroes_gates fixed 12)
   ranges         {clip: [start, end]} in frames at ranges_fps (default: the scene fps)
   in_place       'auto' (loops: remove net root drift; one-shots: keep) | 'lock' (hips XY fixed to
                  the first frame) | 'drift' | 'none'
-  pixels_per_meter  default 100 (fixed scale: same for every clip/asset of the profile)
-  elevation_deg  default 30 (2:1 isometric)
+  pixels_per_meter  iso8 default 100 (fixed scale: same for every clip/asset of the profile)
+  elevation_deg  iso8 default 30 (2:1 isometric); heroes_gates 25
   directions     iso8 subset of S,SW,W,NW,N,NE,E,SE; custom and pixel: [[name, model_yaw_deg], ...]
   padding_px     iso8 cell padding around the max extent of all frames/clips/directions (default 6)
-  cell, anchor   force a fixed cell [w, h] and anchor [x, y]
-  height_m       rescale the model to this height; center 'feet' (default) | 'none';
-                 normalize_pose 'rest' (default) | 'first_frame' (measure on the first sample of the first clip)
-  grade_materials  roughness >= 0.55, metallic <= 0.6, saturation x1.1 (default false)
-  engine         'EEVEE' (default) | 'CYCLES' | 'WORKBENCH'; samples
-  shadow         Cycles shadow catcher on the ground (default false; EEVEE: unsupported); the auto cell
-                 includes the projected shadow footprint
-  grade          colour grade (default false); shadow_alpha_max, shadow_edge_fade_px
+  cell, anchor   force a fixed cell [w, h] and anchor [x, y] (iso8/custom)
+  height_m       rescale the model to this height; center 'feet' (default, feet-centre normalise) | 'none';
+                 normalize_pose 'rest' (iso8 default) | 'first_frame' (heroes_gates default)
+  grade_materials  roughness >= 0.55, metallic <= 0.6, saturation x1.1 (heroes_gates default true)
+  engine         'EEVEE' (iso8 default) | 'CYCLES' (heroes_gates default) | 'WORKBENCH'; samples
+  shadow         Cycles shadow catcher on the ground (heroes_gates default true; EEVEE: unsupported); in
+                 iso8/custom the auto cell includes the projected shadow footprint
+  grade          colour grade (heroes_gates default true); shadow_alpha_max, shadow_edge_fade_px
                  (default 0; 16 with shadow and a forced cell, 4 with shadow and an auto cell), alpha_floor (default 6)
-  cols           frames per sheet row (default: one row per direction when it fits max_sheet_px, else
-                 balanced rows)
+  cols           frames per sheet row (heroes_gates 4; iso8 default: one row per direction when it fits
+                 max_sheet_px, else balanced rows)
   max_sheet_px   soft sheet side limit (default 8192): iso8 stacks all directions in <clip>.png and switches to
                  per-direction sheets <clip>_<DIR>.png when the stack is taller; > 16384 px is an error
   max_cell_px    default 2048: a larger cell side is an error (wrong units?) raised before rendering
   min_body_px    default 24: a smaller projected body (max of width/height) is an error before rendering
+  kind           heroes_gates 'unit' (cell 320, anchor 160,272) | 'hero' (448, anchor 224,384)
+  adaptive_cell  heroes_gates unit (default true): when the model overflows the 320 px cell (wide stance, long
+                 weapon, a death that lies wide), the next cell of HG_CELL_STEPS is taken - 384 (anchor 192,328),
+                 then 448 (224,384, the hero cell) - instead of failing cell_fit; the scale stays 100 px/m and is
+                 checked on the rendered frames (body_scale_px_per_m); the chosen cell/anchor go into the
+                 sprites.json entry snippet. false = the fixed kind cell
+  event_frames   {clip: frame}; heroes_gates unit defaults attack 6, cast 6, shoot 8 (with a warning); hero
+                 cast has no default
   validate_godot load the SpriteFrames .tres in headless Godot 4.5.1 (default true when found)
   keep_frames    keep the raw per-frame renders (default false)
 pixel profile (profile 'pixel'; the geometry is iso8 in FINAL pixels, the post-process is scripts/pixel/pixelize.py):
@@ -61,9 +70,9 @@ pixel profile (profile 'pixel'; the geometry is iso8 in FINAL pixels, the post-p
   preview_zoom   4: preview.png is enlarged by nearest neighbour
   Extra outputs: palette (palette.png, one pixel per colour), palette_gpl; checks pixel_palette_only and
   pixel_alpha_binary. The Godot sprites must be shown with texture_filter Nearest.
-outputs: sheets (PNG per clip, per clip and direction when large),
+outputs: sheets (PNG per clip, per clip and direction when large, per clip and view for heroes_gates),
 sprites_json (rects, root_px hips and feet_px/feet_mid_px ground pivots per frame), spriteframes (.tres),
-preview, preview_frames, godot_check (log/json).
+preview, preview_frames, heroes_gates_entry (snippet), godot_check (log/json).
 """
 import json
 import math
@@ -184,34 +193,59 @@ def _palette_bar(palette, width, sw=16):
 
 def _config(p, forward="-Y"):
     profile = p.get("profile", "iso8")
-    if profile not in ("iso8", "custom", "pixel"):
-        raise ValueError("params.profile must be iso8, custom or pixel: %r" % profile)
+    if profile not in ("iso8", "heroes_gates", "custom", "pixel"):
+        raise ValueError("params.profile must be iso8, heroes_gates, custom or pixel: %r" % profile)
     cfg = {"profile": profile, "warnings": [], "forward": forward}
-    if profile in ("custom", "pixel") and p.get("directions") and isinstance(p["directions"][0], (list, tuple)):
-        views = [(str(n), float(y), "_" + str(n)) for n, y in p["directions"]]
+    if profile == "heroes_gates":
+        kind = p.get("kind", "unit")
+        if kind not in xl.HG_CELLS:
+            raise ValueError("heroes_gates kind must be unit or hero: %r" % kind)
+        w, h, ax, ay = xl.HG_CELLS[kind]
+        engine = p.get("engine", "CYCLES")
+        cfg.update(kind=kind, ppm=float(p.get("pixels_per_meter", xl.HG_PX_PER_M)),
+                   elevation=float(p.get("elevation_deg", xl.HG_ELEVATION_DEG)),
+                   views=[(n, xl.heading_to_yaw(hd), suf) for n, hd, suf in xl.HG_VIEWS],
+                   cell=(w, h), anchor=(ax, ay), cols=int(p.get("cols", xl.HG_COLS)),
+                   fps=xl.HG_FPS, engine=engine, samples=p.get("samples", 64),
+                   shadow=bool(p.get("shadow", str(engine).upper() == "CYCLES")),
+                   grade=bool(p.get("grade", True)), margin=4,
+                   adaptive=bool(p.get("adaptive_cell", kind == "unit")) and not p.get("cell"))
+        if p.get("cell"):
+            # an explicit cell wins in every profile (same cell for a family of units)
+            if not p.get("anchor"):
+                raise ValueError("params.cell needs params.anchor")
+            cfg.update(cell=tuple(p["cell"]), anchor=tuple(p["anchor"]))
+        if cfg["ppm"] != xl.HG_PX_PER_M or cfg["elevation"] != xl.HG_ELEVATION_DEG:
+            cfg["warnings"].append("heroes_gates profile with non-standard scale/elevation: sheets "
+                                   "will not match the game's 100 px/m, 25 deg contract")
     else:
-        names = p.get("directions") or [n for n, _ in xl.ISO8]
-        table = dict(xl.ISO8)
-        bad = [n for n in names if n not in table]
-        if bad:
-            raise ValueError("unknown directions %s (use S,SW,W,NW,N,NE,E,SE)" % bad)
-        views = [(n, table[n], "_" + n) for n in names]
-    pixel = profile == "pixel"
-    cfg.update(ppm=float(p.get("pixels_per_meter", 24.0 if pixel else 100.0)),
-               elevation=float(p.get("elevation_deg", 30.0)), views=views,
-               cell=tuple(p["cell"]) if p.get("cell") else None,
-               anchor=tuple(p["anchor"]) if p.get("anchor") else None,
-               cols=p.get("cols"), fps=float(p.get("fps", 8 if pixel else 12)),
-               engine=p.get("engine", "EEVEE"), samples=p.get("samples", 1 if pixel else None),
-               shadow=bool(p.get("shadow", False)) and not pixel, grade=bool(p.get("grade", False)) and not pixel,
-               margin=0, padding=int(p.get("padding_px", 4 if pixel else 6)))
-    if pixel:
-        cfg["pixel"] = _pixel_config(p, cfg["warnings"])
-        if not float(cfg["ppm"]).is_integer():
-            cfg["warnings"].append("pixel profile: pixels_per_meter %g is not an integer, the sprite will not "
-                                   "sit on the pixel grid evenly" % cfg["ppm"])
-    if cfg["cell"] and not cfg["anchor"]:
-        raise ValueError("params.cell needs params.anchor")
+        # custom and pixel: own directions [[name, model_yaw_deg], ...] (e.g. 16 sides for a turret)
+        if profile in ("custom", "pixel") and p.get("directions") and isinstance(p["directions"][0], (list, tuple)):
+            views = [(str(n), float(y), "_" + str(n)) for n, y in p["directions"]]
+        else:
+            names = p.get("directions") or [n for n, _ in xl.ISO8]
+            table = dict(xl.ISO8)
+            bad = [n for n in names if n not in table]
+            if bad:
+                raise ValueError("unknown directions %s (use S,SW,W,NW,N,NE,E,SE)" % bad)
+            views = [(n, table[n], "_" + n) for n in names]
+        pixel = profile == "pixel"
+        cfg.update(ppm=float(p.get("pixels_per_meter", 24.0 if pixel else 100.0)),
+                   elevation=float(p.get("elevation_deg", 30.0)), views=views,
+                   cell=tuple(p["cell"]) if p.get("cell") else None,
+                   anchor=tuple(p["anchor"]) if p.get("anchor") else None,
+                   cols=p.get("cols"), fps=float(p.get("fps", 8 if pixel else 12)),
+                   engine=p.get("engine", "EEVEE"), samples=p.get("samples", 1 if pixel else None),
+                   shadow=bool(p.get("shadow", False)) and not pixel,
+                   grade=bool(p.get("grade", False)) and not pixel,
+                   margin=0, padding=int(p.get("padding_px", 4 if pixel else 6)))
+        if pixel:
+            cfg["pixel"] = _pixel_config(p, cfg["warnings"])
+            if not float(cfg["ppm"]).is_integer():
+                cfg["warnings"].append("pixel profile: pixels_per_meter %g is not an integer, the sprite will not "
+                                       "sit on the pixel grid evenly" % cfg["ppm"])
+        if cfg["cell"] and not cfg["anchor"]:
+            raise ValueError("params.cell needs params.anchor")
     if cfg["shadow"] and str(cfg["engine"]).upper() != "CYCLES":
         cfg["warnings"].append("shadow catcher needs engine CYCLES; rendering without ground shadow")
         cfg["shadow"] = False
@@ -220,10 +254,10 @@ def _config(p, forward="-Y"):
         cfg["views"] = [(n, _wrap_deg(y + 180.0), suf) for n, y, suf in cfg["views"]]
     cfg["alpha_floor"] = int(p.get("alpha_floor", xl.ALPHA_FLOOR))
     cfg["shadow_alpha_max"] = float(p.get("shadow_alpha_max", 0.0))
-    # auto cells include the shadow footprint (fade 4 px only removes the faint 1 px line Cycles
+    # iso8/custom auto cells include the shadow footprint (fade 4 px only removes the faint 1 px line Cycles
     # leaves on the frame border, alpha ~10); a forced cell may cut the shadow, so fade it over 16 px
     fade_default = 0
-    if cfg["shadow"]:
+    if cfg["shadow"] and profile != "heroes_gates":
         fade_default = 16 if cfg["cell"] else 4
     cfg["shadow_edge_fade_px"] = int(p.get("shadow_edge_fade_px", fade_default))
     cfg["max_cell_px"] = int(p.get("max_cell_px", 2048))
@@ -240,6 +274,10 @@ def _clip_count(cfg, p, name, duration_s, loop):
         return max(1, int(frames))
     if cfg["profile"] == "pixel":
         return 8            # pixel profile: 8 frames per clip (a loop of 8 frames at fps 8 = 1 s)
+    if cfg["profile"] == "heroes_gates":
+        if cfg.get("kind") == "hero" and name in xl.HG_HERO_COUNTS:
+            return xl.HG_HERO_COUNTS[name]
+        return xl.HG_COUNTS.get(name, 12)
     n = int(round(duration_s * cfg["fps"])) + (0 if loop else 1)
     return max(1, min(n, int(p.get("max_frames", 48))))
 
@@ -299,7 +337,7 @@ def _pose_points(arms, meshes, pose, first_clip):
 
 
 def _normalize(p, cfg, root, arms, meshes, first_clip):
-    pose = p.get("normalize_pose", "rest")
+    pose = p.get("normalize_pose", "first_frame" if cfg["profile"] == "heroes_gates" else "rest")
     if pose not in ("rest", "first_frame"):
         raise ValueError("params.normalize_pose must be rest or first_frame: %r" % pose)
     info = {"scale": 1.0, "offset_m": [0.0, 0.0, 0.0], "pose": pose}
@@ -367,7 +405,7 @@ def _collect_clips(cfg, p, scene, arms):
         duration = max((end - start) / src_fps, 1e-6)
         count = _clip_count(cfg, p, base, duration, loop)
         times = xl.sample_times(start, end, count, loop)
-        fps = cfg["fps"]
+        fps = xl.HG_FPS if cfg["profile"] == "heroes_gates" else cfg["fps"]
         clips.append({"name": base, "action": action_name, "actions": c["actions"], "loop": loop,
                       "range": [round(start, 4), round(end, 4)], "source_fps": src_fps,
                       "duration_s": round(duration, 4), "count": count, "times": times, "fps": fps,
@@ -428,6 +466,25 @@ def _in_place_offsets(cfg, p, clip, arms, root, base_loc):
     raise ValueError("params.in_place must be auto, lock, drift or none: %r" % mode)
 
 
+def hg_entry(cfg, asset_id, cell, anchor, clip_entries):
+    """heroes_gates data/sprites.json snippet {group: {asset_id: entry}} in the game's format."""
+    group = "heroes" if cfg.get("kind") == "hero" else "units"
+    folder = "res://assets/%s/%s/" % (group, asset_id)
+    anims = {}
+    for name, e in clip_entries:
+        for _vname, _yaw, suf in cfg["views"]:
+            a = {"sheet": folder + "%s%s.png" % (name, suf), "count": e["frames"], "cols": e["cols"],
+                 "fps": e["fps"], "loop": e["loop"]}
+            if "event_frame" in e:
+                a["event_frame"] = e["event_frame"]
+            anims[name + suf] = a
+    entry = {"cell": [int(cell[0]), int(cell[1])], "anchor": [int(anchor[0]), int(anchor[1])], "source": asset_id,
+             "anims": anims}
+    return {"_comment": "heroes_gates data/sprites.json entry (merge into '%s'); sheets go to %s. "
+                        "Generated by AstraForge render_sprites, not written into the game." % (group, folder),
+            group: {asset_id: entry}}
+
+
 # --------------------------------------------------------------------------- main
 
 def run(req):
@@ -454,13 +511,13 @@ def run(req):
         warnings.append("model is %.4g m tall at rest: outside 0.3..15 m, probably centimetres/millimetres or "
                         "studio units; pass params.height_m (e.g. 1.8 for a human)" % rest_h)
     base_loc = root.location.copy()
-    if p.get("grade_materials", False):
+    if p.get("grade_materials", cfg["profile"] == "heroes_gates"):
         norm["graded_materials"] = xl.grade_materials(meshes)
     if not clips:
         warnings.append("no armature clips found: rendering one static frame")
         clips = [{"name": "static", "action": None, "actions": {}, "loop": False, "range": [scene.frame_current] * 2,
                   "source_fps": scene.render.fps, "duration_s": 0.0, "count": 1,
-                  "times": [float(scene.frame_current)], "fps": cfg["fps"],
+                  "times": [float(scene.frame_current)], "fps": cfg["fps"] if cfg["profile"] != "heroes_gates" else 12,
                   "time_scale": 1.0}]
     feet = {a.name: _foot_bones(a) for a in arms}
     af.log("clips", clips=[(c["name"], c["count"], c["loop"]) for c in clips], views=[v[0] for v in cfg["views"]])
@@ -534,9 +591,34 @@ def run(req):
                     worst_ = max(worst_, margin - (ax_ + b[0]), margin - (ay_ + b[1]), (ax_ + b[2]) - (cw_ - margin),
                                  (ay_ + b[3]) - (ch_ - margin))
         return worst_
+    cell_adapted = None
     if cfg["cell"]:
         cw, ch = int(cfg["cell"][0]), int(cfg["cell"][1])
         ax, ay = float(cfg["anchor"][0]), float(cfg["anchor"][1])
+        if cfg.get("adaptive"):
+            # the smallest cell of HG_CELL_STEPS that holds every frame; the standard anchor of that cell, moved
+            # down/up inside it only when the content needs it (a corpse lying toward the camera reaches below
+            # the ground line; the game takes any per-entry anchor as the sprite pivot)
+            tried, chosen = {}, None
+            for sw, sh, sax, say in [s_ for s_ in xl.HG_CELL_STEPS if s_[0] >= cw]:
+                lo_y, hi_y = margin - ext["ymin"], sh - margin - ext["ymax"]      # anchor y range that fits
+                fits_x = max(-ext["xmin"], ext["xmax"]) + margin <= sw / 2.0 + 0.01
+                ay_ = float(min(max(say, lo_y), hi_y)) if lo_y <= hi_y + 0.01 else float(say)
+                ay_ = float(round(ay_))
+                tried[str(sw)] = round(overflow(sw, sh, sw / 2.0, ay_), 1)
+                chosen = (sw, sh, sw / 2.0, ay_, say)
+                if fits_x and tried[str(sw)] <= 0.01:
+                    break
+            sw, sh, sax, ay_, say = chosen
+            if sw != cw or ay_ != ay:
+                cell_adapted = {"from": [cw, ch], "to": [sw, sh], "anchor": [sax, ay_], "standard_anchor": [sax, say],
+                                "overflow_px_by_cell": tried, "fits": tried[str(sw)] <= 0.01}
+                warnings.append("model overflows the %dx%d unit cell by %.0f px: cell %dx%d, anchor (%d, %d)%s taken "
+                                "(same 100 px/m; the sprites.json entry carries cell and anchor)%s" % (
+                                    cw, ch, tried[str(cw)], sw, sh, sax, ay_,
+                                    "" if ay_ == say else " (standard %d, moved for the content)" % say,
+                                    "" if cell_adapted["fits"] else " - still overflows by %.0f px" % tried[str(sw)]))
+                cw, ch, ax, ay = sw, sh, float(sax), float(ay_)
     else:
         pad = cfg["padding"]
         full = dict(ext)
@@ -574,9 +656,10 @@ def run(req):
         raise ValueError("model overflows the fixed %dx%d cell by %.0f px (%s)" % (cw, ch, worst, hint))
     checks.append(af.check("sprite_size_sane", True, {"cell": [cw, ch], "body_px": round(body_px, 1)},
                            {"max_cell_px": cfg["max_cell_px"], "min_body_px": cfg["min_body_px"]}))
+    hg = cfg["profile"] == "heroes_gates"
     sheet_px = {}
     for clip in clips:
-        lay = xl.sheet_layout(clip["count"], cw, ch, len(cfg["views"]), cols=cfg["cols"],
+        lay = xl.sheet_layout(clip["count"], cw, ch, len(cfg["views"]), cols=cfg["cols"], per_view=hg,
                               max_side=cfg["max_sheet_px"])
         clip["layout"] = lay
         sheet_px[clip["name"]] = lay["sheet"]
@@ -706,9 +789,15 @@ def run(req):
                  "source_duration_s": clip["duration_s"], "time_scale": clip["time_scale"],
                  "in_place": clip["in_place"], "root_bone": clip["root_bone"], "cols": cols,
                  "layout": lay["layout"], "feet_bones": clip.get("feet_bones", []), "views": {}}
+        if hg:
+            ev, ev_warn = xl.hg_event_frame(cfg["kind"], clip["name"], n, p.get("event_frames"))
+            if ev_warn:
+                warnings.append(ev_warn)
+            if ev is not None:
+                entry["event_frame"] = int(ev)
         for vi, (vname, yaw, suf) in enumerate(cfg["views"]):
             if lay["layout"] == "per_view":
-                # large: idle_S.png ... idle_SE.png
+                # HG: idle.png / idle_nw.png / idle_se.png; iso8 large: idle_S.png ... idle_SE.png
                 fname = "%s%s.png" % (clip["name"], suf)
                 sheet = np.zeros((rows_per_view * ch, cols * cw, 4), np.uint8)
                 y_base = 0
@@ -739,7 +828,7 @@ def run(req):
                                      round(sum(f[1] for f in fp) / len(fp), 1)])
             if lay["layout"] == "per_view":
                 sheets[fname] = sheet
-            anim_name = "%s_%s" % (clip["name"], vname)
+            anim_name = clip["name"] + suf if hg else "%s_%s" % (clip["name"], vname)
             entry["views"][vname] = {"sheet": fname, "model_yaw_deg": yaw, "animation": anim_name,
                                      "rects": rects, "root_px": roots}
             if feet_px:
@@ -779,7 +868,9 @@ def run(req):
         top_off = float(np.median([o for _, _, o in scale_samples]))
         body_scale = {"px_per_m": round(ppm * ratio, 2), "expected": ppm, "anchor_top_offset_px": round(top_off, 1),
                       "height_diff_px": round(diff, 2), "frames": len(scale_samples)}
-        want = ppm
+        if hg:
+            body_scale["heroes_gates_px_per_m"] = xl.HG_PX_PER_M
+        want = ppm      # HG: the profile scale (100 px/m; a non-standard pixels_per_meter already warns)
         tol_px = max(0.03 * h_med, 2.5)
         # pixel art: a thin spear tip or banner pole thinner than a pixel disappears without antialiasing, so the
         # rendered body is legitimately shorter than the vertex projection: only a warning there
@@ -825,10 +916,12 @@ def run(req):
            "cell": [cw, ch], "anchor": [ax, ay], "pivot_note": "anchor = projected world origin "
            "(ground point under the character after feet centering); root_px = projected hips ground point; "
            "feet_px = projected ground points of the foot bones (feet_bones order), feet_mid_px = their middle",
-           "godot_offset": godot_offset, "engine": engine, "device": device, "shadow": cfg["shadow"],
+           "godot_offset": godot_offset, "cell_adapted": cell_adapted, "engine": engine, "device": device, "shadow": cfg["shadow"],
            "forward": cfg["forward"], "forward_from": forward_from,
            "views": [{"name": n, "model_yaw_deg": y} for n, y, _ in cfg["views"]],
            "normalization": norm, "clips": meta_clips, "sheets": sorted(sheet_paths)}
+    if hg:
+        doc["kind"] = cfg["kind"]
     pixel_info = None
     if pix:
         pixel_info = {"palette": [px.hex_of(c) for c in pixel_pal], "colors": int(len(pixel_pal)),
@@ -846,6 +939,13 @@ def run(req):
         with open(gpl_path, "w", encoding="utf-8") as fh:
             fh.write(px.palette_gpl(pixel_pal, asset_id))
         outputs["palette_gpl"] = gpl_path
+    if hg:
+        snippet = hg_entry(cfg, asset_id, [cw, ch], [ax, ay], [(c["name"], meta_clips[c["name"]]) for c in clips])
+        snip_path = af.out_path(req, "heroes_gates_sprites_entry.json")
+        with open(snip_path, "w", encoding="utf-8") as fh:
+            json.dump(snippet, fh, ensure_ascii=False, indent="\t")
+        outputs["heroes_gates_entry"] = snip_path
+        doc["heroes_gates_entry"] = snippet
     sprites_path = af.out_path(req, "sprites.json")
     with open(sprites_path, "w", encoding="utf-8") as fh:
         json.dump(af._jsonable(doc), fh, ensure_ascii=False, indent=1)
@@ -926,7 +1026,7 @@ def run(req):
              "min_z_per_clip_m": ground, "body_luminance_by_view": means, "normalization": norm,
              "root_ground_max_dev_px": root_dev,
              "total_seconds": round(time.time() - t_start, 2), "forward": cfg["forward"],
-             "body_px": round(body_px, 1), "sheet_px": sheet_px,
+             "body_px": round(body_px, 1), "sheet_px": sheet_px, "cell_adapted": cell_adapted,
              "body_scale": body_scale, "pixel": pixel_info,
              "sheet_bytes": {k: os.path.getsize(v) for k, v in sheet_paths.items()}}
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings,

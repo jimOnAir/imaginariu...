@@ -5,14 +5,15 @@ inputs.glb       the asset (sockets per contract §6, clips with '-loop' suffix 
                  sockets, so the snake_case / socket checks and the Godot socket lookup skip them
 inputs.manifest  optional asset.json (kind, fx, clips)
 inputs.sprites   optional sprites.json from render_sprites: sheets + SpriteFrames are copied into
-                 <asset_id>/sprites/ and validated too
+                 <asset_id>/sprites/ and validated too (heroes_gates profile uses its entry snippet)
 params:
   asset_id       snake_case ASCII (required)
-  profile        'godot' (default, the only profile)
+  profile        'godot' (default) | 'space_quest' | 'heroes_gates'
   forward_axis   '+Z' keep | '-Z' face Godot look_at (-Z); default = the GLB's own forward
   source_forward '+Z' | '-Z' forward of the GLB as exported. Default from manifest/params kind (ships,
                  props, turrets... -Z; characters, creatures, items +Z — contract §4); without a kind it is
-                 guessed (ship sockets thruster/turret/launcher/muzzle -> -Z, else +Z) and a warning says so
+                 guessed (ship sockets thruster/turret/launcher/muzzle or profile space_quest -> -Z, else
+                 +Z) and a warning says so
   kind           asset kind when there is no manifest (humanoid, creature, item, ship, prop, ...)
   fx             [{"preset": "engine_trail", "socket": "socket_thruster_main_l", "params": {...}}]
                  presets from scripts/blender/data/fx_presets.json (default: manifest.fx). Presets are
@@ -28,11 +29,22 @@ params:
                  godot_fx_thruster_aft (Godot) require the result to point aft.
   fx_auto_scale  default true; false keeps presets at their native size unless params.scale is given
   autoplay       animation played on _ready by the scene script ("" = none)
+  sq_type        space_quest folder for the models.json path (default 'ships'); goes into the comment
+  fit_units, min_units  space_quest: RENDER units of the target project's models.json, never metres (its
+                 model library draws a primitive when a view asks for fewer units than min_units: hangar 10,
+                 flight/combat 14, station views 20). Default = the role's neighbours in models.json
+                 (SQ_ROLE_UNITS: ship 3.4/0.6, turret 1.5/0.12, module 0.3/0.05, station 20/0, drone 2/0.15,
+                 bank 1/0; unknown role 1/0); the role comes from sq_class, else manifest kind, else
+                 params.kind. A default min_units never exceeds fit_units.
+                 Checks: sq_min_units_visible (min_units > 10 warning, > 20 error: drawn in no view) and
+                 sq_fit_not_below_min (fit_units < min_units = never drawn at its default size, error)
+  sq_class       role or budget class for those defaults: ship, turret, module, station, drone, bank
+                 or ship_s/m/l, station_core, station_module, structure_kit, drone_kit, asteroid_kit, ...
   validate       run headless Godot 4.5.1 (default true); godot: path override
   fx_preview     also render 3 frames with Godot Movie Maker into fx_preview.png (default false: it
                  opens a Godot game window for ~3 s); fx_preview_speed: asset sizes/s along -Z;
                  fx_preview_frames: frame numbers at 30 fps (default [14, 30, 46])
-outputs: package (folder), glb, tscn, script, fx scenes, readme, manifest,
+outputs: package (folder), glb, tscn, script, fx scenes, readme, manifest, registry snippet,
 godot_check (json + log). checks include the validator's JSON ('godot_validation').
 """
 import json
@@ -59,6 +71,28 @@ THRUSTER_FRAME_AXES = {"thrust": (0.0, 0.0, 1.0), "exhaust": (0.0, 0.0, -1.0)}
 LOCAL_AXES = (("+Z", (0.0, 0.0, 1.0)), ("-Z", (0.0, 0.0, -1.0)), ("+Y", (0.0, 1.0, 0.0)),
               ("-Y", (0.0, -1.0, 0.0)), ("+X", (1.0, 0.0, 0.0)), ("-X", (-1.0, 0.0, 0.0)))
 AFT_MIN_DOT = 0.5          # the exhaust axis must lie within 60 deg of aft
+
+# space_quest target project (models.json): fit_units / min_units are RENDER units, not metres. Its model
+# library scales the model to the units a view asks for and returns null (the caller draws a primitive) when
+# they are < min_units. Views ask for: hangar 10, flight and combat 14, station views 20.
+SQ_VIEW_UNITS = (("hangar", 10.0), ("flight/combat", 14.0), ("station view", 20.0))
+# Defaults per role = the neighbours of that role in the reference models.json: (fit_units, min_units).
+SQ_ROLE_UNITS = {
+    "ship": (3.4, 0.6),        # the flagship-class entries
+    "turret": (1.5, 0.12),     # the turret pack
+    "module": (0.3, 0.05),     # modules/
+    "station": (20.0, 0.0),    # station builds
+    "drone": (2.0, 0.15),      # the drone pack
+    "bank": (1.0, 0.0),        # MultiMesh banks
+}
+SQ_ROLE_FALLBACK = (1.0, 0.0)  # unknown role (prop, asteroid, item...): never metres, never hidden
+# sq_class / kind -> role; the ship budget classes (_ship_lib.BUDGETS) are accepted too
+SQ_ROLE_OF = {"ship": "ship", "ship_s": "ship", "ship_m": "ship", "ship_l": "ship",
+              "turret": "turret", "module": "module", "hull_module": "module",
+              "station": "station", "station_core": "station", "station_module": "station",
+              "drone": "drone", "bank": "bank", "structure_kit": "bank", "drone_kit": "bank",
+              "asteroid_kit": "bank", "debris_kit": "bank"}
+
 
 def _num(v):
     try:
@@ -223,9 +257,45 @@ def _source_forward(p, manifest, profile, info):
             if xl.SHIP_SOCKET_RE.search(str(s.get("kind") or "")) or xl.SHIP_SOCKET_RE.search(s["name"])]
     if ship:
         return "-Z", "guessed from ship sockets (%s)" % ", ".join(ship[:3]), True
+    if profile == "space_quest":
+        return "-Z", "guessed from profile space_quest", True
     if info["armatures"]:
         return "+Z", "guessed: rigged character", True
     return "+Z", "guessed: default for characters/items", True
+
+
+def sq_units(p, manifest):
+    """space_quest models.json fit_units / min_units in render units: explicit params win, else the defaults of
+    the role (sq_class, else manifest kind, else params.kind). Returns (fit, min, role, source); role None =
+    unknown (SQ_ROLE_FALLBACK). A default min_units is capped at fit_units."""
+    cls = p.get("sq_class") or manifest.get("kind") or p.get("kind")
+    role = SQ_ROLE_OF.get(str(cls or "").lower())
+    dfit, dmin = SQ_ROLE_UNITS[role] if role else SQ_ROLE_FALLBACK
+    fit_given, min_given = p.get("fit_units") is not None, p.get("min_units") is not None
+    fit = float(p["fit_units"]) if fit_given else dfit
+    mn = float(p["min_units"]) if min_given else min(dmin, fit)
+    if fit_given and min_given:
+        source = "params"
+    else:
+        source = "%s%s defaults (%s)" % ("params + " if fit_given or min_given else "",
+                                          "role %s" % role if role else "unknown role %r" % cls,
+                                          "/".join(xl._f(v) for v in (dfit, dmin)))
+    return round(fit, 4), round(mn, 4), role, source
+
+
+def sq_unit_checks(fit, mn):
+    """min_units above a view's units hides the model there (a primitive is drawn instead): warning when some
+    views lose it (> 10: the hangar first), error when none draws it (> 20). fit_units < min_units: the model is
+    never drawn at its own default size (instance_for without units), error."""
+    hidden = [name for name, units in SQ_VIEW_UNITS if units < mn]
+    views = ", ".join("%s %s" % (name, xl._f(units)) for name, units in SQ_VIEW_UNITS)
+    return [af.check("sq_min_units_visible", not hidden, {"min_units": mn, "hidden_in": hidden},
+                     "<= %s" % xl._f(SQ_VIEW_UNITS[0][1]),
+                     severity="error" if len(hidden) == len(SQ_VIEW_UNITS) else "warning",
+                     note="the target library draws a primitive when a view asks for fewer units than min_units; "
+                          "views ask for %s (render units, not metres)" % views),
+            af.check("sq_fit_not_below_min", fit >= mn, [fit, mn], "fit_units >= min_units",
+                     note="fit_units < min_units: instance_for without units never draws the model")]
 
 
 def _tscn(asset_id, glb_name, bindings, fx_files, rotate, autoplay, meta):
@@ -253,7 +323,7 @@ def _tscn(asset_id, glb_name, bindings, fx_files, rotate, autoplay, meta):
             % (len(ext) + 1, "\n".join(ext), "\n".join(root), "\n".join(model)))
 
 
-def _readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, clips, sprites, gres,
+def _readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, clips, registry_name, sprites, gres,
             fwd_from=""):
     lines = ["# %s — Godot 4.5 package (AstraForge Forge)" % asset_id, "",
              "Profile: `%s`. Created by the `godot_package` step; nothing was written to the target project." % profile, "",
@@ -264,6 +334,8 @@ def _readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, clips, spri
              "| `af_fx_mount.gd` | on `_ready` finds sockets by `extras.game_socket` or by name and mounts the FX |",
              "| `fx/*.tscn` | effects: `GPUParticles3D` + `ParticleProcessMaterial` + `QuadMesh` |",
              "| `fx/textures/*.png` | procedural particle textures (white, shape in alpha) |"]
+    if registry_name:
+        lines.append("| `%s` | target project registry entry (paste manually) |" % registry_name)
     if sprites:
         lines.append("| `sprites/` | sprite sheets and `SpriteFrames` from `render_sprites` |")
     lines += ["", "## Axes", "",
@@ -346,8 +418,8 @@ def run(req):
     if not asset_id or not xl.ASSET_ID_RE.match(asset_id):
         raise ValueError("params.asset_id must be snake_case ASCII (^[a-z][a-z0-9]*(_[a-z0-9]+)*$): %r" % asset_id)
     profile = p.get("profile", "godot")
-    if profile != "godot":
-        raise ValueError("params.profile must be godot: %r" % profile)
+    if profile not in ("godot", "space_quest", "heroes_gates"):
+        raise ValueError("params.profile must be godot, space_quest or heroes_gates: %r" % profile)
     glb = inputs.get("glb") or inputs.get("mesh")
     if not glb or not os.path.isfile(glb) or not glb.lower().endswith(".glb"):
         raise ValueError("inputs.glb must be an existing .glb file: %r" % glb)
@@ -500,6 +572,51 @@ def run(req):
             shutil.copy2(os.path.join(sdir, tres), os.path.join(dst, tres))
         shutil.copy2(inputs["sprites"], os.path.join(dst, "sprites.json"))
 
+    # ---- registry snippet
+    registry_name, registry, sq_units_info = None, None, None
+    if profile == "space_quest":
+        if src_fwd != "-Z":
+            warnings.append("space_quest expects the GLB nose at -Z; this GLB is %s" % src_fwd)
+        fit_u, min_u, sq_role, units_from = sq_units(p, manifest)
+        sq_units_info = {"fit_units": fit_u, "min_units": min_u, "role": sq_role, "from": units_from}
+        if units_from != "params":
+            warnings.append("fit_units %s / min_units %s from %s: render units, not metres (%.3g m here); pass "
+                            "both per the role's neighbours in models.json" % (xl._f(fit_u), xl._f(min_u),
+                                                                               units_from, info["longest_m"]))
+        checks.extend(sq_unit_checks(fit_u, min_u))
+        registry = {"id": asset_id,
+                    "comment": p.get("comment", manifest.get("name") or "AstraForge Forge export of %s" % asset_id),
+                    "path": "res://assets/models/%s/%s.glb" % (p.get("sq_type", "ships"), asset_id),
+                    "forward_axis": src_fwd, "up_axis": "+Y",
+                    "fit_units": fit_u, "min_units": min_u}
+        registry_name = "space_quest_models_entry.json"
+    elif profile == "heroes_gates":
+        if sprites_info and sprites_info.get("heroes_gates_entry"):
+            registry = sprites_info["heroes_gates_entry"]
+        else:
+            warnings.append("heroes_gates: no render_sprites output given; sprites.json entry is a template "
+                            "(run render_sprites with profile heroes_gates)")
+            anims = {}
+            for c in info["clips"]:
+                base = xl.safe_name(c["base"])
+                count = xl.HG_COUNTS.get(base, 12)
+                ev, ev_warn = xl.hg_event_frame("unit", base, count, p.get("event_frames"))
+                if ev_warn:
+                    warnings.append(ev_warn)
+                for suf in ("", "_nw", "_se"):
+                    a = {"sheet": "res://assets/units/%s/%s%s.png" % (asset_id, base, suf), "count": count,
+                         "cols": xl.HG_COLS, "fps": xl.HG_FPS, "loop": c["loop"] or base in xl.LOOPING}
+                    if ev is not None:
+                        a["event_frame"] = ev
+                    anims[base + suf] = a
+            registry = {"_comment": "template — sheets do not exist yet",
+                        "units": {asset_id: {"cell": [320, 320], "anchor": [160, 272], "source": asset_id,
+                                             "anims": anims}}}
+        registry_name = "heroes_gates_sprites_entry.json"
+    if registry is not None:
+        with open(os.path.join(pkg, registry_name), "w", encoding="utf-8") as fh:
+            json.dump(registry, fh, ensure_ascii=False, indent="\t" if profile == "heroes_gates" else 2)
+
     # ---- Godot validation
     gres = None
     exe = xl.find_godot(p)
@@ -576,7 +693,7 @@ def run(req):
     # ---- readme + manifest
     with open(os.path.join(pkg, "README.md"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(_readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, info["clips"],
-                         sprites_info is not None, gres, fwd_from))
+                         registry_name, sprites_info is not None, gres, fwd_from))
     pkg_manifest = {"format": "astraforge-godot-package/1", "asset_id": asset_id, "profile": profile,
                     "godot": "4.5", "glb": os.path.basename(glb_out), "glb_sha256": xl.file_sha256(glb_out),
                     "source_glb": os.path.abspath(glb), "glb_forward": src_fwd, "glb_forward_from": fwd_from,
@@ -585,13 +702,15 @@ def run(req):
                     "clips": info["clips"],
                     "fx": bindings, "fx_auto_scale": auto, "size_gltf_m": info["size_gltf_m"],
                     "longest_m": info["longest_m"], "tris": info["tris"],
-                    "sprites": sprites_info is not None}
+                    "registry": registry_name, "sq_units": sq_units_info, "sprites": sprites_info is not None}
     with open(os.path.join(pkg, "af_package.json"), "w", encoding="utf-8") as fh:
         json.dump(af._jsonable(pkg_manifest), fh, ensure_ascii=False, indent=2)
 
     outputs = {"package": pkg, "glb": glb_out, "tscn": tscn_path, "script": os.path.join(pkg, "af_fx_mount.gd"),
                "fx": [os.path.join(pkg, "fx", f) for f in fx_files], "readme": os.path.join(pkg, "README.md"),
                "manifest": os.path.join(pkg, "af_package.json")}
+    if registry_name:
+        outputs["registry"] = os.path.join(pkg, registry_name)
     if gres:
         outputs["godot_check"] = af.out_path(req, "godot_check.json")
         outputs["godot_log"] = gres["log"]
@@ -599,7 +718,7 @@ def run(req):
             outputs["fx_preview"] = gres["fx_preview"]["path"]
     stats = {"asset_id": asset_id, "profile": profile, "sockets": len(socket_names), "pivots": len(info["pivots"]),
              "clips": len(info["clips"]), "clip_renames": renames, "sprites": sprites_info is not None,
-             "fx": len(bindings), "fx_scenes": len(fx_files), "tris": info["tris"],
+             "fx": len(bindings), "fx_scenes": len(fx_files), "tris": info["tris"], "sq_units": sq_units_info,
              "size_gltf_m": info["size_gltf_m"], "glb_forward": src_fwd, "glb_forward_from": fwd_from,
              "scene_forward": fwd,
              "fx_scales": {"%s@%s" % (b["node_name"], b["socket"]): b["scale"] for b in bindings},

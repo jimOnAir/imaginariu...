@@ -22,6 +22,8 @@ from steps import godot_package
 from steps import render_sprites
 
 _CACHE = {}
+# zombie idle/walk FBX clips for the real-fixture cases (AF_ART_RAW overrides the root)
+ZOMBIE_DIR = os.path.join(os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw", "zombie", "anims")
 
 
 def _tmp(prefix):
@@ -938,3 +940,306 @@ def test_render_sprites_plays_cloth_cache():
     # the cell was measured on the cached garment of every clip (both sides), not on the skinned one
     assert doc["cell"][0] >= 2 * (0.6 + 0.15) * 60 - 2, doc["cell"]
     _done(d)
+
+
+# --------------------------------------------------------------------------- zombie fixtures (real assets)
+
+def _have_zombie():
+    return all(os.path.isfile(os.path.join(ZOMBIE_DIR, f)) for f in ("idle.fbx", "walk.fbx"))
+
+def build_zombie_glb(path):
+    """Mixamo zombie (idle with skin + walk without skin) -> one GLB with clips idle-loop, walk-loop
+    and two bone sockets for FX tests."""
+    af.reset_scene()
+    objs = af.import_any(os.path.join(ZOMBIE_DIR, "idle.fbx"))
+    arm = next(o for o in objs if o.type == "ARMATURE")
+    body = next(o for o in objs if o.type == "MESH")
+    idle = arm.animation_data.action
+    walk_objs = af.import_any(os.path.join(ZOMBIE_DIR, "walk.fbx"))
+    walk = next(a for a in bpy.data.actions if a is not idle)
+    for o in walk_objs:
+        bpy.data.objects.remove(o, do_unlink=True)
+    idle.name, walk.name = "idle-loop", "walk-loop"
+    ad = arm.animation_data
+    for act in (idle, walk):
+        tr = ad.nla_tracks.new()
+        tr.name = act.name
+        st = tr.strips.new(act.name, int(act.frame_range[0]), act)
+        if hasattr(st, "action_slot") and len(act.slots):
+            st.action_slot = act.slots[0]
+    ad.action = None
+    bpy.context.view_layer.update()
+    socks = []
+    for name, bone in (("socket_fx_chest", "mixamorig:Spine2"), ("socket_mount_hand_r", "mixamorig:RightHand")):
+        pb = arm.pose.bones[bone]
+        world = arm.matrix_world @ pb.matrix
+        emp = af.add_socket(name, parent=arm, bone=bone, kind="fx" if "fx" in name else "mount")
+        emp.matrix_world = Matrix.Translation(world.translation) @ Matrix.Identity(4)
+        socks.append(emp)
+    af.export_glb(path, objects=[arm, body] + socks)
+    return path
+
+def _zombie():
+    if "glb" not in _CACHE:
+        d = _tmp("af_export_zombie_")
+        _CACHE["dir"] = d
+        _CACHE["glb"] = build_zombie_glb(os.path.join(d, "zombie.glb"))
+    return _CACHE["glb"]
+
+def _zombie_hg():
+    if "hg" not in _CACHE:
+        glb = _zombie()
+        af.reset_scene()
+        d = _tmp("af_export_hgz_")
+        res = render_sprites.run(_req("render_sprites", {"mesh": glb},
+                                      {"profile": "heroes_gates", "asset_id": "zombie", "clips": ["idle"],
+                                       "height_m": 1.7, "shadow_alpha_max": 0.55, "shadow_edge_fade_px": 24},
+                                      d))
+        _CACHE["hg"] = (res, d)
+    return _CACHE["hg"]
+
+
+# --------------------------------------------------------------------------- heroes_gates profile
+
+def test_hg_adaptive_unit_cell():
+    """heroes_gates unit: a model wider than the 320 px cell takes the next cell of HG_CELL_STEPS (384, then 448)
+    instead of failing cell_fit; the scale stays 100 px/m (body_scale_px_per_m measured on the rendered frames)
+    and the sprites.json entry carries the chosen cell and anchor. Something lying in front of the feet (below
+    the ground line on screen) moves the anchor up inside the cell. adaptive_cell false keeps the fixed 320 px
+    cell and fails cell_fit as before."""
+    d = _tmp("af_export_cell_")
+    base = {"profile": "heroes_gates", "kind": "unit", "engine": "WORKBENCH", "shadow": False, "validate_godot": False,
+            "asset_id": "wide"}
+    wide = _wide_figure(os.path.join(d, "wide.glb"), bar_x=5.0)        # 3.5 m across in the 45 deg views
+    af.reset_scene()
+    res = render_sprites.run(_req("render_sprites", {"mesh": wide}, dict(base), os.path.join(d, "auto")))
+    assert not _errors(res), _errors(res)
+    ca = res["stats"]["cell_adapted"]
+    assert ca and ca["from"] == [320, 320] and ca["to"][0] in (384, 448) and ca["fits"], ca
+    assert ca["overflow_px_by_cell"]["320"] > 0, ca
+    cw = ca["to"][0]
+    assert res["stats"]["cell"] == [cw, cw] and res["stats"]["anchor"][0] == cw / 2.0
+    bs = _check(res, "body_scale_px_per_m")
+    assert bs["ok"] and abs(bs["value"]["px_per_m"] - 100.0) <= 3.0, bs
+    snip = json.load(open(res["outputs"]["heroes_gates_entry"], encoding="utf-8"))
+    e = snip["units"]["wide"]
+    assert e["cell"] == [cw, cw] and e["anchor"] == [int(v) for v in res["stats"]["anchor"]], e
+    std = {s[0]: s for s in xl.HG_CELL_STEPS}[cw]
+    assert e["anchor"][1] == std[3], (e["anchor"], std)            # nothing below the ground line: standard anchor
+    # fixed cell (the old behaviour): cell_fit fails
+    af.reset_scene()
+    res0 = render_sprites.run(_req("render_sprites", {"mesh": wide}, dict(base, adaptive_cell=False), os.path.join(d, "fixed")))
+    assert "cell_fit" in _errors(res0) and res0["stats"]["cell"] == [320, 320], _errors(res0)
+    # a disc of 2 m radius at knee height reaches 60 px below the ground line: the 448 cell holds it only with the
+    # anchor moved up from the standard 384
+    plank = _wide_figure(os.path.join(d, "disc.glb"), disc_r=2.0)
+    af.reset_scene()
+    res2 = render_sprites.run(_req("render_sprites", {"mesh": plank}, dict(base, asset_id="plank"), os.path.join(d, "plank")))
+    assert not _errors(res2), _errors(res2)
+    ca2 = res2["stats"]["cell_adapted"]
+    assert ca2 and ca2["fits"] and ca2["anchor"][1] < ca2["standard_anchor"][1], ca2
+    assert _check(res2, "body_scale_px_per_m")["ok"]
+    _done(d)
+
+def test_hg_hero_config_and_entry():
+    cfg = render_sprites._config({"profile": "heroes_gates", "kind": "hero"})
+    assert cfg["cell"] == (448, 448) and cfg["anchor"] == (224, 384) and cfg["cols"] == 4 and cfg["fps"] == 12
+    assert [v[0] for v in cfg["views"]] == ["base", "nw", "se"] and cfg["views"][0][1] == 65.0
+    assert render_sprites._clip_count(cfg, {}, "idle", 3.0, True) == 16
+    assert render_sprites._clip_count(cfg, {}, "cast", 2.0, False) == 16
+    assert render_sprites._clip_count(cfg, {"frames": {"cast": 20}}, "cast", 2.0, False) == 20
+    ev, warn = xl.hg_event_frame("hero", "cast", 16)
+    assert ev is None and "7 and 9" in warn                       # no silent default for heroes
+    assert xl.hg_event_frame("hero", "cast", 16, {"cast": 9}) == (9, None)
+    ev, warn = xl.hg_event_frame("unit", "attack", 12)
+    assert ev == 6 and "defaulted" in warn
+    assert xl.hg_event_frame("unit", "idle", 12) == (None, None)
+    unit = render_sprites._config({"profile": "heroes_gates"})
+    assert unit["cell"] == (320, 320) and render_sprites._clip_count(unit, {}, "hit", 1.0, False) == 6
+    entries = [("idle", {"frames": 16, "cols": 4, "fps": 12, "loop": True}),
+               ("cast", {"frames": 16, "cols": 4, "fps": 12, "loop": False, "event_frame": 9})]
+    snip = render_sprites.hg_entry(cfg, "hero_lich", [448, 448], [224.0, 384.0], entries)
+    e = snip["heroes"]["hero_lich"]
+    assert e["cell"] == [448, 448] and e["anchor"] == [224, 384] and set(e["anims"]) == {
+        "idle", "idle_nw", "idle_se", "cast", "cast_nw", "cast_se"}
+    assert e["anims"]["cast_nw"] == {"sheet": "res://assets/heroes/hero_lich/cast_nw.png", "count": 16, "cols": 4,
+                                     "fps": 12, "loop": False, "event_frame": 9}
+    assert "event_frame" not in e["anims"]["idle"]
+
+
+# --------------------------------------------------------------------------- space_quest registry units
+
+def test_sq_units_defaults_by_role():
+    """space_quest fit_units / min_units are render units: without params they come from the role (sq_class,
+    else manifest kind, else params.kind), never from metres; a default min_units is capped at fit_units;
+    min_units 0 is kept; views 10 / 14 / 20 decide the warning (> 10) and the error (> 20)."""
+    u = godot_package.sq_units
+    assert u({"kind": "ship"}, {})[:3] == (3.4, 0.6, "ship")
+    assert u({}, {"kind": "ship"})[:3] == (3.4, 0.6, "ship")
+    assert u({"sq_class": "station_core", "kind": "ship"}, {"kind": "ship"})[:3] == (20.0, 0.0, "station")
+    assert u({"sq_class": "ship_l"}, {})[:3] == (3.4, 0.6, "ship")
+    assert u({"sq_class": "turret"}, {})[:3] == (1.5, 0.12, "turret")
+    assert u({"sq_class": "module"}, {})[:3] == (0.3, 0.05, "module")
+    assert u({"sq_class": "drone"}, {})[:3] == (2.0, 0.15, "drone")
+    for bank in ("structure_kit", "drone_kit", "asteroid_kit", "debris_kit", "bank"):
+        assert u({"sq_class": bank}, {})[:3] == (1.0, 0.0, "bank"), bank
+    fit, mn, role, src = u({"kind": "prop"}, {})
+    assert (fit, mn, role) == (1.0, 0.0, None) and "unknown role" in src, src
+    assert u({"kind": "ship", "fit_units": 0.4}, {})[:2] == (0.4, 0.4)       # default min capped at fit
+    fit, mn, role, src = u({"kind": "ship", "fit_units": 14.0, "min_units": 0}, {})
+    assert (fit, mn, src) == (14.0, 0.0, "params"), (fit, mn, src)
+    assert u({"kind": "ship", "min_units": 0.2}, {})[:2] == (3.4, 0.2)
+    assert u({"kind": "ship", "fit_units": None, "min_units": None}, {})[:2] == (3.4, 0.6)
+
+    def by_name(checks):
+        return {c["name"]: c for c in checks}
+    c = by_name(godot_package.sq_unit_checks(3.4, 0.6))
+    assert c["sq_min_units_visible"]["ok"] and c["sq_fit_not_below_min"]["ok"], c
+    assert by_name(godot_package.sq_unit_checks(20.0, 10.0))["sq_min_units_visible"]["ok"]   # hangar asks for 10
+    c = by_name(godot_package.sq_unit_checks(20.0, 12.0))["sq_min_units_visible"]
+    assert not c["ok"] and c["severity"] == "warning" and c["value"]["hidden_in"] == ["hangar"], c
+    c = by_name(godot_package.sq_unit_checks(20.0, 15.0))["sq_min_units_visible"]
+    assert c["severity"] == "warning" and c["value"]["hidden_in"] == ["hangar", "flight/combat"], c
+    c = by_name(godot_package.sq_unit_checks(64.83, 45.0))["sq_min_units_visible"]   # old default, 300 m station
+    assert not c["ok"] and c["severity"] == "error" and len(c["value"]["hidden_in"]) == 3, c
+    c = by_name(godot_package.sq_unit_checks(0.3, 0.6))["sq_fit_not_below_min"]
+    assert not c["ok"] and c["severity"] == "error", c
+
+def test_sq_package_big_ship_units_not_metres():
+    """A 117 m ship exported with profile space_quest and no fit/min params: the models.json entry gets the ship
+    role's render units 3.4 / 0.6 (before: 117 / 17.6 m — the target library drew a primitive in the hangar and in
+    flight), af_package.json and stats say where they came from, a warning asks for explicit values; a station
+    via sq_class gets 20 / 0; explicit min_units 25 is a red check (no view asks for more than 20)."""
+    d = _tmp("af_export_squnits_")
+    glb = build_ship(os.path.join(d, "big.glb"), k=20.0, size_class="L", diameter=False)
+    af.reset_scene()
+    res = godot_package.run(_req("godot_package", {"glb": glb},
+                                 {"asset_id": "ship_sq_units_test", "profile": "space_quest", "kind": "ship",
+                                  "validate": False}, os.path.join(d, "out")))
+    assert not _errors(res), (_errors(res), res["checks"])
+    pkg = res["outputs"]["package"]
+    entry = json.load(open(os.path.join(pkg, "space_quest_models_entry.json"), encoding="utf-8"))
+    assert (entry["fit_units"], entry["min_units"]) == (3.4, 0.6), entry
+    man = json.load(open(os.path.join(pkg, "af_package.json"), encoding="utf-8"))
+    assert man["longest_m"] > 100 and man["sq_units"]["role"] == "ship", man["sq_units"]
+    assert res["stats"]["sq_units"] == man["sq_units"], res["stats"]["sq_units"]
+    assert any("render units, not metres" in w for w in res["warnings"]), res["warnings"]
+    assert _check(res, "sq_min_units_visible")["ok"] and _check(res, "sq_fit_not_below_min")["ok"]
+
+    af.reset_scene()
+    res = godot_package.run(_req("godot_package", {"glb": glb},
+                                 {"asset_id": "sq_station_units_test", "profile": "space_quest", "kind": "ship",
+                                  "sq_class": "station_core", "sq_type": "forge", "validate": False},
+                                 os.path.join(d, "out_st")))
+    entry = json.load(open(os.path.join(res["outputs"]["package"], "space_quest_models_entry.json"),
+                           encoding="utf-8"))
+    assert (entry["fit_units"], entry["min_units"]) == (20.0, 0.0) and "/forge/" in entry["path"], entry
+
+    af.reset_scene()
+    res = godot_package.run(_req("godot_package", {"glb": glb},
+                                 {"asset_id": "ship_sq_units_bad", "profile": "space_quest", "kind": "ship",
+                                  "fit_units": 30.0, "min_units": 25.0, "validate": False},
+                                 os.path.join(d, "out_bad")))
+    assert "sq_min_units_visible" in _errors(res), res["checks"]
+    assert not any("render units, not metres" in w for w in res["warnings"]), res["warnings"]   # both explicit
+    af.reset_scene()
+    res = godot_package.run(_req("godot_package", {"glb": glb},
+                                 {"asset_id": "ship_sq_units_godot", "profile": "godot", "kind": "ship",
+                                  "validate": False}, os.path.join(d, "out_godot")))
+    assert res["stats"]["sq_units"] is None and not any(c["name"].startswith("sq_") for c in res["checks"])
+    _done(d)
+
+
+# --------------------------------------------------------------------------- real zombie end to end
+
+def test_real_zombie_heroes_gates():
+    if not _have_zombie():
+        return "skip: zombie FBX clips missing in %s" % ZOMBIE_DIR
+    res, d = _zombie_hg()
+    assert not _errors(res), (_errors(res), res["checks"])
+    st = res["stats"]
+    assert st["cell"] == [320, 320] and st["anchor"] == [160.0, 272.0] and st["px_per_meter"] == 100.0
+    assert st["elevation_deg"] == 25.0 and st["views"] == ["base", "nw", "se"]
+    for name in ("idle.png", "idle_nw.png", "idle_se.png"):
+        sheet = xl.load_png(os.path.join(d, name))
+        assert sheet.shape[:2] == (960, 1280), (name, sheet.shape)      # 12 frames, 4 columns
+        for i in range(12):
+            x, y = (i % 4) * 320, (i // 4) * 320
+            sup = xl.pixel_support(sheet[y:y + 320, x:x + 320])
+            assert sup["body_border_2px_pixels"] == 0
+            assert abs(sup["body_bounds_px"][3] - 272) <= 16, (name, i, sup)   # feet near the anchor row
+    snip = json.load(open(res["outputs"]["heroes_gates_entry"], encoding="utf-8"))
+    e = snip["units"]["zombie"]
+    assert e["cell"] == [320, 320] and e["anchor"] == [160, 272]
+    assert e["anims"]["idle"] == {"sheet": "res://assets/units/zombie/idle.png", "count": 12, "cols": 4,
+                                  "fps": 12, "loop": True}
+    assert set(e["anims"]) == {"idle", "idle_nw", "idle_se"}
+    assert abs(st["normalization"]["height_m"] - 1.7) < 0.005
+
+def test_real_zombie_iso8():
+    if not _have_zombie():
+        return "skip: zombie FBX clips missing in %s" % ZOMBIE_DIR
+    glb = _zombie()
+    af.reset_scene()
+    d = _tmp("af_export_iso8z_")
+    res = render_sprites.run(_req("render_sprites", {"mesh": glb},
+                                  {"profile": "iso8", "asset_id": "zombie", "frames": 6, "pixels_per_meter": 64},
+                                  d))
+    assert not _errors(res), (_errors(res), res["checks"])
+    st = res["stats"]
+    assert set(st["clips"]) == {"idle", "walk"} and st["frames_rendered"] == 2 * 6 * 8
+    assert st["clips"]["idle"]["loop"] and st["clips"]["walk"]["loop"]
+    doc = json.load(open(res["outputs"]["sprites_json"], encoding="utf-8"))
+    cw, ch = doc["cell"]
+    for clip in ("idle", "walk"):
+        sheet = xl.load_png(res["outputs"]["sheets"]["%s.png" % clip])
+        assert sheet.shape[:2] == (8 * ch, 6 * cw), sheet.shape
+    assert _check(res, "lighting_spread")["value"] < 1.3
+    # ground pivots: hips root_px plus both foot bones per frame (feet_px) and their middle
+    ax, ay = doc["anchor"]
+    idle = doc["clips"]["idle"]
+    assert idle["feet_bones"] == ["mixamorig:LeftFoot", "mixamorig:RightFoot"], idle["feet_bones"]
+    for vname, v in idle["views"].items():
+        assert len(v["feet_px"]) == 6 and all(len(f) == 2 for f in v["feet_px"]), vname
+        for mx, my in v["feet_mid_px"]:
+            assert math.hypot(mx - ax, my - ay) < 0.25 * 64, (vname, mx, my, ax, ay)   # within 25 cm
+    if xl.find_godot() is not None:
+        assert _check(res, "godot_spriteframes")["ok"], _check(res, "godot_spriteframes")
+    _done(d)
+
+def test_real_zombie_package():
+    if not _have_zombie():
+        return "skip: zombie FBX clips missing in %s" % ZOMBIE_DIR
+    glb = _zombie()
+    hg_res, hg_dir = _zombie_hg()
+    af.reset_scene()
+    d = _tmp("af_export_pkgz_")
+    fx = [{"preset": "aura", "socket": "socket_fx_chest"},
+          {"preset": "magic_cast", "socket": "socket_mount_hand_r", "params": {"scale": 1.5}}]
+    res = godot_package.run(_req("godot_package", {"glb": glb, "sprites": hg_res["outputs"]["sprites_json"]},
+                                 {"asset_id": "zombie", "profile": "heroes_gates", "forward_axis": "-Z", "fx": fx,
+                                  "autoplay": "idle-loop"}, d))
+    assert not _errors(res), (_errors(res), res["checks"])
+    pkg = res["outputs"]["package"]
+    tscn = open(os.path.join(pkg, "zombie.tscn"), encoding="utf-8").read()
+    assert "Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)" in tscn      # +Z character turned to -Z
+    snip = json.load(open(os.path.join(pkg, "heroes_gates_sprites_entry.json"), encoding="utf-8"))
+    assert "zombie" in snip["units"]
+    man = json.load(open(os.path.join(pkg, "af_package.json"), encoding="utf-8"))
+    assert abs(man["longest_m"] - 1.70) < 0.02, man["longest_m"]          # measured in the rest pose
+    k = {b["preset"]: b["scale"] for b in man["fx"]}
+    assert k["aura"] == 0.944 and k["magic_cast"] == 1.5, k              # auto (1.7 m / 1.8 m) and explicit
+    if xl.find_godot() is None:
+        _done(d, hg_dir, _CACHE["dir"])
+        return
+    g = _check(res, "godot_validation")["value"]
+    sc = g["scenes"][0]
+    loops = {a["expected"]: (a["found"], a["loop_mode"]) for a in sc["animation_checks"]}
+    assert loops["idle-loop"][1] != 0 and loops["walk-loop"][1] != 0, loops
+    assert sc["sockets"]["socket_mount_hand_r"]["found"] and sc["sockets"]["socket_fx_chest"]["found"]
+    assert sc["model_basis_z"][2] < -0.99, sc["model_basis_z"]
+    assert all(f["ok"] for f in sc["fx"]), sc["fx"]
+    assert all(abs(f["scale_rel"] - 1.0) < 0.01 for f in sc["fx"]), sc["fx"]   # bone sockets keep metres
+    sf = g["sprite_frames"][0]
+    assert sf["loaded"] and not sf["mismatches"] and sf["animations"]["idle"]["loop"], sf
+    _done(d, hg_dir, _CACHE["dir"])      # last user of the cached zombie GLB and HG sheets
