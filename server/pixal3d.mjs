@@ -33,7 +33,8 @@ export const PIXAL3D_REQUIREMENTS = [
 export const PIXAL3D_ESTIMATE = { multiSeconds: 232, singleSeconds: 355, vramGb: 9.5 };
 
 function readPathsJson(rootDir) {
-  try { return JSON.parse(readFileSync(path.join(rootDir, 'config', 'paths.json'), 'utf8')); } catch { return {}; }
+  // a BOM from the installer used to silently lose the pixal3dDir path (the 0.4.11 fix)
+  try { return JSON.parse(readFileSync(path.join(rootDir, 'config', 'paths.json'), 'utf8').replace(/^\uFEFF/, '')); } catch { return {}; }
 }
 
 /**
