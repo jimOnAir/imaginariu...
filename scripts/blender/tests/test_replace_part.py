@@ -21,6 +21,12 @@ from steps import _mesh_lib as ml
 from steps import _replace_lib as rl
 
 NECRO_HEAD = {"min": [-0.17, -0.22, 1.50], "max": [0.07, 0.10, 1.78]}
+# Fixtures for the one real-asset case ("skip: ..." when a file is missing).
+# Environment overrides: AF_NECRO_GLB, AF_SKULL_DIR.
+NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+SKULL_DIR = os.environ.get("AF_SKULL_DIR") or r"C:/AstraForge/test-assets/skull_roi"
+SKULL = os.path.join(SKULL_DIR, "skull_seed1234_100k.glb")       # Hunyuan 2.1, seed 1234
+SKULL_CROP = os.path.join(SKULL_DIR, "skull_crop_a_rgba.png")      # x1335-1505, y82-288, x4.97
 
 
 # --------------------------------------------------------------------------- helpers
@@ -368,6 +374,40 @@ def test_front_projection_synthetic():
 
 
 # --------------------------------------------------------------------------- real assets
+
+def test_real_necromancer_skull():
+    for f in (NECRO, SKULL, SKULL_CROP):
+        if not os.path.isfile(f):
+            return "skip: missing " + f
+    d = _tmp()
+    try:
+        res = _run({"mesh": NECRO, "part": SKULL},
+                   {"height_m": 1.8, "region": NECRO_HEAD,
+                    "cut_plane": {"axis": "z", "value": 1.50}, "part_tris": 20000,
+                    "texture": {"image": SKULL_CROP, "mode": "front_projection"},
+                    "eyes": {"auto": True}, "preview": True}, out_dir=os.path.join(d, "out"))
+        assert res["ok"], (res.get("error"), res["checks"])
+        s = res["stats"]
+        assert s["tris_before"] == 119949, s["tris_before"]       # welded 119 997-tri GLB
+        assert s["tris_after"] < 140000, s["tris_after"]
+        assert s["alignment"]["rms_rel"] < 0.04, s["alignment"]
+        assert s["texture"]["silhouette_iou"] > 0.9, s["texture"]
+        assert len(s["texture"]["glow_blobs_px"]) == 2, s["texture"]
+        assert s["seam"]["bridged"] and s["seam"]["open_seam_edges"] == 0, s["seam"]
+        assert s["seam"]["boundary_edges_after"] <= s["seam"]["boundary_edges_before"]
+        assert s["part"]["trim"]["kept_hanging_pieces"], s["part"]["trim"]   # the new jaw
+        c = s["compare"]
+        assert c["new_front_vs_reference"]["iou"] > c["old_front_vs_reference"]["iou"] + 0.05, c
+        assert c["new_front_vs_reference"]["color_mae"] < c["old_front_vs_reference"]["color_mae"]
+        depth = s["eyes"]["socket_depth_at_eyes"]
+        for side in ("l", "r"):
+            assert depth[side]["new_mm"] > 25.0, depth
+            assert depth[side]["new_mm"] > depth[side]["old_mm"] + 8.0, depth
+        assert s["eyes"]["l"]["position"][0] > s["eyes"]["r"]["position"][0]
+        assert 10.0 < s["eyes"]["facing_yaw_deg"] < 40.0, s["eyes"]   # turned to its left
+        assert s["sockets"] == ["socket_fx_eye_l", "socket_fx_eye_r"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
 
 
 def test_replace_align_none_keeps_part_pose_materials_and_sockets():

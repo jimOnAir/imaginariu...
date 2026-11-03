@@ -20,6 +20,15 @@ from mathutils import Matrix, Vector
 import af_common as af
 from steps import _mesh_lib as ml
 
+# Fixtures for the one real-asset case ("skip: ..." when a file is missing).
+# Environment overrides: AF_CLASP_START_GLB, AF_TOGGLE_RINGS_GLB.
+START = os.environ.get("AF_CLASP_START_GLB") or r"C:/AstraForge/test-assets/skull_roi/runs/seed1234/replaced.glb"
+# bone_kit bone_toggle of the necromancer rebuild (docs/forge/necromancer.md)
+TOGGLE_RINGS = (os.environ.get("AF_TOGGLE_RINGS_GLB")
+                or r"C:/AstraForge/test-assets/NecromancerForge/parts/bone_toggle_rings.glb")
+# front-view clasp centres in the frame of START (reference alpha -> calibrated camera, docs/forge/necromancer.md)
+CLASPS = [[0.01987, 1.3570], [0.03209, 1.2196], [0.03820, 1.1420], [0.03331, 1.0790]]
+
 
 # --------------------------------------------------------------------------- helpers
 
@@ -312,3 +321,20 @@ def test_part_and_target_sockets_survive():
     assert abs(socks["socket_mount_hand_l"].get("grip_radius_m", 0) - 0.02) < 1e-6
     b = socks["socket_mount_hand_l_2"].matrix_world
     assert (b.translation - Vector((-0.2, -0.11, -0.05))).length < 1e-4, b.translation
+
+
+# --------------------------------------------------------------------------- real assets
+
+def test_real_necromancer_clasps():
+    for f in (START, TOGGLE_RINGS):
+        if not os.path.isfile(f):
+            return "skip: %s missing" % f
+    res = _run({"mesh": START, "part": TOGGLE_RINGS},
+               {"points": [dict(at=a, **({"max_tilt_deg": 25} if i == 0 else {})) for i, a in enumerate(CLASPS)],
+                "normal_patch": 2.0, "rest_percentile": 70, "preview": False})
+    assert res["ok"], res
+    for rec in res["stats"]["points"]:
+        # on the robe front (y about -0.1 .. -0.2), facing the camera, not buried
+        assert -0.25 < rec["position"][1] < -0.05, rec
+        assert rec["normal"][1] < -0.85, rec        # within ~30 deg of the camera axis
+        assert rec["penetration"]["max_depth_m"] < 0.3 * rec["thickness_m"] + 1e-6, rec["penetration"]

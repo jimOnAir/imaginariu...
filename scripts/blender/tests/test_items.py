@@ -20,6 +20,16 @@ from steps import attach_prop as A
 from steps import item_from_mesh as F
 from steps import item_kit as K
 
+# On-disk fixtures for the test_real_* / evidence cases ("skip: ..." when a file is missing).
+# Environment overrides: AF_ART_RAW, AF_NECRO_GLB.
+ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+ZOMBIE = ART_RAW + "/zombie/mixamo_rigged.fbx"
+ZOMBIE_ATTACK = ART_RAW + "/zombie/anims/attack.fbx"
+ANGEL = ART_RAW + "/angel/mixamo_rigged.fbx"
+ANGEL_IDLE = ART_RAW + "/angel/anims/idle.fbx"
+ANGEL_ATTACK = ART_RAW + "/angel/anims/attack.fbx"
+NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+
 
 def _tmp():
     return tempfile.mkdtemp(prefix="af_items_")
@@ -604,3 +614,276 @@ def test_grip_dir_names_and_created_socket():
     hs = rep["hand_sockets"]["l"]
     assert hs["info"]["created"] and hs["info"]["thumb_source"] == "grip_dir", hs["info"]
     assert hs["z_axis"][2] > 0.999, hs["z_axis"]
+
+
+# =============================================================================== real assets
+
+def test_real_angel_staff():
+    if not os.path.exists(ANGEL):
+        return "skip: angel asset missing"
+    out = _tmp()
+    staff, _ = _kit_glb(os.path.join(out, "staff"), {"type": "staff", "style": "elven", "head": "crystal", "ornament": 2})
+    clips = [p for p in (ANGEL_IDLE, ANGEL_ATTACK) if os.path.exists(p)]
+    res = A.run(_req(os.path.join(out, "att"), {"hand": "l"}, {"character": ANGEL, "item": staff, "clips": clips}))
+    assert not _errors(res), _errors(res)
+    rep = json.load(open(res["outputs"]["json"], encoding="utf-8"))
+    att = rep["attachments"][0]
+    assert att["rest"]["grip_to_hand_m"] < 0.03 and att["rest"]["axis_inside_arm"] == 0
+    anims = L.glb_summary(res["outputs"]["glb"])["animations"]
+    if os.path.exists(ANGEL_IDLE):
+        assert "idle-loop" in anims, anims
+    if os.path.exists(ANGEL_ATTACK):
+        assert "attack" in anims, anims
+    # the right fist of this model holds a sword baked into the mesh: the socket must follow it
+    res_r = A.run(_req(os.path.join(out, "att_r"), {"hand": "r", "clips_check": False}, {"character": ANGEL, "item": staff}))
+    rep_r = json.load(open(res_r["outputs"]["json"], encoding="utf-8"))
+    assert rep_r["hand_sockets"]["r"]["info"].get("thumb_source") == "baked_prop_axis"
+    assert rep_r["hand_sockets"]["r"]["z_axis"][2] > 0.9
+
+def test_real_necromancer_staff_from_mesh():
+    if not os.path.exists(NECRO):
+        return "skip: necromancer asset missing"
+    out = _tmp()
+    res, info = _ifm(NECRO, out, {"type": "staff", "length_m": 1.8, "grip": {"t": 0.65},
+                                  "crop": {"segment": [[0.51, -0.38, -0.05], [0.80, -0.47, 3.05]], "radius": 0.15}})
+    assert not _errors(res), _errors(res)
+    assert res["stats"]["tris_source"] > 100000 and info["tris"] <= 4000
+    assert abs(info["dimensions_m"][2] - 1.8) < 0.01
+    names = [s["name"] for s in info["sockets"]]
+    assert {"socket_grip_main", "socket_grip_off", "socket_fx_tip"} <= set(names), names
+    fx = next(s for s in info["sockets"] if s["name"] == "socket_fx_tip")["location"]
+    assert fx[2] > 1.7, "the skull head must end up on top"
+    assert info["report"]["grip"]["grip_end"] == "max"  # head was at the PCA min end in the source
+
+def test_real_zombie_staff_skin_rigid():
+    if not (os.path.exists(ZOMBIE) and os.path.exists(ZOMBIE_ATTACK)):
+        return "skip: zombie assets missing"
+    out = _tmp()
+    staff, _ = _kit_glb(os.path.join(out, "staff"), {"type": "staff", "style": "dark", "head": "skull", "ornament": 2})
+    res = A.run(_req(os.path.join(out, "att"), {"hand": "r", "mode": "skin_rigid"},
+                     {"character": ZOMBIE, "item": staff, "clips": [ZOMBIE_ATTACK]}))
+    assert not _errors(res), _errors(res)
+    rep = json.load(open(res["outputs"]["json"], encoding="utf-8"))
+    assert rep["attachments"][0]["joined_meshes"] == 1
+    assert rep["attachments"][0]["rest"]["axis_inside_arm"] == 0
+
+def test_real_zombie_sword_and_kite_shield_with_attack():
+    if not (os.path.exists(ZOMBIE) and os.path.exists(ZOMBIE_ATTACK)):
+        return "skip: zombie assets missing"
+    out = _tmp()
+    sword, _ = _kit_glb(os.path.join(out, "sword"), {"type": "sword", "ornament": 2})
+    kite, _ = _kit_glb(os.path.join(out, "kite"), {"type": "shield_kite", "ornament": 2})
+    res = A.run(_req(os.path.join(out, "att"), {"attachments": [{"item": sword, "hand": "r"}, {"item": kite, "hand": "l"}]},
+                     {"character": ZOMBIE, "clips": [ZOMBIE_ATTACK]}))
+    assert not _errors(res), _errors(res)
+    rep = json.load(open(res["outputs"]["json"], encoding="utf-8"))
+    sw, sh = rep["attachments"]
+    assert sw["rest"]["axis_inside_arm"] == 0 and sw["rest"]["overlap_arm_tris"] == 0
+    assert sw["rest"]["grip_to_hand_m"] < 0.04 and sw["mount"] == "socket_mount_hand_r"
+    assert sh["fit"] == "clips" and sh["rest"]["shield_up_dot"] >= 0.7 and sh["rest"]["shield_face_out_dot"] >= 0.3
+    assert sh["mount"] == "socket_mount_shield_l" and sh["grip_on_mount_error"]["pos_m"] < 1e-4
+    assert sh["rest"]["overlap_hand_tris"] == 0, "the hand must stay behind the shield at rest"
+    assert sh["frames"]["count"] >= 10
+    summ = L.glb_summary(res["outputs"]["glb"])
+    assert "attack" in summ["animations"] and "socket_mount_shield_l" in summ["sockets"]
+    assert abs(rep["height_m"] - 1.70) < 0.08, rep["height_m"]
+
+
+# =============================================================================== evidence (not a test)
+
+def make_evidence(out_root=None, img_dir=None):
+    """Regenerate the numbers and preview images of docs/forge/items.md from the current code.
+
+        blender -b --factory-startup --python-expr "import sys; sys.path[:0]=['<repo>/scripts/blender',
+            '<repo>/scripts/blender/tests']; import test_items as t; t.make_evidence(None, '<repo>/docs/forge/img/items')"
+
+    Writes <out_root>/evidence.json (all numbers) and, with img_dir, the four evidence PNGs."""
+    import time
+    out_root = out_root or tempfile.mkdtemp(prefix="af_items_evidence_")
+    ev = {"out_root": out_root}
+    # 1. kit: every type (ornament 2, seed 0) + three more staff heads in one batch with a contact sheet
+    batch = [{"type": t} for t in K.TYPES] + [{"type": "staff", "head": "skull", "style": "dark"},
+                                              {"type": "staff", "head": "orb"}, {"type": "staff", "head": "crook"}]
+    t0 = time.time()
+    res = K.run(_req(os.path.join(out_root, "kit"), {"ornament": 2, "seed": 0, "batch": batch, "preview_size": 192,
+                                                     "sheet_title": "ASTRAFORGE ITEM KIT  ORNAMENT 2  SEED 0"}))
+    ev["kit_batch_seconds"] = round(time.time() - t0, 2)
+    kb = json.load(open(res["outputs"]["batch_json"], encoding="utf-8"))
+    ev["kit"] = [{"type": v["type"], "style": v["style"], "head": v["resolved"].get("head"), "tris": v["tris"],
+                  "budget": v["budget_tris"], "dims": v["dimensions_m"],
+                  "glb_kb": round(os.path.getsize(v["glb"]) / 1024.0, 1)} for v in kb["variants"]]
+    ev["kit_errors"] = [c["name"] for c in _errors(res)]
+    sheet_kit = res["outputs"]["contact_sheet"]
+    # 2. budget sweep: every type x style x 2 seeds at ornament 3
+    worst = {"one_handed": [0, None], "two_handed": [0, None]}
+    n_sweep, nm_total = 0, 0
+    t0 = time.time()
+    for typ in K.TYPES:
+        for style in L.STYLES:
+            for seed in (1, 2):
+                af.reset_scene()
+                item, info = K.build_item({"type": typ, "style": style, "seed": seed, "ornament": 3})
+                n_sweep += 1
+                assert info["tris"] <= info["budget_tris"], (typ, style, seed, info["tris"])
+                nm_total += info["non_manifold_edges"]
+                cls = "two_handed" if typ in K.TWO_HANDED else "one_handed"
+                if info["tris"] > worst[cls][0]:
+                    worst[cls] = [info["tris"], "%s %s s%d o3" % (typ, style, seed)]
+    ev["sweep"] = {"builds": n_sweep, "seconds": round(time.time() - t0, 1), "worst": worst,
+                   "non_manifold_edges_total": nm_total}
+    # 3. variants: 6 seeded medieval swords + 4 staffs (crystal, orb, crook, dark skull for the necromancer)
+    swords = [{"type": "sword", "seed": s, "style": "medieval"} for s in range(101, 107)]
+    staffs = [{"type": "staff", "head": "crystal", "style": "elven", "seed": 3},
+              {"type": "staff", "head": "orb", "seed": 4}, {"type": "staff", "head": "crook", "seed": 5},
+              {"type": "staff", "head": "skull", "style": "dark", "seed": 6, "ornament": 3}]
+    res_sw = K.run(_req(os.path.join(out_root, "variants_swords"), {"ornament": 2, "batch": swords, "preview_size": 192,
+                                                                    "sheet_cols": 6, "sheet_tile": 213,
+                                                                    "sheet_title": "6 SWORDS  SEED 101-106  COMMON SCALE"}))
+    res = K.run(_req(os.path.join(out_root, "variants_staffs"), {"ornament": 2, "batch": staffs, "preview_size": 192,
+                                                                 "sheet_cols": 4, "sheet_tile": 256,
+                                                                 "sheet_title": "4 STAFFS  COMMON SCALE"}))
+    vb = json.load(open(res_sw["outputs"]["batch_json"], encoding="utf-8"))
+    vb["variants"] += json.load(open(res["outputs"]["batch_json"], encoding="utf-8"))["variants"]
+    keep = ("blade_profile", "guard", "pommel", "blade_length", "blade_width", "guard_width", "grip_length",
+            "ricasso", "fuller", "head")
+    ev["variants"] = [{"type": v["type"], "seed": v["seed"], "style": v["style"], "tris": v["tris"],
+                       "dims": v["dimensions_m"],
+                       "resolved": {k: (round(x, 3) if isinstance(x, float) else x)
+                                    for k, x in v["resolved"].items() if k in keep}}
+                      for v in vb["variants"]]
+    sheet_var = L.stack_rows([res_sw["outputs"]["contact_sheet"], res["outputs"]["contact_sheet"]],
+                             os.path.join(out_root, "variants_sheet.png"))
+    # 4. item_from_mesh on dense, rotated, scaled kit copies (grip error vs the kit's own sockets)
+    ifm = []
+    for typ, kind, extra in (("sword", "blade", {}), ("greatsword", "blade", {}), ("dagger", "blade", {}),
+                             ("axe", "axe", {}), ("battle_axe", "axe", {}), ("mace", "blunt", {}),
+                             ("warhammer", "blunt", {}), ("halberd", "polearm", {}),
+                             ("spear", "polearm", {"type": "spear"}), ("staff", "staff", {}),
+                             ("shield_kite", "shield", {})):
+        src, info0 = _mangled(typ, out_root, 7)
+        k0 = {s["name"]: s["location"] for s in info0["sockets"]}
+        r, info = _ifm(src, os.path.join(out_root, "ifm_" + typ),
+                       dict({"kind": kind, "length_m": info0["dimensions_m"][2]}, **extra))
+        k1 = {s["name"]: s["location"] for s in info["sockets"]}
+        g0, g1 = np.array(k0["socket_grip_main"]), np.array(k1["socket_grip_main"])
+        e = {"type": typ, "tris_in": r["stats"]["tris_source"], "tris": info["tris"], "budget": info["budget_tris"],
+             "rule": info["report"]["grip"].get("rule") or info["report"]["grip"].get("method"),
+             "main_err_cm": round(100 * float(np.linalg.norm(g1 - g0)), 1),
+             "main_err_z_cm": round(100 * abs(g1[2] - g0[2]), 1),
+             "errors": [c["name"] for c in _errors(r)],
+             "warn_failed": [c["name"] for c in r["checks"] if not c["ok"] and c.get("severity") == "warning"]}
+        if "socket_grip_off" in k0 and "socket_grip_off" in k1:
+            e["off_err_z_cm"] = round(100 * abs(k1["socket_grip_off"][2] - k0["socket_grip_off"][2]), 1)
+            e["hands_gap_m"] = round(k1["socket_grip_main"][2] - k1["socket_grip_off"][2], 3)
+        if typ == "shield_kite":
+            e["face"] = info["report"]["face"]["method"]
+            e["grip_err_y_cm"] = round(100 * abs(g1[1] - g0[1]), 1)
+        ifm.append(e)
+    ev["item_from_mesh"] = ifm
+    blade_errs = []
+    for typ in ("sword", "greatsword", "dagger"):
+        for seed in range(1, 7):
+            for style in ("medieval", "dark", "elven"):
+                src, info0 = _mangled(typ, out_root, seed, {"seed": seed, "style": style})
+                g0 = next(s for s in info0["sockets"] if s["name"] == "socket_grip_main")["location"]
+                r, info = _ifm(src, os.path.join(out_root, "ifm_sweep"),
+                               {"kind": "blade", "length_m": info0["dimensions_m"][2], "preview": False})
+                blade_errs.append((round(100 * abs(info["sockets"][0]["location"][2] - g0[2]), 1), typ, seed, style,
+                                   info0["resolved"].get("pommel")))
+    ev["blade_sweep"] = {"runs": len(blade_errs), "max_cm": max(blade_errs),
+                         "mean_cm": round(float(np.mean([b[0] for b in blade_errs])), 2),
+                         "by_style_max_cm": {st: max(b[0] for b in blade_errs if b[3] == st)
+                                             for st in ("medieval", "dark", "elven")}}
+    necro = None
+    if os.path.exists(NECRO):
+        r, info = _ifm(NECRO, os.path.join(out_root, "necro"),
+                       {"type": "staff", "length_m": 1.8, "grip": {"t": 0.65},
+                        "crop": {"segment": [[0.51, -0.38, -0.05], [0.80, -0.47, 3.05]], "radius": 0.15}})
+        necro = {"tris_in": r["stats"]["tris_source"], "tris": info["tris"], "dims": info["dimensions_m"],
+                 "removed_vertices": info["report"].get("crop_removed_vertices"), "cleanup": info["report"]["cleanup"],
+                 "textures": info["textures_downscaled"], "glb_mb": round(os.path.getsize(r["outputs"]["glb"]) / 1e6, 2),
+                 "preview": r["outputs"]["preview"], "sockets": [s["name"] for s in info["sockets"]]}
+    ev["necro"] = necro
+    # 5. attach_prop on real rigs
+    att = {}
+    kit_dir = os.path.join(out_root, "att_items")
+    sword, _ = _kit_glb(os.path.join(kit_dir, "sword"), {"type": "sword", "ornament": 2})
+    kite, _ = _kit_glb(os.path.join(kit_dir, "kite"), {"type": "shield_kite", "ornament": 2})
+    rnd, _ = _kit_glb(os.path.join(kit_dir, "round"), {"type": "shield_round", "ornament": 2})
+    skull, _ = _kit_glb(os.path.join(kit_dir, "skull"), {"type": "staff", "style": "dark", "head": "skull", "ornament": 2})
+    crystal, _ = _kit_glb(os.path.join(kit_dir, "crystal"), {"type": "staff", "style": "elven", "head": "crystal",
+                                                             "ornament": 2})
+    prev_zombie = prev_zstaff = prev_angel = None
+    if os.path.exists(ZOMBIE) and os.path.exists(ZOMBIE_ATTACK):
+        t0 = time.time()
+        res = A.run(_req(os.path.join(out_root, "att_zombie_ss"),
+                         {"attachments": [{"item": sword, "hand": "r"}, {"item": kite, "hand": "l"}], "size": 256},
+                         {"character": ZOMBIE, "clips": [ZOMBIE_ATTACK]}))
+        att["zombie_sword_kite"] = _summarise_attach(res)
+        att["zombie_sword_kite"]["seconds"] = round(time.time() - t0, 1)
+        prev_zombie = res["outputs"]["preview"]
+        # swap demo: the kite is replaced by a round shield purely by socket matching in the saved scene
+        af.open_blend(res["outputs"]["blend"])
+        arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
+        arm.data.pose_position = "REST"
+        bpy.context.view_layer.update()
+        for o in [o for o in bpy.data.objects if o.get("af_attached_hand") == "l"]:
+            for ch in list(o.children):
+                bpy.data.objects.remove(ch)
+            bpy.data.objects.remove(o)
+        objs = af.import_any(rnd)
+        root = next(o for o in objs if o.type == "MESH")
+        grip = next(o for o in objs if o.get("game_socket") == "socket_grip_main")
+        bpy.context.view_layer.update()
+        root.matrix_world = _world_of("socket_mount_shield_l") @ grip.matrix_world.inverted() @ root.matrix_world
+        bpy.context.view_layer.update()
+        R3 = root.matrix_world.to_3x3().normalized()
+        att["swap_round"] = {"up_z": round((R3 @ Vector((0, 0, 1))).z, 3), "face_x": round((R3 @ Vector((0, -1, 0))).x, 3)}
+        vis = [o for o in bpy.data.objects if o.type == "MESH" and o.visible_get()]
+        swap_png = af.render_views(os.path.join(out_root, "swap", "swap.png"), vis,
+                                   views=("front", "left", "three_quarter"), size=256)
+        prev_zombie = L.stack_rows([prev_zombie, swap_png], os.path.join(out_root, "zombie_ev.png"),
+                                   labels=["SWORD R + KITE L (ATTACK CLIP)", "SWAP: ROUND SHIELD ON SOCKET_MOUNT_SHIELD_L (REST)"])
+        res = A.run(_req(os.path.join(out_root, "att_zombie_staff"), {"hand": "r", "mode": "skin_rigid", "size": 256},
+                         {"character": ZOMBIE, "item": skull, "clips": [ZOMBIE_ATTACK]}))
+        att["zombie_staff_skin_rigid"] = _summarise_attach(res)
+        prev_zstaff = res["outputs"]["preview"]
+    if os.path.exists(ANGEL):
+        clips = [p for p in (ANGEL_IDLE, ANGEL_ATTACK) if os.path.exists(p)]
+        res = A.run(_req(os.path.join(out_root, "att_angel"), {"hand": "l", "size": 256, "preview_clip": "attack"},
+                         {"character": ANGEL, "item": crystal, "clips": clips}))
+        att["angel_staff_l"] = _summarise_attach(res)
+        prev_angel = res["outputs"]["preview"]
+    ev["attach"] = att
+    # 6. images
+    if img_dir:
+        os.makedirs(img_dir, exist_ok=True)
+        ims = {"items_kit_sheet.png": _png_rgb(sheet_kit, os.path.join(img_dir, "items_kit_sheet.png")),
+               "items_variants.png": _png_rgb(sheet_var, os.path.join(img_dir, "items_variants.png"))}
+        if prev_zombie:
+            ims["items_attach_zombie_sword_shield.png"] = _png_rgb(
+                prev_zombie, os.path.join(img_dir, "items_attach_zombie_sword_shield.png"), 1024)
+        parts, labels = [], []
+        for p, lab, crop in ((prev_zstaff, "ZOMBIE: DARK SKULL STAFF R  SKIN_RIGID  REST + ATTACK", True),
+                             (prev_angel, "ANGEL: CRYSTAL STAFF L  REST + ATTACK (CLIPS IDLE-LOOP, ATTACK)", True),
+                             (necro["preview"] if necro else None, "NECROMANCER STAFF VIA ITEM_FROM_MESH  1.80 M", False)):
+            if not p:
+                continue
+            arr = L.load_png(p)
+            if crop:  # rest pose and the middle clip frame of the 4-row attach preview (labels removed)
+                band = arr.shape[0] // 4
+                arr = np.concatenate([arr[20:band], arr[2 * band + 20:3 * band]], axis=0)
+            elif arr.shape[1] > 768:  # item preview: same width as the attach rows
+                arr = L.resize_nearest(arr, 768, int(arr.shape[0] * 768 / arr.shape[1]))
+            tmp = os.path.join(out_root, "ev_part_%d.png" % len(parts))
+            L.save_png(arr, tmp)
+            parts.append(tmp)
+            labels.append(lab)
+        if parts:
+            comp = L.stack_rows(parts, os.path.join(out_root, "staffs_ev.png"), labels=labels)
+            ims["items_staffs_and_from_mesh.png"] = _png_rgb(comp, os.path.join(img_dir, "items_staffs_and_from_mesh.png"), 1024)
+        ev["images"] = ims
+    with open(os.path.join(out_root, "evidence.json"), "w", encoding="utf-8") as fh:
+        json.dump(af._jsonable(ev), fh, ensure_ascii=False, indent=1)
+    print("EVIDENCE " + os.path.join(out_root, "evidence.json"), flush=True)
+    return ev
