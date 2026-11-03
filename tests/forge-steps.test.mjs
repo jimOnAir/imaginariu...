@@ -240,8 +240,11 @@ test('ships and export: thruster frames, layouts, lod_strip, profile-dependent s
   assert.equal(s.inputs.manifest, true, 'manifest kind decides the forward axis');
   assert.equal(s.params.pixels_per_meter.default, null);
   assert.equal(s.params.elevation_deg.default, null, 'module default 30°');
-  assert.deepEqual(s.params.profile.enum, ['iso8', 'custom']);
+  assert.deepEqual(s.params.profile.enum, ['iso8', 'custom', 'pixel']);
   for (const k of ['kind', 'adaptive_cell', 'event_frames']) assert.equal(k in s.params, false, k);
+  for (const k of ['supersample', 'downscale', 'palette', 'colors', 'dither', 'dither_strength', 'outline',
+                   'levels', 'saturation', 'alpha_threshold', 'self_shadow', 'preview_zoom'])
+    assert.ok(k in s.params, `pixel profile parameter ${k}`);
   assert.equal(s.params.fps.default, null);
   // generators get their scalar defaults written out by the wizard: they must equal the modules'
   assert.deepEqual(

@@ -814,13 +814,26 @@ const STEP_LIST = [
   // ---------------------------------------------------------------- export
   {
     step: 'render_sprites', module: 'export', title: 'Sprites',
-    help: 'Sprite sheets by direction and clip (isometric iso8 or custom directions). Wrong model units are an error before rendering, with a hint (params.height_m).',
+    help: "Sprite sheets by direction and clip (isometric iso8, custom directions or pixel art). Wrong model units are an error before rendering, with a hint (params.height_m).",
     kinds: ALL_KINDS, inputs: { slots: ['blend', 'mesh'], required: true, formats: MESH_FORMATS, manifest: true },
     outputs: ['sheets', 'sprites_json', 'spriteframes', 'preview', 'preview_frames', 'godot_check'],
     gpu: true, timeoutSec: 60 * 60, export: true,
     params: {
       asset_id: str(null, 'ID for files', 'snake_case; filled in by the server.', { auto: 'asset_slug' }),
-      profile: oneOf(['iso8', 'custom'], 'iso8', 'Profile', ''),
+      profile: oneOf(['iso8', 'custom', 'pixel'], 'iso8', 'Profile', 'pixel - pixel art: no antialiasing and no shadows, colour only from the palette, 24 px/m, 8 directions, 8 frames.'),
+      // pixel: post-processing after the render (scripts/pixel/pixelize.py), see the docstring of render_sprites.py
+      supersample: int(null, 1, 4, 'Supersampling', 'pixel: render k times larger and average each block; not together with downscale.', opt),
+      downscale: int(null, 1, 8, 'Nearest downscale', 'pixel: render k times larger and take the centre of each block.', opt),
+      palette: str(null, 'Palette', "pixel: 'auto' (median cut over all frames), a path to .png/.gpl/.hex or 'none'."),
+      colors: int(null, 2, 256, 'Palette colours', 'pixel: for auto, 32 by default.', opt),
+      dither: bool(null, 'Dithering', 'pixel: ordered Bayer 4x4, the same pattern in every frame.'),
+      dither_strength: num(null, 0, 1, 'Dither strength', 'pixel: 0.5 by default.', opt),
+      outline: oneOf(['none', 'dark', 'auto', null], null, 'Outline', 'pixel: 1 px outside the body; dark - the darkest palette colour, auto - darken the neighbouring body colour.'),
+      levels: bool(null, 'Levels stretch', 'pixel: on by default; luminance percentiles 2..98 to 14..240 over all frames at once.'),
+      saturation: num(null, 0, 3, 'Saturation', 'pixel: 1.2 by default, 1 - unchanged.', opt),
+      alpha_threshold: int(null, 1, 255, 'Alpha threshold', 'pixel: 128 by default; alpha only 0 or 255.', opt),
+      self_shadow: bool(null, 'Self shadows', 'pixel: off by default (light shadows on).'),
+      preview_zoom: int(null, 1, 16, 'Preview zoom', 'pixel: 4 by default, nearest neighbour.', opt),
       forward: oneOf(['-Y', '+Y', null], null, 'Facing', 'Empty - by asset kind: ships, props, turrets +Y, the rest -Y.'),
       height_m: num(null, 0.05, 100, 'Height, m', 'Empty - no scale (a model outside 0.3-15 m is probably in the wrong units).', opt),
       clips: { type: 'any', default: 'all', title: 'Clips', help: "'all' or a list of clip names." },

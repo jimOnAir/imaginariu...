@@ -204,6 +204,7 @@ export default {
   "enum.three_quarter": "Три четверти",
   "enum.godot": "Godot",
   "enum.iso8": "Спрайты iso8",
+  "enum.pixel": "Пиксель-арт",
   "enum.true": "Да",
   "enum.false": "Нет",
   "enum.null": "—",

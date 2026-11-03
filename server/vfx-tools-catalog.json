@@ -30,6 +30,26 @@
       "download": { "url": "https://github.com/RodZill4/material-maker/releases/download/1.7/material_maker_1_7_windows.zip", "unzip": "apps/material-maker", "strip": "material_maker_1_7_windows" }
     },
     {
+      "id": "pixelorama",
+      "name": "Pixelorama 1.2.3",
+      "author": "Orama Interactive",
+      "kind": "desktop",
+      "license": "MIT",
+      "url": "https://github.com/Orama-Interactive/Pixelorama",
+      "tags": ["pixel", "sprite", "animation", "editor"],
+      "ru": "Пиксель-арт и покадровая спрайтовая анимация на Godot: слои, кадры, палитры, экспорт PNG и листов спрайтов.",
+      "local": { "exe": "apps/pixelorama/Pixelorama.exe" },
+      "linux": {
+        "local": { "exe": "apps/pixelorama/Pixelorama.x86_64" },
+        "download": { "url": "https://github.com/Orama-Interactive/Pixelorama/releases/download/v1.2.3/Pixelorama-Linux-64bit.tar.gz", "unzip": "apps/pixelorama" }
+      },
+      "download": {
+        "url": "https://github.com/Orama-Interactive/Pixelorama/releases/download/v1.2.3/Pixelorama-Windows-64bit.zip",
+        "unzip": "apps/pixelorama",
+        "strip": "Pixelorama-Windows-64bit"
+      }
+    },
+    {
       "id": "flowmap-painter",
       "name": "FlowMap Painter 0.9.2",
       "author": "TECK LEE TA",

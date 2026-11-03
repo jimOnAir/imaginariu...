@@ -206,6 +206,7 @@ export default {
   "enum.three_quarter": "Three-quarter",
   "enum.godot": "Godot",
   "enum.iso8": "iso8 sprites",
+  "enum.pixel": "Pixel art",
   "enum.true": "Yes",
   "enum.false": "No",
   "enum.null": "—",
