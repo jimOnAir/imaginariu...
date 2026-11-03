@@ -1,0 +1,190 @@
+/* Review -> "Journal & recipes" (src/forge/ForgeLearn.jsx). Same tokens as forge.css and forge-review.css. */
+
+/* the mode bar on top of the Review tab (ForgeReview.jsx) */
+.rv-modes {
+  flex-shrink: 0;
+  display: flex;
+  gap: 4px;
+  padding: 0 12px 8px;
+}
+.rv-modes button {
+  flex: 1 1 0;
+  gap: 6px;
+  padding: 6px 8px;
+  font-size: 10px;
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  background: #1c2325;
+  color: var(--dim);
+}
+.rv-modes button.active {
+  background: #2a352f;
+  border-color: #8b9a62;
+  color: #dfe8d4;
+}
+
+.lr-top .rv-tools select { flex: 1 1 160px; }
+.lr-check {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 10px;
+  color: var(--dim);
+  white-space: nowrap;
+}
+.lr-check input { width: auto; margin: 0; }
+
+/* recipes panel */
+.lr-recipes {
+  margin-bottom: 10px;
+  padding: 8px 10px;
+  border: 1px solid #3a4a3d;
+  border-radius: 6px;
+  background: #1b2321;
+}
+.lr-recipes summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  font-size: 11px;
+  color: #cfdcc4;
+}
+.lr-group {
+  margin-top: 8px;
+  padding-top: 7px;
+  border-top: 1px solid #2c3634;
+}
+.lr-group h5 {
+  margin: 0 0 5px;
+  font-size: 10.5px;
+  font-weight: 500;
+  color: #d5ddd8;
+}
+.lr-group h5 small,
+.lr-group > small,
+.lr-pitfall small {
+  font-size: 9px;
+  color: var(--dim);
+}
+.lr-best,
+.lr-pitfall {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  margin-top: 4px;
+}
+.lr-params {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 3px;
+}
+.lr-params code {
+  font-size: 9px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: #263033;
+  color: #c9d4cf;
+  overflow-wrap: anywhere;
+}
+.lr-params code.diff {
+  background: #3b2b26;
+  color: #f0ccac;
+}
+.lr-none { font-size: 9px; color: var(--dim); }
+.lr-note {
+  margin: 6px 0 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: #c8d2cc;
+}
+.lr-note.route b { color: #cae595; }
+.lr-note.pitfall b { color: #f0ccac; }
+.lr-note.tip b { color: #ecd59a; }
+
+/* version cards */
+.lr-preview {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 150px;
+  border-radius: 4px;
+  background: repeating-conic-gradient(#20282a 0% 25%, #1a2123 0% 50%) 50% / 16px 16px;
+  overflow: hidden;
+}
+.lr-preview img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+.lr-preview.empty {
+  gap: 6px;
+  font-size: 9px;
+  color: var(--dim);
+}
+.lr-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10px;
+  color: #c8d2cc;
+}
+.lr-steps li b { display: inline-block; width: 12px; }
+.lr-steps li.completed b { color: #cae595; }
+.lr-steps li.failed b { color: #f0a58a; }
+.lr-steps small { color: var(--dim); }
+.lr-steps em {
+  margin-left: 6px;
+  padding: 0 4px;
+  border-radius: 3px;
+  font-style: normal;
+  font-size: 8.5px;
+  background: #2a352f;
+  color: #cae595;
+  cursor: help;
+}
+.lr-pending {
+  margin: 0;
+  font-size: 9.5px;
+  color: var(--dim);
+}
+.lr-card.verdict-none { border-left-color: var(--line); }
+
+/* feedback form */
+.lr-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  border-top: 1px dashed #36403f;
+}
+.lr-stars {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 9.5px;
+  color: var(--dim);
+}
+.lr-stars span { margin-right: 4px; }
+.lr-stars button {
+  padding: 2px;
+  border: 0;
+  background: transparent;
+  color: #4d5856;
+}
+.lr-stars button.on { color: #ecd59a; }
+.lr-tags { margin-top: 0; }
+.lr-step {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 9.5px;
+  color: var(--dim);
+}
+.lr-step select { flex: 1; padding: 4px 6px; font-size: 10px; }
+.lr-form textarea { font-size: 10.5px; }

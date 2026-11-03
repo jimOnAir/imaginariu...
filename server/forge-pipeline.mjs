@@ -22,6 +22,7 @@ import {
   CLIP_CATEGORIES, EXPORT_PROFILES, KINDS, LOOP_CATEGORIES, applyProfileSize, blenderParams, creatureSizeWarning,
   defaultParams, getPreset, getStep, isGpuStep, normalizeSteps, pathParams, timeoutFor,
 } from './forge-steps.mjs';
+import { DECISION_OF, ForgeLearn, VERDICT_OF_DECISION, tagTitle } from './forge-learn.mjs';
 
 // ------------------------------------------------------------------ small helpers
 
@@ -499,6 +500,10 @@ export class ForgeEngine {
     // Only the CLI (--direct) may reference files by local path; HTTP clients upload bytes.
     this.allowLocalPaths = opts.allowLocalPaths ?? false;
     this.urlBase = opts.urlBase ?? '/api/forge';
+    // self-learning: journal of every step run, verdicts, class recipes (docs/forge/LEARN.md).
+    // The studio journal is local by design on this branch: nothing here ever reports anywhere,
+    // and About -> Learning toggles the recording itself (knowledge.json `journaling`).
+    this.learn = opts.learn || new ForgeLearn({ libraryDir: this.libraryDir, urlBase: this.urlBase });
     this.persistIntervalMs = opts.persistIntervalMs ?? 1000;
     this.heartbeatMs = opts.heartbeatMs ?? HEARTBEAT_MS;
     this.staleMs = opts.staleMs ?? STALE_MS;
@@ -871,7 +876,7 @@ export class ForgeEngine {
     const parsed = patchSchema.safeParse(patch || {});
     if (!parsed.success) throw forgeError(parsed.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '), 400, 'validation');
     const p = parsed.data;
-    return this._updateManifest(id, (m) => {
+    const out = await this._updateManifest(id, (m) => {
       if (p.name !== undefined) m.name = p.name;
       if (p.profile !== undefined) m.profile = { ...m.profile, ...p.profile };
       if (p.clips !== undefined) m.clips = p.clips;
@@ -899,6 +904,44 @@ export class ForgeEngine {
         }
       }
     });
+    // A review decision is also a verdict of the journal: the class recipes learn from it.
+    if (p.qa && p.qa.decision !== undefined) {
+      const verdict = p.qa.decision === null ? 'cleared' : VERDICT_OF_DECISION[p.qa.decision];
+      const version = out.pipeline?.map((e) => e?.version).filter(Boolean).pop() || out.versions?.map((v) => v?.version).filter(Boolean).pop();
+      if (verdict && version) {
+        await this.learn.addFeedback({ assetId: out.id, version, verdict, comment: p.qa.comment || '', source: 'review' }, { manifestOf: async () => out })
+          .catch((err) => console.warn('[forge-learn] review decision not journaled:', err.message));
+      }
+    }
+    return out;
+  }
+
+  /**
+   * POST /learn/feedback: store a verdict on asset versions and show it on the review card
+   * (manifest.qa.decision of each asset, when the verdict is for its latest version).
+   */
+  async addFeedback(input = {}) {
+    const records = await this.learn.addFeedback(input, { manifestOf: (id) => this.getAsset(id) });
+    if (input.mirror !== false) {
+      for (const f of records) {
+        await this._updateManifest(f.assetId, (m) => {
+          const latest = m.pipeline?.map((e) => e?.version).filter(Boolean).pop() || m.versions?.map((v) => v?.version).filter(Boolean).pop();
+          if (latest && latest !== f.version) return;
+          m.qa = { checks: [], reviewed: false, ...(m.qa || {}) };
+          if (f.verdict === 'cleared') {
+            for (const key of ['decision', 'comment', 'game_unit', 'at']) delete m.qa[key];
+            m.qa.reviewed = false;
+          } else {
+            m.qa.decision = DECISION_OF[f.verdict];
+            m.qa.comment = [f.tags.map(tagTitle).join(', '), f.comment].filter(Boolean).join(' — ').slice(0, 2000);
+            m.qa.at = f.at;
+            m.qa.reviewed = true;
+          }
+          m.qa.reviewedAt = f.at;
+        }).catch((err) => console.warn(`[forge-learn] decision not written into passport ${f.assetId}:`, err.message));
+      }
+    }
+    return { ok: true, count: records.length, feedback: records };
   }
 
   /** DELETE: move the asset folder into data/library/trash/assets/ (never hard-delete). */
@@ -1376,7 +1419,8 @@ export class ForgeEngine {
    * @param {{steps?:Array, preset?:string, from?:string}} body
    * @returns {Promise<{jobId:string, version:string, warnings:string[]}>}
    */
-  async startRun(id, body = {}, meta = {}) {
+  /** Validate a run body, apply the class recipe and run the preflight checks (shared by plan and run). */
+  async _prepareRun(id, body = {}, meta = {}) {
     const m = await this.getAsset(id);
     if (body.preset && body.steps) throw forgeError('Specify either preset or steps.', 400, 'bad_request');
     let rawSteps = body.steps;
@@ -1398,6 +1442,10 @@ export class ForgeEngine {
     const { steps, warnings } = normalizeSteps(rawSteps);
     // passport size -> rig_creature / creature cleanup (recorded in the recipe like any explicit param)
     warnings.push(...applyProfileSize(steps, m));
+    // Class recipe (docs/forge/LEARN.md): params the caller did not give come from the best known
+    // runs of this asset class; explicit and preset params always win. recipes: false turns it off.
+    const learned = await this.learn.applyRecipes(steps, m, { assetClass: body.assetClass, enabled: body.recipes !== false && meta.recipes !== false });
+    warnings.push(...learned.notes.filter((n) => /was skipped/.test(n)));
     for (const s of steps) {
       const def = getStep(s.step);
       if (def.scope === 'library') throw forgeError(`Step "${s.step}" works with the clip library, not with an asset.`, 400, 'bad_scope');
@@ -1451,6 +1499,26 @@ export class ForgeEngine {
       }
     }
 
+    return { m, steps, warnings, base, learned };
+  }
+
+  /** POST /assets/:id/plan: the steps of a run with their final params (recipe applied), no version created. */
+  async planRun(id, body = {}, meta = {}) {
+    const { m, steps, warnings, learned } = await this._prepareRun(id, body, meta);
+    return {
+      assetId: m.id,
+      assetName: m.name,
+      kind: m.kind,
+      assetClass: learned.class,
+      steps: steps.map((s, i) => ({ index: i + 1, step: s.step, params: s.params, recipe: s.recipe || null })),
+      learned: learned.applied,
+      recipeNotes: learned.notes,
+      warnings,
+    };
+  }
+
+  async startRun(id, body = {}, meta = {}) {
+    const { m, steps, warnings, base, learned } = await this._prepareRun(id, body, meta);
     const version = await this._allocateVersion(id);
     const jobId = randomUUID();
     const at = now();
@@ -1460,6 +1528,10 @@ export class ForgeEngine {
       id: jobId,
       type: meta.type || 'run',
       assetId: id,
+      assetName: m.name || null,
+      assetKind: m.kind || null,
+      assetClass: learned.class.id,
+      classFrom: learned.class.from,
       version,
       batchId: meta.batchId || null,
       exportProfile: meta.exportProfile || null,
@@ -1476,6 +1548,8 @@ export class ForgeEngine {
       host: this.host,
       pid: process.pid,
       warnings,
+      learned: learned.applied,
+      recipeNotes: learned.notes,
       error: null,
       steps: steps.map((s, i) => {
         const dir = stepDirName(i + 1, s.step);
@@ -1484,7 +1558,7 @@ export class ForgeEngine {
           index: i + 1, step: s.step, params: s.params, dir, outDir: path.join(versionDir, dir),
           logName: dup ? `${dir}.log` : `${s.step}.log`,
           status: 'queued', progress: 0, message: '', startedAt: null, finishedAt: null,
-          result: null, logTail: [], logFile: null, warnings: [],
+          result: null, logTail: [], logFile: null, warnings: [], recipe: s.recipe || null,
         };
       }),
     };
@@ -1512,7 +1586,7 @@ export class ForgeEngine {
       throw err;
     }
     this._enqueue(job);
-    return { jobId, version, warnings };
+    return { jobId, version, warnings, assetClass: learned.class, learned: learned.applied, recipeNotes: learned.notes };
   }
 
   /** POST /assets/:id/export -> new version with the export step, from the latest completed version. */
@@ -1706,6 +1780,8 @@ export class ForgeEngine {
     await this._writeJob(job, true);
     if (job.assetId) {
       await this._manifestEntry(job, s, status === 'completed' ? 'done' : 'failed', result, exported);
+      // production journal: class, params, checks, previews and time of every finished step
+      await this.learn.recordRun(job, s);
     }
   }
 

@@ -2,8 +2,10 @@
 // The shipped Windows build shows here subscription, update and reporting sections - this tree
 // has none of those by decision (ADR-0003): what you see is version, links, licenses.
 // The Studio components entry appears when the host passes onComponents (ticket 19).
+// The Learning switch toggles the forge's LOCAL journaling (ticket 20): on this branch nothing is
+// ever reported anywhere, so the switch pauses the journal itself, not a shipping consent.
 import React,{useEffect,useState} from 'react';
-import {Info,ScrollText,Layers,ArrowUpRight,Loader2,BookOpen,Home} from 'lucide-react';
+import {Info,ScrollText,Layers,ArrowUpRight,Loader2,BookOpen,Home,GraduationCap} from 'lucide-react';
 import {api} from './api.js';
 import {useT} from './i18n/index.js';
 import './about.css';
@@ -12,7 +14,15 @@ export default function AboutPanel({onComponents}){
   const t=useT();
   const [about,setAbout]=useState(null);
   const [view,setView]=useState('about');
+  const [learning,setLearning]=useState(null);
+  const [learningBusy,setLearningBusy]=useState(false);
   useEffect(()=>{api('/about').then(setAbout).catch(()=>setAbout({error:true}));},[]);
+  // the forge learning state; a studio without /api/forge/learn simply shows no section
+  useEffect(()=>{api('/forge/learn').then(setLearning).catch(()=>{});},[]);
+  const toggleLearning=async(on)=>{
+    setLearningBusy(true);
+    try{const r=await api('/forge/learn/journaling',{method:'POST',body:JSON.stringify({on})});setLearning((l)=>({...l,journaling:r.journaling}));}catch{/* the section stays as it is */}finally{setLearningBusy(false);}
+  };
   if(!about) return <p className="field-note"><Loader2 className="spin" size={13}/> {t('about.loading')}</p>;
   if(about.error) return <p className="field-note">{t('about.failed')}</p>;
   const links=[['site',Home,'about.link.site','about.link.siteText',about.links?.site],['source',BookOpen,'about.link.source','about.link.sourceText',about.links?.source]];
@@ -27,6 +37,13 @@ export default function AboutPanel({onComponents}){
         {links.filter(([, , , , href])=>href).map(([id,Icon,titleKey,textKey,href])=><a key={id} className="about-link" href={href} target="_blank" rel="noreferrer"><Icon size={20}/><span><strong>{t(titleKey)}</strong><small>{t(textKey)}</small></span><ArrowUpRight size={14}/></a>)}
       </div>
       {onComponents&&<div className="about-actions"><button type="button" className="secondary small" onClick={()=>onComponents()}><Layers size={14}/>{t('about.components.open')}</button></div>}
+      {learning&&<div className="about-learning">
+        <p className="about-heading"><GraduationCap size={14}/> {t('about.learning.title')}</p>
+        <label className="about-check"><input type="checkbox" checked={learning.journaling!==false} disabled={learningBusy} onChange={(e)=>toggleLearning(e.target.checked)}/>
+          {t('about.learning.rec')}</label>
+        <p className="field-note">{t('about.learning.note')}</p>
+        <p className="field-note">{t('about.learning.summary',{runs:learning.runs??0,verdicts:learning.feedback??0})}</p>
+      </div>}
     </>}
     {view==='licenses'&&<>
       <p className="about-lead">{t('about.licenses.lead')}</p>

@@ -48,6 +48,15 @@ export const paths = {
   batchOne: (id) => `/batch/${enc(id)}`,
   review: (batch) => '/review' + (batch ? `?batch=${enc(batch)}` : ''),
   reviewExport: () => '/review/export',
+  assetPlan: (id) => `/assets/${enc(id)}/plan`,
+  assetFeedback: (id) => `/assets/${enc(id)}/feedback`,
+  learn: () => '/learn',
+  learnJournaling: () => '/learn/journaling',
+  learnJournal: (qs) => '/learn/journal' + qs,
+  learnVersions: (qs) => '/learn/versions' + qs,
+  learnFeedbackList: (qs) => '/learn/feedback' + qs,
+  learnFeedback: () => '/learn/feedback',
+  learnRecipes: (qs) => '/learn/recipes' + qs,
 };
 
 async function request(path, { method = 'GET', body, headers } = {}) {
@@ -191,6 +200,21 @@ export function createBatchWithFiles(items, files) {
 export const getReview = (batch) => request(paths.review(batch));
 /** Writes review_decisions.json next to the batch state file; returns {path, count}. */
 export const exportReview = (batch) => request(paths.reviewExport(), { method: 'POST', body: batch ? { batch } : {} });
+
+// ---------------------------------------------------------------- learning (docs/forge/LEARN.md)
+const lqs = (o = {}) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+  return p.toString() ? `?${p}` : '';
+};
+export const getLearnOverview = () => request(paths.learn());
+/** About -> Learning: pause/resume the automatic journal of step runs (local recording switch). */
+export const setJournaling = (on) => request(paths.learnJournaling(), { method: 'POST', body: { on: !!on } });
+export const getLearnJournal = (f = {}) => request(paths.learnJournal(lqs(f)));
+export const getLearnVersions = (f = {}) => request(paths.learnVersions(lqs(f)));
+export const getLearnFeedback = (f = {}) => request(paths.learnFeedback(lqs(f)));
+export const sendFeedback = (body) => request(paths.learnFeedbackPost(), { method: 'POST', body });
+export const getRecipes = (cls) => request(paths.learnRecipes(lqs({ class: cls })));
 
 // ---------------------------------------------------------------- existing studio endpoints
 /** Completed generation jobs (existing GET /api/jobs). */

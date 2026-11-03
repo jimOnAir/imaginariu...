@@ -24,12 +24,23 @@ Commands:
   show <assetId>                           passport: versions, pipeline, exports
   create --kind <type> --name <name> [source] [--preset id | --steps file.json]
          source: --from-glb <path> (GLB/FBX/OBJ) | --from-job <jobId> | --from-asset <id> | --params <json|file>
-  run <assetId> (--steps file.json | --preset id) [--from source|latest|v003]
+  run <assetId> (--steps file.json | --preset id) [--from source|latest|v003] [--class <c>] [--no-recipes]
   export <assetId> --profile godot|space_quest|heroes_gates|iso8|unity [--params <json|file>] [--out <folder>]
          [--to-unity <Unity project> [--build]]   the unity profile: put the package into <project>/Assets/AstraForge/<id>/
   batch <file.json>                        batch: {"items":[{name, kind, source, preset|steps}]}
   clips [list] | clips import <folder> | clips remove <clipId>
   jobs | job <jobId> [--wait] | cancel <jobId>
+  learn [overview]                             classes in the journal, run and verdict counts, defect tags
+  learn journal [--class c] [--step s] [--asset id] [--limit N]   the last finished steps
+  learn versions [--class c] [--pending] [--limit N]              asset versions with the latest verdict
+  learn feedback <assetId> --verdict accepted|rework|rejected|cleared [--version v003] [--step s]
+         [--rating 1-5] [--tags a,b] [--comment "..."] [--by who] a verdict for the journal
+  learn recipes [--class c]                    recipes and pitfalls of the class
+  learn plan <assetId> (--steps f.json | --preset id) [--class c] [--no-recipes]  what a run would use
+  learn pin --class <c|*> --step <step> [--variant pixel] (--params <json> | --unpin) [--note "..."]
+  learn note --class <c|*> --kind route|pitfall|tip --text "..."  a class note
+  learn sync                                   add finished steps from the job records to the journal
+  learn digest [--class c] [--out file.md]     Markdown digest of recipes and pitfalls (references/recipes.md)
 
 Common options:
   --direct        no server, in this process (same pipeline module)
@@ -40,7 +51,7 @@ Common options:
 
 // ------------------------------------------------------------------ args
 
-const BOOL_FLAGS = new Set(['direct', 'json', 'no-wait', 'wait', 'help', 'quiet', 'unzip', 'build']);
+const BOOL_FLAGS = new Set(['direct', 'json', 'no-wait', 'wait', 'help', 'quiet', 'unzip', 'build', 'no-recipes', 'pending', 'unpin']);
 
 export function parseArgs(argv) {
   const positional = [];
@@ -107,7 +118,7 @@ class HttpClient {
     let data = null;
     try { data = text ? JSON.parse(text) : null; } catch { data = null; }
     if (!res.ok) throw new CliError(data?.error ? `${data.error}${data.code ? ` [${data.code}]` : ''}` : `HTTP ${res.status}: ${text.slice(0, 300)}`);
-    return data;
+    return text && data === null ? text : data;
   }
 
   status() { return this.request('GET', '/api/forge/status'); }
@@ -119,6 +130,8 @@ class HttpClient {
   getJob(id) { return this.request('GET', `/api/forge/jobs/${encodeURIComponent(id)}`); }
   cancelJob(id) { return this.request('POST', `/api/forge/jobs/${encodeURIComponent(id)}/cancel`, {}); }
   run(id, body) { return this.request('POST', `/api/forge/assets/${encodeURIComponent(id)}/run`, body); }
+  plan(id, body) { return this.request('POST', `/api/forge/assets/${encodeURIComponent(id)}/plan`, body); }
+  learn(method, url, body) { return this.request(method, '/api/forge/learn' + (url === '/' ? '' : url), body); }
   exportAsset(id, body) { return this.request('POST', `/api/forge/assets/${encodeURIComponent(id)}/export`, body); }
   clips() { return this.request('GET', '/api/forge/clips'); }
   removeClip(id) { return this.request('DELETE', `/api/forge/clips/${encodeURIComponent(id)}`); }
@@ -173,6 +186,8 @@ class DirectClient {
   async getJob(id) { return JSON.parse(JSON.stringify(await this.engine.getJob(id))); }
   cancelJob(id) { return this.engine.cancelJob(id); }
   run(id, body) { return this.engine.startRun(id, body); }
+  plan(id, body) { return this.engine.planRun(id, body); }
+  learn(method, url, body) { return directLearn(this.engine, method, url, body, { mirror: true }); }
   exportAsset(id, body) { return this.engine.startExport(id, body); }
   clips() { return this.engine.clipIndex(); }
   removeClip(id) { return this.engine.removeClip(id); }
@@ -185,6 +200,208 @@ class DirectClient {
   async download(absPath, dest) {
     await fs.copyFile(absPath, dest);
     return dest;
+  }
+}
+
+// ------------------------------------------------------------------ learning (docs/forge/LEARN.md)
+
+const flagStr = (v) => (typeof v === 'string' && v ? v : undefined);
+const lqs = (o) => {
+  const p = new URLSearchParams();
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && v !== null && v !== '') p.set(k, String(v));
+  return p.toString() ? `?${p}` : '';
+};
+
+/**
+ * The learning routes of server/forge.mjs, served in this process (--direct, or a running studio
+ * whose code has no /learn routes yet). Without mirror the verdict goes to the journal only: the
+ * passport is written by the running server, not by a second process.
+ */
+async function directLearn(engine, method, url, body = {}, { mirror = false } = {}) {
+  const learn = engine.learn;
+  const u = new URL(url, 'http://local');
+  const q = (k) => u.searchParams.get(k) || undefined;
+  switch (`${method} ${u.pathname}`) {
+    case 'GET /': return learn.overview();
+    case 'POST /journaling': return learn.setJournaling(!!body.on);
+    case 'GET /journal': {
+      const runs = await learn.runs({ assetId: q('assetId'), cls: q('class'), step: q('step'), stepKey: q('stepKey') });
+      return { total: runs.length, items: runs.slice(0, Number(q('limit')) || 100) };
+    }
+    case 'GET /versions': return learn.versions({ cls: q('class'), step: q('step'), assetId: q('assetId'), limit: Number(q('limit')) || 60, pending: q('pending') === '1' });
+    case 'GET /feedback': return learn.feedbackList({ assetId: q('assetId'), version: q('version') });
+    case 'POST /feedback': {
+      if (mirror) return engine.addFeedback(body);
+      const records = await learn.addFeedback(body);
+      return { ok: true, count: records.length, feedback: records, mirrored: false };
+    }
+    case 'GET /recipes': return learn.recipes({ cls: q('class') || null });
+    case 'GET /digest': return learn.digest({ cls: q('class') || null });
+    case 'POST /pin': return learn.pin({ cls: body.class, step: body.step, variant: body.variant, params: body.params, note: body.note, by: body.by });
+    case 'POST /notes': return learn.addNote({ cls: body.class, text: body.text, kind: body.kind, by: body.by, steps: body.steps });
+    case 'POST /sync': return learn.sync({});
+    default: throw new CliError(`No such learning command: ${method} ${u.pathname}`, 2);
+  }
+}
+
+/** Learning calls: through the studio when it has the /learn routes, else in this process. */
+function learnClient(client, out) {
+  let local = null;
+  const engineHere = async () => {
+    if (!local) {
+      const { ForgeEngine } = await import('../server/forge-pipeline.mjs');
+      local = new ForgeEngine({ root: ROOT, host: 'cli', allowLocalPaths: false });
+      await local.init();
+    }
+    return local;
+  };
+  const missing = (err) => client.mode === 'http' && /unreachable|HTTP 404/.test(err?.message || '');
+  let warned = false;
+  const note = () => {
+    if (warned) return;
+    warned = true;
+    out.log('The studio is not running or predates the learning routes (restart it): reading and writing the library files directly.');
+  };
+  return {
+    async call(method, url, body) {
+      try {
+        return await client.learn(method, url, body);
+      } catch (err) {
+        if (!missing(err)) throw err;
+        note();
+        const r = await directLearn(await engineHere(), method, url, body, { mirror: false });
+        if (r && r.mirrored === false) out.log('The verdict went to the journal only; it reaches the review card when a restarted studio records it.');
+        return r;
+      }
+    },
+    async plan(id, body) {
+      try {
+        return await client.plan(id, body);
+      } catch (err) {
+        if (!missing(err)) throw err;
+        note();
+        return (await engineHere()).planRun(id, body);
+      }
+    },
+  };
+}
+
+async function cmdLearn(client, out, sub, arg, flags) {
+  const api = learnClient(client, out);
+  const f = { class: flagStr(flags.class), step: flagStr(flags.step), assetId: flagStr(flags.asset) };
+  switch (sub || 'overview') {
+    case 'overview': {
+      const o = await api.call('GET', '/');
+      return out.result(o, () => {
+        out.info(`Journal: ${o.runs} step runs, ${o.feedback} verdicts (${o.files.dir})${o.journaling === false ? ' - journaling OFF (About -> Learning)' : ''}`);
+        for (const c of o.classes) out.info(`  ${c.id.padEnd(12)} ${String(c.title).padEnd(14)} runs ${String(c.runs).padStart(4)} - recipes ${c.recipes} - pitfalls ${c.pitfalls} - ${c.steps.join(', ')}`);
+        out.info(`Defect tags: ${o.tags.map((t) => t.id).join(', ')}`);
+      });
+    }
+    case 'journal': {
+      const r = await api.call('GET', '/journal' + lqs({ ...f, limit: flagStr(flags.limit) || 20 }));
+      return out.result(r, () => {
+        out.info(`Runs: ${r.total}`);
+        for (const x of r.items) {
+          const red = x.failed?.length ? ` (red: ${x.failed.join(', ')})` : '';
+          out.info(`${String(x.at).slice(0, 16).replace('T', ' ')}  ${String(x.class || '').padEnd(10)} ${String(x.assetName || x.assetId || '').slice(0, 28).padEnd(28)} ${x.version} ${String(x.stepKey).padEnd(22)} ${statusLabel(x.status)}${red}${x.recipe ? ' - recipe' : ''}`);
+        }
+      });
+    }
+    case 'versions': {
+      const r = await api.call('GET', '/versions' + lqs({ ...f, limit: flagStr(flags.limit) || 20, pending: flags.pending ? 1 : undefined }));
+      return out.result(r, () => {
+        out.info(`Versions: ${r.total}`);
+        for (const v of r.items) out.info(`${v.assetId} ${v.version}  ${String(v.class || '').padEnd(10)} ${String(v.assetName || '').slice(0, 28).padEnd(28)} ${v.steps.map((s) => s.step).join(' -> ')} - ${v.verdict ? v.verdict.verdict : 'no verdict'}`);
+      });
+    }
+    case 'feedback': {
+      if (!arg) throw new CliError('Specify the asset ID: learn feedback <assetId> --verdict accepted|rework|rejected|cleared.', 2);
+      if (!flagStr(flags.verdict)) throw new CliError('Specify --verdict (accepted, rework, rejected, cleared; Russian words work too).', 2);
+      const body = {
+        assetId: arg, verdict: String(flags.verdict), version: flagStr(flags.version), step: flagStr(flags.step),
+        rating: flagStr(flags.rating) ? Number(flags.rating) : undefined,
+        tags: flagStr(flags.tags) ? String(flags.tags).split(',').map((s) => s.trim()).filter(Boolean) : [],
+        comment: flagStr(flags.comment) || '', by: flagStr(flags.by), source: 'cli',
+      };
+      const r = await api.call('POST', '/feedback', body);
+      return out.result(r, () => {
+        for (const fb of r.feedback) {
+          const tags = fb.tags.length ? ` - ${fb.tags.join(', ')}` : '';
+          out.info(`Verdict saved: ${fb.assetName || fb.assetId} ${fb.version} - ${fb.verdict}${tags}${fb.comment ? ` "${fb.comment}"` : ''} [class ${fb.class}]`);
+        }
+      });
+    }
+    case 'recipes': {
+      const r = await api.call('GET', '/recipes' + lqs({ class: f.class }));
+      return out.result(r, () => {
+        const title = (id) => r.titles?.[id] || id;
+        for (const p of r.pinned) out.info(`[pinned] ${title(p.class)} - ${p.step}${p.variant ? '@' + p.variant : ''}: ${JSON.stringify(p.params)}${p.note ? ` - ${p.note}` : ''}`);
+        let shown = r.pinned.length;
+        for (const g of r.groups) {
+          if (!g.best && !g.pitfalls.length) continue;
+          shown += 1;
+          out.info(`${title(g.class)} - ${g.stepKey}: runs ${g.runs}, accepted ${g.verdicts.accepted}, rejected ${g.verdicts.rejected}, rework ${g.verdicts.rework}`);
+          if (g.best) out.info(`  recipe: ${JSON.stringify(g.best.params)}`);
+          for (const p of g.pitfalls.slice(0, 4)) {
+            const diff = p.diff.map((d) => `${d.key}=${d.unset ? 'default' : JSON.stringify(d.value)}`).join(', ') || JSON.stringify(p.params);
+            const verdicts = [p.rejected ? `rejected ${p.rejected}` : '', p.rework ? `rework ${p.rework}` : '', p.checksFailed ? `red checks ${p.checksFailed}` : ''].filter(Boolean).join(', ');
+            const blind = p.blind && p.blind >= p.rejected + p.rework ? ' [cause not stated]' : '';
+            out.info(`  pitfall: ${diff} - ${verdicts}${p.tags.length ? ` (${p.tags.map((x) => x.title).join(', ')})` : ''}${blind}`);
+          }
+        }
+        for (const n of r.notes) out.info(`[note ${n.kind}] ${title(n.class)}: ${n.text}`);
+        if (!shown && !r.notes.length) out.info('No recipes yet: give verdicts (learn feedback <assetId> --verdict accepted|rejected).');
+      });
+    }
+    case 'plan': {
+      if (!arg) throw new CliError('Specify the asset ID: learn plan <assetId> --preset <id>.', 2);
+      const run = await stepsFromFlags(flags);
+      if (!run) throw new CliError('Specify --preset <id> or --steps <file.json>.', 2);
+      if (flags.from) run.from = String(flags.from);
+      if (f.class) run.assetClass = f.class;
+      if (flags['no-recipes']) run.recipes = false;
+      const r = await api.plan(arg, run);
+      return out.result(r, () => {
+        out.info(`Class ${r.assetClass.id} (${r.assetClass.from})`);
+        for (const s of r.steps) {
+          out.info(`  ${s.index}. ${s.step}${s.recipe ? ` <- recipe: ${Object.keys(s.recipe.params).join(', ')}` : ''}`);
+          out.info(`      ${JSON.stringify(s.params)}`);
+        }
+        for (const n of r.recipeNotes || []) out.info(n);
+        for (const w of r.warnings || []) out.info(`warning: ${w}`);
+      });
+    }
+    case 'pin': {
+      if (!f.class) throw new CliError('Specify --class (a class id or "*" for every class).', 2);
+      if (!f.step) throw new CliError('Specify --step.', 2);
+      const params = flags.unpin ? null : await readJsonArg(flags.params, 'params');
+      const r = await api.call('POST', '/pin', { class: f.class, step: f.step, variant: flagStr(flags.variant) || '', params, note: flagStr(flags.note) || '', by: flagStr(flags.by) || 'owner' });
+      return out.result(r, () => out.info(params ? 'Recipe pinned.' : 'Pin removed.'));
+    }
+    case 'note': {
+      if (!f.class) throw new CliError('Specify --class (a class id or "*" for every class).', 2);
+      if (!flagStr(flags.text)) throw new CliError('Specify --text "..."', 2);
+      const r = await api.call('POST', '/notes', { class: f.class, kind: flagStr(flags.kind) || 'pitfall', text: String(flags.text), by: flagStr(flags.by) || 'owner' });
+      return out.result(r, () => out.info(`Note [${r.kind}] added for class ${r.class}.`));
+    }
+    case 'sync': {
+      const r = await api.call('POST', '/sync', {});
+      return out.result(r, () => out.info(`Jobs scanned: ${r.scanned}, step runs added: ${r.added}, review decisions imported: ${r.decisions ?? 0}${r.skipped ? ` (${r.skipped})` : ''} (${r.journal})`));
+    }
+    case 'digest': {
+      const md = await api.call('GET', '/digest' + lqs({ class: f.class }));
+      if (flagStr(flags.out)) {
+        const file = path.resolve(String(flags.out));
+        await fs.mkdir(path.dirname(file), { recursive: true });
+        await fs.writeFile(file, md, 'utf8');
+        return out.result({ ok: true, path: file }, () => out.info(`Digest written: ${file}`));
+      }
+      if (out.json) return out.result({ markdown: md });
+      return console.log(md);
+    }
+    default:
+      throw new CliError(`Unknown learn subcommand "${sub}". Help: node scripts/forge.mjs --help`, 2);
   }
 }
 
@@ -381,8 +598,11 @@ async function cmdRun(client, out, id, flags) {
   const run = await stepsFromFlags(flags);
   if (!run) throw new CliError('Specify --preset <id> or --steps <file.json>.', 2);
   if (flags.from) run.from = String(flags.from);
+  if (flags.class && flags.class !== true) run.assetClass = String(flags.class);
+  if (flags['no-recipes']) run.recipes = false;
   const started = await client.run(id, run);
   for (const w of started.warnings || []) out.log(`warning: ${w}`);
+  for (const n of started.recipeNotes || []) out.log(n);
   out.log(`Started version ${started.version}, job ${started.jobId}`);
   await waitAndReport(client, started.jobId, out, flags);
 }
@@ -557,6 +777,7 @@ export async function main(argv = process.argv.slice(2)) {
       out.result(r, () => out.info(`Cancel: ${statusLabel(r.status) || r.status}`));
       break;
     }
+    case 'learn': await cmdLearn(client, out, a1, a2, flags); break;
     default:
       throw new CliError(`Unknown command "${command}". Help: node scripts/forge.mjs --help`, 2);
   }

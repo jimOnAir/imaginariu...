@@ -5,9 +5,10 @@ import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from '
 import { createPortal } from 'react-dom';
 import {
   RefreshCw, Eye, Maximize2, Check, Wrench, Ban, Save, X, ChevronLeft, ChevronRight, RotateCcw, Search, ImageOff,
-  ExternalLink, Loader2,
+  ExternalLink, Loader2, Users, History,
 } from 'lucide-react';
 import * as forgeApi from './forge-api.js';
+import ForgeLearn from './ForgeLearn.jsx';
 import { Chips, Notice, ProgressBar, useForge } from './ForgeUi.jsx';
 import {
   BUILD_FILTERS, REWORK_PRESETS, DECISION_TITLES, filterItems, reviewCounts, chipCounts, distinct, suggestUnit, hasReason,
@@ -359,7 +360,7 @@ function ReviewModal({ item, position, total, draft, reworkOpen, saving, actions
 
 // ---------------------------------------------------------------------------- the view
 
-export default function ForgeReview() {
+function CharactersReview() {
   const tr = useT();
   const { offline, server, notify, loadGlb } = useForge();
   // The studio re-creates notify / loadGlb on its renders: refs keep the callbacks below stable.
@@ -579,7 +580,7 @@ export default function ForgeReview() {
   );
 
   return (
-    <div className="forge-review">
+    <>
       <div className="rv-top">
         <div className="rv-counter" role="group" aria-label={tr('forge.review.totalsAria')} aria-live="polite">
           {counter('approved', tr('forge.review.count.approved'), counts.approved)}
@@ -679,6 +680,39 @@ export default function ForgeReview() {
           }}
         />
       )}
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------- the view
+
+const MODE_KEY = 'astraforge.forge.review.mode';
+
+/** Review: the characters of the batch, or the production journal with verdicts and class recipes. */
+export default function ForgeReview() {
+  const tr = useT();
+  const [mode, setMode] = useState(() => {
+    try { return localStorage.getItem(MODE_KEY) === 'learn' ? 'learn' : 'characters'; } catch { return 'characters'; }
+  });
+  const pick = (m) => {
+    setMode(m);
+    try { localStorage.setItem(MODE_KEY, m); } catch { /* per-viewer convenience only */ }
+  };
+  return (
+    <div className="forge-review">
+      <div className="rv-modes" role="tablist" aria-label={tr('forge.review.modesAria')}>
+        <button type="button" role="tab" aria-selected={mode === 'characters'} className={mode === 'characters' ? 'active' : ''} onClick={() => pick('characters')}
+          title={tr('forge.review.mode.charactersHint')}>
+          <Users size={13} />
+          {tr('forge.review.mode.characters')}
+        </button>
+        <button type="button" role="tab" aria-selected={mode === 'learn'} className={mode === 'learn' ? 'active' : ''} onClick={() => pick('learn')}
+          title={tr('forge.review.mode.learnHint')}>
+          <History size={13} />
+          {tr('forge.review.mode.learn')}
+        </button>
+      </div>
+      {mode === 'learn' ? <ForgeLearn /> : <CharactersReview />}
     </div>
   );
 }

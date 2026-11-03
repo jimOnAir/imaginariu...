@@ -166,7 +166,13 @@ export function registerForge(app, asyncRoute, options = {}) {
 
   router.post('/assets/:id/run', route(async (req, res) => {
     const body = req.body || {};
-    res.status(202).json(await engine.startRun(req.params.id, { steps: body.steps, preset: body.preset, from: body.from }));
+    res.status(202).json(await engine.startRun(req.params.id, { steps: body.steps, preset: body.preset, from: body.from, assetClass: body.assetClass, recipes: body.recipes }));
+  }));
+
+  // what a run would do (final params with the class recipe) without creating a version
+  router.post('/assets/:id/plan', route(async (req, res) => {
+    const body = req.body || {};
+    res.json(await engine.planRun(req.params.id, { steps: body.steps, preset: body.preset, from: body.from, assetClass: body.assetClass, recipes: body.recipes }));
   }));
 
   router.post('/assets/:id/export', route(async (req, res) => {
@@ -186,6 +192,40 @@ export function registerForge(app, asyncRoute, options = {}) {
   const batchOf = (req) => (typeof req.query.batch === 'string' ? req.query.batch : typeof req.body?.batch === 'string' ? req.body.batch : undefined);
   router.get('/review', route(async (req, res) => res.json(await review.list({ batch: batchOf(req) }))));
   router.post('/review/export', route(async (req, res) => res.json(await review.exportDecisions({ batch: batchOf(req) }))));
+
+  // ---------------------------------------------------------------- learning (docs/forge/LEARN.md)
+  // The production journal, verdicts, class recipes (server/forge-learn.mjs). All files live in the
+  // library folder; nothing here reports anywhere. `journaling` is the About -> Learning switch:
+  // off pauses the automatic journal of step runs (verdicts, pins and notes stay allowed).
+  const learn = engine.learn;
+  const lq = (req, k) => (typeof req.query[k] === 'string' && req.query[k] !== '' ? req.query[k] : undefined);
+  router.get('/learn', route(async (req, res) => res.json(await learn.overview())));
+  router.post('/learn/journaling', route(async (req, res) => res.json(await learn.setJournaling(!!(req.body || {}).on))));
+  router.get('/learn/journal', route(async (req, res) => {
+    const runs = await learn.runs({ assetId: lq(req, 'assetId'), version: lq(req, 'version'), cls: lq(req, 'class'), step: lq(req, 'step'), stepKey: lq(req, 'stepKey') });
+    res.json({ total: runs.length, items: runs.slice(0, Number(lq(req, 'limit')) || 100) });
+  }));
+  router.get('/learn/versions', route(async (req, res) => res.json(await learn.versions({
+    cls: lq(req, 'class'), step: lq(req, 'step'), assetId: lq(req, 'assetId'), limit: Number(lq(req, 'limit')) || 60, pending: lq(req, 'pending') === '1',
+  }))));
+  router.get('/learn/feedback', route(async (req, res) => res.json(await learn.feedbackList({ assetId: lq(req, 'assetId'), version: lq(req, 'version') }))));
+  router.post('/learn/feedback', route(async (req, res) => res.status(201).json(await engine.addFeedback({ source: 'api', ...(req.body || {}) }))));
+  router.post('/assets/:id/feedback', route(async (req, res) => res.status(201).json(await engine.addFeedback({ source: 'api', ...(req.body || {}), assetId: req.params.id }))));
+  router.get('/learn/recipes', route(async (req, res) => res.json(await learn.recipes({ cls: lq(req, 'class') || null }))));
+  router.get('/learn/digest', route(async (req, res) => {
+    res.type('text/markdown; charset=utf-8').send(await learn.digest({ cls: lq(req, 'class') || null }));
+  }));
+  router.post('/learn/pin', route(async (req, res) => {
+    const b = req.body || {};
+    res.json(await learn.pin({ cls: b.class, step: b.step, variant: b.variant, params: b.params, note: b.note, by: b.by }));
+  }));
+  router.post('/learn/notes', route(async (req, res) => {
+    const b = req.body || {};
+    res.status(201).json(await learn.addNote({ cls: b.class, text: b.text, kind: b.kind, by: b.by, steps: b.steps }));
+  }));
+  router.delete('/learn/notes/:noteId', route(async (req, res) => res.json(await learn.removeNote(req.params.noteId))));
+  router.post('/learn/classes', route(async (req, res) => res.json(await learn.setClassRule(req.body || {}))));
+  router.post('/learn/sync', route(async (req, res) => res.json(await learn.sync({ since: typeof req.body?.since === 'string' ? req.body.since : null }))));
 
   // ---------------------------------------------------------------- jobs
   router.get('/jobs', route(async (req, res) => {

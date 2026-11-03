@@ -27,3 +27,8 @@
 .comp-job{display:grid;grid-template-columns:16px 1fr;gap:6px 8px;align-items:center;font-size:13px}
 .comp-bar{grid-column:1/-1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
 .comp-bar i{display:block;height:100%;background:var(--accent,#4d86ff)}
+/* Learning section (ticket 20): the local journaling switch, About -> Learning. */
+.about-learning{margin-top:18px;display:flex;flex-direction:column;gap:6px}
+.about-heading{display:flex;align-items:center;gap:6px;margin:0 0 2px;font-size:13px}
+.about-check{display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer}
+.about-check input{width:auto;margin:0}
