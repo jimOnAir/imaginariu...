@@ -20,6 +20,8 @@ import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import {prepareConcept} from './preprocess.mjs';
 import {optimizeMeshes} from './optimize.mjs';
 await init();await loadJobs();
+const pkg=await readJson(path.join(root,'package.json'),{});const appVersion=pkg.version||'0.0.0';
+const readText=async f=>{try{return await fs.readFile(path.join(root,f),'utf8');}catch{return '';}};
 let config=configSchema.parse({...defaults,...await readJson(path.join(data,'config.json'),{})});
 const app=express();const port=Number(process.env.PORT)||3210;
 app.disable('x-powered-by');
@@ -29,7 +31,8 @@ app.use((req,res,next)=>{if(/^\/(data|server|scripts|tests)(\/|$)/.test(req.path
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:100*1024*1024,files:1}});
 const asyncRoute=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 app.get('/api/config',asyncRoute(async(req,res)=>res.json({config,keys:await keyStatus()})));
-app.get('/api/health',(req,res)=>res.json({app:'AstraForge',version:'0.3.0'}));
+app.get('/api/health',(req,res)=>res.json({app:'AstraForge',version:appVersion}));
+app.get('/api/about',asyncRoute(async(req,res)=>res.json({app:'AstraForge',version:appVersion,links:{site:'https://snodrod.github.io/AstraForge/',source:'https://github.com/Snodrod/AstraForge'},licenseText:await readText('LICENSE'),commercialText:await readText('COMMERCIAL-LICENSE.md'),notices:await readText('THIRD_PARTY_NOTICES.md')})));
 app.put('/api/config',asyncRoute(async(req,res)=>{if(llmBusy||allJobs().some(j=>['queued','running'].includes(j.status)))throw new Error('Wait for the generation or the AI reply to finish before changing connections.');config=configSchema.parse(req.body);await writeJson(path.join(data,'config.json'),config);res.json({config,keys:await keyStatus()});}));
 app.put('/api/keys/:provider',asyncRoute(async(req,res)=>{const provider=z.enum(['openai','anthropic','tripo']).parse(req.params.provider);const key=z.string().max(500).parse(req.body.key);await setKey(provider,key);res.json(await keyStatus());}));
 registerTripo(app,asyncRoute);

@@ -1,0 +1,15 @@
+/* About modal (src/AboutPanel.jsx): lead, project links, license texts. */
+.about-modal{max-width:780px}
+.about-tabs{margin-bottom:16px}
+.about-lead{font-size:12px;line-height:1.7;color:#b7c8a6;margin:0 0 16px}
+.about-links{display:flex;flex-direction:column;gap:9px}
+.about-link{display:flex;align-items:center;gap:12px;padding:13px 15px;border:1px solid #4e6243;border-radius:6px;background:#28362a;color:#c3d992;text-decoration:none}
+.about-link:hover{background:#31432f}
+.about-link>span{display:flex;flex-direction:column;gap:3px;text-align:left}
+.about-link strong{font-size:12px;font-weight:550;color:#d8e8b4}
+.about-link small{font-size:10px;line-height:1.5;color:#90a87e}
+.about-link svg:first-child{color:#a9c092;flex-shrink:0}
+.about-link>svg:last-child{margin-left:auto;color:#7d966b;flex-shrink:0}
+.about-text{white-space:pre-wrap;font:10px/1.6 Studio,'Segoe UI',sans-serif;background:#1c2a21;border:1px solid #3e553b;border-radius:6px;padding:14px;margin:0 0 10px;max-height:320px;overflow-y:auto;color:#a8bd93;scrollbar-width:thin}
+.about-text.small{font-size:9px;color:#8fa87d}
+.about-actions{display:flex;gap:10px;align-items:center;margin-top:14px}
