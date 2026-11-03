@@ -1,9 +1,37 @@
 # AstraForge on Linux
 
-AstraForge is a Windows application first; this page documents the Linux support added on the
-`linux-support` branch and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity",
-and ADR-0001/0002). Windows behavior is unchanged: every change is behind a
-`process.platform` check or lives in Linux-only files.
+AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
+studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
+Linux (see the section below and `docs/product/acceptance-0.5.0.md`). This page documents the
+Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
+ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
+`process.platform` check or lives in Linux-only files, and the Windows frontends
+(`Setup.cs`, `Install.ps1`, `*.ps1`) are frozen.
+
+## 0.5.0 — the 0.4.16 re-introduction
+
+Version 0.5.0 of this branch re-introduces everything the shipped `AstraForge-Setup-0.4.16.exe`
+contained, as clean-room re-derivations (ADR-0003): the installer "What to install" checklist with
+presets, dependency auto-tick and the Lite setup for machines without an NVIDIA GPU
+(`installer/af_scan.mjs` + `install.sh`); the download core with mirrors, resume and plain-language
+reasons in `installer/install.log` (`installer/af_download.sh`); the integrity gates (node/Blender
+sha+size pins, Ollama installed only on a checksum match against the vendor's own
+`sha256sum.txt`, PixaFlux https + pinned sums); the in-app **Studio components** window with
+background installs; the **local self-learning** journal (verdicts, class recipes, pitfalls —
+Review → "Journal & recipes", `scripts/forge.mjs learn`, About → Learning); plus the whole
+never-committed 0.4.6-era body (About panel, 2D tab with FLUX.2 klein and Qwen-Image, Sculpt,
+pixel sprites, generators and the engine check, MCP server and integrator kit, the Blender
+deltas, the forge server, the studio UI, the Unity export line).
+
+Excluded by decision (ADR-0003), so absent here and named in every doc that mentions them:
+license validation, auto-update, telemetry (error reports, journal shipping, install id),
+support endpoints, shared community recipes, the installer subscription step, release-sign, the
+AMD build. Flagged unverified on Linux hardware: the Unity editor round-trip of the export line
+(no Unity editor on the verification machine) — the generated package data itself is covered by
+`npm test`.
+
+The bullet-by-bullet map of release notes 0.4.7–0.4.16 to this tree, with the proof command for
+each row, is the [0.5.0 acceptance report](product/acceptance-0.5.0.md).
 
 ## Quick start (Linux)
 

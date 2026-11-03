@@ -6,7 +6,7 @@
 >
 > - **Free:** [AstraForge-Setup.exe](https://github.com/Snodrod/AstraForge/releases/latest) (0.4.6, *Quick* ≈ 30 GB or *Full* ≈ 95 GB). Personal, educational and other **noncommercial** use only, no updates — [PolyForm Noncommercial 1.0.0](LICENSE-0.4.2.md).
 > - **Subscription — $5/month or $49/year:** use AstraForge and everything you make with it **commercially**, and get every update on release day — [subscription license](COMMERCIAL-LICENSE.md). [Subscribe](https://snodrod.github.io/AstraForge/#subscribe).
-> - The source code in this repository is the older version 0.3.0 under the MIT License ([LICENSE](LICENSE)). Versions 0.4.2+ are distributed under the licenses above.
+> - **This branch (`linux-support`) is the Linux studio, version 0.5.0, under the MIT License ([LICENSE](LICENSE))**: the feature set of the shipped Windows 0.4.16 re-derived for Linux (clean-room, ADR-0003). What is implemented, what is excluded by decision and what is unverified here - see the [0.5.0 acceptance report](docs/product/acceptance-0.5.0.md). The `master` source stays the older 0.3.0; released 0.4.x installers are distributed under the licenses above.
 
 AstraForge is a Windows app that turns a picture or a text prompt into a game-ready 3D asset on your own machine: concept → geometry → editor → rig and animation → effects → export (GLB, OBJ, WebM, PNG, isometric sprite sheets, Godot packages). The server listens on `127.0.0.1` only. The UI is available in English and Russian (English by default, switch in the app).
 
@@ -26,7 +26,7 @@ Use a short Latin-only install path such as `C:\AstraForge`.
 
 ## Quick start with Claude Code
 
-> **Linux?** The `linux-support` branch adds full Linux support: `installer/install.sh` (same components and flags as the PowerShell wizard), `scripts/start.sh` / `stop.sh`, the flock GPU lock and the Pixal3D Linux recipe. See [docs/linux.md](docs/linux.md).
+> **Linux?** This branch runs natively on Linux: `installer/install.sh` (the "What to install" checklist, the Lite setup, the mirror/resume/checksum download core - same component ids and flags as the PowerShell wizard), `scripts/start.sh` / `stop.sh`, the flock GPU lock, the Pixal3D Linux recipe, the in-app Studio components window and local self-learning. See [docs/linux.md](docs/linux.md) and the [0.5.0 acceptance report](docs/product/acceptance-0.5.0.md).
 
 You need [Claude Code](https://claude.com/claude-code).
 
