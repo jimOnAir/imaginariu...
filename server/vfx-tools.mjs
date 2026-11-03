@@ -344,6 +344,13 @@ export function createVfxTools(options = {}) {
       res.setHeader('X-Content-Type-Options', 'nosniff');
       next();
     });
+    // The Sculpt tab: the same SculptGL (id sculptgl) at the short address /sculpt/ - the studio iframe opens it (server/sculpt.mjs)
+    app.use('/sculpt', (req, res, next) => {
+      if (req.originalUrl.split('?')[0] === '/sculpt') return res.redirect(302, req.originalUrl.replace('/sculpt', '/sculpt/'));   // the page's relative paths need the trailing slash
+      const serve = staticFor('sculptgl');
+      if (!serve) return notFound(res);
+      serve(req, res, (err) => (err ? next(err) : notFound(res)));
+    });
     app.use('/vfx-web/:id', (req, res, next) => {
       const serve = staticFor(req.params.id);
       if (!serve) return notFound(res);

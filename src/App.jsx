@@ -1,5 +1,5 @@
 import React,{useState,useEffect,useRef} from 'react';
-import {Box,Orbit,Move,RotateCw,Scaling,Focus,Grid3X3,Layers,Plus,Upload,Image as ImageIcon,Sparkles,ChevronDown,ChevronRight,Play,Pause,SkipBack,Diamond,Settings2,FolderOpen,Download,Save,Undo2,Redo2,Eye,EyeOff,Trash2,Copy,X,Check,ArrowUpRight,ArrowRight,Loader2,Camera,Film,MessageSquare,Send, Cpu,Plug,Zap,HelpCircle,Info,MousePointer2,PanelLeftClose,Triangle, Rocket, WandSparkles, Circle, Search, Bone, Palette, Images, Flame, PenTool} from 'lucide-react';
+import {Box,Orbit,Move,RotateCw,Scaling,Focus,Grid3X3,Layers,Plus,Upload,Image as ImageIcon,Sparkles,ChevronDown,ChevronRight,Play,Pause,SkipBack,Diamond,Settings2,FolderOpen,Download,Save,Undo2,Redo2,Eye,EyeOff,Trash2,Copy,X,Check,ArrowUpRight,ArrowRight,Loader2,Camera,Film,MessageSquare,Send, Cpu,Plug,Zap,HelpCircle,Info,MousePointer2,PanelLeftClose,Triangle, Rocket, WandSparkles, Circle, Search, Bone, Palette, Images, Flame, PenTool, Brush} from 'lucide-react';
 import {StudioScene} from './scene.js';
 import {api,upload,download,saveProject as saveProjectRequest} from './api.js';
 import RigPanel from './RigPanel.jsx';
@@ -10,6 +10,7 @@ import FxPanel from './FxPanel.jsx';
 import TripoPanel from './TripoPanel.jsx';
 import AboutPanel from './AboutPanel.jsx';
 import Art2dPanel from './Art2dPanel.jsx';
+import SculptPanel from './SculptPanel.jsx';
 import ViewsPanel,{EngineSelect} from './ViewsPanel.jsx';
 import ForgePanel,{ForgeIcon} from './forge/ForgeTab.jsx';
 import {t,useT,useLang,setLang,LANGS} from './i18n/index.js';
@@ -20,7 +21,8 @@ function Section({title,children,aside}){return <section className="section"><di
 function App(){
  const t=useT(),lang=useLang(),locale=lang==='ru'?'ru-RU':'en-US';
  const mount=useRef(null),studio=useRef(null),imageInput=useRef(null),modelInput=useRef(null),projectInput=useRef(null);
- const [snapshot,setSnapshot]=useState(null),[tab,setTab]=useState('concept'),[category,setCategory]=useState('ship'),[mode,setMode]=useState('translate');
+ const [snapshot,setSnapshot]=useState(null),[tab,setTab]=useState('concept'),[sculptSeen,setSculptSeen]=useState(false),   // the Sculpt panel must live past a tab switch, or the sculpt iframe is lost
+ [category,setCategory]=useState('ship'),[mode,setMode]=useState('translate');
  const [prompt,setPrompt]=useState(''),[image,setImage]=useState(null),[quality,setQuality]=useState('standard'),[shapeModel,setShapeModel]=useState('default'),[meshLevel,setMeshLevel]=useState(0),[seed,setSeed]=useState(42),[backgroundMode,setBackgroundMode]=useState('auto');
  const [status,setStatus]=useState(null),[config,setConfig]=useState(null),[keys,setKeys]=useState({}),[jobs,setJobs]=useState([]),[activeJob,setActiveJob]=useState(null);
  const [toast,setToast]=useState(null),[modal,setModal]=useState(null),[projects,setProjects]=useState([]),[projectId,setProjectId]=useState(null),[projectName,setProjectName]=useState(''),[busy,setBusy]=useState(false),[messages,setMessages]=useState([]),[chatText,setChatText]=useState(''),[chatBusy,setChatBusy]=useState(false),[exportMenu,setExportMenu]=useState(false),[grid,setGrid]=useState(true),[dirty,setDirty]=useState(false);
@@ -28,6 +30,7 @@ function App(){
  configRef.current=config;dirtyRef.current=dirty;latestSnapshot.current=snapshot;
  const projectLabel=projectName.trim()||t('app.project.untitled');
  useEffect(()=>{document.title=t('app.docTitle');},[lang]);
+ useEffect(()=>{if(tab==='sculpt')setSculptSeen(true);},[tab]);
  const [engineChoice,setEngineChoice]=useState(()=>{try{return localStorage.getItem('astra.engine3d');}catch{return null;}});
  const pixalOk=!!status?.pixal3d?.installed,engine=engineChoice==='hunyuan'?'hunyuan':pixalOk?'pixal3d':'hunyuan';
  const chooseEngine=v=>{setEngineChoice(v);try{localStorage.setItem('astra.engine3d',v);}catch{}};
@@ -58,9 +61,10 @@ function App(){
  return <div className="app">
   <header className="topbar"><div className="brand"><div className="brand-mark"><Orbit size={25}/></div><strong>astra<span>forge</span></strong><span className="local-label">{t('app.brand.local')}</span></div><div className="project-title"><input value={projectName} placeholder={t('app.project.untitled')} onChange={e=>{setProjectName(e.target.value);setDirty(true);}} aria-label={t('app.project.nameLabel')}/><span className={'save-dot '+(dirty?'dirty':'')} title={dirty?t('app.project.unsaved'):t('app.project.saved')}/></div><div className="header-actions"><button className="text-btn" onClick={openLibrary}><FolderOpen size={16}/>{t('app.header.projects')}</button><button className="text-btn" disabled={busy} onClick={saveProject}><Save size={16}/>{t('app.header.save')}</button><div className="export-wrap"><button className="primary small" onClick={()=>setExportMenu(!exportMenu)}><Download size={16}/>{t('app.header.export')}<ChevronDown size={14}/></button>{exportMenu&&<div className="dropdown"><button onClick={()=>{run(()=>studio.current.exportGLB());setExportMenu(false);}}>GLB <span>{t('app.export.glb')}</span></button><button onClick={()=>{run(()=>studio.current.exportOBJ());setExportMenu(false);}}>OBJ <span>{t('app.export.obj')}</span></button><button onClick={()=>{run(()=>studio.current.record());setExportMenu(false);}}>WebM <span>{t('app.export.webm')}</span></button><button onClick={()=>{download(new Blob([JSON.stringify({...studio.current.serialize(),name:projectLabel})],{type:'application/json'}),projectLabel+'.astra.json');setExportMenu(false);}}>{t('app.export.project')} <span>{t('app.export.projectHint')}</span></button></div>}</div><IconButton icon={Info} title={t('app.header.about')} onClick={()=>setModal('about')}/><IconButton icon={Settings2} title={t('app.header.settings')} onClick={()=>setModal('settings')}/><div className="lang-switch" role="group" aria-label={t('lang.switch')} title={t('lang.switch')}>{LANGS.map(l=><button key={l.id} type="button" className={lang===l.id?'active':''} aria-pressed={lang===l.id} aria-label={t('lang.'+l.id)} onClick={()=>setLang(l.id)}>{l.label}</button>)}</div></div></header>
   <div className="workspace">
-   <aside className="left-panel"><div className="panel-head"><span className="eyebrow">{t('app.panel.workspace')}</span><IconButton icon={HelpCircle} title={t('app.panel.howTo')} onClick={()=>setModal('help')}/></div><nav className="workflow-tabs">{[['concept',WandSparkles],['forge',ForgeIcon],['rig',Bone],['textures',Palette],['animation',Film],['effects',Zap],['vfx',Flame],['sprites',Images],['art2d',PenTool],['assistant',Sparkles],['tripo',Plug]].map(([id,Icon])=>[id,t('app.tab.'+id),Icon]).map(([id,name,Icon])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><Icon size={16}/><span>{name}</span></button>)}</nav>
+   <aside className="left-panel"><div className="panel-head"><span className="eyebrow">{t('app.panel.workspace')}</span><IconButton icon={HelpCircle} title={t('app.panel.howTo')} onClick={()=>setModal('help')}/></div><nav className="workflow-tabs">{[['concept',WandSparkles],['forge',ForgeIcon],['rig',Bone],['textures',Palette],['sculpt',Brush],['animation',Film],['effects',Zap],['vfx',Flame],['sprites',Images],['art2d',PenTool],['assistant',Sparkles],['tripo',Plug]].map(([id,Icon])=>[id,t('app.tab.'+id),Icon]).map(([id,name,Icon])=><button key={id} className={tab===id?'active':''} onClick={()=>setTab(id)}><Icon size={16}/><span>{name}</span></button>)}</nav>
    {tab==='tripo'&&<TripoPanel studio={studio} notify={notify} reference={image} onEdit={()=>setDirty(true)}/>} 
    {tab==='textures'&&<TexturePanel studio={studio} snapshot={snapshot} notify={notify} reference={image}/>}
+   {(tab==='sculpt'||sculptSeen)&&<SculptPanel studio={studio} snapshot={snapshot} notify={notify} active={tab==='sculpt'} onEdit={()=>setDirty(true)}/>}
    {tab==='sprites'&&<SpritePanel studio={studio} snapshot={snapshot} notify={notify}/>}
    {tab==='vfx'&&<VfxPanel studio={studio} snapshot={snapshot} notify={notify}/>}
    {tab==='art2d'&&<Art2dPanel notify={notify} reference={image} active={tab==='art2d'} onConcept={a=>{setImage(a);setTab('concept');}}/>}

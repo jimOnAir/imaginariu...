@@ -15,6 +15,7 @@ import { installRigTools } from './rig-tools.js';
 import { installMediaTools } from './media-tools.js';
 import { installReferenceTools } from './reference-tools.js';
 import { installFxTools } from './fx-runtime.js';
+import { installSculptTools } from './sculpt-tools.js';
 
 const defaultEditor=()=>({duration:8,time:0,preset:'none',effect:'none',effectSize:1,tracks:{},bases:{},clipIndex:-1});
 const material=(color,metalness=.6,roughness=.35)=>new T.MeshStandardMaterial({color,metalness,roughness});
@@ -93,7 +94,7 @@ export class StudioScene{
  disposeContent(){const geometries=new Set(),materials=new Set(),textures=new Set();this.content.traverse(o=>{if(o.geometry)geometries.add(o.geometry);if(o.material)for(const m of Array.isArray(o.material)?o.material:[o.material]){materials.add(m);for(const v of Object.values(m))if(v?.isTexture)textures.add(v);}});geometries.forEach(x=>x.dispose());materials.forEach(x=>x.dispose());textures.forEach(x=>x.dispose());}
  dispose(){this.disposed=true;this.finishRecord();this.resizeObserver.disconnect();this.gizmo.dispose();this.orbit.dispose();this.disposeContent();this.particleGeo.dispose();this.particles.material.map.dispose();this.particles.material.dispose();this.renderer.dispose();this.renderer.domElement.remove();}
 }
-installRigTools(StudioScene);installMediaTools(StudioScene);installReferenceTools(StudioScene);installFxTools(StudioScene);
+installRigTools(StudioScene);installMediaTools(StudioScene);installReferenceTools(StudioScene);installFxTools(StudioScene);installSculptTools(StudioScene);
 function part(g,geo,mat,name,pos,scale,rotation){const m=new T.Mesh(geo,mat);m.name=name;if(pos)m.position.set(...pos);if(scale)m.scale.set(...scale);if(rotation)m.rotation.set(...rotation);g.add(m);return m;}
 function makeShip(){const g=new T.Group();g.name=t('scene.example.ship');g.position.y=1.4;const hull=material('#b9c4c4',.78,.3),dark=material('#2b3b42',.7,.25),trim=material('#d2ad70',.7,.3),glass=new T.MeshPhysicalMaterial({color:'#45656e',metalness:.65,roughness:.12,clearcoat:1});
  part(g,new T.SphereGeometry(1,48,32),hull,t('scene.part.fuselage'),[0,0,0],[.65,.32,2.1]);part(g,new T.SphereGeometry(1,32,24),glass,t('scene.part.cockpit'),[0,.21,-.7],[.42,.21,.72]);

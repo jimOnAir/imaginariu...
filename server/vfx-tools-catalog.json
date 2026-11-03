@@ -134,6 +134,18 @@
       "download": { "git": "https://github.com/satelllte/displacementx", "branch": "main", "dir": "web/displacementx-src", "build": "astro", "base": "/vfx-web/displacementx/", "out": "web/displacementx" }
     },
     {
+      "id": "sculptgl",
+      "name": "SculptGL",
+      "author": "Stephane Ginier",
+      "kind": "web-local",
+      "license": "MIT",
+      "url": "https://stephaneginier.com/sculptgl/",
+      "tags": ["sculpt", "mesh", "free"],
+      "ru": "Скульптинг в браузере: кисти, маски, динамическая топология. Работает во вкладке «Скульпт» прямо над моделью из сцены.",
+      "local": { "web": "web/sculptgl" },
+      "download": { "git": "https://github.com/stephomi/sculptgl", "branch": "master", "dir": "web/sculptgl-src", "build": "sculptgl", "out": "web/sculptgl" }
+    },
+    {
       "id": "neonflames",
       "name": "Neon Flames",
       "author": "Jonas Wagner",

@@ -3,6 +3,7 @@ import {registerTripo} from './tripo.mjs';
 import {registerForge} from './forge.mjs';
 import {registerViews} from './views.mjs';
 import {registerVfxTools} from './vfx-tools.mjs';
+import {registerSculpt} from './sculpt.mjs';
 import {registerArt2d} from './art2d.mjs';
 import {unwrapUV} from './uv.mjs';
 import {saveProjectData,readProjectData,projectList,decodeProject} from './projects.mjs';
@@ -26,7 +27,8 @@ const readText=async f=>{try{return await fs.readFile(path.join(root,f),'utf8');
 let config=configSchema.parse({...defaults,...await readJson(path.join(data,'config.json'),{})});
 const app=express();const port=Number(process.env.PORT)||3210;
 app.disable('x-powered-by');
-app.use((req,res,next)=>{const host=req.headers.host?.split(':')[0];if(!['127.0.0.1','localhost','['].includes(host))return res.status(403).json({error:'Invalid Host'});if(req.path.startsWith('/api')&&req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`)return res.status(403).json({error:'Invalid request origin'});if(!['GET','HEAD'].includes(req.method)&&req.path.startsWith('/api')&&req.headers['x-astra-client']!=='studio')return res.status(403).json({error:'The request must be sent from the studio.'});res.setHeader('X-Content-Type-Options','nosniff');next();});
+let sculpt=null;   // the Sculpt tab: the SculptGL page on the web port may read studio assets (server/sculpt.mjs)
+app.use((req,res,next)=>{const host=req.headers.host?.split(':')[0];if(!['127.0.0.1','localhost','['].includes(host))return res.status(403).json({error:'Invalid Host'});if(req.path.startsWith('/api')&&req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`&&!sculpt?.assetCors(req,res))return res.status(403).json({error:'Invalid request origin'});if(!['GET','HEAD'].includes(req.method)&&req.path.startsWith('/api')&&req.headers['x-astra-client']!=='studio')return res.status(403).json({error:'The request must be sent from the studio.'});res.setHeader('X-Content-Type-Options','nosniff');next();});
 app.use(express.json({limit:'90mb'}));
 app.use((req,res,next)=>{if(/^\/(data|server|scripts|tests)(\/|$)/.test(req.path))return res.status(404).end();next();});
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:100*1024*1024,files:1}});
@@ -39,7 +41,7 @@ app.put('/api/keys/:provider',asyncRoute(async(req,res)=>{const provider=z.enum(
 registerTripo(app,asyncRoute);
 registerForge(app,asyncRoute,{getGenerationJob:getJob});
 const viewSets=registerViews(app,asyncRoute,{getConfig:()=>config});
-registerVfxTools(app,asyncRoute);
+sculpt=registerSculpt(app,asyncRoute,{vfx:registerVfxTools(app,asyncRoute)});
 registerArt2d(app,asyncRoute,{getConfig:()=>config});
 app.get('/api/status',asyncRoute(async(req,res)=>{
  const probe=async(url)=>{try{const r=await fetch(url,{signal:AbortSignal.timeout(3500)});if(!r.ok)return null;return await r.json();}catch{return null;}};

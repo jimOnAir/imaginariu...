@@ -1,0 +1,21 @@
+/* The Sculpt tab (SculptPanel.jsx): SculptGL over the center viewport. */
+.panel-scroll[hidden], .sculpt-stage[hidden] { display: none; }
+.sculpt-ok { color: var(--accent); }
+.sculpt-warn { color: #d9b36f; }
+.sculpt-info { display: flex; flex-direction: column; gap: 3px; margin-top: 10px; padding: 8px 10px; background: #1a2021; border: 1px solid var(--line); border-radius: 5px; font-size: 11px; color: #b7c4bc; }
+.sculpt-info strong { font-size: 12px; font-weight: 600; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sculpt-info .secondary { align-self: flex-start; margin-top: 4px; }
+.sculpt-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.sculpt-row .secondary { margin-top: 0; }
+.sculpt-tips { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 5px; font-size: 11px; line-height: 1.5; color: #b7c4bc; }
+.sculpt-fold > summary { font-size: 11px; font-weight: 550; color: #cbd5cb; cursor: pointer; }
+.sculpt-fold[open] > summary { margin-bottom: 12px; }
+
+.sculpt-stage { position: absolute; inset: 0; z-index: 6; display: flex; flex-direction: column; background: #171c1e; }
+.sculpt-stage.wide { position: fixed; z-index: 100; }
+.sculpt-bar { display: flex; align-items: center; gap: 12px; height: 34px; flex-shrink: 0; padding: 0 6px 0 14px; background: #1c2325; border-bottom: 1px solid var(--line); }
+.sculpt-bar strong { font-size: 12px; font-weight: 600; color: var(--text); }
+.sculpt-bar span { flex: 1; min-width: 0; font-size: 10px; color: var(--dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sculpt-stage iframe { flex: 1; min-height: 0; width: 100%; border: 0; background: #2a2a2a; }
+.sculpt-placeholder { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--dim); text-align: center; font-size: 12px; }
+.sculpt-placeholder p { margin: 0; line-height: 1.6; }

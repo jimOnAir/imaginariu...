@@ -95,6 +95,21 @@ BuildAstro() { # <dir> <base> <out>
   mv "$src/dist" "$out"
   rm -rf "$src/node_modules"
 }
+BuildSculptGL() { # <src> <out> - the Sculpt tab (src/SculptPanel.jsx): webpack release build, then scripts/sculpt/assemble.mjs stitches the studio page (bridge in, external calls out)
+  local src; src="$(Inside "$1")"
+  local out; out="$(Inside "$2")"
+  if [ -f "$out/index.html" ] && grep -q sculptgl-bridge.js "$out/index.html"; then say "    already built: $2"; return 0; fi
+  if [ ! -x "$NPM_BIN" ]; then say '    npm not found - SculptGL not built (install Node.js and run the script again).'; return 0; fi
+  if [ ! -f "$src/app/index.html" ]; then   # app/ exists after a successful webpack build: a repeated run does not rebuild
+    (cd "$src" && "$NPM_BIN" ci --ignore-scripts --no-audit --no-fund &&
+      "$NPM_BIN" install --no-save --ignore-scripts --no-audit --no-fund webpack@5.97.1 webpack-cli@4.10.0 &&
+      "$NPM_BIN" exec -- webpack --env release) || { say '  The SculptGL build failed'; return 1; }
+    rm -rf "$src/node_modules"
+  fi
+  "$NODE_BIN" "$APP/scripts/sculpt/assemble.mjs" "$src" "$out" || { say '  Could not assemble SculptGL (assemble.mjs)'; return 1; }
+  say '  SculptGL is built; the studio opens it in the Sculpt tab after a restart.'
+}
+
 MaterialMaker() { # <id> <file>
   local dst; dst="$(Inside "$2")"
   if [ -f "$dst" ]; then say "    already downloaded: $(basename "$dst")"; return 0; fi
@@ -119,7 +134,10 @@ while IFS=$'\t' read -r id name license action payload plan; do
       Fetch "$url" "$target" "$([ "$kind" = unzip ] && echo 1 || echo 0)" "$strip" || failed="$failed $id" ;;
     github) IFS=$'\x1f' read -r git branch dir build base out <<<"$payload"
       if GitHub "$git" "$branch" "$dir"; then
-        [ "$build" = astro ] && { BuildAstro "$dir" "$base" "$out" || failed="$failed $id"; }
+        case "$build" in
+          astro) BuildAstro "$dir" "$base" "$out" || failed="$failed $id" ;;
+          sculptgl) BuildSculptGL "$dir" "$out" || failed="$failed $id" ;;
+        esac
       else failed="$failed $id"; fi ;;
     materialmaker) IFS=$'\x1f' read -r mmid file <<<"$payload"
       MaterialMaker "$mmid" "$file" || failed="$failed $id" ;;
