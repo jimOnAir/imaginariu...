@@ -84,12 +84,12 @@
       "author": "Diego Castano",
       "kind": "installer",
       "license": "freeware",
-      "url": "http://pixaflux.com",
+      "url": "https://pixaflux.com",
       "tags": ["procedural", "noise", "free"],
       "ru": "Node-based image editor and texture builder: noise, masks, normals, PBR.",
       "local": { "installer": "downloads/PixaFlux.20260528.exe", "find": { "hints": ["PixaFlux"], "exe": "PixaFlux.exe" }, "extras": ["downloads/pixaflux_blender_addon.zip", "apps/pixaflux-samples"] },
       "linux": { "unsupported": "PixaFlux: the vendor ships a Windows installer only." },
-      "download": { "url": "http://pixaflux.com/bin/PixaFlux.20260528.exe", "file": "downloads/PixaFlux.20260528.exe", "extra": [ { "url": "http://pixaflux.com/blender/pixaflux.zip", "file": "downloads/pixaflux_blender_addon.zip" }, { "url": "http://pixaflux.com/wiki/samples/Samples.zip", "unzip": "apps/pixaflux-samples" } ] }
+      "download": { "url": "https://pixaflux.com/bin/PixaFlux.20260528.exe", "sha256": "8fcb0c7e33432068733a89801f1f9467433e7b0dfc0f053c9ed44afb6e702aec", "file": "downloads/PixaFlux.20260528.exe", "extra": [ { "url": "https://pixaflux.com/blender/pixaflux.zip", "sha256": "84fd626c06b7b8d10e34feef9aa2d6bae6c6176cf0aa3c0bd26d16421902fc97", "file": "downloads/pixaflux_blender_addon.zip" }, { "url": "https://pixaflux.com/wiki/samples/Samples.zip", "sha256": "aa739f932f8cd9fa8ad8c10716ff0718278a1de07d0ba41793dc826c014ab743", "unzip": "apps/pixaflux-samples" } ] }
     },
     {
       "id": "kumoworks",

@@ -332,11 +332,53 @@ InstallClips() {
     "$fbx/files.json" "$fbx/_import/request.json" "$S_LIBRARY/animations" "$fbx/_import" || return 1
   Run "$S_BLENDER" 'importing clips into the AstraForge library' -b --factory-startup --python "$ROOT/scripts/blender/af_run.py" -- clip_library "$fbx/_import/request.json" || return 1
 }
+# The 0.4.15 gate, Linux form: Windows verifies the OllamaSetup.exe Authenticode signature of
+# 'Ollama Inc.' before running it; on Linux nothing is ever run as an installer, so the equivalent
+# is: the official release archive is installed only after its sha256 matches the sha256sum.txt of
+# the same GitHub release (https, the publisher's own checksum list - what the signature chain
+# stands for on Windows). A tampered or mismatched archive is deleted and never extracted/executed.
+OLLAMA_SHA=''
+OllamaReleaseSha() { # <asset file name> - sets OLLAMA_SHA from the release's sha256sum.txt
+  OLLAMA_SHA=''
+  rm -f "$DL/ollama-sha256sum.txt"   # always fresh: a cached list could trail the archive
+  say '    checking the release checksum list of Ollama'
+  if ! Download "https://github.com/ollama/ollama/releases/latest/download/sha256sum.txt" "$DL/ollama-sha256sum.txt"; then return 1; fi
+  OLLAMA_SHA="$(awk -v f="$1" '$2 == "./" f || $2 == f { print $1; exit }' "$DL/ollama-sha256sum.txt")"
+  [ -n "$OLLAMA_SHA" ]
+}
+
 InstallOllama() {
-  local got; got="$(command -v ollama || true)"
+  local got cfgn arch asset
+  # ASTRA_INSTALL_NO_OLLAMA=1 forces the download path for tests, like ASTRA_INSTALL_NO_GPU for the scan
+  got=""; [ "${ASTRA_INSTALL_NO_OLLAMA:-}" = 1 ] || got="$(command -v ollama || true)"
   if [ -n "$got" ]; then S_OLLAMA="$got"; CfgSet ollama "$got"; return 0; fi
-  say '  Ollama is not installed: install it from https://ollama.com (Linux: curl -fsSL https://ollama.com/install.sh | sh) and run the installer again.'
-  return 1
+  cfgn="$(CfgGet ollama)"; if [ -n "$cfgn" ] && [ -x "$cfgn" ]; then S_OLLAMA="$cfgn"; return 0; fi
+  arch="$(uname -m)"; asset=''
+  case "$arch" in x86_64) asset='ollama-linux-amd64.tar.zst' ;; aarch64) asset='ollama-linux-arm64.tar.zst' ;; esac
+  if [ -z "$asset" ] || ! command -v zstd >/dev/null; then
+    say '  Ollama is not installed: install it from https://ollama.com (Linux: curl -fsSL https://ollama.com/install.sh | sh) and run the installer again.'
+    return 1
+  fi
+  if ! OllamaReleaseSha "$asset"; then
+    say '  The sha256 list of the latest Ollama release did not answer or has no line for the asset - Ollama was not installed.'
+    return 1
+  fi
+  say "  downloading Ollama $asset (sha256 verified)"
+  if ! DownloadChecked "https://github.com/ollama/ollama/releases/latest/download/$asset" "$DL/$asset" 0 "$OLLAMA_SHA"; then
+    say '  The Ollama archive did not match the release checksum - the file is deleted and Ollama is not installed.'
+    return 1
+  fi
+  mkdir -p "$RT/ollama"
+  if ! tar --zstd -xf "$DL/$asset" -C "$RT/ollama"; then
+    say '  Could not unpack the Ollama archive.'
+    rm -rf "$RT/ollama"; return 1
+  fi
+  if [ ! -x "$RT/ollama/bin/ollama" ]; then
+    say '  The Ollama archive has no bin/ollama - the release layout changed; Ollama was not installed.'
+    rm -rf "$RT/ollama"; return 1
+  fi
+  S_OLLAMA="$RT/ollama/bin/ollama"; CfgSet ollama "$S_OLLAMA"
+  say '  Ollama is in runtime/ollama - the checksum of the official release matched.'
 }
 
 # Pixal3D for Linux: installer/pixal3d/install-pixal3d.sh (engine|weights|test), same manifest pins

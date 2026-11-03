@@ -51,17 +51,18 @@ Unpack() { # <archive> <dst> [strip]
   if ! cp -a "$src"/. "$dst"/; then rm -rf "$tmp"; say "  Could not move the archive contents to $dst"; return 1; fi
   rm -rf "$tmp"
 }
-Fetch() { # <url> <file|unzip-target> <is-unzip 0|1> [strip]
+Fetch() { # <url> <file|unzip-target> <is-unzip 0|1> [strip] [sha256]
+  # with a catalog sha256 the file is verified before use; a mismatch is deleted and never unpacked (0.4.15 gate)
   if [ "$2x" != x ] && [ "$3" = 1 ]; then
     local dst; dst="$(Inside "$2")"
     if Filled "$dst"; then say "    already unpacked: $2"; return 0; fi
     local leaf zip
     leaf="$(basename "$1" | cut -d'?' -f1)"; zip="$(Inside "downloads/$leaf")"
-    Download "$1" "$zip" || return 1
+    DownloadChecked "$1" "$zip" 0 "${5:-}" || return 1
     Unpack "$zip" "$dst" "${4:-}" || return 1
     rm -f "$zip"
   else
-    Download "$1" "$(Inside "$2")"
+    DownloadChecked "$1" "$(Inside "$2")" 0 "${5:-}"
   fi
 }
 GitHub() { # <git-url> <branch> <dir>
@@ -123,8 +124,8 @@ while IFS=$'\t' read -r id name license action payload plan; do
   if [ "$DryRun" = 1 ]; then say "    plan: $plan"; continue; fi
   case "$action" in
     skip) say "    $payload" ;;
-    fetch) IFS=$'\x1f' read -r url kind target strip <<<"$payload"
-      Fetch "$url" "$target" "$([ "$kind" = unzip ] && echo 1 || echo 0)" "$strip" || failed="$failed $id" ;;
+    fetch) IFS=$'\x1f' read -r url kind target strip sha <<<"$payload"
+      Fetch "$url" "$target" "$([ "$kind" = unzip ] && echo 1 || echo 0)" "$strip" "$sha" || failed="$failed $id" ;;
     github) IFS=$'\x1f' read -r git branch dir build base out <<<"$payload"
       if GitHub "$git" "$branch" "$dir"; then
         case "$build" in
@@ -160,9 +161,9 @@ done < <("$NODE_BIN" -e '
      console.log([t.id, t.name, t.license || "", "materialmaker", [d.materialMaker, d.file].join(sep), "materialmaker.org #" + d.materialMaker].join("\t"));
    } else if (d.url) {
      const kind = d.unzip ? "unzip" : "file", target = d.unzip || d.file;
-     console.log([t.id, t.name, t.license || "", "fetch", [d.url, kind, target, d.strip || ""].join(sep), d.url].join("\t"));
+     console.log([t.id, t.name, t.license || "", "fetch", [d.url, kind, target, d.strip || "", d.sha256 || ""].join(sep), d.url].join("\t"));
    }
-   for (const x of [].concat(d.extra || [])) if (x) console.log([t.id + ":extra", t.name, t.license || "", x.unzip ? "fetch" : "fetch", [x.url, x.unzip ? "unzip" : "file", x.unzip || x.file, x.strip || ""].join(sep), x.url].join("\t"));
+   for (const x of [].concat(d.extra || [])) if (x) console.log([t.id + ":extra", t.name, t.license || "", x.unzip ? "fetch" : "fetch", [x.url, x.unzip ? "unzip" : "file", x.unzip || x.file, x.strip || "", x.sha256 || ""].join(sep), x.url].join("\t"));
  }' "$CATALOG")
 if [ -n "$failed" ]; then say "Failed: $(printf '%s' "$failed" | tr -s ' ' ',' | sed 's/^,//'). Run the script again with -Only $(printf '%s' "$failed" | tr -s ' ' '\n' | sort -u | paste -sd, -)"; exit 1; fi
 say 'Done. Open the studio, "VFX" tab.'

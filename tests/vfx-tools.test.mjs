@@ -377,3 +377,19 @@ test(`install and folders: from the catalog only, ${IS_WIN ? 'explorer.exe' : 'x
   assert.deepEqual(calls[1].args, [path.join(root, 'textures')]);
   assert.equal(svc.catalog.tools.length, catalog.tools.length);
 });
+
+// --- the 0.4.15 integrity gate in the catalog: every download over https, PixaFlux (installer,
+// Blender add-on, samples) pinned by sha256. The scripts refuse to unpack a file that fails it
+// (installer/af_download.sh, covered by tests/install-download.test.mjs).
+test('catalog: downloads are https-only and PixaFlux ships sha256 pins', () => {
+  for (const t of catalog.tools) {
+    for (const d of [t.download, t.linux?.download, ...(t.download?.extra || []), ...(t.linux?.download?.extra || [])]) {
+      if (d?.url) assert.match(d.url, /^https:\/\//, `${t.id}: ${d.url}`);
+    }
+  }
+  const px = catalog.tools.find((t) => t.id === 'pixaflux');
+  assert.ok(px, 'pixaflux present');
+  for (const d of [px.download, ...(px.download.extra || [])]) {
+    assert.match(d.sha256, /^[0-9a-f]{64}$/, `sha256 pin for ${d.url}`);
+  }
+});

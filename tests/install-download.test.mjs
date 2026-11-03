@@ -216,3 +216,85 @@ test('manifest mirrors are rewritten from the pinned Windows archive to this Lin
   assert.ok(urls.some((u) => u.startsWith('https://download.blender.org/') && u.endsWith('linux-x64.tar.xz')));
   assert.ok(!urls.some((u) => /win-x64|windows/.test(u)), 'no Windows archives left in the list');
 });
+
+// ---------------------------------------------------------------- the 0.4.15 Ollama gate (Linux form)
+// Windows: the installer runs OllamaSetup.exe only with a valid 'Ollama Inc.' Authenticode
+// signature. Linux runs no installers: the release archive is installed only after its sha256
+// matches the vendor's sha256sum.txt from the same https release - and it is never executed.
+function tinyOllamaArchive(name) {
+  const dir = path.join(tmp, name);
+  const stage = path.join(dir, 'stage');
+  mkdirSync(path.join(stage, 'bin'), { recursive: true });
+  writeFileSync(path.join(stage, 'bin', 'ollama'), '#!/bin/sh\necho ollama-stub-must-not-run\n');
+  chmodSync(path.join(stage, 'bin', 'ollama'), 0o755);
+  const tgz = path.join(dir, 'ollama-linux-amd64.tar.zst');
+  const r = spawnSync('tar', ['--zstd', '-cf', tgz, '-C', stage, 'bin']);
+  if (r.status !== 0) return null;                                   // no zstd here: the test skips
+  const sha = spawnSync('sha256sum', [tgz], { encoding: 'utf8' }).stdout.split(' ')[0];
+  return { tgz, sha };
+}
+
+function fakeOllamaCurl(stateDir) {
+  const js = path.join(tmp, 'fake-ollama-curl.mjs');
+  const sh = path.join(tmp, 'fake-ollama-curl.sh');
+  writeFileSync(js, `import fs from 'node:fs';
+const a = process.argv.slice(2);
+const opt = (k) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : null; };
+const out = opt('-o'), url = a[a.length - 1];
+fs.appendFileSync(${JSON.stringify(path.join(stateDir, 'calls.txt'))}, url + '\\n');
+if (url.endsWith('sha256sum.txt')) {
+  fs.writeFileSync(out, process.env.AF_SHA + '  ./ollama-linux-amd64.tar.zst\\n');
+  process.exit(0);
+}
+if (url.endsWith('.tar.zst')) {
+  if (process.env.AF_TAMPER === '1') fs.writeFileSync(out, 'tampered-bytes');
+  else fs.writeFileSync(out, fs.readFileSync(process.env.AF_TGZ));
+  process.exit(0);
+}
+process.exit(22);`);
+  writeFileSync(sh, `#!/usr/bin/env bash\nexec "${process.execPath}" "${js}" "$@"\n`);
+  chmodSync(sh, 0o755);
+  return sh;
+}
+
+function runInstallOllama({ tamper = false, seed = null } = {}) {
+  const art = tinyOllamaArchive(`ol-${tamper}-${Math.random().toString(36).slice(2)}`);
+  if (!art) return null;
+  const base = path.join(tmp, `olrun-${Math.random().toString(36).slice(2)}`);
+  const rt = path.join(base, 'runtime'); const dl = path.join(base, 'downloads'); const cfg = path.join(base, 'config', 'paths.json');
+  mkdirSync(dl, { recursive: true }); mkdirSync(path.dirname(cfg), { recursive: true });
+  if (seed) writeFileSync(path.join(dl, 'ollama-linux-amd64.tar.zst'), seed);
+  const logFile = path.join(base, 'install.log');
+  const r = spawnSync('bash', ['-c', `
+    say() { printf '%s\\n' "$1"; printf '%s\\n' "$1" >>"$LOG"; }
+    source ${JSON.stringify(INSTALL_SH)}
+    RT=${JSON.stringify(rt)} DL=${JSON.stringify(dl)} CFGF=${JSON.stringify(cfg)} LOG=${JSON.stringify(logFile)}
+    InstallOllama; echo RC=$?
+  `], {
+    encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, ASTRA_INSTALL_CURL: fakeOllamaCurl(base), ASTRA_INSTALL_NO_OLLAMA: '1',
+      AF_SHA: art.sha, AF_TGZ: art.tgz, AF_TAMPER: tamper ? '1' : '' },
+  });
+  return { r, rt, dl, cfg, log: existsSync(logFile) ? readFileSync(logFile, 'utf8') : '' };
+}
+
+test('Ollama gate: a tampered archive is refused (cached and fresh), deleted, never extracted or run', () => {
+  const run = runInstallOllama({ tamper: true, seed: 'cached-evil' });
+  if (!run) return;
+  assert.match(run.r.stdout, /RC=1/);
+  assert.match(run.log, /does not match the checksum - downloading again/, 'the tampered cached file triggers a redownload');
+  assert.match(run.log, /The Ollama archive did not match the release checksum/);
+  assert.ok(!existsSync(path.join(run.dl, 'ollama-linux-amd64.tar.zst')), 'the bad archive is deleted');
+  assert.ok(!existsSync(run.rt), 'nothing is extracted');
+  assert.doesNotMatch(run.r.stdout + run.log, /ollama-stub/, 'the archive content is never executed');
+});
+
+test('Ollama gate: the verified archive installs into runtime/ollama and the config points at it', () => {
+  const run = runInstallOllama();
+  if (!run) return;
+  assert.match(run.r.stdout, /RC=0/, run.log);
+  assert.ok(existsSync(path.join(run.rt, 'ollama', 'bin', 'ollama')), 'extracted');
+  assert.match(run.log, /checksum of the official release matched/);
+  assert.doesNotMatch(run.r.stdout + run.log, /ollama-stub/, 'the binary is installed, not executed');
+  assert.match(readFileSync(run.cfg, 'utf8'), /runtime\/ollama\/bin\/ollama/);
+});
