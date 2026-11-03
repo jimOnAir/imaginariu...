@@ -3,6 +3,7 @@ import {registerTripo} from './tripo.mjs';
 import {registerForge} from './forge.mjs';
 import {registerViews} from './views.mjs';
 import {registerVfxTools} from './vfx-tools.mjs';
+import {registerArt2d} from './art2d.mjs';
 import {unwrapUV} from './uv.mjs';
 import {saveProjectData,readProjectData,projectList,decodeProject} from './projects.mjs';
 import multer from 'multer';
@@ -39,6 +40,7 @@ registerTripo(app,asyncRoute);
 registerForge(app,asyncRoute,{getGenerationJob:getJob});
 const viewSets=registerViews(app,asyncRoute,{getConfig:()=>config});
 registerVfxTools(app,asyncRoute);
+registerArt2d(app,asyncRoute,{getConfig:()=>config});
 app.get('/api/status',asyncRoute(async(req,res)=>{
  const probe=async(url)=>{try{const r=await fetch(url,{signal:AbortSignal.timeout(3500)});if(!r.ok)return null;return await r.json();}catch{return null;}};
  const [ollama,stats,nodes,pixal3d]=await Promise.all([probe(config.ollamaUrl+'/api/tags'),probe(config.comfyUrl+'/system_stats'),probe(config.comfyUrl+'/object_info/ImageOnlyCheckpointLoader'),pixal3dStatus().catch(e=>({installed:false,running:false,missing:[],message:e.message}))]);
