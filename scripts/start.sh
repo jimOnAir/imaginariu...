@@ -49,7 +49,7 @@ for _ in $(seq 40); do
   H="$(health)"
   if printf '%s' "$H" | grep -q '"app":"AstraForge"'; then
     [ "$NO_BROWSER" = 0 ] && command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 &
-    echo 'AstraForge is ready: http://127.0.0.1:3210'
+    echo "AstraForge is ready: $URL"
     exit 0
   fi
   sleep 0.5
