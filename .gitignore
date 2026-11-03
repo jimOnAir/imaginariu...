@@ -28,3 +28,6 @@ installer/install.log
 
 # user settings written by the app
 data/config.json
+
+# work papers (tickets, scratch)
+.scratch/
