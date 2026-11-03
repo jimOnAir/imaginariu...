@@ -29,6 +29,10 @@ CFGF="$ROOT/config/paths.json"
 NodeVersion='v22.23.3'
 ComfyTag='v0.33.2'
 BlenderTar='https://download.blender.org/release/Blender5.0/blender-5.0.1-linux-x64.tar.xz'
+# Linux archive pins (the manifest pins the Windows archives; these were taken from the official
+# downloads on 2026-11-03 and are verified on every download, mirrors included)
+NodeTarSize=31001304; NodeTarSha='df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de'
+BlenderTarSize=374154072; BlenderTarSha='8019580ee1b7262e505f4196a00237ccf743c88d205b38d34201510676e60b09'
 GodotZip='https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip'
 GodotBin='Godot_v4.5.1-stable_linux.x86_64'
 UvTar='https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz'
@@ -68,6 +72,8 @@ for arg in "$@"; do
   prev="$arg"
 done
 case "$Profile" in quick|full|lite) ;; *) printf 'Unknown profile: %s (quick, full, lite)\n' "$Profile" >&2; exit 2 ;; esac
+# an unattended run (or -Only): curl works quietly and the download loop prints '##PROGRESS' lines
+if [ "$Yes" = 1 ] || [ -n "$Only" ]; then ASTRA_UNATTENDED=1; export ASTRA_UNATTENDED; fi
 
 # ---------------------------------------------------------------- helpers
 say() { printf '%s\n' "$1"; printf '%s\n' "$1" >>"$LOG"; }
@@ -89,47 +95,22 @@ Ask() {
   case "$ans" in [yY]*) return 0 ;; *) return 1 ;; esac
 }
 
-Download() { # <url> <dst>
-  mkdir -p "$(dirname "$2")"
-  if [ -f "$2" ]; then say "    already downloaded: $(basename "$2")"; return 0; fi
-  say "    downloading $1"
-  local resume=()
-  [ -f "$2.part" ] && resume=(-C -)   # resume only with an existing partial: some GitHub archives refuse byte ranges
-  if ! curl -L --fail --retry 5 --retry-delay 3 "${resume[@]}" --progress-bar -o "$2.part" "$1"; then
-    say "  Download failed: $1 (run the installer again - the download will resume)."
-    return 1
-  fi
-  mv -f "$2.part" "$2"
-}
+# the download core (Download/FileOk/DownloadChecked/DownloadMirrors/CurlReason/UvTry) is shared
+# with the pixal3d and vfx installers: installer/af_download.sh
+# shellcheck source=af_download.sh
+. "$ROOT/installer/af_download.sh"
 
-FileOk() { # <path> [size] [sha256]
-  [ -f "$1" ] || return 1
-  local len; len="$(stat -c%s "$1" 2>/dev/null || echo 0)"
-  if [ "${2:-0}" != 0 ] && [ "$len" != "$2" ]; then return 1; fi
-  if [ "$len" = 0 ]; then return 1; fi
-  if [ -n "${3:-}" ]; then
-    local h; h="$(sha256sum "$1" | cut -d' ' -f1)"
-    [ "$h" = "$3" ] || return 1
-  fi
-  return 0
-}
-
-DownloadChecked() { # <url> <dst> [size] [sha256]
-  local leaf; leaf="$(basename "$2")"
-  if FileOk "$2" "${3:-0}"; then
-    if [ -z "${4:-}" ]; then say "    already in place: $leaf"; return 0; fi
-    say "    checking checksum: $leaf"
-    if FileOk "$2" "${3:-0}" "$4"; then say '    matches, no download needed'; return 0; fi
-    say "    file $leaf does not match the checksum - downloading again"
-  fi
-  rm -f "$2"
-  Download "$1" "$2" || return 1
-  [ -n "${4:-}" ] && say "    checking checksum: $leaf"
-  if ! FileOk "$2" "${3:-0}" "${4:-}"; then
-    rm -f "$2"
-    say "File $leaf was downloaded incorrectly (size or sha256 mismatch). The file was deleted - run the installer again."
-    return 1
-  fi
+# mirror URL list of a program from installer/manifest.json, rewritten from the pinned Windows
+# archive to this Linux one (the mirrors carry the whole release folder); primary site first
+ManifestMirrors() { # <program> <replacement file name>
+  local prog="$1" leaf="$2" n
+  n="$(NodeBin)"
+  if [ -z "$n" ]; then return 1; fi
+  "$n" -e '
+    const m = require(process.argv[1]); const p = (m.programs || {})[process.argv[2]] || {};
+    const re = /(node-v[\d.]+-win-x64\.zip|blender-[\d.]+-windows-x64\.zip)$/;
+    const us = [p.url].concat(p.mirrors || []).filter(Boolean).map((u) => (re.test(u) ? u.replace(re, process.argv[3]) : u));
+    process.stdout.write(us.join("\n") + "\n");' "$ROOT/installer/manifest.json" "$prog" "$leaf" 2>/dev/null
 }
 
 # Run <exe> <what it is> [args...]
@@ -195,10 +176,17 @@ RecommendLlm() {
 
 # ---------------------------------------------------------------- installing components
 InstallNode() {
-  local arch tarname url
+  local arch tarname urls=()
   arch="$(uname -m)"; case "$arch" in x86_64) arch='x64' ;; aarch64) arch='arm64' ;; esac
-  tarname="node-$NodeVersion-linux-$arch.tar.xz"; url="https://nodejs.org/dist/$NodeVersion/$tarname"
-  Download "$url" "$DL/$tarname" || return 1
+  tarname="node-$NodeVersion-linux-$arch.tar.xz"
+  mapfile -t urls < <(ManifestMirrors node "$tarname") || true
+  [ "${#urls[@]}" -gt 0 ] || urls=("https://nodejs.org/dist/$NodeVersion/$tarname")
+  # arch != x64: the pinned checksum is the x64 archive's - then only size verification by Download itself
+  if [ "$arch" = x64 ]; then
+    DownloadMirrors "$DL/$tarname" "$NodeTarSize" "$NodeTarSha" "${urls[@]}" || return 1
+  else
+    DownloadMirrors "$DL/$tarname" 0 '' "${urls[@]}" || return 1
+  fi
   rm -rf "$RT/node"; mkdir -p "$RT"
   tar -xf "$DL/$tarname" -C "$RT" || return 1
   mv "$RT/${tarname%.tar.xz}" "$RT/node" || return 1
@@ -211,8 +199,10 @@ InstallNpm() {
   (cd "$ROOT" && Run "$npm" 'installing dependencies (npm ci)' ci --no-audit --no-fund && Run "$npm" 'building the interface (npm run build)' run build)
 }
 InstallBlender() {
-  local t='blender-5.0.1-linux-x64.tar.xz'
-  Download "$BlenderTar" "$DL/$t" || return 1
+  local t='blender-5.0.1-linux-x64.tar.xz' urls=()
+  mapfile -t urls < <(ManifestMirrors blender "$t") || true
+  [ "${#urls[@]}" -gt 0 ] || urls=("$BlenderTar")
+  DownloadMirrors "$DL/$t" "$BlenderTarSize" "$BlenderTarSha" "${urls[@]}" || return 1
   mkdir -p "$RT/blender"
   tar -xf "$DL/$t" -C "$RT/blender" || return 1
   S_BLENDER="$RT/blender/blender-5.0.1-linux-x64/blender"; CfgSet blender "$S_BLENDER"
@@ -246,10 +236,11 @@ InstallComfyDeps() { # <dir> — the venv and PyTorch (CUDA when an NVIDIA GPU w
   local torchIndex='https://download.pytorch.org/whl/cpu'
   [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
   if ! "$py" -c 'import torch' >/dev/null 2>&1; then
-    Run "$UV_BIN" 'PyTorch' pip install --python "$py" torch torchvision torchaudio --index-url "$torchIndex" || return 1
+    UvTry 'PyTorch' 3 "$UV_BIN" pip install --python "$py" torch torchvision torchaudio --index-url "$torchIndex" || return 1
   fi
-  Run "$UV_BIN" 'ComfyUI libraries' pip install --python "$py" -r "$dir/requirements.txt" || return 1
-  Run "$UV_BIN" 'AstraForge libraries (background removal, meshing, unwrapping)' pip install --python "$py" rembg onnxruntime numba scikit-image xatlas || return 1
+  UvTry 'ComfyUI libraries' 3 "$UV_BIN" pip install --python "$py" -r "$dir/requirements.txt" || return 1
+  UvTry 'AstraForge libraries (background removal, meshing, unwrapping)' 3 \
+    "$UV_BIN" pip install --python "$py" rembg onnxruntime numba scikit-image xatlas || return 1
 }
 InstallComfy() {
   local t="ComfyUI-$ComfyTag.zip" dir="$RT/ComfyUI"
@@ -611,6 +602,10 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
 }
 
 # ---------------------------------------------------------------- start
+# when sourced by tests/install-download.test.mjs, only the functions above are needed
+# (run directly, $0 and BASH_SOURCE[0] are the same file; sourced, $0 is the caller's shell)
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
+
 if [ "$ScanList" = 1 ]; then ScanList; exit $?; fi
 if [ "$ScanOnly" = 1 ]; then ScanTable; exit $?; fi
 ScanCore

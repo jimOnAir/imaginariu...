@@ -25,19 +25,12 @@ NODE_BIN="${ASTRA_NODE:-$(command -v node || true)}"
 NPM_BIN="$("$NODE_BIN" -e 'const p=require("path"),d=require("path").dirname(process.execPath);console.log(p.join(d,process.platform==="win32"?"npm.cmd":"npm"))')"
 
 say() { printf '%s\n' "$1"; }
+# the shared download core (reason table, resume/retry loop, checksums, mirrors)
+DL_USER_AGENT='Mozilla/5.0 AstraForge'; export DL_USER_AGENT
+# shellcheck source=../../installer/af_download.sh
+. "$APP/installer/af_download.sh"
 Inside() { case "$1" in /*|*..*) say "Path outside the tools folder: $1"; exit 1 ;; esac; printf '%s/%s' "$ROOT" "$1"; }
 Filled() { [ -d "$1" ] && [ -n "$(ls -A "$1" 2>/dev/null)" ]; }
-Download() { # <url> <dst>
-  mkdir -p "$(dirname "$2")"
-  if [ -f "$2" ]; then say "    already downloaded: $(basename "$2")"; return 0; fi
-  say "    downloading $1"
-  local resume=()
-  [ -f "$2.part" ] && resume=(-C -)   # only resume when a partial file exists: GitHub archives refuse byte ranges
-  if ! curl -L --fail --retry 5 --retry-delay 3 "${resume[@]}" -sS -A 'Mozilla/5.0 AstraForge' -o "$2.part" "$1"; then
-    say "  Download failed: $1 (run the script again - the download resumes)."; return 1
-  fi
-  mv -f "$2.part" "$2"
-}
 Unpack() { # <archive> <dst> [strip]
   local dst="$2" strip="${3:-}" tmp
   tmp="$(mktemp -d "${ROOT}/_unpack.XXXXXX")"

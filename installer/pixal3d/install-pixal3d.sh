@@ -23,30 +23,9 @@ Title() { say ''; say "== $1 =="; }
 NodeBin() { local n; n="${ASTRA_NODE:-$(command -v node || true)}"; printf '%s' "$n"; }
 Mv() { local n; n="$(NodeBin)"; "$n" -e 'const m=require(process.argv[1]);const g=process.argv[2].split(".").reduce((o,k)=>o&&o[k],m);console.log(typeof g==="string"?g:JSON.stringify(g??null))' "$MAN" "$1"; }
 
-Download() { # <url> <dst>
-  mkdir -p "$(dirname "$2")"
-  if [ -f "$2" ]; then say "    already downloaded: $(basename "$2")"; return 0; fi
-  say "    downloading $1"
-  local resume=()
-  [ -f "$2.part" ] && resume=(-C -)
-  if ! curl -L --fail --retry 5 --retry-delay 3 "${resume[@]}" --progress-bar -o "$2.part" "$1"; then
-    say "  Download failed: $1 (run again - the download resumes)."; return 1
-  fi
-  mv -f "$2.part" "$2"
-}
-DownloadChecked() { # <url> <dst> <size> [sha]  — no sha: a file of the expected size is enough (as FileOk in Install.ps1)
-  local leaf; leaf="$(basename "$2")"
-  if [ -f "$2" ] && [ "$(stat -c%s "$2")" = "$3" ]; then
-    if [ -z "${4:-}" ]; then say "    already in place: $leaf"; return 0; fi
-    if [ "$(sha256sum "$2" | cut -d' ' -f1)" = "$4" ]; then say "    already in place, checksum matches: $leaf"; return 0; fi
-    say "    file $leaf does not match the checksum - downloading again"
-  fi
-  rm -f "$2"
-  Download "$1" "$2" || return 1
-  if [ "$(stat -c%s "$2")" != "$3" ] || { [ -n "${4:-}" ] && [ "$(sha256sum "$2" | cut -d' ' -f1)" != "$4" ]; }; then
-    rm -f "$2"; say "File $leaf was downloaded incorrectly (size or sha256 mismatch) - deleted, run again."; return 1
-  fi
-}
+# the shared download core (reason table, resume/retry loop, checksums, mirrors, UvTry)
+# shellcheck source=../af_download.sh
+. "$APP/installer/af_download.sh"
 Repo() { # <url> <name> <dest>  GitHub archive -> folder (top directory stripped)
   local zip="$DL/$2.zip" tmp
   Download "$1" "$zip" || return 1
@@ -82,7 +61,7 @@ Engine() { # <dir>
   P3EnvPush "$dir"
   if [ ! -x "$py" ]; then
     Title 'Python 3.12 (uv-managed venv inside the install)'
-    (cd "$dir" && "$UV_BIN" venv --python 3.12 .venv) || return 1
+    (cd "$dir" && UvTry 'Python 3.12 via uv' 3 "$UV_BIN" venv --python 3.12 .venv) || return 1
   fi
   "$UV_BIN" pip install --python "$py" 'setuptools>=75' wheel pip >/dev/null || return 1   # idempotent; a venv created before may lack pip
   Title 'ComfyUI (pinned version)'
@@ -98,12 +77,12 @@ Engine() { # <dir>
   [ -f "$node/nodes.py" ] || Repo "$(Mv trellis2.url)" "ComfyUI-Trellis2-$(Mv trellis2.commit | cut -c1-8)" "$node" || return 1
   if ! "$py" -c 'import torch' >/dev/null 2>&1; then
     Title 'PyTorch 2.9.1 + CUDA 12.8 (the pair the node ships Linux wheels for)'
-    "$UV_BIN" pip install --python "$py" torch==2.9.1 torchvision torchaudio --index-url "$(Mv linux.torch.index)" || return 1
+    UvTry 'PyTorch 2.9.1 (multi-GB, slow links allowed)' 3 "$UV_BIN" pip install --python "$py" torch==2.9.1 torchvision torchaudio --index-url "$(Mv linux.torch.index)" || return 1
   fi
   Title 'libraries from PyPI (pinned versions, triton replaces triton-windows, msvc-runtime is Windows-only)'
   local lock="$DL/pixal3d-requirements-linux.txt"
   sed -E -e '/^msvc[-_]runtime==/d' -e 's/^triton-windows==.*/'"$(Mv linux.triton)"'/' "$SRC/requirements-lock.txt" > "$lock"
-  "$UV_BIN" pip install --python "$py" --no-deps -r "$lock" || return 1
+  UvTry 'Pixal3D packages (requirements-lock)' 3 "$UV_BIN" pip install --python "$py" --no-deps -r "$lock" || return 1
   Title 'FlashAttention 2.8.3 (official Linux wheel, sha256 checked)'
   DownloadChecked "$(Mv linux.flashAttn.url)" "$DL/$(Mv linux.flashAttn.file)" "$(Mv linux.flashAttn.size)" "$(Mv linux.flashAttn.sha256)" || return 1
   "$UV_BIN" pip install --python "$py" --no-deps "$DL/$(Mv linux.flashAttn.file)" || return 1
