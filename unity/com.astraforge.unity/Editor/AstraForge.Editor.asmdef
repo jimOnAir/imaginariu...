@@ -1,0 +1,8 @@
+{
+  "name": "AstraForge.Editor",
+  "rootNamespace": "AstraForge.Editor",
+  "references": ["AstraForge.Runtime"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

@@ -934,6 +934,34 @@ const STEP_LIST = [
       fx_preview_frames: list(null, 'Preview frames', 'Frame numbers at 30 fps; empty - [14, 30, 46].', { items: { type: 'integer' } }),
     },
   },
+  {
+    step: 'unity_package', module: 'export', title: 'Unity package',
+    help: 'FBX + textures + the af_unity.json passport: the com.astraforge.unity importer builds the prefab itself (URP/Built-in/HDRP materials, Humanoid or Generic, an Animator, a collider, LOD, sockets with effects, leaf wind, 8-direction sprites); checked in Unity without a window.',
+    kinds: ALL_KINDS, inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
+    // the first run creates the URP check project and imports URP (minutes); later runs ~1-2 min
+    outputs: ['package', 'fbx', 'manifest', 'readme', 'unity_check', 'unity_shots', 'unity_log'], export: true, timeoutSec: 45 * 60,
+    params: {
+      asset_id: str(null, 'Asset ID', 'snake_case ASCII; filled in by the server from the passport name.', { auto: 'asset_slug' }),
+      profile: oneOf(['unity'], 'unity', 'Profile', ''),
+      pipeline: oneOf(['urp', 'builtin', 'hdrp'], 'urp', 'Render pipeline', 'A hint for the README: the importer takes the shaders of the project\'s active pipeline itself (URP Lit, Standard, HDRP/Lit).'),
+      unity_forward: oneOf(['+Z', 'keep'], '+Z', 'Forward', '+Z - the prefab looks along transform.forward (the -Z nose of a GLB turns 180 degrees); keep - as in the GLB.'),
+      rig: oneOf(['auto', 'humanoid', 'generic'], 'auto', 'Skeleton', 'auto - Mixamo bones go to Humanoid, the rest to Generic.'),
+      collider: oneOf(['auto', 'box', 'capsule', 'convex', 'mesh', 'none'], 'auto', 'Collider', 'auto - a capsule when rigged, a tree gets a trunk capsule, the rest a box.'),
+      lod: bool(true, 'LOD', 'Decimated LOD1/LOD2 for static models from lod_min_tris triangles; the leaves are shared by all levels.'),
+      lod_min_tris: int(3000, 0, 10000000, 'LOD from, triangles', ''),
+      lod_ratios: list(null, 'LOD ratios', 'Empty - [0.5, 0.2].', { items: { type: 'number' } }),
+      lod_screen: list(null, 'LOD transitions', 'Screen height for LOD0..LOD2; empty - [0.5, 0.18, 0.04].', { items: { type: 'number' } }),
+      wind: oneOf(['auto', 'off'], 'auto', 'Leaf wind', 'auto - Leaves/Leaf/Foliage materials (or the af_wind custom property) get the AstraForge/Foliage shader with wind.'),
+      wind_strength: num(null, 0, 0.5, 'Wind strength', 'Empty - 0.07.', opt),
+      wind_speed: num(null, 0, 5, 'Wind speed', 'Empty - 1.4.', opt),
+      flutter: num(null, 0, 0.2, 'Leaf flutter', 'Empty - 0.025.', opt),
+      kind: str(null, 'Asset kind', 'Needed only when the passport has no kind.'),
+      fx: list([], 'Effects', 'A list of {preset, socket, params} - like the Godot package (the server expands socket masks). Empty - the fx of the passport.', { items: { type: 'object' } }),
+      fx_auto_scale: bool(true, 'Effect scale', 'Fit the effects to the socket or the asset size.'),
+      autoplay: str(null, 'Default clip', 'The first state of the controller; empty - idle or the first loop.'),
+      validate: bool(true, 'Check in Unity', 'Unity without a window on the check project (URP): the prefab, materials, Avatar, clips, sockets, effects, LOD, size, a screenshot.'),
+    },
+  },
 ];
 
 const STEPS = new Map(STEP_LIST.map((s) => [s.step, s]));
@@ -1051,6 +1079,7 @@ export const EXPORT_PROFILES = {
   // the Heroes Gates cell is fixed: travelling one-shots (lunges, deaths) must be rendered in place
   heroes_gates: { step: 'render_sprites', params: { profile: 'heroes_gates', in_place: 'drift' } },
   iso8: { step: 'render_sprites', params: { profile: 'iso8' } },
+  unity: { step: 'unity_package', params: { profile: 'unity' } },
 };
 
 // Structured params the per-param schema cannot describe: checked before the run, so a typo fails

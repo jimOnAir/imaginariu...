@@ -1063,7 +1063,7 @@ export class ForgeEngine {
       if (def.inputs.manifest && ctx.manifestSnapshot) inputs.manifest = ctx.manifestSnapshot;
       // sprites rendered earlier for this model go into the Godot package (render_sprites output)
       const sprites = state.exports?.render_sprites?.sprites_json;
-      if (stepName === 'godot_package' && typeof sprites === 'string' && existsSync(sprites)) inputs.sprites = sprites;
+      if ((stepName === 'godot_package' || stepName === 'unity_package') && typeof sprites === 'string' && existsSync(sprites)) inputs.sprites = sprites;
       return inputs;
     };
     if (slots.includes('glb')) {
@@ -1282,7 +1282,7 @@ export class ForgeEngine {
       // concept painting from a studio image asset (HTTP clients cannot pass paths): {asset: UUID} -> image path
       out.paint = { ...out.paint, image: await this._studioImage(out.paint.asset) };
     }
-    if (stepName === 'godot_package') {
+    if (stepName === 'godot_package' || stepName === 'unity_package') {
       // fx given in params, else the passport's fx (the step falls back to manifest.fx itself,
       // but it cannot expand masks, so masked passport fx are expanded and sent explicitly)
       const fx = Array.isArray(out.fx) ? out.fx : (out.fx === undefined && Array.isArray(asset?.fx) && asset.fx.some(hasSocketMask) ? asset.fx : null);

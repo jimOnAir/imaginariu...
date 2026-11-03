@@ -1,0 +1,8 @@
+{
+  "name": "AstraForge.Runtime",
+  "rootNamespace": "AstraForge",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

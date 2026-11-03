@@ -6,6 +6,7 @@
 // By default it talks to a running studio server (header x-astra-client: studio);
 // --direct runs the same pipeline engine in-process without the server.
 import path from 'node:path';
+import os from 'node:os';
 import { existsSync, openAsBlob, promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
@@ -24,7 +25,8 @@ Commands:
   create --kind <type> --name <name> [source] [--preset id | --steps file.json]
          source: --from-glb <path> (GLB/FBX/OBJ) | --from-job <jobId> | --from-asset <id> | --params <json|file>
   run <assetId> (--steps file.json | --preset id) [--from source|latest|v003]
-  export <assetId> --profile godot|iso8 [--params <json|file>] [--out <folder>]
+  export <assetId> --profile godot|space_quest|heroes_gates|iso8|unity [--params <json|file>] [--out <folder>]
+         [--to-unity <Unity project> [--build]]   the unity profile: put the package into <project>/Assets/AstraForge/<id>/
   batch <file.json>                        batch: {"items":[{name, kind, source, preset|steps}]}
   clips [list] | clips import <folder> | clips remove <clipId>
   jobs | job <jobId> [--wait] | cancel <jobId>
@@ -38,7 +40,7 @@ Common options:
 
 // ------------------------------------------------------------------ args
 
-const BOOL_FLAGS = new Set(['direct', 'json', 'no-wait', 'wait', 'help', 'quiet', 'unzip']);
+const BOOL_FLAGS = new Set(['direct', 'json', 'no-wait', 'wait', 'help', 'quiet', 'unzip', 'build']);
 
 export function parseArgs(argv) {
   const positional = [];
@@ -387,7 +389,7 @@ async function cmdRun(client, out, id, flags) {
 
 async function cmdExport(client, out, id, flags) {
   if (!id) throw new CliError('Specify the asset ID.', 2);
-  if (!flags.profile || flags.profile === true) throw new CliError('Specify --profile (godot, iso8).', 2);
+  if (!flags.profile || flags.profile === true) throw new CliError('Specify --profile (godot, space_quest, heroes_gates, iso8, unity).', 2);
   const body = { profile: String(flags.profile) };
   if (flags.params) body.params = await readJsonArg(flags.params, 'params');
   const started = await client.exportAsset(id, body);
@@ -421,6 +423,18 @@ async function cmdExport(client, out, id, flags) {
     }
   } else {
     for (const e of exported) out.info(`Archive: ${e.path}`);
+  }
+  if (flags['to-unity']) {
+    const { sendToUnity } = await import('./unity/af_unity_send.mjs');
+    const sources = [];
+    for (const e of exported) {
+      if (e.path && existsSync(e.path)) { sources.push(e.path); continue; }
+      const dest = path.join(os.tmpdir(), `af_unity_${job.id}_${path.basename(e.path || 'export.zip')}`);
+      await client.download(e.url, dest);
+      sources.push(dest);
+    }
+    const res = await sendToUnity({ project: String(flags['to-unity']), sources, build: !!flags.build, log: (t) => out.info(t) });
+    if (res.build && !res.build.ok) out.log(`warning: ${res.build.error || `batchmode build: exit code ${res.build.exit}`}`);
   }
 }
 

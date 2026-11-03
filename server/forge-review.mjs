@@ -23,7 +23,7 @@ export const DECISIONS_FILE_NAME = 'review_decisions.json';
 
 const BATCH_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 // Steps whose GLB is not the character itself (the Godot package holds a copy in a nested folder).
-const NOT_MODEL_STEPS = new Set(['godot_package']);
+const NOT_MODEL_STEPS = new Set(['godot_package', 'unity_package']);
 
 const round1 = (n) => Math.round(n * 10) / 10;
 const isNum = (n) => typeof n === 'number' && Number.isFinite(n);
