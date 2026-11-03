@@ -1,198 +1,199 @@
-# The motion_style module — a personal manner of movement and varied deaths (2026-10-11)
+# Модуль motion_style — своя манера движения и разные смерти (11.10.2026)
 
-Goal: every character should be different — each walks in its own way, deaths differ, each is unique.
-The library has 38 Mixamo clips, of them only 4 distinct walks and 5 deaths; that is too little for a
-large cast. The `motion_style` step makes many clips out of one: on top of the `retarget` clips it
-applies the character's manner (tempo, stride, arms, lean, hunch, sways, limp, swagger, stiffness) and
-replaces the death with a procedural one (8 variants, each with its own spread from the seed).
+Требование владельца: все персонажи «Врат» разные — каждый ходит по-своему, смерти разные, каждый
+уникален. В библиотеке 38 клипов Mixamo, из них 4 разные ходьбы и 5 смертей; на 79 концептов этого мало.
+Шаг `motion_style` делает из одного клипа много: поверх клипов `retarget` накладывает манеру персонажа
+(темп, шаг, руки, наклон, сутулость, покачивания, хромота, развязность, скованность) и заменяет смерть
+процедурной (8 вариантов, у каждого свой разброс от зерна). Пакетный скрипт `scripts/forge-concepts.mjs`
+даёт каждому персонажу свою комбинацию клипов, своё зерно и свой вариант смерти.
 
-Files: `scripts/blender/steps/motion_style.py` (the step), `steps/_style_lib.py` (the core),
-`scripts/blender/tests/test_motion_style.py` (10 tests), registration in `server/forge-steps.mjs`,
-registry tests in `tests/forge-steps.test.mjs` and `tests/forge-routes.test.mjs`.
+Файлы: `scripts/blender/steps/motion_style.py` (шаг), `steps/_style_lib.py` (ядро),
+`scripts/blender/tests/test_motion_style.py` (10 тестов), регистрация в `server/forge-steps.mjs`,
+тесты реестра в `tests/forge-steps.test.mjs` и `tests/forge-routes.test.mjs`.
 
-## Place in the pipeline
+## Место в конвейере
 
 ```
-cleanup → rig_humanoid → retarget → motion_style → render_sprites → godot_package
+cleanup → rig_humanoid → retarget → motion_style → render_sprites (heroes_gates) → godot_package
 ```
 
-The input is the `animated.blend` of the `retarget` step (slot `blend`); the `clips.json` next to it
-supplies categories, loops and locomotion. The outputs are the same as in `retarget`: `styled.glb` (one
-glTF animation per clip, the same names, the `-loop` suffix preserved), `styled.blend`, `clips.json`,
-`preview.png` (a row per clip). Everything downstream works unchanged: sprites and the Godot package take
-the `.blend` and `.glb` from the chain.
+Вход — `animated.blend` шага `retarget` (слот `blend`); `clips.json` рядом с ним даёт категории, петли и
+передвижение. Выходы — как у `retarget`: `styled.glb` (одна анимация glTF на клип, имена те же, суффикс
+`-loop` сохранён), `styled.blend`, `clips.json`, `preview.png` (строка на клип). Дальше всё работает без
+изменений: спрайты и пакет Godot берут `.blend` и `.glb` из цепочки.
 
-## How it works
+## Как это устроено
 
-Each clip is read frame by frame (the `retarget` actions write a key on every frame of every bone) into
-world bone rotations and the pelvis position. The manner is applied in local rotations (relative to the
-parent) and in the pelvis position, then the legs are solved again with the analytic two-bone IK from
-`_anim_lib`: the foot follows its own (with a changed stride — recomputed) trajectory, the foot
-orientation is preserved, the ankle is not below the rest height. The write is done with the same
-`write_action` as in `retarget`.
+Каждый клип читается покадрово (действия `retarget` пишут ключ на каждый кадр каждой кости) в мировые
+повороты костей и положение таза. Манера накладывается в локальных поворотах (относительно родителя) и
+в положении таза, потом ноги заново решаются аналитическим двухзвенным IK из `_anim_lib`: стопа идёт по
+своей (при изменённом шаге — пересчитанной) траектории, ориентация стопы сохраняется, лодыжка не ниже
+высоты покоя. Запись — тем же `write_action`, что у `retarget`.
 
-| knob | neutral | range | what it does |
+| ручка | нейтраль | диапазон | что делает |
 |---|---|---|---|
-| `tempo` | 1.0 | 0.8–1.25 | clip speed; a loop is resampled to a whole number of frames, the seam is closed; for a walk the ground speed grows |
-| `stride` | 1.0 | 0.7–1.35 | step length: on the stance the foot = the source foot shifted at (stride − 1) × the "treadmill" speed, so all support points (heel, flat foot, ball) travel at one speed, just faster; in the swing the shift is returned; step height × √stride; if the leg cannot reach, the heel rises first (up to 5 cm), then the pelvis lowers (up to 7 cm) |
-| `arm_swing` | 1.0 | 0.2–2.0 | swing of Arm/ForeArm around the clip's mean position |
-| `lean` | 0 | −1…1 | spine lean: +1 = 12° forward, −1 = 12° back; the head gives back 60% of the gaze. A clip that already walks bent over (a zombie shuffle, a combat stance) gets less: after a 12° mean torso lean, the direct lean and hunch fade out towards 27° (`forward_knobs_scale` in the report) |
-| `hunch` | 0 | 0…1 | rounded back, shoulders forward and down, neck forward, chin up |
-| `head_bob` | 1.0 | 0.3–2.0 | vertical bob of the pelvis and head around the mean |
-| `sway` | 1.0 | 0.2–2.5 | lateral sway of the pelvis around the mean |
-| `limp`, `limp_side` | 0, l | 0…1 | a "sparing" gait: while the bad leg is under load, the pelvis sinks (up to 4.5 cm) and moves towards it, the torso rolls, the foot drags (the step is 65% lower). Step length and rhythm are symmetric — otherwise the support feet would slide |
-| `swagger` | 0 | 0…1 | torso back, chest forward, shoulders back, elbows out, more pelvis rotation and lateral sway |
-| `stiffness` | 1.0 | 0.5–1.8 | >1 damps, <1 amplifies all movements of the spine, neck, head, shoulders and arms (amplitude 1/stiffness) |
+| `tempo` | 1.0 | 0.8–1.25 | скорость клипа; петля пересэмплируется на целое число кадров, шов закрыт; у ходьбы растёт скорость по земле |
+| `stride` | 1.0 | 0.7–1.35 | длина шага: на опоре стопа = стопа источника, сдвинутая со скоростью (stride − 1) × скорость «беговой дорожки», поэтому все точки опоры (пятка, плоская стопа, подушечка) едут с одной скоростью, только быстрее; в переносе сдвиг возвращается; высота шага × √stride; если нога не достаёт — сначала поднимается пятка (до 5 см), потом опускается таз (до 7 см) |
+| `arm_swing` | 1.0 | 0.2–2.0 | размах Arm/ForeArm вокруг среднего положения клипа |
+| `lean` | 0 | −1…1 | наклон позвоночника: +1 = 12° вперёд, −1 = 12° назад; голова возвращает 60 % взгляда. Клип, который уже идёт согнувшись (зомби-шаг, боевая стойка), получает меньше: после 12° среднего наклона корпуса прямой наклон и сутулость затухают к 27° (`forward_knobs_scale` в отчёте) |
+| `hunch` | 0 | 0…1 | круглая спина, плечи вперёд и вниз, шея вперёд, подбородок вверх |
+| `head_bob` | 1.0 | 0.3–2.0 | вертикальное покачивание таза и головы вокруг среднего |
+| `sway` | 1.0 | 0.2–2.5 | боковое покачивание таза вокруг среднего |
+| `limp`, `limp_side` | 0, l | 0…1 | «щадящая» походка: пока больная нога под весом, таз проседает (до 4,5 см) и уходит в её сторону, корпус кренится, стопа волочится (шаг ниже на 65 %). Длина шага и ритм симметричны — иначе опорные стопы скользили бы |
+| `swagger` | 0 | 0…1 | корпус назад, грудь вперёд, плечи назад, локти в стороны, больше поворот таза и боковое покачивание |
+| `stiffness` | 1.0 | 0.5–1.8 | >1 гасит, <1 усиливает все движения позвоночника, шеи, головы, плеч и рук (амплитуда 1/stiffness) |
 
-**Seed.** `seed` is a number or a string (a batch passes the concept's file name). Knobs not set
-explicitly are chosen from it deterministically (`_style_lib.style_from_seed`): each within a plausible
-band, with a limp for ~16% of characters and swagger for ~25%; the rest walk healthy. `build` shifts the
-choice: `heavy` is slower and stiffer, `armored` slightly slower with a smaller arm swing, `robed` with a
-short stride, `light` faster, `skeleton` stiff and hunched, `zombie` limps and hunches. Without a seed
-the knobs are neutral. Explicit values win over the seed. The final manner and the source of each knob
-(`param` / `seed` / `neutral`) are written to `clips.json`.
+**Зерно.** `seed` — число или строка (пакет передаёт имя файла концепта). Ручки, не заданные явно,
+выбираются из него детерминированно (`_style_lib.style_from_seed`): каждая где-то в правдоподобной полосе,
+хромота у ~16 % и развязность у ~25 % персонажей, остальные ходят здорово. `build` сдвигает выбор:
+`heavy` медленнее и скованнее, `armored` чуть медленнее и с меньшим махом рук, `robed` с коротким шагом,
+`light` быстрее, `skeleton` скованный и сутулый, `zombie` хромает и сутулится. Без зерна ручки
+нейтральные. Явные значения важнее зерна. Итоговая манера и источник каждой ручки (`param` / `seed` /
+`neutral`) пишутся в `clips.json`.
 
-**Category weights** (`CATEGORY_WEIGHTS`): a walk takes everything; idle — no stride, with half of the
-arm swing and the limp (weight on the healthy leg); attack and cast keep the clip's arms and legs, take
-60% of the lean and hunch, tempo at 60%; hit — similar; death is not touched (it has its own timing).
-`clips` sets values for an individual clip (by name or category) or `false` — do not touch; `apply` —
-which categories get the manner at all.
+**Веса категорий** (`CATEGORY_WEIGHTS`): ходьба берёт всё; покой — без шага, с половиной маха рук и
+хромоты (вес на здоровую ногу); атака и каст сохраняют руки и ноги клипа, берут 60 % наклона и
+сутулости, темп на 60 %; удар — похоже; смерть не трогается (у неё свой тайминг). `clips` задаёт
+значения у отдельного клипа (по имени или категории) или `false` — не трогать; `apply` — какие категории
+вообще получают манеру.
 
-**Items in hands** (`hold_props`). An item rigidly attached to the hand (weight ≥ 0.99, farther than
-12 cm from the wrist) is found from the `rig_humanoid` weights. If at rest it points up and rises above
-the hand by 0.3 m (a staff, a banner, a spear, a bow), then in idle, walk and hit it stays almost
-vertical: the hand cancels the forearm swing that the 22-bone clips militia/angel/zombie without hand
-keys would pass on to the item (test: the staff tilt in a walk with `arm_swing` 1.8 without correction is
-noticeably larger and drops to < 25°). In all clips none of the ~100 points of the item goes under the
-floor — the hand turns the item until the point lies on the floor (a staff rests on the ground, a sword
-lies beside the body).
+**Предметы в руках** (`hold_props`). Предмет, жёстко привязанный к кисти (вес ≥ 0,99, дальше 12 см от
+запястья), находится по весам `rig_humanoid`. Если он в покое смотрит вверх и поднимается выше кисти на
+0,3 м (посох, знамя, копьё, лук) — в покое, ходьбе и ударе он остаётся почти вертикальным: кисть гасит
+мах предплечья, который 22-костные клипы militia/angel/zombie без ключей кисти передали бы предмету
+(тест: наклон посоха в ходьбе с `arm_swing` 1,8 без коррекции заметно больше и падает до < 25°). Во всех
+клипах ни одна из ~100 точек предмета не уходит под пол — кисть доворачивает предмет, пока точка не ляжет
+на пол (посох упирается в землю, меч лежит рядом с телом).
 
-## Deaths
+## Смерти
 
-`death`: `library` (the library death as is) | `auto` (a variant from the seed; `crumble` only with
-`undead: true`) | a variant explicitly. `death_blend` < 1 mixes the procedural death with the library
-one (rotations via slerp, then the body is laid on the floor again). The starting pose is the first
-frame of the library death (the stance the character dies from).
+`death`: `library` (смерть из библиотеки как есть) | `auto` (вариант из зерна; `crumble` только при
+`undead: true`) | вариант явно. `death_blend` < 1 смешивает процедурную смерть с библиотечной (повороты
+через slerp, тело потом снова кладётся на пол). Начальная поза — первый кадр библиотечной смерти (стойка,
+из которой персонаж умирает).
 
-| variant | what happens |
+| вариант | что происходит |
 |---|---|
-| `fall_back` | recoil from a frontal hit (torso and head back, arms forward/up/down — by seed), knees buckle, the body tips over backwards, hits the ground with a bounce, the head whips back and settles on its side, arms spread on the floor |
-| `fall_forward` | a hit from behind, a fall face down, arms forward or along the body, head turned to the side |
-| `fall_left`, `fall_right` | a hit from the side, a fall onto the side, the upper leg bent more (like the "recovery position") |
-| `kneel_collapse` | the legs give way — the knees hit the floor (free fall of the pelvis), a second of swaying on the knees, then a fall forward with a roll onto the side; the shins stay on the floor |
-| `spin_fall` | a hit to the shoulder turns the body 110–200°, then a fall backwards |
-| `slump_sit` | the legs fail, the character sits down (the pelvis hits the floor with a bounce) and slumps forward onto a side or falls onto the back |
-| `crumble` | undead: staggering with a fading tremor ("the magic leaves the bones"), then a collapse downwards through the knees and spine, a heap on the floor |
+| `fall_back` | отдача от удара спереди (корпус и голова назад, руки вперёд/вверх/вниз — по зерну), колени подгибаются, тело опрокидывается назад, удар о землю с отскоком, голова хлёстко откидывается и ложится набок, руки раскидываются по полу |
+| `fall_forward` | удар сзади, падение лицом вниз, руки вперёд или вдоль тела, голова повёрнута набок |
+| `fall_left`, `fall_right` | удар сбоку, падение на бок, верхняя нога согнута сильнее (как «поза восстановления») |
+| `kneel_collapse` | ноги подкашиваются — колени ударяются о пол (свободное падение таза), секунда покачивания на коленях, затем падение вперёд с перекатом на бок; голени остаются на полу |
+| `spin_fall` | удар в плечо разворачивает тело на 110–200°, потом падение назад |
+| `slump_sit` | ноги отказывают, персонаж садится (удар тазом о пол с отскоком) и обмякает вперёд набок или заваливается на спину |
+| `crumble` | нежить: шатание с затухающей дрожью («магия уходит из костей»), затем обрушение вниз через колени и позвоночник, куча на полу |
 
-Timing physics. Tipping over is an inverted-pendulum equation θ'' = (3g / 2L)·sin θ with an impulse
-from the hit: a slow start, a fast end; the ground impact 0.8–1.0 s after the fall begins (on the knees —
-1.4 s), a damped bounce of 3–4°, a head whip, settling; afterwards 0.25 s of stillness. Everything is
-scattered from the seed: direction ±18°, impulse strength, timing ±10%, arm pose, head turn, which knee
-is stronger.
+Физика тайминга. Опрокидывание — уравнение перевёрнутого маятника θ'' = (3g / 2L)·sin θ с толчком от
+удара: медленное начало, быстрый конец; удар о землю через 0,8–1,0 с после начала падения (на коленях
+— 1,4 с), затухающий отскок 3–4°, хлёст головы, оседание; после — 0,25 с неподвижности. Всё разбросано
+от зерна: направление ±18°, сила толчка, тайминг ±10 %, поза рук, поворот головы, какое колено сильнее.
 
-Floor. 1) The torso, head and thighs (their vertices by dominant bone) lie exactly on the floor after the
-impact: a tipped body that went under the floor is turned back around the same support point (the feet
-stay in place, the body lies at a smaller angle), the remainder is a lift; before the impact the body is
-only lifted if it went into the floor. 2) Wrists, elbows, ankles, knees — by two-bone IK above the floor;
-then each limb segment (thigh, shin, foot, toes, shoulder, forearm, hand) is turned by its own vertices
-around its own joint until the lowest one lies on the floor. 3) An item in the hand lies flat after the
-impact and does not go into the floor. 4) Anything still below the floor (a pauldron, a cloak) lifts the
-whole frame. The `death_on_floor_death` check (an error): the lowest vertex of the last frame is within
-±2 cm of z = 0.
+Пол. 1) Туловище, голова и бёдра (их вершины по доминирующей кости) после удара лежат ровно на полу:
+опрокинутое тело, ушедшее под пол, доворачивается назад вокруг той же точки опоры (стопы остаются на
+месте, тело лежит под меньшим углом), остаток — подъём; до удара тело только поднимается, если ушло в
+пол. 2) Запястья, локти, лодыжки, колени — двухзвенным IK над полом; затем каждый сегмент конечности
+(бедро, голень, стопа, пальцы, плечо, предплечье, кисть) по своим вершинам доворачивается вокруг своего
+сустава, пока самая низкая не ляжет на пол. 3) Предмет в руке после удара ложится плашмя и не уходит в
+пол. 4) Что-то ещё ниже пола (наплечник, плащ) поднимает весь кадр. Проверка `death_on_floor_death`
+(ошибка): самая низкая вершина последнего кадра в пределах ±2 см от z = 0.
 
-## Robe after death: `robe_settle` (2026-10-11, night)
+## Мантия после смерти: `robe_settle` (11.10, ночь)
 
-Under linear skinning the robe/skirt of a lying body is a rigid cone carried by the pelvis and thighs:
-after the fall it sticks out as a "bell" (pilot: a robed test character). A cheap fix without a
-simulation is a **corrective shape**:
+Под линейным скиннингом мантия/юбка лежащего тела — жёсткий конус, который несут таз и бёдра: после падения он
+торчит «колоколом» (пилот: лич). Дешёвое исправление без симуляции — **корректирующая форма**:
 
-1. On the last frame of the death, every cloth vertex (the cloth mask: carried by Hips ≥ 0.25 below the
-   hip joints — the same mask as for the death floor fit) that is above whatever lies under it (non-cloth
-   body within 4 cm horizontally, otherwise the floor) is lowered onto that support, keeping 20% of its
-   height above it: the robe lies on the legs and on the floor.
-2. The world displacements are converted into shape displacements in the rest pose through the skinning
-   Jacobian of that frame, measured numerically (three unit displacements through the Armature
-   modifier) — the shape gives exactly this figure on the lying body.
-3. The shape `af_death_settle` is driven by a driver from a property of the Hips bone; the death clip
-   raises it 0 → 1 between the ground impact and the settling (from ¼ to ⅔ of the way after the impact),
-   all other clips hold 0 (otherwise the property would stay set in the next clip after the death).
-   In Blender it is seen by `render_sprites` and the preview; the glTF exporter samples armature-driven
-   shapes into a morph-weight animation: in `styled.glb` the morph is `af_death_settle`, with weights
-   0 → 1 in the death and 0 in other clips (checked by reading the GLB).
-4. The shape is not created if there is no cloth or the "bell" is lower than 10 cm. Report:
-   `death_info.robe_settle` (`bell_height_cm` before, `bell_height_after_cm` after, `max_drop_cm`,
-   vertices, ramp frames). `robe_settle: false` turns it off.
+1. На последнем кадре смерти каждая вершина ткани (маска ткани: несёт Hips ≥ 0,25 ниже тазобедренных суставов
+   — та же, что у посадки смерти на пол) выше того, что под ней лежит (не-ткань тела в 4 см по горизонтали, иначе
+   пол), опускается на эту опору с сохранением 20 % своей высоты над ней: роба ложится на ноги и на пол.
+2. Мировые смещения переводятся в смещения формы в позе покоя через якобиан скиннинга этого кадра, измеренный
+   численно (три единичных смещения через модификатор Armature), — форма даёт ровно эту фигуру на лежащем теле.
+3. Форма `af_death_settle` управляется драйвером от свойства кости Hips; клип смерти поднимает его 0 → 1 между
+   ударом о землю и оседанием (от ¼ до ⅔ пути после удара), все остальные клипы держат 0 (иначе после смерти
+   свойство осталось бы в следующем клипе). В Blender её видят `render_sprites` и превью; экспортёр glTF
+   сэмплирует формы, управляемые арматурой, в анимацию весов морфа: в `styled.glb` морф `af_death_settle`,
+   у смерти веса 0 → 1, у остальных клипов 0 (проверено чтением GLB).
+4. Форма не создаётся, если ткани нет или «колокол» ниже 10 см. Отчёт: `death_info.robe_settle`
+   (`bell_height_cm` до, `bell_height_after_cm` после, `max_drop_cm`, вершины, кадры рампы).
+   `robe_settle: false` — выключить.
 
-Robed test character (fall_forward): the bell 107 cm → 21.5 cm (7,214 vertices lowered, by up to 86 cm);
-the body is still on the floor (`death_on_floor`). On the test robe mannequin — the same behavior and the
-morph in the GLB. Limitation: this is not cloth — the robe does not crumple into folds and ignores
-collisions, it simply lies on the support; in the first frames of the fall the cone stays a cone.
+Лич (fall_forward): колокол 107 см → 21,5 см (опущено 7 214 вершин, до 86 см); тело по-прежнему на полу
+(`death_on_floor`). На робе-манекене теста — то же поведение и морф в GLB. Ограничение: это не ткань — роба не
+сминается складками и не учитывает столкновения, просто ложится на опору; в первых кадрах падения конус
+остаётся конусом.
 
-## Tears on real clips: `deform_qa` (2026-10-11, night)
+![Лич, последний кадр смерти: было — колокол](img/motion_style/lich_death_robe_before.png)
+![Лич, последний кадр смерти: стало — роба лежит](img/motion_style/lich_death_robe_settled.png)
 
-The `rig_humanoid` pose check (arms straight up and forward, a deep squat, a long step) is a proxy: real
-clips contain few such poses. `motion_style` measures the same thing on the **character's final clips**
-(after `retarget` and the manner), `_style_lib.ClipDeformQA`:
+## Разрывы на настоящих клипах: `deform_qa` (11.10, ночь)
 
-- every `deform_every`-th frame (by default every 2nd and always the last) of each clip is evaluated on
-  the real mesh (Armature + shapes, including `af_death_settle`); "torn" is defined as in the pose
-  check: the share of the **pose area** occupied by triangles that grew more than 3×; floor stubs and
-  slivers are excluded;
-- the thresholds are the same as in the pose check: **1%** in a frame where both arms are no higher than
-  90° from "hanging down" (the "arms forward" reference point), **8%** with an arm raised by 170° (the
-  "arms up" reference), linear in between by the most raised arm (`clip_limit`); the robe cloth has its
-  own share, **4%**;
-- per clip: the worst frame relative to its threshold, the share, the frame class (`main` /
-  `raised_<angle>` / `arms_up`), the bones on which it tears, the number of frames over the threshold
-  (`clips.json` → `deform`, `stats.deform_qa`); `clip_torn_<clip>` checks with the `deform_gate`
-  severity (`error` by default: a character whose real clips tear does not pass the step with the
-  numbers; `warning` — report only). `deform_limits` changes the thresholds.
+Проверка позами `rig_humanoid` (руки прямо вверх и вперёд, глубокий присед, длинный шаг) — заместитель: таких
+поз в клипах «Врат» почти нет. `motion_style` меряет то же самое на **итоговых клипах персонажа** (после
+`retarget` и манеры), `_style_lib.ClipDeformQA`:
 
-Honest result of piloting: clips are **no softer** than poses. They contain what the poses do not:
-elbow bend (a shield merged with the forearm tears at the shoulder), torso twists, deaths. Thresholds
-other than those of the pose check should only be set explicitly through `deform_limits`.
+- каждый `deform_every`-й кадр (по умолчанию 2-й и всегда последний) каждого клипа вычисляется настоящей сеткой
+  (Armature + формы, включая `af_death_settle`); «порвано» — как в проверке позами: доля **площади позы**,
+  занятая треугольниками, выросшими больше чем в 3 раза; заглушки у пола и щепки исключены;
+- пороги — те же, что у проверки позами: **1 %** в кадре, где обе руки не выше 90° от «висят вниз» (опорная
+  точка «руки вперёд»), **8 %** при руке, поднятой на 170° (опорная «руки вверх»), между ними — линейно по
+  самой поднятой руке (`clip_limit`); у ткани робы — своя доля, **4 %**;
+- на клип: худший кадр относительно его порога, доля, класс кадра (`main` / `raised_<угол>` / `arms_up`),
+  кости, на которых рвётся, число кадров над порогом (`clips.json` → `deform`, `stats.deform_qa`); проверки
+  `clip_torn_<клип>` с важностью `deform_gate` (`error` по умолчанию: персонаж, у которого рвутся настоящие
+  клипы, не проходит шаг с числами; `warning` — только отчёт). `deform_limits` меняет пороги.
 
-## Measurements on an archer test character (Blender 5.0.1)
+**Политика пакета** (`forge-concepts --qa clips`, по умолчанию): риг идёт с `deform_gate: warning` (числа поз —
+в отчёт), решает `deform_qa`. Честный итог пилота: клипы **не мягче** поз. В них есть то, чего в позах нет:
+сгиб локтя (слитый с предплечьем щит рвётся у плеча), повороты корпуса, смерти. Из пяти пилотных персонажей
+клипы не прошёл ни один (таблица в «Пилот 11.10, поздняя ночь»): Healing monk, пока булава была на весах тепла, проходил
+позы (0,56 / 1,68 / 0,73 / 0,15 %), а в idle уже 2,8 % (щит у плеча рвётся при сгибе локтя); с жёсткой булавой
+(финал) — позы 5,1 / 11,8 / 2,9 / 0,7 %, idle 5,4 % (кулак слит с робой). Порванные треугольники видны на кадрах (красным — кадр атаки рыцаря #3, 5 %:
+подмышка поднятой руки и предплечье за щитом):
 
-`rig_humanoid` rig (bow rigidly in the left hand), militia-idle / angel-walk / archer-attack /
-militia-hit / militia-death clips through `retarget`, then `motion_style`: the whole step takes 4 s for
-5 clips.
+![Рыцарь #3, атака, кадр 56: порванные треугольники красным](img/motion_style/clip_qa_knight3_attack_torn.png)
 
-| what | input (`retarget`) | after `motion_style` |
+Чтобы видеть такие персонажи, пакет умеет `--qa-render-failed`: клипы меряются тем же порогом, но цепочка не
+останавливается — спрайты и превью делаются для просмотра, персонаж помечается `failed_qa` (превью
+`<имя>.failed.png`, числа в отчёте). `--clip-limits main,arms_up,robe` — другие пороги, если владелец решит,
+что 1 % на клипах слишком строго (по умолчанию — пороги проверки позами, как требовалось).
+
+## Замеры на лучнике HG (Blender 5.0.1)
+
+Риг `rig_humanoid` (лук жёстко в левой руке), клипы militia-idle / angel-walk / archer-attack / militia-hit /
+militia-death через `retarget`, затем `motion_style`: весь шаг — 4 с на 5 клипов.
+
+| что | вход (`retarget`) | после `motion_style` |
 |---|---|---|
-| walk, tempo 1.15, stride 1.25: foot sliding / ground speed | 2.6 cm / 1.19 m/s | 2.6 cm / 1.49 m/s (= × 1.25) |
-| walk: below the floor | −4.4 cm (toes at heel lift-off) | −1.4 cm (toes bend up) |
-| attack: below the floor | −16.7 cm (the lower limb of the bow) | +0.1 cm (the hand turns the bow) |
-| death: below the floor | −61 cm (militia-death sinks on this rig) | procedural: the end on the floor (±0.3 cm), 8 variants differ |
-| loop seam | 0° / 0 mm | 0° / 0 mm |
+| ходьба, темп 1,15, шаг 1,25: скольжение стоп / скорость по земле | 2,6 см / 1,19 м/с | 2,6 см / 1,49 м/с (= × 1,25) |
+| ходьба: ниже пола | −4,4 см (носки на отрыве пятки) | −1,4 см (пальцы сгибаются вверх) |
+| атака: ниже пола | −16,7 см (нижнее плечо лука) | +0,1 см (кисть доворачивает лук) |
+| смерть: ниже пола | −61 см (militia-death на этом риге проваливается) | процедурная: конец на полу (±0,3 см), 8 вариантов разные |
+| шов петель | 0° / 0 мм | 0° / 0 мм |
 
-The staff of the mannequin in the militia walk (without hand keys, `arm_swing` 1.8): without
-`hold_props` it tilts noticeably, with it — less than 25° (test `test_real_staff_stays_upright_in_the_walk`);
-the staff of a robed test character in a walk — 21° against 100–107° at the input, at rest 7° against 32°.
+Посох манекена в ходьбе militia (без ключей кисти, `arm_swing` 1,8): без `hold_props` наклоняется заметно,
+с ним — меньше 25° (тест `test_real_staff_stays_upright_in_the_walk`); посох послушника в ходьбе — 21°
+против 100–107° на входе, в покое 7° против 32°.
 
-## Checks and `clips.json`
+## Проверки и `clips.json`
 
-Errors: NaN; loop seam ≤ 0.5° and ≤ 1 mm; animation names in the GLB; sockets; NaN in the GLB; skin;
-`death_on_floor_*`; `clip_torn_*` (severity — `deform_gate`). Warnings: `foot_skate_*` (sliding greater
-than max(2 cm, 1.3 × input)) and `floor_body_*` (the body below the floor by more than 2 cm).
+Ошибки: NaN; шов петли ≤ 0,5° и ≤ 1 мм; имена анимаций в GLB; сокеты; NaN в GLB; скин;
+`death_on_floor_*`; `clip_torn_*` (важность — `deform_gate`). Предупреждения: `foot_skate_*` (скольжение больше max(2 см, 1,3 × вход)) и
+`floor_body_*` (тело ниже пола больше 2 см).
 
-Per clip: `mode` (`styled` / `procedural_death` / `untouched`), `style` (the clip's final knobs),
-`frames_in` → `frames`, `tempo_real`, `foot_skate_cm` and `foot_skate_in_cm` (sliding over the input's
-contact frames; for an in-place walk — in the frame where the game moves the character),
-`foot_plant_drift_cm`, `ground_speed_mps` and `ground_speed_in_mps` (the speed at which the game must
-move the character), `hips_drop_max_cm`, `ik_unreached_frames`, `prop_fixes`, `clip_trunk_lean_deg` and
-`forward_knobs_scale`, `floor` (the lowest body point over 16 frames), `seam_rot_deg`/`seam_pos_mm`; for
-a death — `death`, `death_info` (`impact_s`, `impact_frame`, `arms`, `direction_deg`, `tilt_back_deg`,
-`trunk_lift_cm`, `limb_floor_fixes`, `prop_floor_fixes`, `mesh_floor_correction_cm`,
-`settled_trunk_low`), `death_final_lowest_m` (without the robe cloth) and `death_cloth_lowest_m`. At the
-top level — `style`, `style_source`, `seed`, `build`, `death`, `held_props`.
+У клипа: `mode` (`styled` / `procedural_death` / `untouched`), `style` (итоговые ручки клипа),
+`frames_in` → `frames`, `tempo_real`, `foot_skate_cm` и `foot_skate_in_cm` (скольжение по кадрам контакта
+входа; для ходьбы на месте — в системе, где игра двигает персонажа), `foot_plant_drift_cm`,
+`ground_speed_mps` и `ground_speed_in_mps` (скорость, с которой игра должна двигать персонажа),
+`hips_drop_max_cm`, `ik_unreached_frames`, `prop_fixes`, `clip_trunk_lean_deg` и `forward_knobs_scale`, `floor` (самая низкая точка тела по 16 кадрам),
+`seam_rot_deg`/`seam_pos_mm`; у смерти — `death`, `death_info` (`impact_s`, `impact_frame`, `arms`,
+`direction_deg`, `tilt_back_deg`, `trunk_lift_cm`, `limb_floor_fixes`, `prop_floor_fixes`,
+`mesh_floor_correction_cm`, `settled_trunk_low`), `death_final_lowest_m` (без ткани робы) и `death_cloth_lowest_m`. На верхнем уровне — `style`, `style_source`, `seed`, `build`, `death`,
+`held_props`.
 
-## Parameters
+## Параметры
 
 ```json
 {"step": "motion_style",
  "inputs": {"blend": "abs/animated.blend"},
- "params": {"seed": "character_01.jpg", "build": "armored",
+ "params": {"seed": "Knight_holding_sword_and_shield_20261010233748_2.jpg", "build": "armored",
             "tempo": null, "stride": null, "arm_swing": null, "lean": null, "hunch": null, "head_bob": null,
             "sway": null, "limp": null, "limp_side": null, "swagger": null, "stiffness": null,
             "clips": {"walk": {"stride": 1.2}, "attack": false}, "apply": null,
@@ -203,84 +204,186 @@ top level — `style`, `style_source`, `seed`, `build`, `death`, `held_props`.
  "out_dir": "abs/out"}
 ```
 
-Run: `blender -b --factory-startup --python scripts/blender/af_run.py -- motion_style request.json`.
-Tests: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- motion_style`.
+Запуск: `blender -b --factory-startup --python scripts/blender/af_run.py -- motion_style request.json`.
+Тесты: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- motion_style`.
 
-The studio loads `server/forge-steps.mjs` at startup: for `motion_style` to be visible in the wizard and
-in the HTTP batch mode, the studio must be restarted (after the current generation finishes).
+## Пакет «Врат»: `scripts/forge-concepts.mjs`
 
-## Found during piloting and fixed
+1. **Роли — из `roles.json`** в папке концептов (`{файл: {role, hand_weapon, hand, shield, faction, build,
+   notes}}`, составлен по каждой картинке), иначе по имени файла (обрезанные имена учтены: `…sta…` —
+   посох, `…sword an…` — со щитом). Роли: `melee_shield`, `melee`, `melee_spear`, `ranged`, `caster`,
+   `zombie`, `creature`, `skip`.
+2. **Клипы по кругу.** Для каждой роли — все подходящие клипы библиотеки (покой, шаг, атака или каст,
+   удар, смерть; нежить дополнительно получает зомби-шаг, -покой, -удар, -смерть). В каждом слоте берётся
+   наименее использованный по всему пакету вариант, не такой, как у предыдущего персонажа и у предыдущего
+   персонажа той же роли; вся пятёрка новая внутри роли. На 77 гуманоидов — 75 разных пятёрок (2 совпадения
+   между разными группами, у них всё равно разные зерно и смерть).
+3. **`motion_style` после `retarget`**: `seed` = имя файла, `build` из `roles.json`, вариант смерти по кругу
+   внутри стороны (`order`: 7 процедурных + библиотечная; `undead`: те же + `crumble` дважды в круге).
+   У лука в правой руке клипы лучника играются зеркально.
+4. Остальное как было: чистка, риг, перенос, спрайты `heroes_gates`, пакет Godot с эффектами по роли.
+5. Комбинация (клипы, вариант смерти, зерно, сложение) и итоговая манера пишутся в state и в отчёт.
+6. **Проверка** `--qa clips` (по умолчанию) | `pose` | `off` (= `--no-rig-qa`): см. «Разрывы на настоящих клипах»;
+   `--qa-render-failed`, `--clip-limits`. Числа поз, клипов, мантии, ячейки — в state (`qa`, `qa_fail`) и в
+   колонке «Проверка» отчёта.
+7. **`--watch`** — сборка вслед за генерацией: свой `--state`, идентификаторы генераций каждые `--watch-poll` с
+   (60) перечитываются из состояния папки (только чтение; повтор генерации в standard подхватывается), готовые
+   персонажи сразу идут в кузницу, ещё не готовые ждут. Наблюдение кончается, когда у каждой картинки (кроме
+   `skip`) генерация завершена, — тогда дожидается кузницы и пишет отчёт. Если состояние папки не меняется
+   `--watch-stall` мин (45), наблюдение останавливается с отметкой в отчёте. Нужен `--direct` (студия держит
+   старый реестр); GPU-шаги берут общий мьютекс `Global\HG_GPU_RENDER`, поэтому рендеры спрайтов идут между
+   генерациями.
+8. **Превью**: каждому готовому персонажу — `<папка>/previews/<имя>.png`: строка кадров шага, атаки/каста и
+   смерти из листов «Врат» (вид base, масштаб листа, все кадры обрезаны одним окном по телу — линия земли и
+   размер сравнимы, подпись: имя, ячейка, клипы); не прошедшему проверку клипов — сетка клипов
+   `motion_style` или (с `--qa-render-failed`) та же строка как `<имя>.failed.png`; с отчётом — лист
+   `previews/_contact_sheet.png`. PNG читаются и пишутся прямо в Node (zlib), без зависимостей. `--previews-only` пишет превью,
+   лист и отчёт заново из `--state`, ничего не собирая.
+9. В `roles.json` у файла можно задать `"rig": {"front": "-Y", "fix_yaw": false, "markers": {...}}` — параметры
+   `rig_humanoid` этого персонажа (плащ, сбивающий определение лица).
+10. `--state <файл>` — отдельное состояние (пилот); идентификаторы генераций берутся из состояния папки
+   только для чтения. `--no-gen` — никогда не запускать генерацию. `--direct` — кузница в этом процессе
+   (тот же движок `server/forge-pipeline.mjs`, та же библиотека; замок GPU общий с генерацией через
+   мьютекс Windows), нужен, пока работающая студия держит старый реестр шагов без `motion_style`.
+   `--dry` печатает роли и комбинации.
 
-- A staff resting on the floor tilted (now the hand lifts the wrist, the staff stands).
-- A body in a robe stayed half-sitting after a fall — under linear skinning the robe is a rigid cone
-  (now the robe does not hold the body above the floor; its going under the floor is recorded in
-  `death_cloth_lowest_m`); see also `robe_settle` above.
-- A tipped body "rose" by an angle instead of a lift (now the support point is the edge of the body, the
-  turn back is no more than 12°).
-- The floor check on a sample of 2000 vertices missed thin parts (now the last third of the death is
-  aligned against the real mesh).
-- An arm with an item longer than 1.2 m in a death is now lowered along the body.
+Студия загружает `server/forge-steps.mjs` при старте: чтобы `motion_style` был виден в мастере и в
+HTTP-режиме пакета, студию нужно перезапустить (после того как закончится текущая генерация).
 
-## Honest limitations
+## Пилот на генерациях пакета (11.10, ночь)
 
-- This is not motion capture: the manner is a deformation of existing clips. Strong values (hunch 1,
-  lean 1, limp 1) give a caricature; keep them within plausible bands.
-- The limp is built from a pelvis drop, a roll and a dragging foot at a symmetric rhythm: a real limp
-  with a shortened stance on the bad leg would make the feet slide at a constant game speed.
-- `stride` > 1 on short-legged characters runs into the leg length: the heel rises first, then the
-  pelvis lowers (up to 7 cm) — visible as a squat while walking.
-- Attacks and casts change only in tempo, lean and stiffness: a different strike is a different clip.
-- The library has one suitable cast (`necro-rider-cast`, recorded for a rider; the legs are held by IK);
-  the second (`knight-rider-cast`, a horizontal swing) is used only for unarmed characters and with
-  short items.
-- `deform_qa` measures the whole area, including the hidden one (behind a shield, under a robe) and
-  slivers grown from very small triangles: a share above the threshold is not always visible on a
-  100 px/m sprite. The thresholds are the same as in the pose check; use `deform_limits` explicitly to
-  make them softer.
-- `robe_settle` is one corrective shape for the end of the death, not cloth: in the fall the robe stays
-  a cone, on the floor it lies without folds and collisions; in the GLB it is a morph with a weight
-  animation (Godot imports it).
-- A procedural death is key poses with physical timing, not a simulation: the body does not collide with
-  itself (an arm can pass through a thigh), clothing does not fall separately, a shield and a cloak do
-  not fly off.
-- The floor is checked on a sample of 2000 vertices; the final check is over the whole mesh of the last
-  frame. Cloaks hanging below the feet can lift the body by 1–5 cm (`extra_lift_cm`).
-- An item in the hand stays rigid: a bow does not break, but in a fall it can lie on top of the body.
-- Hunyuan generations often fail `rig_humanoid` (a long sword to the side, merged sleeves, a cloak) —
-  then the case never reaches `motion_style`.
+Пока пакет генерировал модели (по одной, ~3–5 мин), пилот собирался тем же скриптом из готовых генераций:
+`node scripts/forge-concepts.mjs --dir C:\AstraForge\incoming\hg_concepts_2026-10-11 --state
+C:\AstraForge\incoming\pilot\pilot<N>.state.json --direct [--no-rig-qa] --only "<regex>"` (студия не
+перезапускалась, генерации не запускались, задачи не отменялись). Состояния и отчёты пилота —
+`C:\AstraForge\incoming\pilot\pilot*.state.json` / `*.report.md`, сравнительный лист —
+`C:\AstraForge\incoming\pilot\compare_walk_death.png` (копия: `img/motion_style/pilot_walk_death.png`).
 
-## What to download from Mixamo for variety
+**Главная находка: риг генераций.** До `motion_style` доходит мало персонажей — `rig_humanoid` с
+проверками по умолчанию на 18 готовых гуманоидах пакета:
 
-The names are as I remember them in the mixamo.com catalog; these are **search examples**, the exact
-name on the site may differ. Download FBX, Without Skin, 30 fps; for walks and runs turn on In Place.
-Everything on one character (Y Bot), then `node scripts/forge.mjs clips import <folder>`.
+| итог `rig_humanoid` | персонажи |
+|---|---|
+| ok полностью | Healing monk |
+| ориентиры в порядке, не прошла проверка позами (роба/плащ сросшиеся, рвутся) | Acolyte, Chaplain, Cleric, Hierophant, Archer captain, Archer holding tall longbow (только присед 1,3 %), Inquisitor, Lich sorcerer |
+| отказ по ориентирам: меч вперёд или в сторону сросся с рукой («рука» 0,6–0,95 H) | Armored warrior, Bone swordsman, Forest warden, Knight ×3 (из пяти проверены три) |
+| отказ по ориентирам: лук горизонтально | Arcane archer, Huntsman |
 
-**Walks (the most important — there are 4 now):** "Walking", "Standard Walk", "Female Walk", "Old Man
-Walk", "Drunk Walk", "Injured Walk", "Walking With Limp" / "Limping", "Sneak Walk" / "Sneaking Forward",
-"Crouched Walking", "Swagger Walk", "Cocky Walk", "Strut Walking", "Sad Walk", "Happy Walk", "Brutal
-Walk", "Orc Walk", "Mutant Walking", "Zombie Walk" (other variants), "Sword And Shield Walk", "Great
-Sword Walk", "Rifle Walk" (for a crossbow), "Walking Backwards".
+Поэтому пилот собран с `--no-rig-qa` (риг без проверки позами — только для пилота; в отчёте помечено)
+везде, кроме Healing monk. Мечи, направленные вперёд, — следующий разрыв авторига на пакете (детектор
+предметов не видит клинок, который в срезах вдоль Y толще 0,032 H); это отдельная работа (сделано той же ночью:
+`find_blades`, humanoid.md → «Мечи, булавы и древки под углом»; «колокол» робы — `robe_settle` выше).
 
-**Deaths (5 now):** "Dying", "Falling Back Death", "Falling Forward Death", "Standing Death Left 01/02",
-"Standing Death Right 01/02", "Standing Death Backward 01", "Standing Death Forward 01", "Sword And Shield
-Death", "Great Sword Death", "Two Handed Sword Death", "Zombie Dying", "Shot And Fall Backwards",
-"Headshot", "Knocked Down" / "Knocked Out".
+| персонаж (роль, сторона) | клипы: покой / шаг / атака или каст / удар / смерть библиотеки | манера из зерна (имя файла) | смерть | шаг: скольжение цель/вход, скорость по земле | итог цепочки |
+|---|---|---|---|---|---|
+| Healing monk (caster, order) | militia-idle / angel-walk / knight-rider-cast / militia-hit / militia-death | темп 1.14, шаг 0.87, руки 1.22, вбок 1.52 | fall_left, удар 0,96 с, конец 0,3 см над полом | 2,7 / 2,6 см; 1,04 м/с (вход 1,19) | риг **с** проверкой позами, `motion_style` без предупреждений; спрайты «Врат» не прошли `cell_fit`: широкая стойка с булавой и щитом касается края ячейки 320 px уже в покое и шаге (не из-за смерти) |
+| Archer holding tall longbow (ranged, order) | militia-idle-lookaround / militia-walk / archer-shoot-aim-recoil / militia-hit-head / archer-death | темп 1.03, шаг 1.17, наклон 0.22, скованность 0.91 | fall_right, 0,89 с, на полу | 2,6 / 2,6 см; 1,81 м/с (вход 1,55) | готово: спрайты «Врат» и пакет Godot (риг без проверки позами) |
+| Acolyte holding staff and book (caster, order, роба) | archer-idle / militia-walk / necro-rider-cast / militia-hit / militia-death | темп 0.91, шаг 0.83, руки 0.38, вверх-вниз 1.45, скованность 1.21 | fall_back, 0,98 с, на полу; роба уходит под пол до 10 см | 5,1 / 5,2 см; 1,14 м/с (вход 1,36) | готово: спрайты и Godot (риг без проверки позами) |
+| Lich sorcerer (caster, undead, скелет в робе) | zombie-idle / zombie-walk / necro-rider-cast / zombie-hit / zombie-death | темп 1.12, наклон 0.77 → 0 (зомби-шаг уже наклонён на 28°), сутулость 0.31 → 0, скованность 1.48 | fall_forward, 1,06 с | 10,3 / 10,2 см (волочение зомби); 0,38 м/с | `motion_style` ok; в смерти роба торчит «колоколом» (жёсткий конус) |
 
-**Attacks by weapon:** sword and shield — "Sword And Shield Slash", "Sword And Shield Attack", "Sword And
-Shield Kick", "Sword And Shield Casting"; two-handed — "Great Sword Slash", "Great Sword High Spin
-Attack", "Great Sword Jump Attack"; one-handed — "Standing Melee Attack Horizontal", "Standing Melee
-Attack Downward", "Standing Melee Attack Backhand"; polearm — "Standing 2H Melee Attack", "Spear Thrust"
-(if available); bow — "Standing Aim Recoil", "Standing Draw Arrow", "Standing Aim Walk Forward";
-crossbow — "Rifle Aiming Idle", "Shooting" (pistol/rifle clips as a base); unarmed — "Punching", "Hook
-Punch", "Mma Kick"; undead — "Zombie Attack", "Zombie Punching", "Zombie Scream".
+Ближнего боя в пилоте нет: ни один готовый мечник пакета не прошёл ориентиры (таблица выше); копейщик
+(Conscript), крестоносец и культист (pilot3) на момент отчёта застряли в чистке — долгий запекающий проход
+ждёт свободной видеокарты между генерациями.
 
-**Casts:** "Standing 1H Magic Attack 01/02/03", "Standing 2H Magic Attack 01–05", "Standing 2H Magic Area
-Attack 01/02", "Standing 2H Cast Spell 01", "Spell Casting", "Magic Heal", "Casting Spell", "Wide Arm
-Spell Casting", "Two Hand Spell Casting", "Kneeling Pointing" (a blessing).
+Что видно на листе (две строки на персонажа: шаг, смерть; 7 кадров): шаги разные по клипу, темпу, длине
+шага и посадке; посох и лук в шаге стоят вертикально; смерти разные по варианту и направлению, тела в
+конце лежат на полу.
 
-**Idle and hits (fewer, but for variety):** "Breathing Idle", "Happy Idle", "Bored", "Looking Around",
-"Warrior Idle", "Sword And Shield Idle", "Great Sword Idle", "Standing Idle 03"; "Hit Reaction",
-"Standing React Large From Front / Back / Left / Right", "Head Hit", "Stomach Hit", "Big Hit To Head".
+![Пилот: шаг и смерть каждого персонажа (сверху вниз — Healing monk, Archer holding tall longbow, Acolyte, Lich sorcerer)](img/motion_style/pilot_walk_death.png)
+![Все 8 смертей на лучнике HG (сверху вниз: fall_back, fall_forward, fall_left, fall_right, kneel_collapse, spin_fall, slump_sit, crumble)](img/motion_style/deaths_hg_archer.png)
 
-Every new clip multiplies the variety of a batch: a rotation over the library picks up everything that
-is there, as long as the id is added to the pool of a role.
+Найдено пилотом и исправлено по ходу: посох, упиравшийся в пол, наклонялся (теперь рука приподнимает
+кисть, посох стоит); тело в робе после падения оставалось полусидя — роба под линейным скиннингом —
+жёсткий конус (теперь роба не держит тело над полом, её уход под пол пишется в `death_cloth_lowest_m`);
+опрокинутое тело «поднималось» углом вместо подъёма (теперь точка опоры — край тела, доворот назад не
+больше 12°); проверка пола по выборке 2000 вершин пропускала тонкие части (теперь последняя треть смерти
+выравнивается по настоящей сетке). Спрайты «Врат» с длинным посохом выходили из фиксированной ячейки
+320 px — рука с предметом длиннее 1,2 м в смерти теперь опускается вдоль тела.
+
+## Пилот 11.10, поздняя ночь: мечники и производственная проверка
+
+Тот же скрипт, состояние `C:\AstraForge\incoming\pilot2\pilot2d.state.json` (отчёт `pilot2d.state.report.md`),
+`--direct --qa-render-failed` (клипы меряются, но спрайты делаются для просмотра; рендеры ждали общий мьютекс
+видеокарты между генерациями; рыцарь #5 добавлен как ближайший к порогу). `--watch` проверен отдельным прогоном (`pilot2.state.json`): «Necromancer warrior
+holding sword» ещё генерировался, сборка подхватила его в 19:06:46 через полминуты после конца генерации и
+завершилась, когда у всех выбранных картинок генерация закончилась.
+
+| персонаж | риг (позы, %: вперёд / вверх / присед / шаг; только отчёт) | клипы: худший кадр, % (idle / walk / атака или каст / hit / death) | мантия, % | ячейка, масштаб | смерть | итог |
+|---|---|---|---|---|---|---|
+| Bone swordsman wielding two swords | 2,77 / 7,3 / 0,56 / 0,19 | 1,68 / 7,51 / 5,7 / 3,61 / 5,8 | — | 448 (из 320), 100,82 px/м | crumble | failed_qa (спрайты для просмотра) |
+| Healing monk holding mace | 5,13 / 11,81 / 2,87 / 0,65 | 5,4 / 7,29 / 11,61 / 8,53 / 13,09 | — | 384 (из 320), 100,89 px/м | fall_left | failed_qa (спрайты для просмотра) |
+| Knight holding sword and shield #3 | 2,47 / 5,05 / 0,03 / 0,01 | 3,33 / 3,74 / 5,01 / 3,19 / 5,45 | 0 | 448 (из 320), 100,92 px/м | fall_forward | failed_qa (спрайты для просмотра) |
+| Knight holding sword and shield #5 | 2,5 / 5,92 / 0,11 / 0,08 | 2,24 / 1,36 / 2,94 / 1,85 / 1,23 | — | 448 (из 320), 100,83 px/м | fall_right | failed_forge: render_sprites checks failed: cell_fit, frames_body_inside_cell |
+| Lich sorcerer holding glowing staff | 9,26 / 28,21 / 3,55 / 1,23 | 11,33 / 19,88 / 32,83 / 17,93 / 34,09 | 50,69 | 320, 100,85 px/м | fall_forward; роба 107,3 → 21,5 см (колокол) | failed_qa (спрайты для просмотра) |
+
+Ни один не прошёл проверку клипов с порогами проверки позами. Где рвётся (кости худшего кадра): лич — роба,
+сросшаяся между ног (RightUpLeg / LeftUpLeg, мантия до 51 %); рыцарь #3 — предплечье за щитом и подмышка
+поднятой руки (LeftForeArm, LeftHand, Spine1); Healing monk — кулак с булавой, слитый с робой (RightForeArm,
+RightUpLeg); костяной мечник — рваный табард и подмышки (Spine, LeftUpLeg, LeftArm). Превью (строки кадров шага,
+атаки/каста и смерти) — `C:\AstraForge\incoming\hg_concepts_2026-10-11\previews\<имя>.failed.png`, лист —
+`previews\_contact_sheet.png` (копия: `img/motion_style/pilot2_contact_sheet.png`).
+
+![Пилот: шаг, атака/каст, смерть (сверху вниз — костяной мечник, Healing monk, рыцарь #3, лич; рыцарь #5 не влез в ячейку 448 и в лист не попал)](img/motion_style/pilot2_contact_sheet.png)
+
+## Честные ограничения
+
+- Это не захват движения: манера — деформация существующих клипов. Сильные значения (сутулость 1, наклон
+  1, хромота 1) дают карикатуру; пакет держит их в правдоподобных полосах.
+- Хромота сделана просадкой таза, креном и волочением стопы при симметричном ритме: настоящая хромота
+  с укороченной опорой на больную ногу дала бы скольжение стоп при постоянной скорости игры.
+- `stride` > 1 у коротконогих персонажей упирается в длину ноги: сначала поднимается пятка, потом
+  опускается таз (до 7 см) — видно как присед на ходу.
+- Атаки и касты меняются только темпом, наклоном и скованностью: другой удар — это другой клип.
+- Каст в библиотеке один подходящий (`necro-rider-cast`, записан для всадника; ноги держит IK), второй
+  (`knight-rider-cast`, горизонтальный взмах) идёт только безоружным и с короткими предметами.
+- `deform_qa` меряет всю площадь, в том числе скрытую (за щитом, под робой) и щепки, выросшие из очень мелких
+  треугольников: доля над порогом не всегда видна на спрайте 100 px/м. Пороги — те же, что у проверки позами;
+  мягче их пакет не делает без явного `--clip-limits`.
+- `robe_settle` — одна корректирующая форма на конец смерти, а не ткань: в падении роба остаётся конусом, на
+  полу лежит без складок и столкновений; в GLB это морф с анимацией весов (Godot его импортирует).
+- Процедурная смерть — ключевые позы с физическим таймингом, а не симуляция: тело не сталкивается само с
+  собой (рука может пройти через бедро), одежда не падает отдельно, щит и плащ не отлетают.
+- Пол проверяется по выборке из 2000 вершин; итоговая проверка — по всей сетке последнего кадра. Плащи,
+  опущенные ниже стоп, могут поднять тело на 1–5 см (`extra_lift_cm`).
+- Предмет в руке остаётся жёстким: лук не ломается, но при падении может лечь поверх тела.
+- Лук в правой руке (11 концептов): пакет играет клипы лучника зеркально (`mirror: true`). Зеркало
+  просмотрено на выстреле лучника HG: руки меняются ролями, стойка разворачивается в другую сторону; на
+  персонаже с луком в правой руке в пилоте не проверялось.
+- Генерации Hunyuan часто не проходят `rig_humanoid` (длинный меч в сторону, сросшиеся рукава, плащ) —
+  тогда до `motion_style` дело не доходит. См. пилот.
+
+## Что докачать с Mixamo для разнообразия
+
+Имена — как их помню в каталоге mixamo.com, это **примеры для поиска**, точное название на сайте может
+отличаться. Качать FBX, Without Skin, 30 fps; для ходьбы и бега включить In Place. Всё — на одном
+персонаже (Y Bot), затем `node scripts/forge.mjs clips import <папка>`.
+
+**Ходьбы (самое важное — сейчас их 4):** «Walking», «Standard Walk», «Female Walk», «Old Man Walk»,
+«Drunk Walk», «Injured Walk», «Walking With Limp» / «Limping», «Sneak Walk» / «Sneaking Forward»,
+«Crouched Walking», «Swagger Walk», «Cocky Walk», «Strut Walking», «Sad Walk», «Happy Walk», «Brutal
+Walk», «Orc Walk», «Mutant Walking», «Zombie Walk» (другие варианты), «Sword And Shield Walk», «Great
+Sword Walk», «Rifle Walk» (для арбалета), «Walking Backwards».
+
+**Смерти (сейчас 5):** «Dying», «Falling Back Death», «Falling Forward Death», «Standing Death Left 01/02»,
+«Standing Death Right 01/02», «Standing Death Backward 01», «Standing Death Forward 01», «Sword And Shield
+Death», «Great Sword Death», «Two Handed Sword Death», «Zombie Dying», «Shot And Fall Backwards»,
+«Headshot», «Knocked Down» / «Knocked Out».
+
+**Атаки по оружию:** меч и щит — «Sword And Shield Slash», «Sword And Shield Attack», «Sword And Shield
+Kick», «Sword And Shield Casting»; двуручный — «Great Sword Slash», «Great Sword High Spin Attack»,
+«Great Sword Jump Attack»; одноручный — «Standing Melee Attack Horizontal», «Standing Melee Attack
+Downward», «Standing Melee Attack Backhand»; древковое — «Standing 2H Melee Attack», «Spear Thrust»
+(если найдётся); лук — «Standing Aim Recoil», «Standing Draw Arrow», «Standing Aim Walk Forward»;
+арбалет — «Rifle Aiming Idle», «Shooting» (пистолетные/винтовочные клипы как основа); без оружия —
+«Punching», «Hook Punch», «Mma Kick»; нежить — «Zombie Attack», «Zombie Punching», «Zombie Scream».
+
+**Касты:** «Standing 1H Magic Attack 01/02/03», «Standing 2H Magic Attack 01–05», «Standing 2H Magic
+Area Attack 01/02», «Standing 2H Cast Spell 01», «Spell Casting», «Magic Heal», «Casting Spell»,
+«Wide Arm Spell Casting», «Two Hand Spell Casting», «Kneeling Pointing» (благословение).
+
+**Покой и удары (меньше, но для разнообразия):** «Breathing Idle», «Happy Idle», «Bored», «Looking
+Around», «Warrior Idle», «Sword And Shield Idle», «Great Sword Idle», «Standing Idle 03»; «Hit Reaction»,
+«Standing React Large From Front / Back / Left / Right», «Head Hit», «Stomach Hit», «Big Hit To Head».
+
+Каждый новый клип умножает разнообразие пакета: ротация в `forge-concepts.mjs` подхватывает всё, что
+есть в библиотеке, если id добавить в пул роли (`poolsFor`).

@@ -1,203 +1,201 @@
-# Forge — the wizard in the studio interface (the "ui" module)
+# Кузница — мастер в интерфейсе студии (модуль «ui»)
 
-The **"Forge"** tab in the studio's left panel (second after "Create"). The wizard leads an asset
-through the steps of the Blender pipeline from `docs/FORGE-CONTRACT.md` and works through
-`docs/forge/API.md` (and the extensions from `docs/forge/server.md` listed below). While the forge is
-open, the left column widens to 400 px (350 px on narrow screens); other tabs keep their width.
+Вкладка **«Кузница»** в левой панели студии (вторая после «Создать»). Мастер ведёт ассет по
+шагам конвейера Blender из `docs/FORGE-CONTRACT.md` и работает по `docs/forge/API.md`
+(и по расширениям из `docs/forge/server.md`, перечисленным ниже). Пока открыта кузница, левая
+колонка расширяется до 400 px (350 px на узких экранах), остальные вкладки сохраняют ширину.
 
-## Files
+## Файлы
 
-| Path | What |
+| Путь | Что |
 |---|---|
-| `src/forge/ForgeTab.jsx` | the tab entry for `App.jsx`: the icon and `React.lazy` — the wizard itself loads as a separate chunk on first open |
-| `src/forge/forge-tabs.css` | loaded with the studio: the tab-block grid (the ninth tab) and the "Opening the forge…" placeholder |
-| `src/forge/ForgePanel.jsx` | the wizard root: server check, step and preset registry, passport, job polling, step strip, the "Wizard / Jobs / Batch" sections |
-| `src/forge/Step*.jsx` | wizard steps: `StepWhat`, `StepPrepare` (cleanup or generator + "6 more variants"), `StepSkeleton`, `StepMotion`, `StepItems`, `StepFx`, `StepExport` |
-| `src/forge/MarkerEditor.jsx` | draggable joint points over `markers.png` |
-| `src/forge/StickFigure.jsx` | stick-figure clip preview on a canvas |
-| `src/forge/ForgeJobs.jsx`, `ForgeBatch.jsx` | jobs and batches |
-| `src/forge/ForgeUi.jsx` | shared elements: context, a parameter field from the registry, a numeric field, the "to trash" button, checks, result previews |
-| `src/forge/forge-api.js` | **all** `/api/forge/*` paths in one place; header `x-astra-client: studio` |
-| `src/forge/forge-core.js` | pure functions (tests: `tests/forge-ui-core.test.mjs`) |
-| `src/forge/forge.css` | wizard styles on the tokens of `style.css` (loaded together with the lazy chunk) |
+| `src/forge/ForgeTab.jsx` | вход вкладки для `App.jsx`: иконка и `React.lazy` — сам мастер грузится отдельным чанком при первом открытии |
+| `src/forge/forge-tabs.css` | грузится со студией: сетка блока вкладок (девятая вкладка) и заглушка «Открываю кузницу…» |
+| `src/forge/ForgePanel.jsx` | корень мастера: проверка сервера, реестр шагов и пресетов, паспорт, опрос задач, полоса шагов, разделы «Мастер / Задачи / Пакет» |
+| `src/forge/Step*.jsx` | шаги мастера: `StepWhat`, `StepPrepare` (чистка или генератор + «Ещё 6 вариантов»), `StepSkeleton`, `StepMotion`, `StepItems`, `StepFx`, `StepExport` |
+| `src/forge/MarkerEditor.jsx` | перетаскиваемые точки суставов поверх `markers.png` |
+| `src/forge/StickFigure.jsx` | превью клипа «палочками» на canvas |
+| `src/forge/ForgeJobs.jsx`, `ForgeBatch.jsx` | задачи и пакеты |
+| `src/forge/ForgeUi.jsx` | общие элементы: контекст, поле параметра из реестра, числовое поле, кнопка «в корзину», проверки, превью результатов |
+| `src/forge/forge-api.js` | **все** пути `/api/forge/*` в одном месте; заголовок `x-astra-client: studio` |
+| `src/forge/forge-core.js` | чистые функции (тесты: `tests/forge-ui-core.test.mjs`) |
+| `src/forge/forge.css` | стили мастера на токенах `style.css` (грузятся вместе с ленивым чанком) |
 
-`src/App.jsx` has three lines: the import of `ForgePanel,{ForgeIcon}` from `./forge/ForgeTab.jsx`, the
-tab `['forge','Forge',ForgeIcon]` and `<ForgePanel studio={studio} snapshot={snapshot}
-notify={notify} onEdit={()=>setDirty(true)}/>`. The tab block is five columns (two rows of 5
-and 4) so the ninth tab does not wrap onto a third row.
+В `src/App.jsx` три строки: импорт `ForgePanel,{ForgeIcon}` из `./forge/ForgeTab.jsx`, вкладка
+`['forge','Кузница',ForgeIcon]` и `<ForgePanel studio={studio} snapshot={snapshot}
+notify={notify} onEdit={()=>setDirty(true)}/>`. Блок вкладок — в пять колонок (две строки по 5
+и 4), чтобы девятая вкладка не уходила в третью строку.
 
-## Steps
+## Шаги
 
-| Type | Steps |
+| Тип | Шаги |
 |---|---|
-| Human | What we create → Prepare → Skeleton → Motion → Items → Effects → Export |
-| Creature | What we create → Prepare → Skeleton → Motion → Effects → Export |
-| Item, ship, turret | What we create → Prepare/Generator → Effects → Export |
+| Человек | Что создаём → Подготовка → Скелет → Движения → Предметы → Эффекты → Экспорт |
+| Существо | Что создаём → Подготовка → Скелет → Движения → Эффекты → Экспорт |
+| Предмет, корабль, турель | Что создаём → Подготовка/Генератор → Эффекты → Экспорт |
 
-1. **What we create.** Type cards (turret — `kind: prop`) and the source:
-   - a model from the scene — the selected object is exported to GLB **in its own units**:
-     a copy (SkeletonUtils.clone) is exported without the studio's display wrapper (the 3/max scale and
-     the offset from `StudioScene.importAsset`); rotation and scale the user added on top of the import
-     are preserved. The GLB goes as multipart straight to `POST /api/forge/assets`;
-   - a generation result (`GET /api/jobs` → `source:{type:'job'}`);
-   - a file: GLB, FBX and OBJ — multipart straight to `POST /api/forge/assets` (up to 300 MB, without a
-     copy in `data/assets`); the forge does not accept STL, which goes through the studio's
-     `POST /api/assets` (100 MB) and `source:{type:'asset'}`;
-   - parameters (generators).
+1. **Что создаём.** Карточки типа (турель — `kind: prop`) и источник:
+   - модель из сцены — выбранный объект экспортируется в GLB **в собственных единицах**:
+     экспортируется копия (SkeletonUtils.clone) без экранной обёртки студии (масштаб 3/max и
+     смещение из `StudioScene.importAsset`); поворот и масштаб, который пользователь добавил
+     поверх импорта, сохраняются. GLB уходит multipart прямо в `POST /api/forge/assets`;
+   - результат генерации (`GET /api/jobs` → `source:{type:'job'}`);
+   - файл: GLB, FBX и OBJ — multipart прямо в `POST /api/forge/assets` (до 300 МБ, без копии в
+     `data/assets`); STL кузница не принимает, он идёт через студийный `POST /api/assets`
+     (100 МБ) и `source:{type:'asset'}`;
+   - параметры (генераторы).
 
-   At the bottom is "Continue working" over the list of passports; each row has a "to trash" button
-   (`DELETE /assets/:id`, double click: the first arms "Sure?", the second confirms).
-2. **Prepare.** `cleanup`: a logarithmic budget slider (defaults 40k human, 30k creature, 8k item,
-   40k ship; the "Simplify" checkbox can be cleared), height, splitting into parts (`separate`); the
-   remaining parameters are under "All step parameters". The form opens with the values of the previous
-   cleanup run; the default height is the passport's `profile.height_m` (1.8 m for a human). After the
-   run, the chosen height of a human or creature is written to `profile.height_m` (`PATCH`). For ships
-   and items made from a model, `ship_from_mesh` / `item_from_mesh` follows. For generators — the
-   `ship_gen` / `turret_gen` / `item_kit` form, opened with the parameters of the **last generator run**
-   (otherwise `source.params`), and "6 more variants" (a batch of 6 new passports with neighboring seeds,
-   a preview grid, "Choose"; extra variants are removed one by one with "to trash" or all at once with
-   "Remove unchosen").
-3. **Skeleton.** Human: `rig_humanoid`. The "Height, m" field is filled from the "Prepare" step (the
-   cleanup height if cleanup ran after the previous rig, otherwise the previous rig's height, otherwise
-   `profile.height_m`): the autorig scales the body to `height_m` itself; without it a 1.2 m dwarf would
-   again become 1.8 m. The other parameters of the previous rig (fingers, robe…) are preserved; markers
-   are sent only by the point editor. The front view from `markers.png` with points for the chin, groin,
-   wrists, elbows and knees (the side view is a button away). Points are dragged with the mouse (and
-   arrows, Shift — 10 px steps); symmetry turns on by itself only if the detected pose is symmetric.
-   "Rebuild from points" runs `rig_humanoid` with `params.markers = {name: [x, z]}` in meters **and**
-   `height_m`: `markers.json` is written at the scale of its own `height_m`, so for a different height
-   the form recomputes the points to it. Below are `poses.png`, the numbers and the checks. An FBX with a
-   Mixamo rig — the `import_mixamo_rig` button; the "Rig manually on mixamo.com" block prepares the FBX
-   with the `prepare_mixamo` step. Creature: the template
-   `auto/quadruped/winged_quadruped/bird/hexapod/octopod/serpent/custom` and `rig_creature`.
-4. **Motion.** Human: the `GET /clips` library — categories, search (including by the Russian category
-   names), selection with "loop" and "in place" checkboxes, a pose preview (`GET /clips/:id/poses`), FBX
-   upload by drag and drop (`POST /clips`, field `files[]`), "Apply" = `PATCH clips` + `retarget` with
-   `params.clips=[{source:'library:<id>', name, loop, in_place?}]`. **"In place" is on by default only for
-   locomotion clips** (`isLocomotionClip`: the `locomotion` flag of the library entry, otherwise the
-   `locomotion` tag, otherwise the walk/run category — the same rule as in the `retarget` step, contract
-   §7): `retargetClips` sends them `in_place: true` (a cleared checkbox — `false`); standing clips (idle,
-   attack, death) get no key, and the step's `root_motion` decides — the hip travel is preserved, the
-   feet do not slide. A checkbox set by hand on a standing clip is sent as `true`. Previously
-   `in_place: true` went to every clip (the smoke run of 2026-10-10). Passports saved by the old wizard
-   carry `in_place: true` on all clips — on standing clips the "in place" checkbox is on and must be
-   cleared once. A hint on how to download clips from mixamo.com (FBX Binary, Without Skin, 30 fps).
-   Creature: checkboxes of procedural clips from the registry (`idle-loop … death`); flight and gliding
-   are only for winged templates; `anim_creature`.
-5. **Items.** The `item_kit` type gallery (style, seed, ornament) creates a separate item passport;
-   "Put in hand" = `PATCH props` + `attach_prop` with `hand` and `prop_asset`.
-6. **Effects.** Presets on sockets (`PATCH fx`). The preset list is for now defined in the client
-   (`FX_PRESETS` in `forge-core.js`): engine_trail, thruster_glow, aura, magic_cast, fire, smoke,
-   sparks, ice, poison, heal, muzzle_flash, nav_light. Sockets come from the step results
-   (`stats.sockets`) plus the contract §6 list.
-7. **Export.** The Godot / iso8 sprites profiles
-   (`POST /assets/:id/export`; for Godot the passport's effects go in `params.fx`).
-   The server exports the last completed version, so above the button there is a "What goes into the
-   package" block: the number of that version and its steps. If a human or creature has no skeleton or
-   motion in it while an older version had them (after a return to an early step the late steps are
-   reset), a warning with a link to the needed step is shown. Below are the result folder, ZIP download
-   from `asset.exports`, the result checks and the Godot JSON check as green and red rows.
+   Внизу — «Продолжить работу» по списку паспортов; у каждой строки кнопка «в корзину»
+   (`DELETE /assets/:id`, двойное нажатие: первое взводит «Точно?», второе подтверждает).
+2. **Подготовка.** `cleanup`: логарифмический ползунок бюджета (по умолчанию 40k человек,
+   30k существо, 8k предмет, 40k корабль; флажок «Упростить» можно снять), рост, разделение на
+   части (`separate`), остальные параметры — в «Все параметры шага». Форма открывается со
+   значениями прошлого запуска чистки; рост по умолчанию — `profile.height_m` паспорта (у
+   человека 1,8 м). После запуска выбранный рост человека или существа записывается в
+   `profile.height_m` (`PATCH`). Для кораблей и предметов из модели следом идёт
+   `ship_from_mesh` / `item_from_mesh`. Для генераторов — форма `ship_gen` / `turret_gen` /
+   `item_kit`, открытая с параметрами **последнего запуска генератора** (иначе — `source.params`),
+   и «Ещё 6 вариантов» (пакет из 6 новых паспортов с соседними зёрнами, сетка превью, «Выбрать»;
+   лишние варианты — «в корзину» по одному или «Убрать невыбранные»).
+3. **Скелет.** Человек: `rig_humanoid`. Поле «Рост, м» заполняется из шага «Подготовка» (рост
+   чистки, если она шла после прошлого рига, иначе рост прошлого рига, иначе `profile.height_m`):
+   авториг сам масштабирует тело к `height_m`, без него гном 1,2 м снова стал бы 1,8 м. Остальные
+   параметры прошлого рига (пальцы, роба…) сохраняются; маркеры отправляет только редактор точек.
+   Передний вид из `markers.png` с точками подбородка, паха, запястий, локтей и колен (вид сбоку —
+   по кнопке). Точки тянутся мышью (и стрелками, Shift — по 10 px); симметрия включается сама,
+   только если найденная поза симметрична. «Пересобрать по точкам» запускает `rig_humanoid` с
+   `params.markers = {имя: [x, z]}` в метрах **и** `height_m`: `markers.json` записан в масштабе
+   своего `height_m`, поэтому при другом росте в форме точки пересчитываются под него.
+   Ниже — `poses.png`, числа и проверки. FBX с ригом Mixamo — кнопка `import_mixamo_rig`; блок
+   «Риг на mixamo.com вручную» готовит FBX шагом `prepare_mixamo`. Существо: шаблон
+   `auto/quadruped/winged_quadruped/bird/hexapod/octopod/serpent/custom` и `rig_creature`.
+4. **Движения.** Человек: библиотека `GET /clips` — категории, поиск (в том числе по русским
+   названиям категорий), выбор с флажками «петля» и «на месте», превью позы
+   (`GET /clips/:id/poses`), загрузка FBX перетаскиванием (`POST /clips`, поле `files[]`),
+   «Применить» = `PATCH clips` + `retarget` c `params.clips=[{source:'library:<id>', name, loop,
+   in_place?}]`. **«На месте» по умолчанию — только у клипов передвижения** (`isLocomotionClip`: флаг
+   `locomotion` записи библиотеки, иначе тег `locomotion`, иначе категория walk/run — то же правило, что у шага
+   `retarget`, контракт §7): им `retargetClips` шлёт `in_place: true` (снятый флажок — `false`), стоячим клипам
+   (покой, атака, смерть) ключ не отправляется, и решает `root_motion` шага — ход бёдер сохраняется, ступни не
+   скользят. Флажок, поставленный стоячему клипу руками, отправляется как `true`. Раньше `in_place: true` уходил
+   каждому клипу (дымовой прогон 10.10). Паспорта, сохранённые старым мастером, несут `in_place: true` у всех
+   клипов — у стоячих флажок «на месте» стоит, его нужно снять один раз. Справка, как скачать клипы с mixamo.com (FBX Binary, Without Skin, 30 fps).
+   Существо: флажки процедурных клипов из реестра (`idle-loop … death`), полёт и планирование —
+   только крылатым шаблонам; `anim_creature`.
+5. **Предметы.** Галерея типов `item_kit` (стиль, зерно, орнамент) создаёт отдельный паспорт
+   предмета; «Вложить в руку» = `PATCH props` + `attach_prop` с `hand` и `prop_asset`.
+6. **Эффекты.** Пресеты на сокетах (`PATCH fx`). Список пресетов пока задан в клиенте
+   (`FX_PRESETS` в `forge-core.js`): engine_trail, thruster_glow, aura, magic_cast, fire, smoke,
+   sparks, ice, poison, heal, muzzle_flash, nav_light. Сокеты — из результатов шагов
+   (`stats.sockets`) плюс список контракта §6.
+7. **Экспорт.** Профили Godot / Space Quest / Врата Героев / Спрайты iso8
+   (`POST /assets/:id/export`; для Godot и Space Quest в `params.fx` уходят эффекты паспорта).
+   Сервер экспортирует последнюю завершённую версию, поэтому над кнопкой блок «Что уйдёт в
+   пакет»: номер этой версии и её шаги. Если у человека или существа в ней нет скелета или
+   движений, а в более старой версии они были (после возврата на ранний шаг поздние шаги
+   сбрасываются), показано предупреждение со ссылкой на нужный шаг. Ниже — папка результата,
+   скачивание ZIP из `asset.exports`, проверки результата и JSON-проверка Godot зелёными и
+   красными строками.
 
-Any result with a GLB can be opened with the **"Show in scene"** button: the file is taken from
-`GET /api/forge/assets/:id/files/…` and loaded through `StudioScene.importAsset`.
+Любой результат с GLB можно открыть кнопкой **«Показать в сцене»**: файл берётся из
+`GET /api/forge/assets/:id/files/…` и загружается через `StudioScene.importAsset`.
 
-## Versions, `from` and step repeats
+## Версии, `from` и повтор шагов
 
-`from: 'vNNN'` on the server is the **final** state of a version. Presets and batches put several
-wizard steps into one version (`cleanup → rig_humanoid`; `humanoid_from_mesh` also has `retarget` and
-`godot_package`), and a version can fail after the first steps. So the wizard plans the run itself
-(`runPlan` / `planSteps` in `forge-core.js`):
+`from: 'vNNN'` на сервере — это **итоговое** состояние версии. Пресеты и пакеты кладут
+несколько шагов мастера в одну версию (`cleanup → rig_humanoid`, у `humanoid_from_mesh` ещё
+`retarget` и `godot_package`), а версия может упасть после первых шагов. Поэтому мастер
+планирует запуск сам (`runPlan` / `planSteps` в `forge-core.js`):
 
-- "Prepare" is always `from: 'source'`;
-- for later steps the last successful step of the nearest earlier wizard group is taken (for "Skeleton"
-  — prepare, for "Motion" — skeleton, for "Items" — motion or skeleton);
-- if its version is complete and has no other model-changing steps after it (export does not count),
-  `from` = that version;
-- otherwise the version's own steps up to it are repeated at the start of the new run with the same
-  parameters, from the base of that version (`versions[].base` or the source). Example: a batch asset
-  with `[cleanup, rig_humanoid]` in `v001` → "Rebuild from points" sends
-  `steps: [cleanup(previous params), rig_humanoid(markers, height_m)]`, `from: 'source'`;
-  the notification appends "(repeating first: Cleanup and simplification)";
-- nothing was done earlier — `from: 'source'`.
+- «Подготовка» — всегда `from: 'source'`;
+- для поздних шагов берётся последний удачный шаг ближайшей более ранней группы мастера
+  (для «Скелета» — подготовка, для «Движений» — скелет, для «Предметов» — движения или скелет);
+- если его версия завершена и после него в ней нет других шагов, меняющих модель (экспорт не
+  считается), — `from` = эта версия;
+- иначе собственные шаги этой версии до него повторяются в начале нового запуска с теми же
+  параметрами, от базы этой версии (`versions[].base` или источник). Пример: пакетный ассет
+  с `[cleanup, rig_humanoid]` в `v001` → «Пересобрать по точкам» отправляет
+  `steps: [cleanup(прежние params), rig_humanoid(markers, height_m)]`, `from: 'source'`;
+  уведомление дописывает «(сначала повторю: Чистка и упрощение)»;
+- ничего раньше не сделано — `from: 'source'`.
 
-This way a repeated autorig does not land on the old rig, retargeting does not land on old clips, and
-after a failed batch rig the skeleton is built on the cleaned and scaled model rather than on the raw
-source. Returning to an early step drops the late steps of the current recipe — this is expected, and
-the "What goes into the package" block on export shows it. A repeat could be made cheaper if the server
-starts to understand a step-level base (for example `from: 'v001/01_cleanup'`).
+Так повторный авториг не ложится на старый риг, перенос клипов — на старые клипы, а после
+упавшего пакетного рига скелет строится на очищенной и отмасштабированной модели, а не на сыром
+источнике. Возврат на ранний шаг отбрасывает поздние шаги текущего рецепта — это ожидаемо, блок
+«Что уйдёт в пакет» на экспорте это показывает. Повтор можно сделать дешевле, если сервер начнёт
+понимать базу уровня шага (например `from: 'v001/01_cleanup'`).
 
-`from: 'source'` and multipart forms (`POST /assets` with a file, `POST /batch` with `files[]` and
-`source:{type:'upload', fileIndex}`) are described in `docs/forge/server.md`; they should be added to
-`API.md`.
+`from: 'source'` и multipart-формы (`POST /assets` с файлом, `POST /batch` с `files[]` и
+`source:{type:'upload', fileIndex}`) описаны в `docs/forge/server.md`; в `API.md` их стоит
+дописать.
 
-## Numeric fields
+## Числовые поля
 
-A number is not clamped to `min`/`max` on every keystroke (previously "1", "5" in the "Length, m" field
-with a minimum of 2 produced 25): while the field is focused, the value is passed as typed, and it is
-rounded and clamped when the field loses focus (or on Enter). A comma is accepted as the decimal
-separator. An empty field of a "empty — by class" parameter is sent as an explicit `null`: with
-`from: 'source'` the server mixes `source.params` under the step parameters, and without `null` the old
-value would silently come back (the server itself drops `null` before Blender).
+Число не обрезается по `min`/`max` на каждое нажатие клавиши (раньше «1», «5» в поле «Длина, м»
+с минимумом 2 давали 25): пока поле в фокусе, значение передаётся как набрано, а округляется и
+ограничивается при уходе из поля (или Enter). Запятая принимается как десятичный знак. Пустое
+поле у параметра «пусто — по классу» отправляется явным `null`: при `from: 'source'` сервер
+подмешивает `source.params` под параметры шага, и без `null` старое значение вернулось бы молча
+(сервер сам выбрасывает `null` перед Blender).
 
-## Jobs and batches
+## Задачи и пакеты
 
-Polling (`GET /jobs/:id` once a second) runs only for running jobs and jobs started from this window;
-queued jobs coming from `GET /jobs` (for example after a page reload in the middle of a 200-asset
-batch) are refreshed by a single `GET /jobs` every 3 seconds. Job records are merged by step: the items
-of the `GET /jobs` list carry only `{step, status, progress}`, so already loaded step results, the log
-tail and errors do not disappear; a job that finished "via the list" is fetched in full once. The "Jobs"
-section additionally refreshes the list every 5 seconds. A job card: steps with progress, the log tail,
-the error, cancel.
+Опрос (`GET /jobs/:id` раз в секунду) идёт только для выполняющихся задач и задач, запущенных из
+этого окна; задачи в очереди, пришедшие из `GET /jobs` (например, после перезагрузки страницы
+посреди пакета на 200 ассетов), обновляются одним `GET /jobs` раз в 3 секунды. Записи задач
+сливаются по шагам: элементы списка `GET /jobs` несут только `{step, status, progress}`, поэтому
+уже загруженные результаты шагов, хвост журнала и ошибки не пропадают; задача, завершившаяся
+«через список», один раз догружается целиком. Раздел «Задачи» дополнительно обновляет список раз
+в 5 секунд. Карточка задачи: шаги с прогрессом, хвост журнала, ошибка, отмена.
 
-Errors: the server's messages ("The GPU has been busy with another process for more than 3600 s.", "A
-job is running on the asset…", "The asset files are locked by another program…") are shown as they are;
-English Blender/Python/Node text is translated by exact patterns (`humanizeError`), and the
-`checks failed:` marker becomes "Quality checks failed: …".
+Ошибки: русские сообщения сервера («Видеокарта занята другим процессом дольше 3600 с.», «По
+ассету идёт задача…», «Файлы ассета заняты другой программой…») показываются как есть;
+английский текст Blender/Python/Node переводится по точным шаблонам (`humanizeError`), маркер
+`checks failed:` — в «Не прошли проверки качества: …».
 
-"Batch": seeds from…to for generators, files or a whole folder of GLBs (multipart straight to
-`POST /batch`, in parts of 20 files, each part its own card), checked generation results; a preset from
-`GET /presets` or the base steps by type. Batches are tracked through `GET /batch/:id` every 2 seconds;
-the batch list is remembered in the browser (localStorage).
+«Пакет»: зёрна с…по для генераторов, файлы или целая папка GLB (multipart прямо в
+`POST /batch`, частями по 20 файлов, каждая часть — своя карточка), отмеченные результаты
+генерации; пресет из `GET /presets` или базовые шаги по типу. Пакеты отслеживаются через
+`GET /batch/:id` каждые 2 секунды; список пакетов помнится в браузере (localStorage).
 
-## Step parameters
+## Параметры шагов
 
-Forms are built from `GET /steps`. If a step is in the registry, only the parameters it declares are
-sent, and only those the user changed (defaults stay with the module), plus the contract parameters
-(`markers`, `clips`, `hand`, `prop_asset`, `height_m` when rebuilding from points). For generators the
-default values are passed explicitly so the recipe rebuilds the same asset. While the registry is
-unavailable, the fallback descriptions from `FALLBACK_PARAMS` are shown.
+Формы строятся по `GET /steps`. Если шаг есть в реестре, отправляются только объявленные им
+параметры и только те, что пользователь менял (значения по умолчанию остаются за модулем),
+плюс параметры контракта (`markers`, `clips`, `hand`, `prop_asset`, `height_m` при пересборке
+по точкам). Генераторам значения по умолчанию передаются явно, чтобы рецепт пересобирал тот же
+ассет. Пока реестр недоступен, показываются запасные описания из `FALLBACK_PARAMS`.
 
-## Without the forge server
+## Без сервера кузницы
 
-If `/api/forge` does not answer with JSON (the module is not connected — Express serves `index.html` or
-an HTML 404), the wizard shows a calm message "The "Forge" module is not connected on the server yet…",
-rechecks the server by itself every 20 seconds, and the run buttons are disabled.
+Если `/api/forge` не отвечает JSON (модуль не подключён — Express отдаёт `index.html` или HTML
+404), мастер показывает спокойное сообщение «Модуль «Кузница» на сервере ещё не подключён…»,
+сам перепроверяет сервер раз в 20 секунд, а кнопки запуска выключены.
 
-## Verification
+## Проверка
 
-- `node --test tests/*.test.mjs` — 29 tests in `tests/forge-ui-core.test.mjs` (in the clip library test —
-  the `in_place` rule for locomotion only, an explicit choice, `'strict'`, `isLocomotionClip`): point
-  projection (a projection block on a two-tile sheet, only the front tile, a downscaled image; the
-  fallback projection by dimensions and joints; fitting by the joint markers), the run plan (a
-  single-step version, a `[cleanup, rig_humanoid]` version, a four-step preset, a failed batch version,
-  the base of a failed version), rig height and point recomputation, numeric fields, the server's
-  error messages, job merging and the polling plan, the generator form, the export plan, file batches,
-  as well as the clip filter, presets, file paths, Godot checks, clip_library poses and the budget.
-- `npm run build` — the build passes. The main chunk is about 1.33 MB (as before the forge; the size
-  warning existed earlier), the wizard is a separate chunk of about 148 KB + 19 KB CSS.
-- A live run of the first round (2026-10-10, port 3299, Blender 5.0.1, Godot 4.5.1): a ship, variants, an
-  effect, a Godot export with the Godot check, a human from a generation with `cleanup` and
-  `rig_humanoid`, point dragging. The test passports were moved to `data/library/trash/`.
+- `node --test tests/*.test.mjs` — 29 тестов `tests/forge-ui-core.test.mjs` (в тесте библиотеки клипов — правило
+  `in_place` только для передвижения, явный выбор, `'strict'`, `isLocomotionClip`): проекция точек
+  (блок проекции на листе из двух тайлов, только передний тайл, уменьшенная картинка; запасная
+  проекция по габаритам и суставам; подгонка по шарикам), план запуска (версия с одним шагом,
+  версия `[cleanup, rig_humanoid]`, пресет из четырёх шагов, упавшая пакетная версия, база
+  упавшей версии), рост рига и пересчёт точек, числовые поля, русские ошибки сервера, слияние
+  задач и план опроса, форма генератора, план экспорта, пакеты файлов, а также фильтр клипов,
+  пресеты, пути файлов, проверки Godot, позы clip_library и бюджет.
+- `npm run build` — сборка проходит. Основной чанк ≈1,33 МБ (как до кузницы; предупреждение о
+  размере было и раньше), мастер — отдельный чанк ≈148 КБ + 19 КБ CSS.
+- Живой прогон первого раунда (10.10, порт 3299, Blender 5.0.1, Godot 4.5.1): корабль, варианты,
+  эффект, экспорт Space Quest с проверкой Godot, человек из генерации с `cleanup` и
+  `rig_humanoid`, перетаскивание точек. Тестовые паспорта перенесены в `data/library/trash/`.
 
-## Limitations
+## Ограничения
 
-- The `markers.json` of the `rig_humanoid` step contains a `projection` block (`image`, `center`,
-  `meters_per_px`, `center_px`, `front_tile`); the wizard takes the projection from it (checked: 0 px
-  mismatch on the test character). The estimate from `joints` + `height_m` and the fit by joint markers
-  remain as a fallback for old files.
-- The FX preset list is hardcoded in the client until a server-side catalog appears.
-- Export always goes from the last completed version (that is how `POST /export` works); the wizard
-  shows which version it is but cannot choose another.
-- Repeating early steps (see "Versions") costs Blender time: when rebuilding the skeleton of a batch
-  asset, cleanup is run again.
-- The "before/after" preview shows the images the step returned: `cleanup` writes a single preview.
+- `markers.json` шага `rig_humanoid` содержит блок `projection` (`image`, `center`, `meters_per_px`, `center_px`,
+  `front_tile`); мастер берёт проекцию из него (проверено: 0 px расхождения на зомби). Оценка по `joints` +
+  `height_m` и подгонка по шарикам суставов остаются запасным путём для старых файлов.
+- Список FX-пресетов захардкожен в клиенте до появления серверного каталога.
+- Экспорт всегда идёт от последней завершённой версии (так устроен `POST /export`); мастер
+  показывает, что это за версия, но выбрать другую не может.
+- Повтор ранних шагов (см. «Версии») тратит время Blender: при пересборке скелета пакетного
+  ассета чистка выполняется заново.
+- Превью «до/после» показывает те картинки, которые вернул шаг: `cleanup` пишет одно превью.

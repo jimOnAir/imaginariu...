@@ -1,0 +1,25 @@
+AstraForge 0.4.6 — установка, которая не зависает
+
+• Установка больше не стоит на 5 %, когда на компьютере есть Ollama. Раньше проверка компьютера сама запускала Ollama в трее и ждала, пока её закроют; при полной установке то же случалось после установки Ollama. Теперь закрывать ничего не нужно.
+• Установка не обрывается на проверке компьютера, если драйвер видеокарты NVIDIA не отвечает (например, после обновления драйвера без перезагрузки). Раньше она завершалась с ошибкой сразу после строки «Свободно на диске». Теперь установка идёт дальше, ставит PyTorch для видеокарты и советует перезагрузить компьютер или обновить драйвер. Если не удалась проверка одного компонента, остальное тоже ставится.
+• Полоса установки движется внутри каждого шага: видно «скачано 1,2 ГБ из 4,9 ГБ», а на долгих шагах без загрузки — «идёт, N мин». Раньше полоса стояла по полчаса на одном месте, и казалось, что установщик завис.
+• Загрузка, по которой две минуты почти ничего не приходит, обрывается и продолжается с того же места. Раньше такая загрузка могла висеть бесконечно.
+• Если установка всё-таки не удалась, в журнал installer\install.log и в отчёт об ошибке попадает причина и место сбоя, а не только «код 1». Так ошибки исправляются быстрее.
+• Кузница: карта нормалей печётся и без пересборки сетки, и для моделей без цвета (Pixal3D).
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.5 без подписки: в студии появится «Бесплатное обновление — установить», нажмите «Обновить бесплатно». У кого 0.4.4 или раньше: один раз скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх старой версии в ту же папку — проекты, модели и настройки сохранятся. Если прошлая установка оборвалась, просто запустите новый установщик: уже скачанное повторно не качается.
+
+—
+
+AstraForge 0.4.6 — setup that does not hang
+
+• Setup no longer stops at 5% when Ollama is on the computer. The system check used to start Ollama in the tray and wait until it was closed; the full setup did the same after installing Ollama. Now there is nothing to close.
+• Setup no longer aborts at the system check when the NVIDIA driver does not respond (for example, after a driver update without a restart). It used to fail right after the "Free on disk" line. Now it continues, installs PyTorch for the GPU and advises restarting or updating the driver. If one component check fails, everything else still installs.
+• The progress bar moves within each step: you see "downloaded 1.2 GB of 4.9 GB", and long steps without downloads show "working, N min". The bar used to sit still for half an hour, which looked like a hang.
+• A download that receives almost nothing for two minutes is dropped and resumed from the same place. Such a download could hang forever before.
+• If setup still fails, installer\install.log and the error report now contain the cause and where it happened, not just "code 1", so errors get fixed faster.
+• Forge: the normal map is baked without a remesh too, and for models without color (Pixal3D).
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.5 without a subscription: the studio shows "Free update — install"; press "Update for free". On 0.4.4 or older: download the installer once at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder; projects, models and settings are kept. If a previous setup stopped halfway, just run the new installer: anything already downloaded is not downloaded again.

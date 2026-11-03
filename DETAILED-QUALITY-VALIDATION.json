@@ -1,0 +1,11 @@
+{
+  "quality": "high",
+  "steps": 45,
+  "resolution": 512,
+  "gpu": "RTX 4070 12 GB",
+  "seconds": 268.757,
+  "bytes": 29912116,
+  "vertices": 826452,
+  "triangles": 1666042,
+  "meshes": 1
+}

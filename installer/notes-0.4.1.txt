@@ -1,0 +1,12 @@
+AstraForge 0.4.1 — подписка на обновления
+
+• Подписка: 5 $ в месяц или 49 $ в год (490 ₽ / 4800 ₽). Оплата картой любой страны, российской картой или по СБП — через lava.top.
+• После оплаты на почту приходит ключ AF-… — вставьте его в «О программе» → «Подписка», и студия будет сама ставить каждое обновление при запуске.
+• Без подписки студия работает бесплатно и полностью, просто остаётся на скачанной версии.
+• Новая установка: скачайте AstraForge-Setup-0.4.1.exe и выберите «Быструю» (≈ 30 ГБ) или «Полную» (≈ 95 ГБ) установку.
+
+Страница проекта: https://snodrod.github.io/AstraForge/
+
+—
+
+AstraForge 0.4.1 — updates subscription: $5/month or $49/year. Pay on lava.top with a card from any country; your AF-… key arrives by email — paste it into About → Subscription. Without a subscription the studio stays free and fully working on the version you downloaded.

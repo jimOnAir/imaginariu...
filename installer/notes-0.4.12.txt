@@ -1,0 +1,21 @@
+AstraForge 0.4.12 — загрузки проходят там, где раньше падали с кодом 35
+
+• Если установщик не мог скачать ни одного файла («Загрузка не удалась … (код 35)» на каждом шаге), это исправлено. Так бывает, когда сеть, прокси или антивирус не дают Windows проверить сертификат сайта. Теперь установщик после первой такой ошибки качает дальше без этой проверки; сертификат сайта по-прежнему проверяется, а файлы моделей сверяются по контрольной сумме.
+• Если загрузка всё-таки не удалась, установщик пишет понятную причину (нет интернета, сайт недоступен, соединение оборвалось и т. п.) и точный текст ошибки — он попадает в журнал installer\install.log и в отчёт, чтобы мы быстрее разобрались.
+
+Если у вас установка закончилась ошибками загрузки: скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх в ту же папку. Уже скачанное заново не качается, проекты и настройки сохранятся.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.9–0.4.11 и студия работает: версия встанет сама при следующем запуске. У кого 0.4.5–0.4.8 без подписки: нажмите внизу окна «Бесплатное обновление — установить», затем «Обновить бесплатно» и «Перезапустить и обновить».
+
+—
+
+AstraForge 0.4.12 — downloads now work where they used to fail with code 35
+
+• If the installer could not download a single file ("Download failed … (code 35)" at every step), this is fixed. It happens when the network, a proxy or an antivirus keeps Windows from checking a site's certificate. After the first such error the installer now continues without that check; the site certificate is still verified, and model files are checked against their checksums.
+• If a download still fails, the installer gives a clear reason (no internet, site unreachable, connection dropped, etc.) and the exact error text — it goes to installer\install.log and into the report, so we can sort it out faster.
+
+If your setup ended with download errors: download the installer at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder. Anything already downloaded is not downloaded again; projects and settings are kept.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.9–0.4.11 with a working studio: this version installs itself on the next start. On 0.4.5–0.4.8 without a subscription: press "Free update — install" at the bottom of the window, then "Update for free" and "Restart and update".

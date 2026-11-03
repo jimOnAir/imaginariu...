@@ -1,0 +1,9 @@
+{
+  "projection_resolution": [
+    512,
+    512
+  ],
+  "pixels_changed_more_than_8": 135255,
+  "has_nonuniform_colour": true,
+  "shader_errors_observed": false
+}

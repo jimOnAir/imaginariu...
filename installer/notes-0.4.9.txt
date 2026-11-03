@@ -1,0 +1,19 @@
+AstraForge 0.4.9 — бесплатные обновления ставятся сами
+
+• Бесплатные версии больше не ждут кнопки. Когда выходит бесплатное обновление, студия сама скачивает его в фоне и ставит при следующем запуске — так же, как у подписчиков. Проекты, модели и настройки сохраняются.
+• Выключатель — в «О программе → Обновления»: «Ставить бесплатные обновления сами». Если выключить, обновление ставится кнопкой «Обновить бесплатно», как раньше.
+• Версии для подписчиков по-прежнему ставятся сами только с подпиской.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.5–0.4.8 без подписки: в последний раз нажмите «Бесплатное обновление — установить» внизу окна студии, затем «Обновить бесплатно» и «Перезапустить и обновить». Следующие бесплатные версии встанут сами. У кого 0.4.4 или раньше: один раз скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх старой версии в ту же папку.
+
+—
+
+AstraForge 0.4.9 — free updates install themselves
+
+• Free versions no longer wait for a button. When a free update comes out, the studio downloads it in the background and installs it on the next start, just like for subscribers. Projects, models and settings are kept.
+• The switch is in About → Updates: "Install free updates automatically". Turn it off and the update installs with the "Update for free" button, as before.
+• Subscriber-only versions still install themselves only with a subscription.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.5–0.4.8 without a subscription: one last time press "Free update — install" at the bottom of the studio window, then "Update for free" and "Restart and update". Later free versions will install themselves. On 0.4.4 or older: download the installer once at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder.

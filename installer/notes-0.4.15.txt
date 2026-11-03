@@ -1,0 +1,19 @@
+AstraForge 0.4.15 — проверка подписи Ollama и защищённая загрузка PixaFlux
+
+• Установщик Ollama (локальный ИИ-помощник) теперь запускается, только если он подписан цифровой подписью Ollama Inc. Подменённый или повреждённый файл не запускается и удаляется; остальная установка идёт как обычно.
+• PixaFlux (вкладка «VFX») скачивается по защищённому соединению https, а не по http, и сверяется по контрольной сумме — вместе с дополнением для Blender и примерами. Студия запускает установщик PixaFlux, только если файл совпал с суммой; уже скачанный файл с другой суммой установщик скачает заново.
+• Установка и работа студии не меняются: всё, что ставилось раньше, ставится так же.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.9–0.4.14 и студия работает: версия встанет сама при следующем запуске. У кого 0.4.5–0.4.8 без подписки: нажмите внизу окна «Бесплатное обновление — установить», затем «Обновить бесплатно» и «Перезапустить и обновить».
+
+—
+
+AstraForge 0.4.15 — Ollama signature check and secure PixaFlux download
+
+• The Ollama installer (local AI assistant) now runs only if it carries the Ollama Inc. digital signature. A tampered or damaged file is not run and is deleted; the rest of the setup continues as usual.
+• PixaFlux (VFX tab) is downloaded over a secure https connection instead of http and verified against a checksum, together with the Blender add-on and the samples. The studio runs the PixaFlux installer only if the file matches the checksum; an already downloaded file with a different checksum is downloaded again.
+• Installation and the studio work as before: everything that was installed before installs the same way.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.9–0.4.14 with a working studio: this version installs itself on the next start. On 0.4.5–0.4.8 without a subscription: press "Free update — install" at the bottom of the window, then "Update for free" and "Restart and update".

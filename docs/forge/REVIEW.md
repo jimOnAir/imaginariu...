@@ -1,115 +1,110 @@
-# Review — viewing and deciding on characters (2026-10-11)
+# Приёмка — просмотр и решения по персонажам (11.10.2026)
 
-The **"Review"** tab in the "Forge" panel (next to "Wizard", "Jobs", "Batch"). It shows all
-characters of a batch next to their concepts, lets you approve each one or send it back for rework,
-and saves the decisions where scripts read them. Routes: `docs/forge/API.md`, "Review" section.
+Вкладка **«Приёмка»** в панели «Кузница» (рядом с «Мастер», «Задачи», «Пакет»). Она показывает всех
+персонажей пакета рядом с их концептами, даёт одобрить каждого или вернуть на доработку и
+сохраняет решения там, где их читают скрипты. Маршруты — `docs/forge/API.md`, раздел «Приёмка».
 
-## How to open
+## Как открыть
 
-1. The studio must be running (`Start.cmd` or `scripts/Start.ps1`), address `http://127.0.0.1:3210`.
-2. Left column → **"Forge"** tab → the **"Review"** tab at the bottom of the section row.
-3. While the tab is open, the left column widens (up to 46% of the window width) so the cards fit
-   into a grid. Other sections and studio tabs return to the previous width.
-4. If the tab says "The studio server does not know the review route yet", the studio was started
-   before the update: restart it (`Stop.cmd`, then `Start.cmd`).
+1. Студия должна работать (`Start.cmd` или `scripts/Start.ps1`), адрес `http://127.0.0.1:3210`.
+2. Левая колонка → вкладка **«Кузница»** → внизу строки разделов вкладка **«Приёмка»**.
+3. Пока вкладка открыта, левая колонка расширяется (до 46% ширины окна), чтобы карточки встали
+   в сетку. Остальные разделы и вкладки студии возвращают прежнюю ширину.
+4. Если вкладка пишет «Сервер студии ещё не знает маршрут приёмки» — студия запущена до обновления:
+   перезапустите её (`Stop.cmd`, затем `Start.cmd`).
 
-Where the list comes from: the batch state file `C:\AstraForge\incoming\build\build.state.json`
-(written by the batch builder; the path is changed with the `ASTRA_FORGE_REVIEW_STATE` variable).
-It supplies the **batch composition**, role, faction and concept. Everything else — status, previews,
-mesh-tear numbers, the final model — is read from the asset passports
-(`<library>/assets/<id>/asset.json`) on every list refresh, so re-running a step (rework) is visible
-immediately even if the state file is stale. If there is no state file and no batch is named, all
-humanoids and creatures of the library that were built from generations are shown. Concept notes
-(`notes`) come from `roles.json` in the concepts folder (`ASTRA_FORGE_REVIEW_ROLES`).
+Откуда берётся список: файл состояния пакета `C:\AstraForge\incoming\build\build.state.json`
+(его пишет сборщик пакета; путь меняется переменной `ASTRA_FORGE_REVIEW_STATE`). Из него берутся
+**состав пакета**, роль, фракция и концепт. Всё остальное — статус, превью, цифры разрыва сетки,
+итоговая модель — читается из паспортов ассетов (`<библиотека>/assets/<id>/asset.json`) при каждом
+обновлении списка, поэтому перезапуск шага (доработка) виден сразу, даже если файл состояния устарел.
+Если файла состояния нет и пакет не назван, показываются все гуманоиды и существа библиотеки,
+собранные из генераций. Заметки к концептам (`notes`) берутся из `roles.json` папки концептов
+(`ASTRA_FORGE_REVIEW_ROLES`).
 
-## How to look
+## Как смотреть
 
-At the top: four counters — **approved / rework / reject / not reviewed** (they also work as
-filters: click a counter, click again to clear the filter) and a "reviewed out of all" bar.
-Below are the filters:
+Сверху: четыре счётчика — **одобрено / на доработку / брак / не просмотрено** (по ним же можно
+отфильтровать: нажмите счётчик, повторное нажатие снимает фильтр) и полоса «просмотрено из всех».
+Ниже фильтры:
 
-| Filter | What it shows |
+| Фильтр | Что показывает |
 |---|---|
-| All | the whole batch, including skipped characters |
-| Built | the pipeline ran to the end (including "Tearing") |
-| Tearing | built, but the animation check found mesh tears |
-| Failed | the build stopped at one of the steps |
-| faction, role, search | by faction ("Order", "Undead"), role, and a substring of the name, unit or comment |
+| Все | весь пакет, включая пропущенных |
+| Собраны | конвейер прошёл до конца (в том числе «Рвётся») |
+| Рвётся | собраны, но проверка анимаций нашла разрыв сетки |
+| С ошибкой | сборка остановилась на одном из шагов |
+| фракция, роль, поиск | по фракции («Орден», «Нежить»), роли и подстроке в имени, юните или комментарии |
 
-Build filters and decision filters (the counters) combine: for example "Failed" and "not reviewed".
-The selected filters are remembered in the browser.
+Фильтры сборки и решения (счётчики) складываются: например «С ошибкой» и «не просмотрено».
+Выбранные фильтры запоминаются в браузере.
 
-### Card
+### Карточка
 
-- On the left is the concept (cropped around where the character stands); on the right is a strip of
-  previews: **paint** (`compare.png` of the `paint_from_concept` step: the concept and a view of the
-  model side by side), **motion** (`preview.png` of the `motion_style` step) and **sprites**
-  (`preview.png` of the `render_sprites` step). If the skeleton was not built, the motion and sprites
-  are replaced by the detected joint points (`markers.png`) and a deformation test.
-  An empty dashed frame means there is no image.
-- Name, role, faction, version, a **colored state label** and an explanatory text.
-- For characters with measured animations — a "Mesh tear: N%" line (worst clip, tolerance) and a table
-  of all clips (expandable): the share of tearing surface, cloth or cloak, the number of frames over
-  tolerance.
-- **"Show in scene"** loads the final model (the last GLB of the chain, not the Godot package) into the
-  viewer. If there is no skeleton, this is the model after "Paint from concept".
-- **"Open large"** (or Enter) — a window: the concept and paint large, the motion below, the sprites on
-  the right; arrows switch between characters, Esc closes; the same decision buttons are in the window.
+- Слева концепт (обрезан по центру, где стоит персонаж), справа полоса превью: **покраска**
+  (`compare.png` шага `paint_from_concept`: концепт и вид модели рядом), **движение** (`preview.png`
+  шага `motion_style`) и **спрайты** (`preview.png` шага `render_sprites`). Если скелет не построился,
+  вместо движения и спрайтов — найденные точки суставов (`markers.png`) и тест деформации.
+  Пустая рамка с пунктиром — изображения нет.
+- Название, роль, фракция, версия, **цветная метка состояния** и поясняющий текст по-русски.
+- Для персонажей с замером анимаций — строка «Разрыв сетки: N%» (худший клип, допуск) и таблица по всем
+  клипам (раскрывается): доля рвущейся поверхности, одежда или плащ, число кадров сверх допуска.
+- **«Показать в сцене»** загружает итоговую модель (последний GLB цепочки без пакета Godot) в окно просмотра.
+  Если скелета нет, это модель после «Покраски по концепту».
+- **«Открыть крупно»** (или Enter) — окно: концепт и покраска крупно, ниже движение, справа спрайты;
+  стрелки переключают персонажей, Esc закрывает; в окне те же кнопки решения.
 
-### What the state label means
+### Что значит метка состояния
 
-| Label | Status | What happened |
+| Метка | Статус | Что произошло |
 |---|---|---|
-| Built | `built` | all steps passed, mesh tear within tolerance |
-| Mesh tearing | `failed_qa` | built completely (sprites exist), but the animation measurement found mesh tears over tolerance; can be approved |
-| Stopped: <step> | `failed_forge` | the first failed step and the reason (e.g. "Skeleton not built: the model does not look like a human…", "Sprites failed the checks…", "The step exceeded the time limit"). Cannot be approved |
-| Incomplete | `incomplete` | no errors, but the pipeline did not reach sprites |
-| Building | `running` | a job is running on the asset |
-| Not built | `new` | the passport has no steps |
-| Skipped | `skipped` | the batch builder did not take the character (role `skip`, for example a ghost) |
-| No passport / No asset | `missing` | the passport was moved to the trash or was not created |
+| Собран | `built` | все шаги прошли, разрыв сетки в допуске |
+| Рвётся сетка | `failed_qa` | собран целиком (есть спрайты), но замер анимаций нашёл разрыв сетки сверх допуска; можно одобрить |
+| Остановлен: <шаг> | `failed_forge` | первый упавший шаг и причина по-русски («Скелет не построен: модель не похожа на человека…», «Спрайты не прошли проверки…», «Шаг превысил лимит времени»). Одобрить нельзя |
+| Не достроен | `incomplete` | ошибок нет, но конвейер не дошёл до спрайтов |
+| Идёт сборка | `running` | по ассету идёт задача |
+| Не собирался | `new` | в паспорте нет шагов |
+| Пропущен | `skipped` | сборщик пакета не брал персонажа (роль `skip`, например призрак) |
+| Нет паспорта / Нет ассета | `missing` | паспорт перенесён в корзину или не создан |
 
-Skipped characters and those without a passport are shown, but no decisions can be set for them and
-they are not counted in the counters.
+Пропущенные и без паспорта показаны, но решения для них не ставятся и в счётчиках не считаются.
 
-## How to decide
+## Как принимать
 
-Buttons on the card (and in the large window):
+Кнопки в карточке (и в крупном окне):
 
-- **Approve** (green, key **A**) — unavailable for characters whose build stopped.
-- **Rework** (amber, key **R**) — opens a "What is wrong?" field: ready-made reasons
-  "cloth/cloak tears", "weapon not in hand", "does not match concept", "bad animation", "no skeleton"
-  (click toggles each on and off) and a free-text line; `Ctrl+Enter` submits, `Esc` closes.
-  Reasons are joined with ";". An empty comment is allowed.
-- **Reject** (red) — the character is not usable at all.
-- The "reset" icon returns the character to "not reviewed".
-- **Game unit** — an optional field: which unit of your game the character goes to (for example
-  `paladin`). It is pre-filled with a suggestion from the name (the words up to the first verb or
-  preposition, up to three words, "#2" → `_2`: "Forest archer holding longbow #2" → `forest_archer_2`).
-  Change or clear it before deciding; for an already decided character the edit is saved when you
-  leave the field.
+- **Одобрить** (зелёная, клавиша **A**) — недоступна для персонажей, у которых сборка остановилась.
+- **На доработку** (янтарная, клавиша **R**) — открывает поле «Что не так?»: готовые причины
+  «рвётся одежда/плащ», «оружие не в руке», «не похож на концепт», «плохая анимация», «нет скелета»
+  (нажатие включает и выключает) и своя строка; `Ctrl+Enter` отправляет, `Esc` закрывает.
+  Причины склеиваются через «;». Пустой комментарий допустим.
+- **Брак** (красная) — персонаж не годится совсем.
+- Значок «сбросить» возвращает персонажа в «не просмотрено».
+- **Юнит игры** — необязательное поле: в какой юнит «Врат Героев» пойдёт персонаж (например
+  `paladin`). Оно сразу заполнено подсказкой из названия (слова до первого глагола или предлога,
+  до трёх слов, «#2» → `_2`: «Necromancer archer holding bone bow #2» → `necromancer_archer_2`).
+  Измените или очистите до решения; у уже решённого персонажа правка сохраняется при выходе из поля.
 
-Keyboard (works while the tab is open and the cursor is not in an input field): **arrows** — choose a
-card (up and down move by a row), **A** — approve the selected one, **R** — rework, **Enter** — open
-large, **Esc** — close the window. After a decision the selection moves to the next card on its own.
-While "Review" is open, the R and arrow keys belong to it rather than to the studio viewer (where R is
-zoom).
+Клавиатура (работает, пока вкладка открыта и курсор не в поле ввода): **стрелки** — выбор карточки
+(вверх и вниз — на ряд), **A** — одобрить выбранную, **R** — на доработку, **Enter** — открыть крупно,
+**Esc** — закрыть окно. После решения выбор сам переходит к следующей карточке. Пока открыта
+«Приёмка», клавиши R и стрелок принадлежат ей, а не окну просмотра студии (там R — масштаб).
 
-## Where decisions go
+## Куда уходят решения
 
-1. **Into the asset passport — immediately, on every click.** `PATCH /api/forge/assets/:id`:
+1. **В паспорт ассета — сразу, при каждом нажатии.** `PATCH /api/forge/assets/:id`:
 
    ```json
    { "qa": { "reviewed": true, "decision": "approved", "comment": "", "game_unit": "paladin" } }
    ```
 
-   In `asset.json` the `qa` block receives `reviewed`, `reviewedAt`, `decision`
-   (`approved` | `rework` | `rejected`), `comment`, `game_unit` and `at` (the time is set by the server).
-   Reset: `{"qa":{"reviewed":false,"decision":null}}` — the decision fields are removed. The other `qa`
-   data (`checks`, `notes`) is not touched.
-2. **Into a file — with the "Save decisions to file" button** (`POST /api/forge/review/export`).
-   The file `C:\AstraForge\incoming\build\review_decisions.json` (next to the state file; the path is
-   changed with the `ASTRA_FORGE_REVIEW_DECISIONS` variable) is a JSON list of decided characters only:
+   В `asset.json` в блок `qa` ложатся `reviewed`, `reviewedAt`, `decision`
+   (`approved` | `rework` | `rejected`), `comment`, `game_unit` и `at` (время ставит сервер).
+   Сброс: `{"qa":{"reviewed":false,"decision":null}}` — поля решения удаляются. Остальные данные
+   `qa` (`checks`, `notes`) не трогаются.
+2. **В файл — по кнопке «Сохранить решения в файл»** (`POST /api/forge/review/export`).
+   Файл `C:\AstraForge\incoming\build\review_decisions.json` (рядом с файлом состояния; путь
+   меняется переменной `ASTRA_FORGE_REVIEW_DECISIONS`) — JSON-список только решённых персонажей:
 
    ```json
    [
@@ -117,45 +112,45 @@ zoom).
        "assetId": "2e7b691e-dcb8-41fe-8d90-decada973c53",
        "name": "Acolyte holding staff and book",
        "decision": "rework",
-       "comment": "cloth/cloak tears; weapon not in hand",
+       "comment": "рвётся одежда/плащ; оружие не в руке",
        "game_unit": "acolyte",
-       "file": "Acolyte_holding_staff_and_book.jpg",
+       "file": "Acolyte_holding_staff_and_book_20261010233748.jpg",
        "role": "caster", "faction": "order",
        "status": "failed_qa", "failedStep": null,
-       "reason": "Built completely, but the mesh tears: …",
+       "reason": "Собран целиком, но сетка рвётся: …",
        "at": "2026-10-11T16:11:13.743Z"
      }
    ]
    ```
 
-   The first five fields are required for the following steps (a rework agent, game integration); the
-   rest are for reference. The file is written whole and atomically on every button click, so before a
-   script reads it, click the button again if decisions were made since the last save.
+   Первые пять полей обязательны для следующих шагов (агент доработки, интеграция во «Врата Героев»);
+   остальные — справка. Файл пишется целиком и атомарно при каждом нажатии кнопки, поэтому перед
+   чтением скриптом нажмите её ещё раз, если после прошлого сохранения были решения.
 
-A script that does not want the file can simply read the passports: `qa.decision === 'approved'` and
-`qa.game_unit`. The batch list with statuses and file links is `GET /api/forge/review`.
+Скрипту, который не хочет файла, достаточно прочитать паспорта: `qa.decision === 'approved'` и
+`qa.game_unit`. Список пакета со статусами и ссылками на файлы — `GET /api/forge/review`.
 
-## Configuration
+## Настройка
 
-| Variable | Default | What |
+| Переменная | По умолчанию | Что |
 |---|---|---|
-| `ASTRA_FORGE_REVIEW_STATE` | `C:\AstraForge\incoming\build\build.state.json` | batch state file |
-| `ASTRA_FORGE_REVIEW_DECISIONS` | `review_decisions.json` next to the state file | where "Save decisions" writes |
-| `ASTRA_FORGE_REVIEW_ROLES` | `roles.json` in the concepts folder | concept notes |
+| `ASTRA_FORGE_REVIEW_STATE` | `C:\AstraForge\incoming\build\build.state.json` | файл состояния пакета |
+| `ASTRA_FORGE_REVIEW_DECISIONS` | `review_decisions.json` рядом с файлом состояния | куда пишет «Сохранить решения» |
+| `ASTRA_FORGE_REVIEW_ROLES` | `C:\AstraForge\incoming\hg_concepts_2026-10-11\roles.json` | заметки к концептам |
 
-Another batch: `GET /api/forge/review?batch=pilot2` reads `<incoming folder>/pilot2/pilot2.state.json`
-(the name is Latin letters, digits, `_`, `-`).
+Другой пакет: `GET /api/forge/review?batch=pilot2` читает `<папка incoming>/pilot2/pilot2.state.json`
+(имя — латиница, цифры, `_`, `-`).
 
-## Limitations
+## Ограничения
 
-- The list is refreshed when the tab is opened and with the "refresh" button; it does not poll the
-  server by itself. If a rework is running in parallel, click "refresh" after it ends.
-- Preview size is the original (500–600 KB per image, files are served without cache); lazy loading
-  fetches only the visible cards.
-- The state file must be readable: if the batch builder is rewriting it at that moment, the list
-  answers "The batch state file cannot be read" — retry in a second.
-- The "Approve" decision does not export anything into a game by itself: a separate step does that,
-  working from `review_decisions.json` or from the passports.
-- Browser verification: `tests/forge-review.test.mjs` covers the server and the pure view functions;
-  the interface itself was checked by hand in a live studio (cards, filters, keys, the large window,
-  the "decision → passport → file → reset" loop).
+- Список обновляется при открытии вкладки и кнопкой «обновить»; сам по себе он не опрашивает сервер.
+  Если параллельно идёт доработка, нажмите «обновить» после её конца.
+- Размер превью — исходный (500–600 КБ на картинку, файлы отдаются без кеша), ленивая загрузка
+  подтягивает только видимые карточки.
+- Файл состояния должен быть читаем: если сборщик пакета переписывает его в этот момент, список
+  ответит «Файл состояния пакета не читается» — повторите через секунду.
+- Решение «Одобрить» само ничего не экспортирует во «Врата Героев»: это делает отдельный шаг по
+  `review_decisions.json` или по паспортам.
+- Проверка в браузере: `tests/forge-review.test.mjs` покрывает сервер и чистые функции вида; сам
+  интерфейс проверен вручную в живой студии (карточки, фильтры, клавиши, крупное окно, круг
+  «решение → паспорт → файл → сброс»).

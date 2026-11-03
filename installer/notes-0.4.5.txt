@@ -1,0 +1,23 @@
+AstraForge 0.4.5 — бесплатное обновление для всех: обновление в один клик и студия, которая учится на общем опыте
+
+• Обновиться теперь может каждый. Когда выходит бесплатная версия, студия пишет «Бесплатное обновление — установить» и ставит её по кнопке «Обновить бесплатно». Подписчики, как и раньше, получают каждое обновление сами, в день выхода, и могут использовать студию в коммерческих целях.
+• Обновление целиком. Файлы, которых в новой версии больше нет, убираются (их копия остаётся в резервной папке). Если в новой версии появились модели или узлы, в «О программе» появится кнопка «Докачать компоненты».
+• Отчёты об ошибках. Если не встало обновление, сбоила установка или упала студия, разработчик получает журнал ошибки, версию, Windows и видеокарту. Так ошибки исправляются быстрее.
+• Общее самообучение. Журнал Кузницы и генераций (шаги, параметры, время, проверки, ваши оценки и теги брака) помогает улучшать рецепты и будущие модели AstraForge на опыте всех пользователей.
+• Без личного: картинки, модели и проекты не отправляются, имя пользователя, почта и ключи вырезаются. Выключить можно галочкой в установщике или в «О программе → Отчёты и обучение». Подробно — PRIVACY.md и вкладка «Лицензии».
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.4 или раньше без подписки: один раз скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх старой версии в ту же папку — проекты, модели и настройки сохранятся. Дальше обновления будут по кнопке.
+
+—
+
+AstraForge 0.4.5 — a free update for everyone: one-click updates and a studio that learns from shared experience
+
+• Everyone can update now. When a free version comes out, the studio shows "Free update — install" and installs it with the "Update for free" button. Subscribers still get every update automatically on release day and may use the studio commercially.
+• Whole-program updates. Files that no longer exist in the new version are removed (a copy stays in the backup folder). If a new version adds models or nodes, "About" shows a "Download components" button.
+• Error reports. When an update or setup fails or the studio crashes, the developer gets the error log, version, Windows and GPU, so errors get fixed faster.
+• Shared self-learning. The Forge and generation journal (steps, parameters, timing, checks, your ratings and defect tags) helps improve recipes and future AstraForge models from everyone's experience.
+• Nothing personal: images, models and projects are not sent; user names, emails and keys are removed. Turn it off with the installer checkbox or in "About → Reports and learning". Details: PRIVACY.md and the "Licenses" tab.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.4 or older without a subscription: download the installer once at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder; projects, models and settings are kept. After that, updates are one click.

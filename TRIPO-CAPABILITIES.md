@@ -1,43 +1,43 @@
-# Tripo and AstraForge 0.3
+# Tripo и AstraForge 0.3
 
-Checked: 9 October 2026. Tripo is a reference for working operations and an additional cloud provider. Its closed generative models are not installed locally. The integration uses the official `@vastai/tripo-sdk` 0.3.0 and API v3.
+Дата сверки: 9 октября 2026. Tripo — ориентир по рабочим операциям и дополнительный облачный провайдер. Его закрытые генеративные модели не установлены локально. Интеграция использует официальный `@vastai/tripo-sdk` 0.3.0 и API v3.
 
-| Capability | Locally in AstraForge | Through the Tripo connection |
+| Возможность | Локально в AstraForge | Через подключение Tripo |
 |---|---|---|
-| Image → 3D | Hunyuan3D 2.0 | H3.1 / H3.0 / P1 / P2 preview |
-| Text → 3D | SDXL → Hunyuan3D | Direct generation |
-| Several views → 3D | Not implemented | 2–4 images, the front one is required |
-| Create / edit views | Not implemented | Image to Multiview / Edit Multiview |
-| Higher detail | 45 steps, 512³ grid | H3 Ultra; result quality needs evaluation |
-| UV | CPU xatlas, skin weights preserved | UV generation / packing |
-| Materials / textures | Procedural PBR, map loading, brush, reference projection | AI Texture / PBR |
-| Semantic parts | Objects of an imported composite model | Segmentation, Generate Parts, Completion |
-| Retopology / mesh budget | No local remesher | Smart Low Poly, Quad, Face Limit |
-| Bones and weights | Manual skeleton, templates, binding, weight brush | Rig Check, Auto Rig |
-| Motions | Bone keys, Idle/Walk/Run drafts, imported clips | Retarget; up to five selected actions per task |
-| Geometry stylization | Not implemented | Voxel / Lego / Voronoi / Minecraft |
-| Animation baking | All clips into GLB at a given FPS | Bake Animation |
-| Isometric sprites | 8 directions by default, PNG RGBA, JSON, Godot SpriteFrames | The GLB result can be processed locally |
-| Effects | Sparks, engine, energy; included in sprites / video | Custom VFX remain local |
-| Export | GLB, OBJ, PNG, WebM, JSON, ZIP | GLB, GLTF, FBX, OBJ, STL, USDZ, 3MF |
-| Batch processing | Local queue of up to four jobs | Separate cloud tasks and history; batch import of concepts is not yet available |
+| Изображение → 3D | Hunyuan3D 2.0 | H3.1 / H3.0 / P1 / P2 preview |
+| Текст → 3D | SDXL → Hunyuan3D | Прямая генерация |
+| Несколько ракурсов → 3D | Не реализовано | 2–4 изображения, передний обязателен |
+| Создание / правка ракурсов | Не реализовано | Image to Multiview / Edit Multiview |
+| Повышенная детализация | 45 шагов, сетка 512³ | H3 Ultra; качество результата требует оценки |
+| UV | CPU xatlas, сохранение skin weights | Генерация / упаковка UV |
+| Материалы / текстуры | Процедурные PBR, загрузка карт, кисть, проекция референса | AI Texture / PBR |
+| Семантические части | Объекты импортированной составной модели | Segmentation, Generate Parts, Completion |
+| Ретопология / бюджет сетки | Нет локального ремешера | Smart Low Poly, Quad, Face Limit |
+| Кости и веса | Ручной скелет, шаблоны, привязка, кисть весов | Rig Check, Auto Rig |
+| Движения | Ключи костей, Idle/Walk/Run-черновики, импортированные клипы | Retarget; до пяти выбранных действий за задачу |
+| Стилизация геометрии | Не реализовано | Voxel / Lego / Voronoi / Minecraft |
+| Запекание анимаций | Все клипы в GLB с заданным FPS | Bake Animation |
+| Изометрические спрайты | 8 направлений по умолчанию, PNG RGBA, JSON, Godot SpriteFrames | Результат GLB можно обработать локально |
+| Эффекты | Искры, двигатель, энергия; входят в спрайты / видео | Собственные VFX остаются локальными |
+| Экспорт | GLB, OBJ, PNG, WebM, JSON, ZIP | GLB, GLTF, FBX, OBJ, STL, USDZ, 3MF |
+| Пакетная обработка | Локальная очередь до четырёх заданий | Отдельные облачные задачи и история; batch-импорт концептов пока отсутствует |
 
-The list of API operations and the current model generations were checked against the [official SDK](https://github.com/VAST-AI-Research/tripo-js-sdk). [Importing external models](https://developers.tripo3d.ai/en/docs/models-import) allows a local GLB to be processed further in Tripo. In the interface the upload stays local until you click "Run in Tripo · paid".
+Список API-операций и актуальные поколения моделей сверены с [официальным SDK](https://github.com/VAST-AI-Research/tripo-js-sdk). [Импорт внешних моделей](https://developers.tripo3d.ai/en/docs/models-import) позволяет продолжить обработку локального GLB в Tripo. В интерфейсе загрузка остаётся локальной до нажатия «Запустить в Tripo · платно».
 
-## How to connect
+## Как подключить
 
-1. Open the **Tripo** tab and add an API key from your [API account](https://platform.tripo3d.ai). It is encrypted with Windows DPAPI; `TRIPO_API_KEY` on the server is also supported.
-2. Select an operation, an image / views or a source successful task. For a local model use "Local model → Tripo".
-3. Run the paid task. This is an explicit sending of data to the cloud. "Balance" can request the remaining credits.
-4. The history shows state, progress, credit usage and results. GLB is loaded into the scene; other formats are downloaded as a file.
-5. Fix materials, weights and clips locally; export GLB or sprites for Godot.
+1. Откройте вкладку **Tripo** и добавьте API-ключ из [API-аккаунта](https://platform.tripo3d.ai). Он шифруется Windows DPAPI; также поддерживается `TRIPO_API_KEY` на сервере.
+2. Выберите операцию, изображение / ракурсы или исходную успешную задачу. Для локальной модели используйте «Локальная модель → Tripo».
+3. Запустите платную задачу. Это явная отправка данных в облако. Через «Баланс» можно запросить остаток кредитов.
+4. В истории видны состояние, прогресс, расход кредитов и результаты. GLB загружается в сцену; другие форматы скачиваются файлом.
+5. Локально исправьте материалы, веса, клипы; экспортируйте GLB или спрайты для Godot.
 
-Production sequence: generation / import → split / completion → Low Poly → textures → rig check → auto rig → motions → local editing → baking / Godot. According to the [Tripo documentation](https://docs.tripo3d.ai/animation/rig-v2-5-20260210.html), remesh, segmentation and part completion remove the original skeleton data, so they must be done before rigging.
+Производственная последовательность: генерация / импорт → разделение / дополнение → Low Poly → текстуры → проверка рига → авториг → движения → локальное редактирование → запекание / Godot. По [документации Tripo](https://docs.tripo3d.ai/animation/rig-v2-5-20260210.html) ремеш, сегментация и дополнение частей удаляют исходные скелетные данные, поэтому их нужно выполнять перед ригом.
 
-Quad generation produces FBX; this format is downloaded but cannot be imported directly into our viewer. For local viewing use GLB. External GLTF resources are blocked; Meshopt decoding of an embedded GLB is supported.
+Quad-генерация выдаёт FBX; этот формат скачивается, но не импортируется непосредственно в наш просмотрщик. Для локального просмотра используйте GLB. Внешние ресурсы GLTF заблокированы; поддерживается Meshopt-декодирование встроенного GLB.
 
-## Verification and limitations
+## Проверка и ограничения
 
-Verified: the local interface and server, strict parameter validation, the front/left/back/right order, prefixed task IDs of API v3, several motions, rejection of unsafe result URLs, and no retry of an uncertain paid submission. The build and automated checks pass. Live Tripo generations were not run: no API key was provided. Therefore the quality and compatibility of real cloud results are not yet confirmed.
+Проверены локальный интерфейс и сервер, строгая проверка параметров, порядок front/left/back/right, prefixed task IDs API v3, несколько движений, запрет небезопасных адресов результатов и отсутствие повтора неопределённой платной отправки. Сборка и автоматические проверки проходят. Живые генерации Tripo не проводились: API-ключ не предоставлен. Поэтому качество и совместимость реальных облачных результатов пока не подтверждены.
 
-A full local reproduction of Tripo Studio has not been achieved: there are no custom AI textures for all sides, no semantic neural segmentation, no trained auto-rig, no AI retopology, no batch import of concepts, no sculpt and no IK. Local analogues and API calls are marked separately so that a procedural or manual operation is not passed off as a neural one.
+Полное воспроизведение Tripo Studio локально не достигнуто: отсутствуют собственные AI-текстуры всех сторон, семантическая нейросетевая сегментация, обученный авториг, AI-ретопология, batch-импорт концептов, sculpt и IK. Локальные аналоги и API-вызовы обозначены отдельно, чтобы процедурная или ручная операция не выдавалась за нейросетевую.

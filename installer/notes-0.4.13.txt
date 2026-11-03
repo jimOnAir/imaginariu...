@@ -1,0 +1,25 @@
+AstraForge 0.4.13 — PyTorch, Blender и анимации ставятся там, где раньше падали; обновление докачивается
+
+• «PyTorch — ошибка (код 2)», а следом не ставились ComfyUI и MV-Adapter: исправлено. PyTorch для видеокарты весит около 3 ГБ, и на медленной или нестабильной связи установщик раньше сдавался через полминуты ожидания. Теперь он ждёт дольше, повторяет загрузку и при сбое сети пробует шаг ещё два раза. Если не вышло и так, в окне и в отчёте видна настоящая причина.
+• Blender не скачивался («код 22», сайт ответил 403): исправлено. Сайт Blender не пускает часть сетей — теперь установщик берёт тот же файл с официальных зеркал Blender и сверяет его контрольную сумму.
+• Анимации (clips) не скачивались с ошибкой «код 33»: исправлено. Сайт библиотеки анимаций не умеет продолжать загрузку с места обрыва — теперь файл в таком случае качается заново.
+• Если обновление из студии оборвалось посреди загрузки, оно докачивается с того же места, а не начинается сначала.
+
+Если у вас установка закончилась ошибками: скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх в ту же папку. Уже скачанное заново не качается, проекты и настройки сохранятся.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.9–0.4.12 и студия работает: версия встанет сама при следующем запуске. У кого 0.4.5–0.4.8 без подписки: нажмите внизу окна «Бесплатное обновление — установить», затем «Обновить бесплатно» и «Перезапустить и обновить».
+
+—
+
+AstraForge 0.4.13 — PyTorch, Blender and animations install where they used to fail; updates resume
+
+• "PyTorch — error (code 2)", after which ComfyUI and MV-Adapter were not installed: fixed. PyTorch for NVIDIA cards is about 3 GB, and on a slow or unstable connection the installer used to give up after half a minute of waiting. It now waits longer, retries the download and, if the network fails, tries the step two more times. If that still fails, the window and the report show the real reason.
+• Blender failed to download ("code 22", the site answered 403): fixed. The Blender site blocks some networks — the installer now takes the same file from the official Blender mirrors and verifies its checksum.
+• Animations (clips) failed with "code 33": fixed. The animation library site cannot resume a download from where it broke off — in that case the file is now downloaded again from the start.
+• If an update from the studio is cut off mid-download, it resumes from the same place instead of starting over.
+
+If your setup ended with errors: download the installer at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder. Anything already downloaded is not downloaded again; projects and settings are kept.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.9–0.4.12 with a working studio: this version installs itself on the next start. On 0.4.5–0.4.8 without a subscription: press "Free update — install" at the bottom of the window, then "Update for free" and "Restart and update".

@@ -1,182 +1,188 @@
-# The extract_props module — weapons, shields and banners separated from the body (2026-10-12)
+# Модуль extract_props — оружие, щиты и знамёна отдельно от тела (12.10.2026)
 
-A Hunyuan generation from a concept such as "a knight with a sword and shield" is **one fused mesh**: the sword, shield, banner, bow, staff
-and book are melded into the hand, forearm and cloak. Skinning such a mesh bends the sword together with the arm, crumples the shield on the
-forearm, cuts the blade with the body and stretches the plate armour like rubber. The `extract_props` step
-cuts each item out of the body and turns it into an item per the contract (§6): the body is rigged separately, and the items
-return to the hands rigidly — exactly where they were in the concept.
+Генерация Hunyuan по концепту «рыцарь с мечом и щитом» — **одна сросшаяся сетка**: меч, щит, знамя, лук, посох
+и книга вплавлены в кисть, предплечье и плащ. Скиннинг такой сетки гнёт меч вместе с рукой, мнёт щит на
+предплечье, режет телом клинок и тянет латы как резину (`img/paint/knight3_sprites.png`). Шаг `extract_props`
+вырезает каждый предмет из тела и делает его предметом по контракту (§6): тело ригуется отдельно, предметы
+возвращаются в руки жёстко — точно туда, где они были на концепте.
 
-Files: `scripts/blender/steps/extract_props.py` (the step), `steps/_props_lib.py` (search, cut, frame, check,
-kit replacement, in-clip check), `scripts/blender/tests/test_extract_props.py`, registration —
-`server/forge-steps.mjs`, the `attach_prop` input — `server/forge-pipeline.mjs` (`state.extracted`). Related changes:
-`rig_humanoid` (item sockets, grip by them, rigid plate armour — humanoid.md), `attach_prop` (`extracted`, `skin_separate` — items.md).
+Файлы: `scripts/blender/steps/extract_props.py` (шаг), `steps/_props_lib.py` (поиск, разрез, рамка, проверка,
+замена набором, проверка в клипах), `scripts/blender/tests/test_extract_props.py`, регистрация —
+`server/forge-steps.mjs`, вход `attach_prop` — `server/forge-pipeline.mjs` (`state.extracted`), пакет —
+`scripts/forge-concepts.mjs`. Связанные изменения: `rig_humanoid` (сокеты предметов, хват по ним, жёсткие латы —
+humanoid.md), `attach_prop` (`extracted`, `skin_separate` — items.md).
 
-## Place in the pipeline
+## Место в конвейере
 
 ```
-cleanup → paint_from_concept → extract_props → rig_humanoid (body, hard_surface auto) → retarget
-        → attach_prop (extracted) → motion_style → render_sprites → godot_package
+cleanup → paint_from_concept → extract_props → rig_humanoid (тело, hard_surface auto) → retarget
+        → attach_prop (extracted) → motion_style → render_sprites (heroes_gates) → godot_package
 ```
 
-`attach_prop` comes **after** `retarget`: items ride the hand bones rigidly in any order, but the shield needs the real clip frames
-for its socket (see "Back into the hands"). The order "rig → attach → retarget" also works
-(the shield is then at its concept position, `extracted_shield_fit: placement`).
+`attach_prop` стоит **после** `retarget`: предметы едут на костях кистей жёстко при любом порядке, но щиту для
+сокета нужны настоящие кадры клипов (см. «Обратно в руки»). Порядок «rig → attach → retarget» тоже работает
+(щит тогда — на месте концепта, `extracted_shield_fit: placement`).
 
-Input — `painted.blend` from painting (slots `blend`, `mesh`). Outputs: `body.glb/.blend` (the body without items + place sockets
-`socket_prop_<hand>_<n>`), `props.json`, `items/<id>/item.glb|.blend|.json|preview.png`, `exploded.png`,
-`detect.png`, `grips.png`. The chain carries `props.json` onward (`state.extracted`); `attach_prop` with
-`extracted: true` receives it in `inputs.extracted` in the same run; the character for it is the `.blend` of the previous
-step (rig or `retarget`; place sockets live on the hand bones and survive `retarget`).
+Вход — `painted.blend` покраски (слоты `blend`, `mesh`). Выходы: `body.glb/.blend` (тело без предметов + сокеты
+мест `socket_prop_<рука>_<n>`), `props.json`, `items/<id>/item.glb|.blend|.json|preview.png`, `exploded.png`,
+`detect.png`, `grips.png`. Цепочка несёт `props.json` дальше (`state.extracted`), `attach_prop` с
+`extracted: true` получает его в `inputs.extracted` в том же прогоне; персонаж для него — `.blend` предыдущего
+шага (рига или `retarget`; сокеты мест живут на костях кистей и переживают `retarget`).
 
-## How items are found
+## Как находятся предметы
 
-1. **Normalisation as in the rig** (`prepare_body`): facing -Y, height by the top of the head, centred. New is
-   `front_prior: "-Y"`: generations from frontal concepts face the camera, so the detector's answer of "back" (+Y)
-   or an uncertain one (< 0.3) yields to -Y (a confident side answer of +-X stays — an archer standing sideways).
-2. **The rig detector in "find only" mode** (`run_landmarks`): `find_props`, `find_blades`, `find_bows`,
-   `find_plates`, a banner on a pole, `bind_props`, vertices — `prop_vertex_sets`. The rig verdict (`lm.fail`) does not
-   stop the search: on a fused mesh the rig failed precisely because of these items.
-3. **`roles.json` hints** (`params.hints`: `hand_weapon`, `hand` r|l|both, `shield`, `notes`): "banner + staff"
-   → the banner in the main hand, the staff in the other; "two swords" → a sword in each; "... in the left hand" in `notes` is
-   the second item. Hints name the type and enable searches the rig does not do:
-   - **a pole the hand trace did not pick up** (the hand went into the banner cloth): a straight item on the hand side from the
-     hint with a fist on the axis within the shoulder's reach — is held; the pole reaches along its axis through the cloth;
-   - **banner cloth**: slice components on the outer side of the pole, connected in height to a piece touching
-     the pole above the fist (cloth below the hand stays with the banner);
-   - **a shield** the rig's "plate" search did not take (merged with the arm, pole and cloak): a RANSAC plane over the points of the
-     shield side, disc R95 >= 0.11 H, not the chest itself;
-   - **a short weapon with a pommel** (mace, axe 0.17-0.25 H) — including one hanging on the belt: it goes
-     to `Hips`, not to the hand.
-4. **Bow**: a limb pressed against the leg is lost by the rig detector; it is found by mirroring the found limb through the grip and
-   by chains of thin side sections (does not always work — see limitations).
+1. **Нормализация как у рига** (`prepare_body`): лицом в −Y, рост по макушке, центр. Новое —
+   `front_prior: "-Y"`: генерации по фронтальным концептам смотрят в камеру, поэтому ответ детектора «спиной» (+Y)
+   или неуверенный (< 0,3) уступает −Y (боковой ±X с уверенностью остаётся — лучник, стоящий боком). В старом пакете
+   так ошиблись 9 персонажей (крестоносец, Hierophant #2, Magister, Soldier, Warlord, …).
+2. **Детектор рига в режиме «только найти»** (`run_landmarks`): `find_props`, `find_blades`, `find_bows`,
+   `find_plates`, знамя на древке, `bind_props`, вершины — `prop_vertex_sets`. Вердикт рига (`lm.fail`) поиск не
+   останавливает: на сросшейся сетке риг как раз и отказывал из-за этих предметов.
+3. **Подсказки `roles.json`** (`params.hints`: `hand_weapon`, `hand` r|l|both, `shield`, `notes`): «banner + staff»
+   → знамя в главной руке, посох в другой; «two swords» → по мечу в каждой; в `notes` «… in the left hand» —
+   второй предмет. Подсказки называют тип и включают поиски, которых риг не делает:
+   - **древко, которое трассировка руки не взяла** (рука ушла в ткань знамени): прямой предмет на стороне руки из
+     подсказки с кулаком на оси в досягаемости плеча — держится; древко дотягивается вдоль своей оси сквозь ткань;
+   - **ткань знамени**: компоненты срезов с внешней стороны древка, связанные по высоте с куском, касающимся
+     древка выше кулака (ткань ниже кисти остаётся со знаменем);
+   - **щит**, который поиск «тарелок» рига не взял (слит с рукой, древком и плащом): RANSAC-плоскость по точкам
+     стороны щита, диск R95 ≥ 0,11 H, не сама грудь;
+   - **короткое оружие с навершием** (булава, топор 0,17–0,25 H) — в том числе висящее на поясе: оно идёт
+     на `Hips`, а не в кисть.
+4. **Лук**: плечо, прижатое к ноге, детектор рига теряет; оно ищется отражением найденного плеча через хват и
+   цепочками тонких сечений сбоку (работает не всегда — см. ограничения).
 
-## How it is cut
+## Как режется
 
-- **A straight item** (sword, staff, pole) is cut by **planes across the axis at the edges of the fist**. The fist edge is taken from the
-  profile of sections along the axis (slabs of 0.01 H, points within 0.04 H of the axis, spread across the minor axis): the fist is round and
-  wide (~0.045 H each way), the guard is flat, the blade and pole are thin; the edge is no farther than 0.03 H from the fist centre
-  (the wrist and bracer are "wide" too). A guard beyond the edge is collected by the connected 2D component of the section containing the axis.
-  A grip at the end (sword): the blade side is taken, the pommel stays in the body's fist. A grip in the middle of a pole: both sides.
-  **The fist stays with the body.**
-- **Shield**: rig vertex marks + growth along the mesh within the **board surface**: a quadratic surface over the front
-  face (fitted to the "outer" layer, so the arm and forearm behind the board drop out); behind the face — 3 cm at the
-  centre (the grip is there) and up to 0.075 H at the edge (a convex board, a thick rim); never inside the forearm/upper-arm tube.
-- Small body pieces completely enclosed by an item, and islands hanging nearby (the banner finial) go to the item.
-- Both sides of each cut are closed with caps (`holes_fill`), a cap takes the UV and material of the neighbouring edge —
-  **the paint stays on both parts**; the face winding of the cap is made consistent with its neighbour (volume > 0 test).
-- **Handle through the fist** (`bridge`): a cylinder along the axis in place of the cut-out fist, section colours — for a sword from the kit
-  or, with replacement, the item is whole; on the body the fist hides it.
+- **Прямой предмет** (меч, посох, древко) режется **плоскостями поперёк оси у краёв кулака**. Край кулака — по
+  профилю сечений вдоль оси (слэбы 0,01 H, точки в 0,04 H от оси, разброс поперёк по малой оси): кулак круглый и
+  широкий (~0,045 H в обе стороны), гарда плоская, клинок и древко тонкие; край не дальше 0,03 H от центра кулака
+  (запястье и наруч тоже «широкие»). Гарда за краем добирается связной 2D-компонентой сечения, содержащей ось.
+  Хват за конец (меч): берётся сторона клинка, навершие остаётся в кулаке тела. Хват посреди древка: обе стороны.
+  **Кулак остаётся телу.**
+- **Щит**: метки вершин рига + рост по сетке в пределах **поверхности доски**: квадратичная поверхность по лицевой
+  стороне (подгоняется по «внешнему» слою, так что рука и предплечье за доской отпадают); позади лица — 3 см в
+  центре (там хват) и до 0,075 H у края (выпуклая доска, толстый обод); никогда в трубке предплечья/плеча.
+- Мелкие куски тела, целиком окружённые предметом, и висящие рядом острова (навершие знамени) уходят к предмету.
+- Обе стороны каждого разреза закрываются крышками (`holes_fill`), крышка берёт UV и материал соседнего края —
+  **покраска остаётся на обеих частях**; обход граней крышки согласуется с соседом (тест на объём > 0).
+- **Рукоять сквозь кулак** (`bridge`): цилиндр по оси на месте вырезанного кулака, цвета среза — у меча из набора
+  или при замене предмет цельный; на теле её скрывает кулак.
 
-## The item: frame, sockets, place
+## Предмет: рамка, сокеты, место
 
-- Grip frame (§6): `socket_grip_main` at the fist centre on the axis, **+Z** — by the rig rule (`prop_grip_dir`: blade —
-  toward the far end, staff/pole — up), **-Y** — the blade edge (the wide side of the blade) or forward of the character;
-  shield: +Z along the long axis of the board upward, -Y — the face (away from the body), the grip 3.5 cm behind the centre of the back side — the same
-  frame as `socket_mount_shield_*`; bow: +Z up along the grip, -Y toward the back of the bow (string on +Y, as in the kit).
-- `socket_grip_off` — the second hand on the item axis (if the other hand's wrist is near the axis) or the rule for long
-  items (staff/spear/banner > 1.15 m: 0.14 of the length below; two-handed sword: 11 cm below). `socket_fx_tip` — on staves,
-  wands, torches, lanterns at the far end.
-- The item stands at z = 0, centred in X/Y, `af_item_type` in extras (as in `item_kit`).
-- **Place on the body**: an empty `socket_prop_<hand>_<n>` (extras `af_bone`, `af_hand`, `af_item`, `af_item_kind`,
-  `af_grip_mode`) in the world grip frame. `rig_humanoid` keeps the input sockets and makes each a child of `af_bone`;
-  `attach_prop` moves the hand socket onto it (`refit_socket`) or the shield socket, and deletes it.
+- Рамка хвата (§6): `socket_grip_main` в центре кулака на оси, **+Z** — по правилу рига (`prop_grip_dir`: клинок —
+  к дальнему концу, посох/древко — вверх), **−Y** — лезвие (широкая сторона клинка) или вперёд персонажа;
+  щит: +Z по длинной оси доски вверх, −Y — лицо (от тела), хват в 3,5 см за центром тыльной стороны — та же
+  рамка, что у `socket_mount_shield_*`; лук: +Z вверх по рукояти, −Y к спине лука (тетива на +Y, как у набора).
+- `socket_grip_off` — вторая кисть на оси предмета (если запястье другой руки рядом с осью) или правило длинных
+  предметов (посох/копьё/знамя > 1,15 м: 0,14 длины ниже; двуручный меч: 11 см ниже). `socket_fx_tip` — у посохов,
+  жезлов, факелов, фонарей на дальнем конце.
+- Предмет стоит на z = 0, центр по X/Y, `af_item_type` в extras (как у `item_kit`).
+- **Место на теле**: пустышка `socket_prop_<рука>_<n>` (extras `af_bone`, `af_hand`, `af_item`, `af_item_kind`,
+  `af_grip_mode`) в мировой рамке хвата. `rig_humanoid` держит сокеты входа и делает его ребёнком `af_bone`;
+  `attach_prop` переносит на него сокет кисти (`refit_socket`) или сокет щита и удаляет.
 
-## Quality check and kit replacement
+## Проверка качества и замена набором
 
-Gate for every cut item (`gate`): triangles >= 120; open edges <= 2 % (banner — cloth, <= 15 %);
-**not shreds**: the largest piece >= 75 % of the area (for a grip in the middle of a pole and for a bow — the two largest: an item of two
-halves by construction); pieces over 1 % of the area <= 6; size by type (sword 0.4-1.45 m, staff 0.8-3 m, shield
-0.25-1.7 m and thickness < 0.3 of the size, ...), width (sword <= 0.42 m — otherwise the body was grabbed).
+Ворота на каждый вырезанный предмет (`gate`): треугольников ≥ 120; открытых рёбер ≤ 2 % (знамя — ткань, ≤ 15 %);
+**не клочья**: крупнейший кусок ≥ 75 % площади (у хвата посреди древка и у лука — два крупнейших: предмет из двух
+половин по построению); кусков больше 1 % площади ≤ 6; размер по типу (меч 0,4–1,45 м, посох 0,8–3 м, щит
+0,25–1,7 м и толщина < 0,3 размера, …), ширина (меч ≤ 0,42 м — иначе прихвачено тело).
 
-`replace`: **auto** — an item that fails is built by `item_kit` of the same kind (sword → sword/greatsword with the blade length =
-grip → tip - 3 cm and the blade width; staff, spear → length; shield → kite / tower / round / buckler by proportions
-and size; bow → length; book), style by side (undead — `dark`), ornament `kit_ornament`, **colours —
-from the cut item**: area-weighted k-means of texture colours by faces → palette roles (light grey — `metal`, dark warm
-— `grip`/`wood`, gold — `trim`, saturated — `accent`). The kit item takes the same place (its
-`socket_grip_main` onto the grip frame of the cut item). **never** — always the cut item; **always** — always the kit. For a banner,
-skull and lantern the kit has no counterpart — the cut item stays (a warning).
+`replace`: **auto** — не прошедший предмет строится `item_kit` того же вида (меч → sword/greatsword с длиной клинка
+= хват → кончик − 3 см и шириной клинка; посох, копьё → длина; щит → kite / tower / round / buckler по пропорциям
+и размерам; лук → длина; книга), стиль по стороне (нежить — `dark`), орнамент `kit_ornament`, **цвета —
+из вырезанного**: площадной k-means цветов текстуры по граням → роли палитры (светлый серый — `metal`, тёмный тёплый
+— `grip`/`wood`, золото — `trim`, насыщенный — `accent`). Предмет набора встаёт на то же место (его
+`socket_grip_main` в рамку хвата вырезанного). **never** — всегда вырезанный; **always** — всегда набор. У знамени,
+черепа и фонаря в наборе пары нет — остаётся вырезанный (предупреждение).
 
-## Back into the hands: attach_prop extracted
+## Обратно в руки: attach_prop extracted
 
-Weapon, staff, bow, banner: `socket_mount_hand_<hand>` is moved onto the item's `socket_grip_main`
-(`refit_socket`, replacement by socket will repeat the grip). An item on the belt — rigidly on `Hips`.
+Оружие, посох, лук, знамя: `socket_mount_hand_<рука>` переносится на `socket_grip_main` предмета
+(`refit_socket`, замена по сокету повторит хват). Предмет на поясе — жёстко на `Hips`.
 
-**Shield** (`extracted_shield_fit`, default `auto`): at the concept position (`placement`) it ends up **edge-on in the clips
-and cuts the arm** — the concept holds the shield in front of the chest, while Mixamo clips lower and rotate the hand (in a test run
-the shield was upright and facing outward in 0 of 43 frames, and intersected the arm/body in 43 frames; depth up to 10 cm at the shoulder).
-So on a character that already has clips (`attach_prop` after `retarget`), `auto` = **`clips`**:
-`socket_mount_shield_<hand>` is the canonical shield socket (as for kit shields), fitted to the clip frames:
-the shield stands, the face outward **and forward** (`shield_front_bias` 1: with a lowered arm, strictly "away from the chest" means edge-on to the
-camera from the front), death does not take part in the fit (lying down, the shield cannot stand), idle/walk cycles weigh double,
-the concept rest pose — 5 %. In that test run the shield stood and faced outward in 67 % of frames (more without the death frames),
-intersections in 3 frames of 43; body gaps unchanged. The grip frame of the cut shield is the same as that of the socket — the shield
-sits on the socket without correction; the place socket `socket_prop_l_*` is deleted. At rest the shield now stands not where it was in the
-concept (the rest pose is not visible in sprites). The mode (`extracted_mode`):
-`bone_child` (the step default) or **`skin_separate`**: a separate mesh skinned 100 % to the hand
-bone. Both are rigid; `skin_separate` is the one to use when `motion_style` (a separate module) looks for items
-in the hand by weights >= 0.99: that way a staff stays vertical in the step, a sword tip does not go through the floor, the item lies down
-in death. It does not see an object under a socket (`bone_child`). The hand socket is moved onto the grip anyway — in Godot the item
-is swapped by aligning sockets.
+**Щит** (`extracted_shield_fit`, по умолчанию `auto`): на месте концепта (`placement`) он в клипах встаёт **ребром
+и режет руку** — концепт держит щит перед грудью, а клипы Mixamo опускают и крутят кисть (рыцарь №3: в 0 из 43
+кадра щит не стоял и не смотрел наружу, пересечение с рукой/телом — в 43 кадрах; глубина до 10 см у плеча).
+Поэтому на персонаже, у которого уже есть клипы (`attach_prop` после `retarget`), `auto` = **`clips`**:
+`socket_mount_shield_<рука>` — канонический сокет щита (как у щитов набора), подогнанный по кадрам клипов:
+щит стоит, лицо — наружу **и вперёд** (`shield_front_bias` 1: у опущенной руки строго «от груди» — это ребром к
+камере спереди), смерть в подгонке не участвует (лёжа щит стоять не может), циклы idle/walk весят вдвое, поза
+покоя концепта — 5 %. Рыцарь №3: щит стоит и смотрит наружу в 67 % кадров (без кадров смерти — больше),
+пересечения — в 3 кадрах из 43; разрывы тела те же. Рамка хвата вырезанного щита та же, что у сокета, — щит
+встаёт на сокет без поправок; сокет места `socket_prop_l_*` удаляется. В покое щит теперь стоит не там, где на
+концепте (в спрайтах поза покоя не видна). Способ (`extracted_mode`):
+`bone_child` (по умолчанию в шаге) или **`skin_separate`** (пакет): отдельная сетка со скином 100 % на кость
+кисти. Оба жёсткие; `skin_separate` выбран для пакета потому, что `motion_style` (не мой модуль) ищет предметы
+в руке по весам ≥ 0,99: так посох остаётся вертикальным в шаге, кончик меча не уходит в пол, предмет ложится
+в смерти. Объект под сокетом (`bone_child`) он не видит. Сокет кисти всё равно перенесён на хват — в Godot предмет
+меняется совмещением сокетов.
 
-`rig_humanoid` by place sockets: the hand that held a cut item is solved **at its grip** (otherwise a fist
-raised forward without a sword was traced into a book on the belt or the hem of a cloak); the shield — only if the landmarks did not
-agree without it; arm asymmetry in the holding hand is not an error.
+`rig_humanoid` по сокетам мест: кисть, державшая вырезанный предмет, решается **на его хвате** (иначе кулак,
+поднятый вперёд без меча, трассировался в книгу на поясе или подол плаща); щит — только если без него ориентиры не
+сошлись; асимметрия рук у держащей руки не ошибка.
 
-## Check in clips
+## Проверка в клипах
 
-After `motion_style`, `_props_lib.clip_props_qa` runs on `styled.blend`: on 12 frames of each clip,
-the item's shift from where the hand bone carries its rest position (a rigid item — 0), and **how much deeper
-than at rest** the item's vertices go into the body (the item stands where it was in the concept, touching the fist and forearm;
-what the animation added is counted; threshold 2 cm). "Inside" = behind the nearest body face **and** surrounded by the body: rays
-in 8 directions hit the body within 0.6 m at least 7 times (a sword behind an open cloak or hem is not "in the body").
-Depth is counted up to 10 cm (beyond that — "10 cm"). In state: `props_qa`, in the report — the "Check" column.
+После `motion_style` пакет запускает `_props_lib.clip_props_qa` на `styled.blend`: на 12 кадрах каждого клипа
+сдвиг предмета от места, куда кость кисти несёт его положение покоя (жёсткий предмет — 0), и **насколько глубже,
+чем в покое**, вершины предмета уходят в тело (предмет стоит там, где был на концепте, касаясь кулака и предплечья;
+считается то, что добавила анимация; порог 2 см). «Внутри» = за ближайшей гранью тела **и** окружено телом: лучи
+в 8 сторон упираются в тело в пределах 0,6 м хотя бы 7 раз (меч за открытым плащом или подолом — не «в теле»).
+Глубина считается до 10 см (дальше — «10 см»). В state: `props_qa`, в отчёте — колонка «Проверка».
 
-## Parameters
+## Параметры
 
-| Parameter | Default | |
+| Параметр | По умолчанию | |
 |---|---|---|
-| `height_m`, `front`, `front_prior`, `fix_yaw`, `markers` | 1.8, auto, —, true, — | normalisation as in `rig_humanoid` |
-| `hints`, `use_hints` | —, true | `roles.json` entry |
+| `height_m`, `front`, `front_prior`, `fix_yaw`, `markers` | 1.8, auto, —, true, — | нормализация как у `rig_humanoid` |
+| `hints`, `use_hints` | —, true | запись `roles.json` |
 | `replace` | auto | auto / never / always |
 | `gate` | — | `{open_edge_frac, main_part_share, parts_over_1pct, min_tris}` |
-| `bridge` | true | handle through the fist |
-| `kit_style`, `kit_ornament`, `seed` | auto, 1, — | kit for replacement |
-| `short_weapons` | true | short weapon with a pommel, and the belt |
-| `min_item_vertices` | 60 | smaller finds stay with the body |
-| `preview`, `preview_size` | true, 320 | `exploded.png`, `detect.png`, `grips.png`, item previews |
+| `bridge` | true | рукоять сквозь кулак |
+| `kit_style`, `kit_ornament`, `seed` | auto, 1, — | набор для замены |
+| `short_weapons` | true | короткое оружие с навершием и пояс |
+| `min_item_vertices` | 60 | меньшие находки остаются телу |
+| `preview`, `preview_size` | true, 320 | `exploded.png`, `detect.png`, `grips.png`, превью предметов |
 
-`props.json`: per item — `id` (`r_sword`, `l_shield`, `hip_mace`), `type`, `type_from` (hint / geometry /
-plate on pole / bow_detector), `kind`, `hand`, `source` (extracted | kit), `grip_mode`, `fist` (edges, profile),
-`gate` (numbers and reasons), `dims`, `colours`, `kit` (replacement parameters), `bridge`, `files`, `placement_matrix`,
-`placement_socket`, `grip_m`, axes; `detector` (what the rig found, hints, pole extension, bow limb, shield by
-hint, absorbed pieces), `cut`, `prepare`.
+`props.json`: на предмет — `id` (`r_sword`, `l_shield`, `hip_mace`), `type`, `type_from` (hint / geometry /
+plate on pole / bow_detector), `kind`, `hand`, `source` (extracted | kit), `grip_mode`, `fist` (края, профиль),
+`gate` (числа и причины), `dims`, `colours`, `kit` (параметры замены), `bridge`, `files`, `placement_matrix`,
+`placement_socket`, `grip_m`, оси; `detector` (что нашёл риг, подсказки, удлинение древка, плечо лука, щит по
+подсказке, поглощённые куски), `cut`, `prepare`.
 
-## Honest limitations
+## Пилот (12.10)
 
-- **What is found is what the rig detector sees, plus hints.** A pole passing diagonally behind the back
-  (a banner), a bow raised horizontally for a shot, a crossbow at the chest, a book on the belt (not in the hand)
-  stay on the body — with the same artefacts as before. An item with neither a hint nor a fist on it is not searched for.
-- **The fist edge comes from the section profile, no more than 0.03 H from the fist centre.** A thick guard may partly stay on the body,
-  and the fingertips may go away with the item; both ride the hand bone, invisible in the animation, but the item from the
-  file carries a "stump".
-- **The handle in the fist is a conventional cylinder** (`bridge`), not the real generated handle (there is none inside the fist).
-- **Shield**: the strip of board right against the forearm (a 0.03 H tube around the bones) stays with the body and rides with the arm; a shield
-  thicker than 0.3 of its size (cloth or arm grabbed) goes to kit replacement — and then the pieces of cloth cut out with it
-  vanish together with it.
-- **Kit replacement** takes the colours but not the emblem or the silhouette of the concept: a kite shield may become round
-  (proportions < 1.25), the emblem becomes the kit's emblem. For a banner, skull, lantern the kit has no counterpart.
-- **The banner is rigid** — the cloth is not simulated, it only waves together with the hand.
-- **A two-handed grip is not solved**: the item is on one hand bone, `socket_grip_off` is only a marker; there is no IK of the second hand
-  in the pipeline.
-- **The shield rides the hand bone** (contract §6), not the forearm: when the wrist bends it rotates around the
-  wrist. There is one shield socket per character: one rotation correction for all clips; in "hit to the head" (`hit`) and in
-  a swing the shield does not always stand. A real "shield and sword" pose is the Mixamo sword-and-shield clips, and the library has almost
-  none of them (except idle angel); `params.shield_bone forearm` was tried — not better.
-- **Place = the concept pose** for weapons, staves, banners: the item stands where it was on the fused mesh, so
-  at rest it may touch the forearm; the in-clip check counts only the penetration added by the animation.
-- **`front_prior` -Y** is correct for generations from frontal concepts; a model that is truly turned away
-  it will turn incorrectly.
-- **A flat slab under the feet** (Hunyuan attaches it to the feet) is not an item, it stays on the
-  body and tilts with the feet; that is the job of `cleanup`.
-- **Bow**: a lower limb pressed against the leg is searched for by mirroring the upper one and tracing sections — it is found on a test
-  archer, on others the limb may stay with the body.
+PILOT_TABLE
+
+## Честные ограничения
+
+- **Находится то, что видит детектор рига, плюс подсказки.** Древко, проходящее за спиной по диагонали
+  (знамя крестоносца), лук, поднятый для выстрела горизонтально, арбалет у груди, книга на поясе (не в руке)
+  остаются на теле — с прежними разрывами. Предмет без подсказки и без кулака на нём не ищется.
+- **Край кулака — по профилю сечений, не более 0,03 H от центра.** Толстая гарда может частично остаться на теле,
+  а кончики пальцев — уйти с предметом; и то и другое едет на кости кисти, в анимации не видно, но предмет из
+  файла несёт «обрубок».
+- **Рукоять в кулаке — условный цилиндр** (`bridge`), а не настоящая рукоять генерации (её внутри кулака нет).
+- **Щит**: полоса доски вплотную к предплечью (трубка 0,03 H вокруг костей) остаётся телу и едет с рукой; щит
+  толще 0,3 своего размера (прихвачены ткань, рука) уходит под замену набором — и тогда вырезанные с ним куски
+  ткани пропадают вместе с ним (крестоносец: кусок флага).
+- **Замена набором** берёт цвета, но не эмблему и не силуэт концепта: каплевидный щит может стать круглым
+  (пропорции < 1,25), эмблема — эмблемой набора. У знамени, черепа, фонаря пары в наборе нет.
+- **Знамя жёсткое** — ткань не симулируется, развевается только вместе с рукой.
+- **Двуручный хват не решается**: предмет на одной кости кисти, `socket_grip_off` — только метка; IK второй руки
+  в конвейере нет.
+- **Щит едет на кости кисти** (контракт §6), а не на предплечье: при сгибе запястья он поворачивается вокруг
+  запястья. Сокет щита — один на персонажа: одна поворотная поправка на все клипы; в «удар в голову» (`hit`) и в
+  замахе щит не всегда стоит. Настоящая поза «щит и меч» — это клипы Mixamo sword-and-shield, а в библиотеке их
+  почти нет (кроме idle angel); `params.shield_bone forearm` пробован — не лучше.
+- **Место = поза концепта** у оружия, посохов, знамён: предмет встаёт туда, где был на сросшейся сетке, поэтому
+  в покое может касаться предплечья; проверка в клипах считает только добавленное анимацией проникновение.
+- **`front_prior` −Y** верен для генераций по фронтальным концептам; модель, действительно повёрнутая спиной,
+  он развернёт неверно.
+- **Плоская плита под ногами** (Hunyuan прилепляет её к стопам: маг, крестоносец) — не предмет, остаётся на
+  теле и наклоняется со стопами; это задача `cleanup`.
+- **Лук**: нижнее плечо, прижатое к ноге, ищется отражением верхнего и прослеживанием по срезам — на лучнике
+  пилота находится, на других плечо может остаться телу.

@@ -1,107 +1,159 @@
 ---
 name: astraforge
-description: AstraForge ("Астрофорж", "кузница ассетов"), a local 3D game-asset studio - one workshop for game assets, subordinate to no particular game. Image or text -> 3D model (Pixal3D, Hunyuan3D) -> views -> rig (Mixamo bones) -> clips (Quaternius CC0, Mixamo) -> held items -> sprites and packages for Godot 4.5. Use it when asked to generate or assemble a 3D model, unit, character, creature, ship, turret or weapon; to rig, animate, make sprites for a game or assets for Godot; to build views (back/left/right) from a single picture; to start, check or repair the studio, Pixal3D, Hunyuan, MV-Adapter or the Blender pipeline "Кузница" (the Forge); or to install the studio from scratch or move it to another computer. Triggers - «3D-модель», «AstraForge», «Астрофорж», «кузница», «сгенерируй модель/юнита/корабль/персонажа», «риг», «анимации», «спрайты для игры», «ассеты для Godot», «Pixal3D», «Hunyuan», «ракурсы», «установи студию», «поставь AstraForge с нуля», «перенеси на другой компьютер». Effects, particles and VFX textures belong to another skill, astraforge-vfx.
+description: Локальная 3D-студия владельца AstraForge («Астрофорж», «кузница ассетов») — единый цех игровых ассетов для всех игр владельца («Врата Героев», Space Quest, «Душа»/SOULBOUND и любые следующие), ни одной игре не подчинён. Картинка или текст → 3D-модель (Pixal3D, Hunyuan3D) → ракурсы → риг (Mixamo-кости) → клипы (Quaternius CC0, Mixamo) → предметы в руках → спрайты и пакеты для Godot 4.5 и Unity 6 (URP); 2D по референсу (вкладка «2D»: ракурсы, части тела для 2D-рига, кадры анимации, эмоции, раскадровки, позы из 3D, перерисовка в стиле, FLUX.2/Qwen-Image/SDXL локально). Используй, когда просят сгенерировать или собрать 3D-модель, юнита, персонажа, существо, корабль, турель, оружие; сделать риг, анимации, спрайты для игры, ассеты для Godot; построить ракурсы (виды сзади/слева/справа) по одной картинке; нарисовать 2D-персонажа, 2D-спрайты, кадры 2D-анимации, части тела для cutout-рига, раскадровку, эмоции, перерисовать в другом стиле (пиксель-арт, аниме, рисованный); запустить, проверить или починить студию, Pixal3D, Hunyuan, MV-Adapter, Blender-конвейер «Кузница»; передать ассет в «Врата Героев», Space Quest, «Душу»/SOULBOUND или подключить к студии новую игру; а также «установи студию», «поставь AstraForge с нуля», «перенеси на другой компьютер». Триггеры - «3D-модель», «AstraForge», «Астрофорж», «кузница», «сгенерируй модель/юнита/корабль/персонажа», «риг», «анимации», «спрайты для игры», «ассеты для Godot», «ассеты для Unity», «префаб Unity», «Pixal3D», «Hunyuan», «ракурсы», «2D», «2D-спрайты», «раскадровка», «покадровая анимация», «пиксель-арт», «части тела», «по референсу», «установи студию», «перенеси на другой компьютер». Эффекты, частицы и VFX-текстуры — другой скилл astraforge-vfx.
 ---
 
-# AstraForge: a local 3D studio
+# AstraForge — локальная 3D-студия владельца
 
-A web studio on this computer (Windows, NVIDIA GPU): **concept (image/text) -> 3D -> rig -> clips -> items -> effects -> Godot package / sprites**. Everything is local and free:
-React + three.js -> Express `127.0.0.1:3210` -> queue -> ComfyUI (Hunyuan3D, SDXL, MV-Adapter on :8190; Pixal3D on :8191) and windowless Blender 5.0.1; packages are checked with a real Godot 4.5.1.
-The application is the folder the repository is cloned into (**APP** below, environment variable `ASTRA_APP`; the skill itself lives in `APP/ai/skills/astraforge`, and `~/.claude/skills` holds a junction to it, see `references/install.md` §8; git `master`, the current commit is `git log -1`, GitHub `Snodrod/AstraForge`, version 0.3.0). The asset and clip library is `ASTRA_FORGE_LIBRARY` (default `C:\AstraForge\library`).
-**Machine-specific private notes** (local paths, the user's notes, a snapshot of what is installed) are not stored in the repository: if the folder `%USERPROFILE%\.claude\astraforge-local\` exists, read its `README.md` - it supplements this skill.
-The studio UI has English and Russian dictionaries (English by default, switchable to Russian). Answer the user in the language they write in, briefly.
+Веб-студия на этом компьютере (Windows, RTX 4070 12 ГБ): **концепт (картинка/текст) → 3D → риг → клипы → предметы → эффекты → пакет Godot / спрайты**, и параллельно **2D по референсу** (вкладка «2D», `docs/art2d.md`). Всё локально и бесплатно:
+React + three.js → Express `127.0.0.1:3210` → очередь → ComfyUI (Hunyuan3D, SDXL, MV-Adapter на :8190; Pixal3D на :8191) и Blender 5.0.1 без окна; проверка пакетов — настоящий Godot 4.5.1.
+Приложение: `C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\AstraForge` (ниже **APP**; сам скилл лежит в `APP/ai/skills/astraforge`, в `~/.claude/skills` — ссылка-junction, см. `references/install.md` §8; git `master`, актуальный коммит — `git log -1`, приватный GitHub `Snodrod/AstraForge`, версия 0.3.0; сведения сверены с кодом и машиной 17.10.2026). Библиотека ассетов и клипов — `C:\AstraForge\library`.
+Тексты и интерфейс — по-русски; вопросы владельцу — только по-русски и коротко.
 
-**Effects, particles, VFX textures, flipbooks, the "Effects" and "VFX" tabs belong to the `astraforge-vfx` skill** (not duplicated here). Pictures without 3D: `codex-image` (via ChatGPT/Codex) or `local-image-generation`.
+**Эффекты, частицы, VFX-текстуры, флипбуки, вкладки «Эффекты» и «VFX» — скилл `astraforge-vfx`** (его не дублируем). Игровая 2D-графика по референсу (ракурсы, части тела, кадры анимации, раскадровки, стили) — **вкладка «2D» этой студии** (раздел ниже). Разовые картинки вне игр — `codex-image` или `local-image-generation`.
 
-## Role: a generic asset workshop
+## Роль в играх: единый цех ассетов
 
-AstraForge is a single, game-agnostic workshop. Responsibility is split like this:
+Решение владельца (17.10.2026): **AstraForge отвечает за создание всех моделей и игровых элементов во всех играх** —
+«Врата Героев», Space Quest, «Душа»/SOULBOUND и каждая следующая. Скилл не подчинён ни одной игре. Ответственность делится так:
 
-| Who | Responsible for |
+| Кто | За что отвечает |
 |---|---|
-| **AstraForge (this skill)** | *How* an asset is made: concept, views, 3D, rig, clips, items, effects, rendering, package; output that passes the target game's contract the first time (export profile and parameters matched to that game's tests) |
-| **The target game** | Only *what* it accepts - its contract (frame size, axes, names, budgets, registry format, registry test, licenses) - and *how* files get into its repository |
+| **AstraForge (этот скилл)** | *как* делается ассет: концепт, ракурсы, 3D, риг, клипы, предметы, эффекты, рендер, пакет; выдача, которая **с первого раза проходит контракт игры** (профиль экспорта и параметры под её тесты) |
+| **Игра** | только *что* принять — контракт (размеры кадра, оси, имена, бюджеты, формат реестра, тест реестра, лицензии) — и *как* файлы попадают в её репозиторий |
+| **Роль игры** (`art` во «Вратах» и Space Quest) | перенос пакета в свою копию, тесты игры, отчёт, ревью — по правилам репозитория |
 
-Games do not build their own 3D pipelines: if something is missing, it becomes a new profile, parameter or recipe of the studio. The studio is not bent to a game's contract, nor the contract to the studio: take the contract of the target game as given and pass its parameters to the export profile.
+Своих 3D-конвейеров игры не заводят: чего-то не хватает игре — новый профиль, параметр или рецепт студии. Контракт
+игры не подгоняем под студию, студию — под контракт. Новая игра подключается по `references/games.md` §0.
 
-## When to call this skill
+## Когда звать этот скилл
 
-Any work on models/assets for games: "make a model/unit/ship", "rig it", "animate it", "sprites", "Godot package", "views", "why does the studio not start", "install/move the studio".
-Do not call it for: pure 2D graphics, video editing, code and data of the games themselves (combat, screens, balance - those follow the rules of their own repositories).
+Любая работа с моделями/ассетами для игр владельца: «сделай модель/юнита/корабль», «зариг», «анимируй», «спрайты для Врат», «пакет для Godot», «ракурсы», «подключи новую игру к студии», «почему не стартует студия», «поставь/перенеси студию».
+Не звать: разовые картинки не для игр, видео-монтаж, код и данные самих игр (боёвка, экраны, баланс — у них свои роли и правила, `references/games.md`).
 
-## Step 0. Check the state (read-only, ~10 s)
+## Шаг 0. Проверь состояние (только чтение, ~10 с)
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File "$env:USERPROFILE\.claude\skills\astraforge\scripts\af_status.ps1"   # [-App <folder>] [-NoVersions] [-Json]
+powershell -NoProfile -ExecutionPolicy Bypass -File "C:\Users\doron\.claude\skills\astraforge\scripts\af_status.ps1"   # [-App <папка>] [-NoVersions] [-Json]
 ```
-A table of present / missing / disabled / running: the application, ports (3210, 8190, 8191, 3211, 11434; 8188 belongs to someone else, informational only), Node/Blender/Godot, Hunyuan/Pixal3D/SDXL/MV-Adapter weights, Ollama and its models,
-the library and clips, VFX programs. "Studio is off" is a normal result, not an error. The script starts and downloads nothing. A detailed snapshot of the machine, if present, is in `%USERPROFILE%\.claude\astraforge-local\`.
+Таблица «есть / нет / выключено / работает»: приложение, порты (3210, 8190, 8191, 3211, 11434; 8188 — чужой, только информация), Node/Blender/Godot, веса Hunyuan/Pixal3D/SDXL/MV-Adapter, Ollama и модели,
+библиотека и клипы, VFX-программы. «Студия выключена» — нормальный результат, не ошибка. Скрипт ничего не запускает и не скачивает. Подробный снимок машины — `references/inventory.md`.
 
-## Start and stop
+## Запуск и остановка
 
-| Action | Command |
+| Действие | Команда |
 |---|---|
-| Start (usually done by the user) | `Start.cmd` in APP or `powershell -NoProfile -ExecutionPolicy Bypass -File "<APP>\scripts\Start.ps1" -NoBrowser`; address http://127.0.0.1:3210 (`/api/health` -> `{"app":"AstraForge"}`) |
-| Stop | `Stop.cmd` (kills only the studio's processes; **the user's own ComfyUI :8188 and Ollama stay up**) |
-| Logs | `<APP>\data\runtime\server.log`, `server-error.log`, `comfy.log`, `pixal3d.log`; Blender steps - `<runtime>\blender\<jobId>\<step>.log` |
+| Запустить (обычно это делает владелец) | `Start.cmd` в APP или `powershell -NoProfile -ExecutionPolicy Bypass -File "<APP>\scripts\Start.ps1" -NoBrowser`; адрес http://127.0.0.1:3210 (`/api/health` → `{"app":"AstraForge"}`) |
+| Остановить | `Stop.cmd` (убивает только процессы студии; **ComfyUI :8188 владельца и Ollama остаются**) |
+| Логи | `<APP>\data\runtime\server.log`, `server-error.log`, `comfy.log`, `pixal3d.log`; шаги Blender — `<runtime>\blender\<jobId>\<шаг>.log` |
 
-Do not run `node server/index.mjs` "just to check": it brings up ComfyUI on the GPU. Pixal3D starts by itself on the first job (cold start 1-2 min). Default ports are 3210 (studio), 8190, 8191, 3211; `Start.ps1`/`Stop.ps1` assume exactly 3210.
+Не запускай `node server/index.mjs` «для проверки»: он поднимает ComfyUI на видеокарте. Pixal3D стартует сам по первому заданию (холодный старт 1–2 мин). Порты по умолчанию 3210 (студия), 8190, 8191, 3211; `Start.ps1`/`Stop.ps1` рассчитаны именно на 3210.
 
-## Studio map
+## Карта студии
 
-**Tabs** (left column, 10): *Create* (concept, **Views**, engine choice Pixal3D/Hunyuan, "Create 3D model" / "Create 3D from views") · *Forge* (wizard Prepare -> Skeleton -> Motions -> Items -> Effects -> Export,
-"Jobs", "Package", "Review") · *Bones* (the old in-browser rig) · *Textures* (UV, PBR, brush, comparison with a reference) · *Animation* (keys, rotation, WebM) · *Effects* and *VFX* (-> `astraforge-vfx`) ·
-*Sprites* (iso 8 directions, "all clips into GLB") · *AI* (Ollama/OpenAI/Anthropic assistant) · *Tripo* (cloud, paid - do not run without the user's decision).
+**Вкладки** (левая колонка, 10): *Создать* (концепт, **Ракурсы**, выбор движка Pixal3D/Hunyuan, «Создать 3D-модель» / «Создать 3D по ракурсам») · *Кузница* (мастер Подготовка→Скелет→Движения→Предметы→Эффекты→Экспорт,
+«Задачи», «Пакет», «Приёмка») · *Кости* (старый браузерный риг) · *Текстуры* (UV, PBR, кисть, сравнение с референсом) · *Анимация* (ключи, вращение, WebM) · *Эффекты* и *VFX* (→ `astraforge-vfx`) ·
+*Спрайты* (iso 8 направлений, «все клипы в GLB») · *AI* (помощник Ollama/OpenAI/Anthropic) · *Tripo* (облако, платно — без решения владельца не запускать).
 
-**CLI** (from APP; the server must be running, or use `--direct` - then paths come only from `ASTRA_*` variables, not from `config\paths.json`):
+**CLI** (из APP; нужен запущенный сервер, либо `--direct` — тогда пути только из переменных `ASTRA_*`, не из `config\paths.json`):
 ```
 node scripts/forge.mjs status | steps | presets | assets | show <id> | jobs | job <id> [--wait] | cancel <id>
-node scripts/forge.mjs create --kind humanoid|creature|item|ship|prop --name "Name" (--from-glb f.glb | --from-job <jobId> | --from-asset <id> | --params '{}') [--preset <id> | --steps steps.json]
+node scripts/forge.mjs create --kind humanoid|creature|item|ship|prop --name "Имя" (--from-glb f.glb | --from-job <jobId> | --from-asset <id> | --params '{}') [--preset <id> | --steps steps.json]
 node scripts/forge.mjs run <assetId> (--steps steps.json | --preset <id>) [--from source|latest|v003]
-node scripts/forge.mjs export <assetId> --profile godot|iso8|custom [--out <folder>]
-node scripts/forge.mjs batch items.json | clips list | clips import <FBX folder> | clips remove <id>
-node scripts/views/views_generate.mjs --input front.png --out <folder> --provider codex|mvadapter     # views
-node scripts/views/views_3d.mjs --views <folder> --out mesh.glb --engine pixal3d|hunyuan|auto [--seed N]  # 3D from views
+node scripts/forge.mjs export <assetId> --profile godot|space_quest|heroes_gates|iso8|unity [--out <папка>] [--to-unity <проект Unity> [--build]]
+node scripts/forge.mjs batch items.json | clips list | clips import <папка FBX> | clips remove <id>
+node scripts/views/views_generate.mjs --input front.png --out <папка> --provider codex|mvadapter     # ракурсы
+node scripts/views/views_3d.mjs --views <папка> --out mesh.glb --engine pixal3d|hunyuan|auto [--seed N]  # 3D по видам
+node scripts/forge-concepts.mjs --dir <папка концептов> --profile heroes_gates [--dry]               # пачка «концепты → юниты Врат»
 ```
-**The Forge pipeline is 28 Blender steps** (`forge.mjs steps`): `inspect cleanup convert separate replace_part place_parts paint_from_concept assemble_parts extract_props rig_humanoid prepare_mixamo import_mixamo_rig retarget motion_style cloth_sim clip_library
-rig_creature anim_creature item_kit item_from_mesh attach_prop bone_kit ship_gen turret_gen ship_from_mesh kitbash render_sprites godot_package`; 8 ready-made presets. Every run creates a new version `v00N` of the asset passport (never overwritten); a step's result is `outputs` + `checks`.
-The list of steps with their purpose, the API, the passport and the data layout are in `references/studio.md`.
+**Конвейер Кузницы — 28 шагов Blender** (`forge.mjs steps`): `inspect cleanup convert separate replace_part place_parts paint_from_concept assemble_parts extract_props rig_humanoid prepare_mixamo import_mixamo_rig retarget motion_style cloth_sim clip_library
+rig_creature anim_creature item_kit item_from_mesh attach_prop bone_kit ship_gen turret_gen ship_from_mesh kitbash render_sprites godot_package`; 8 готовых пресетов. Каждый запуск = новая версия `v00N` паспорта ассета (не перезаписывается), результат шага — `outputs` + `checks`.
+Список шагов с назначением, API, паспорта, раскладка данных — `references/studio.md`.
 
-**Export profiles:** `godot` (a folder `<id>/` with GLB, `.tscn`, FX) · `iso8` (8-direction sprite sheets) · `custom` (sprites with parameters you set to match the target game's contract). The studio itself **never writes** into other projects.
+**Профили экспорта:** `godot` (папка `<id>/` с GLB, `.tscn`, FX) · `space_quest` (+ запись `models.json`; `fit_units`/`min_units` задавать в единицах рендера, игра берёт только GLB — `games.md` §3) · `heroes_gates` (листы спрайтов + запись `data/sprites.json`) · `iso8` (8 направлений) · `unity` (FBX + текстуры + `af_unity.json`; импортёр `com.astraforge.unity` сам собирает префаб, проверка в Unity без окна — `references/unity.md`). Студия сама **не пишет** в чужие проекты (`--to-unity` — только по просьбе владельца).
 
-## Typical path "picture -> game unit"
+## 2D по референсу (вкладка «2D», `docs/art2d.md`)
 
-1. Concept: PNG 3:4, full-height character, **T-pose, nothing held in the hands**, light background (`codex-image` or SDXL in the studio).
-2. "Views": from the front view create left/back/right (ChatGPT - final quality, MV-Adapter - an offline draft).
-3. 3D from the four views in **Pixal3D** (about 4 min, about 10 GB VRAM; shape only) -> GLB.
-4. Forge: `cleanup -> paint_from_concept -> rig_humanoid -> retarget (Quaternius/Mixamo) -> motion_style -> render_sprites / godot_package`. After `cleanup` **look at the preview** (torn Pixal3D meshes need `voxel_remesh_m: 0.004`, intact ones do not).
-5. Gates: red `checks` stop the step; clip posture (`posture.py`) and the preview are checked before rendering; headless Godot 4.5.1; the "Review" tab.
-6. Export with the export profile **using the parameters of the target game's contract**, then hand the package over under that game's rules.
-Detailed recipe, commands and `steps.json` examples are in `references/studio.md`.
+Локально на ComfyUI студии :8190: **FLUX.2 klein 9B** (рисует по 1–4 референсам; лицензия **некоммерческая** — говорить владельцу), **Qwen-Image** (Apache-2.0, только по тексту), **SDXL** (черновики, img2img).
+GGUF-веса требуют узла `ComfyUI-GGUF` в белом списке (`server/runtime.mjs`) — после обновления студию перезапустить, иначе `art2d.mjs status` покажет «нет узлов UnetLoaderGGUF».
+Рецепты: `concept turnaround parts animation expressions storyboard poses3d restyle`; 11 стилей (пиксельные — с настоящей пикселизацией); образец стиля картинкой; листы `default`/`heroes_gates` (320, якорь 160,272)/`hd`; экспорт Godot: `SpriteFrames .tres` или `character_cutout.tscn`.
+```
+node scripts/art2d/art2d.mjs status | styles | recipes | list
+node scripts/art2d/art2d.mjs make --recipe animation --action walk --character hero.png --style pixel --sheet heroes_gates --godot
+node scripts/art2d/art2d.mjs make --recipe poses3d --character hero.png --poses <кадры 3D-клипа> --style cel   # самый ровный путь к анимации
+node scripts/art2d/art2d.mjs redo <id> <кадр> --new-seed | resume <id> | godot <id>
+```
+Наборы — `APP\data\art2d\<id>\` (`set.json` с промптами, seed и временем каждого кадра). Кадр 2D можно отправить в «Создать» как концепт для 3D. Ограничения и план (4B Apache-2.0, ControlNet-позы, Skeleton2D) — `docs/art2d.md`.
 
-## Where to read next (by task)
+## Типовой путь «картинка → юнит в игре»
 
-| Task | File |
+1. Концепт: PNG 3:4, персонаж во весь рост, **T-поза, без оружия в руках**, светлый фон (`codex-image` или SDXL в студии).
+2. «Ракурсы»: из вида спереди сделать слева/сзади/справа (ChatGPT — чистовик, MV-Adapter — черновик без сети).
+3. 3D по четырём видам в **Pixal3D** (≈ 4 мин, ≈ 10 ГБ VRAM; только форма) → GLB.
+4. Кузница: `cleanup → paint_from_concept → rig_humanoid → retarget (Quaternius/Mixamo) → motion_style → render_sprites / godot_package`. После `cleanup` **смотреть превью** (рваные сетки Pixal3D требуют `voxel_remesh_m: 0.004`, целые — нет).
+5. Ворота: красные `checks` останавливают шаг; осанка клипов (`posture.py`) и превью — до рендера; Godot 4.5.1 headless; вкладка «Приёмка».
+6. Экспорт профилем игры **с параметрами её контракта** (для «Врат» — `--params` из `games.md` §2: ячейка 320, якорь 160,272; для Space Quest — §3: `fit_units`/`min_units` в единицах рендера, `sq_type`) → передача **ролью игры** по её правилам (`references/games.md`).
+Подробный рецепт, команды и примеры `steps.json` — `references/studio.md` и `references/games.md`.
+
+## Куда читать дальше (по задаче)
+
+| Задача | Файл |
 |---|---|
-| Install from scratch / on another PC, wizard keys, `paths.json`, `ASTRA_*` variables, moving the library, post-install check | `references/install.md` |
-| What exactly is downloaded and from where (URL, versions, sizes, sha256, licenses, ports, who uses it) | `references/components.md` |
-| What is actually installed on this machine now (versions, paths, weights, Ollama models) | `scripts/af_status.ps1`; private snapshot - `%USERPROFILE%\.claude\astraforge-local\` (if present) |
-| Architecture, tabs, all steps, CLI, API, passport, versions, library, `data\` | `references/studio.md` |
-| Errors, Windows/Git Bash/PowerShell pitfalls, Pixal3D, rig, posture, Godot; discrepancies between the docs and reality | `references/troubleshooting.md` |
-| Effects, particles, VFX textures, flipbooks, Simon Schreibt generators | the **`astraforge-vfx`** skill |
-| Primary sources in APP | `README.md`, `ARCHITECTURE.md`, `docs/forge/GUIDE.md` (guide), `docs/FORGE-CONTRACT.md` (contract), `docs/forge/API.md`, `docs/forge/pixal3d.md`, `views.md`, `export.md`, `THIRD_PARTY_NOTICES.md` |
-| History and decisions | `git log`, `docs/`; the user's notes - via links from `%USERPROFILE%\.claude\astraforge-local\README.md` (if present) |
+| **Перед сдачей любого ассета**: брак, который находил владелец (покраска, лишние глаза, кроны, скелеты, прыжки, мост), и обязательные листы приёмки | `references/quality-lessons.md` |
+| **Перед любым заданием Кузницы** — рецепт и грабли класса ассета (что принимали и что браковали); **после** — вердикт в журнал; периодически — сводка | `references/recipes.md` (генерируется) и скилл **`astraforge-learn`** |
+| Поставить с нуля / на другой ПК, ключи мастера, `paths.json`, переменные `ASTRA_*`, перенос библиотеки, проверка после установки | `references/install.md` |
+| Что именно и откуда скачивается (URL, версии, размеры, sha256, лицензии, порты, кто использует) | `references/components.md` |
+| Что реально стоит на этой машине сейчас (версии, пути, веса, модели Ollama, содержимое `C:\AstraForge`) | `references/inventory.md` |
+| Устройство, вкладки, все шаги, CLI, API, паспорт, версии, библиотека, `data\` | `references/studio.md` |
+| Роль студии в играх и подключение новой игры (§0), профили экспорта, контракты и передача в «Врата Героев» / Space Quest / «Душу», ворота качества | `references/games.md` |
+| Экспорт в **Unity**: профиль `unity`, импортёр `com.astraforge.unity` (URP/Built-in/HDRP, Humanoid/Generic, LOD, сокеты, Particle System, ветер, спрайты 8 направлений), проверка в Unity без окна, отправка в проект, MCP `unity_*` | `references/unity.md` |
+| Ошибки, грабли Windows/Git Bash/PowerShell, Pixal3D, риг, осанка, Godot; расхождения документации и реальности | `references/troubleshooting.md` |
+| 2D: движки, рецепты, стили, листы, экспорт Godot, ограничения, план развития | `APP/docs/art2d.md` |
+| Эффекты, частицы, VFX-текстуры, флипбуки, генераторы Simon Schreibt | скилл **`astraforge-vfx`** |
+| Ассет в игру целиком: проект Unity / Godot в фоне, отправка, логика под ассет (управление персонажем), тесты без окон, MCP `UnityMCP` и `godot` | скилл **`astraforge-integrator`** (агент `astraforge-integrator`) |
+| Первоисточники в APP | `README.md`, `ARCHITECTURE.md`, `docs/forge/GUIDE.md` (руководство), `docs/FORGE-CONTRACT.md` (контракт), `docs/forge/API.md`, `docs/forge/pixal3d.md`, `views.md`, `export.md`, `THIRD_PARTY_NOTICES.md` |
+| История и решения | Obsidian `C:\Dorn\DopsMedia\00 Dops Media\Проекты\astraforge-кузница.md`, `astraforge-vfx.md`; память Claude `astraforge-*.md`, `pixal3d-engine.md`, `unit-posture-gate.md` |
 
-## Rules (never break these)
+## Из Claude Code: MCP, панель, Pixel Art (27.10.2026)
 
-1. **Downloads only with the user's consent.** Before any install/download show the list, sizes and licenses (`components.md`) and wait for a "yes". Do not run the whole install wizard "just to check":
-   only `-ScanOnly` / `-DryRun` (a full run rewrites the desktop shortcut and starts the studio).
-2. **Do not touch** the user's ComfyUI on 8188 (if `ASTRA_COMFY_DIR` points at its folder, code and models are read-only for us) and Ollama; the studio's `data\`; `data\vault.json` (DPAPI keys, a secret); other people's working copies of projects. Never publish keys or tokens.
-3. **There is one GPU**: generations, GPU Blender rendering and any other GPU pipeline take turns through the shared GPU lock (a named Windows mutex, overridable with `ASTRA_GPU_LOCK_NAME`); Pixal3D and Hunyuan never run at the same time. Do not launch heavy work without need.
-4. **Godot - only 4.5.1** (`ASTRA_GODOT` or the `godot` key in `config\paths.json`), not 4.7. Keep paths short (<= 260 characters): the library (`ASTRA_FORGE_LIBRARY`) must not be moved after the first assets exist (paths in passports are absolute).
-5. **Paid and manual:** Tripo/Meshy only on the user's decision; Mixamo clips are downloaded by the user; ChatGPT views send the picture to OpenAI (say so).
-6. **Target projects:** the studio's server and CLI never write into a game repository. Files are placed in a game repository by an agent working under that repository's own rules (branch, tests, report, license files); do not bypass its hooks. In repositories without agent rules, only with the user's knowledge.
-7. **Honesty:** silhouette fitting and photo projection are not an "exact copy" and not PBR; "ok" in a step status does not replace looking at the preview; neural geometry is soft.
-8. **Claude environment:** in Git Bash use `py` instead of `python`; `git -C`/`git -c` are forbidden - work through `cd`; all `.ps1`/`.cs` files are UTF-8 with BOM; `curl`/`tar` come from System32; do not run `Setup.exe /extract` from Git Bash.
-9. For Hunyuan3D the Tencent license forbids use in the EU, the United Kingdom and South Korea; nvdiffrast/nvdiffrec_render (in the Pixal3D environment) are non-commercial - the studio does not call them, and Trellis2 texturing must not be used.
-10. When a piece of work is done, report briefly: what was done, how it was verified (numbers), what remains; put useful findings into the studio's `docs/` or into the user's notes if `astraforge-local` points to them.
+- **MCP-сервер `astraforge`** (`ai/mcp/server.mjs`, зарегистрирован в Claude Code в пользовательском scope): 56 инструментов —
+  `studio_status/start/open`, `asset_*`, `generate_3d`, `jobs_*`, `views_*`, `forge_*` (steps, presets, create, run, export, batch,
+  clips; самообучение — feedback, recipes, journal, plan, recipe_pin, learn_note), `sprites_render` (профили iso8|heroes_gates|custom|pixel), `fx_presets`, `fx_texture_generate`, `projects_*`, `vfx_*`;
+  ресурсы `astraforge://status`, `astraforge://skill`. Предпочитай их вместо curl к `/api`. Список и регистрация — `ai/mcp/README.md`.
+- **Панель в окне Claude Code** (`ai/claude-plugin`, мод по `plugin-authoring`): состояние студии, движки, очередь заданий с отменой,
+  кнопки «Запустить студию / Движок / Pixal3D», команда `/astraforge [open|start|status]`. Живой 3D-вид — только встроенный браузер
+  приложения (`preview_start` с `http://127.0.0.1:3210`): панель-мод не умеет WebGL/iframe. На новой машине мод копируется в
+  `~/.claude/dev-mods/<session>/astraforge` или подключается `--plugin-dir`.
+- **Pixel Art** (`docs/forge/pixel.md`): профиль `render_sprites profile=pixel` (палитра, дизеринг, контур; детерминированно);
+  `scripts/pixel/pixel_gen.mjs` — сцены и предметы по тексту через ComfyUI 8188 владельца (SDXL + LoRA pixel-art-xl, лицензия
+  CreativeML OpenRAIL-M, промпт по-английски); `scripts/pixel/pixelize.py` — любая картинка → пиксель-арт; Pixelorama (MIT) во вкладке «VFX».
+
+- **Скульптинг** (28.10.2026): руками — вкладка «Скульпт» (SculptGL, MIT, со своего порта 3211; «Открыть в скульпте» →
+  кисти → «Вернуть в сцену»; форма ложится на исходные вершины, UV и риг сохраняются, пока число вершин не менялось;
+  `docs/forge/sculpt.md`). Из контекста — шаг Кузницы `sculpt` и MCP-инструменты `sculpt` / `sculpt_transfer`: операции smooth,
+  relax, inflate/deflate, flatten, pinch/expand, grab, remesh, subdivide, decimate, symmetrize, transfer; области all/sphere/box/
+  vertex_group/bone с затуханием и симметрией X; координаты мировые, как в `inspect` (`docs/forge/sculpt-steps.md`). Скульпт из
+  SculptGL с другой топологией (dyntopo, ремеш) возвращай на ригованную модель через `sculpt_transfer`.
+
+## Самообучение (31.10.2026)
+
+Каждый шаг Кузницы пишет строку в журнал производства (`C:\AstraForge\library\learning\journal.jsonl`: класс ассета,
+параметры, проверки, превью, время); вердикты («Приёмка» → «Журнал и рецепты», MCP `forge_feedback`, CLI `learn feedback`)
+студия сводит в **рецепт класса** — лучшие параметры шагов — и **грабли**. Новый ассет класса стартует с рецепта: он
+заполняет параметры, которых нет в шагах (явные главнее; `--no-recipes` отключает). Цикл агента — скилл
+**`astraforge-learn`**: перед заданием `forge_recipes`, после — сверка с концептом и `forge_feedback`, периодически
+`learn digest` → `references/recipes.md`. Устройство — `docs/forge/LEARN.md`.
+
+## Правила (нарушать нельзя)
+
+1. **Загрузки — только с согласия владельца.** Перед любой установкой/скачиванием покажи список, размеры и лицензии (`components.md`) и дождись «да». Мастер установки не прогоняй целиком «для проверки»:
+   только `-ScanOnly` / `-DryRun` (полный прогон переписывает ярлык рабочего стола и запускает студию).
+2. **Не трогай** ComfyUI на 8188 (`D:\ComfyUI` — пользовательский) и Ollama; `data\` студии; `data\vault.json` (ключи DPAPI, секрет); чужие рабочие копии игр. Не публикуй ключи и токены.
+3. **Видеокарта одна** (12 ГБ): генерации, рендер Blender на GPU и пайплайн «Врат» идут по очереди через замок `Global\HG_GPU_RENDER`; Pixal3D и Hunyuan одновременно не работают. Не запускай тяжёлое без нужды.
+4. **Godot — только 4.5.1** (`C:\Dorn\Game Dev\Godot_v4.5.1-stable_win64_console.exe`), не 4.7. Пути короткие (≤ 260 символов): библиотека `C:\AstraForge\library` не переезжает (пути в паспортах абсолютные).
+5. **Платное и ручное:** Tripo/Meshy — только по решению владельца; клипы Mixamo скачивает владелец; ChatGPT-ракурсы отправляют картинку в OpenAI (скажи об этом).
+6. **Игры:** сервер и CLI студии в репозитории игр не пишут. В репозиторий игры с правилами агентов (`heroes-gates*`, `space_quest*`) файлы кладёт агент **в копии её роли `art`** по этому скиллу и по правилам игры (ветка `agent/art`, `run-tests.ps1`, отчёт `reports/art/`; лицензии — `assets/LICENSES.md` во «Вратах», манифест и `THIRD_PARTY_NOTICES.md` в Space Quest); хуки не обходить. В `dusha` и других репозиториях без правил агентов — только с ведома владельца.
+7. **Честность:** подгонка силуэта и проекция фото — не «точная копия» и не PBR; «ok» в статусе шага не заменяет просмотр превью; нейросетевая геометрия мягкая.
+8. **Среда Claude:** в Git Bash вместо `python` — `py`; `git -C`/`git -c` запрещены — работай через `cd`; все `.ps1`/`.cs` — UTF-8 с BOM; `curl`/`tar` — из System32; из Git Bash не запускай `Setup.exe /extract`.
+9. Для Hunyuan3D лицензия Tencent запрещает использование в ЕС, Великобритании и Южной Корее; nvdiffrast/nvdiffrec_render (в окружении Pixal3D) некоммерческие — студия их не вызывает, текстурирование Trellis2 не использовать.
+10. Закончил кусок — коротко отчитайся по-русски: что сделано, чем проверено (цифры), что осталось; полезные находки допиши в Obsidian `astraforge-кузница.md` (раздел «Что сделано»).

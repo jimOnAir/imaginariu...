@@ -1,65 +1,71 @@
-# Third-party components
+# Сторонние компоненты
 
-AstraForge is distributed under the MIT license (file `LICENSE`). This means it can also be used
-commercially. Models created in the studio belong to the user.
+AstraForge — бесплатная программа по лицензии MIT (файл `LICENSE`). Её можно использовать в том числе
+в коммерческих целях. Модели, созданные в студии, принадлежат пользователю.
 
-The items listed below are **not included** in the archive. The installer downloads these components from their official sites to the
-user's computer, showing their licenses beforehand. The components are distributed under their own licenses.
+Студия собрана на открытых программах и моделях, и их авторы сделали огромную работу — спасибо им. Перечисленное ниже
+в установочный файл **не входит**: установщик сам скачивает эти компоненты с сайтов авторов (адреса, размеры и
+контрольные суммы — `installer/manifest.json`, подробный журнал — `installer/install.log`). Компоненты
+распространяются по собственным лицензиям; этот список всегда доступен в студии: «О программе → Лицензии».
+Модели Hunyuan3D нельзя использовать на территории ЕС, Великобритании и Южной Кореи (условие Tencent).
 
-| Component | Source | License |
+| Компонент | Откуда | Лицензия |
 |---|---|---|
 | Node.js | nodejs.org | MIT |
-| npm packages (express, react, three, zod, etc., the `node_modules` folder) | npmjs.com | MIT / ISC / Apache-2.0 / BSD (see `node_modules/*/LICENSE`) |
+| Пакеты npm (express, react, three, zod и др., папка `node_modules`) | npmjs.com | MIT / ISC / Apache-2.0 / BSD (см. `node_modules/*/LICENSE`) |
 | Blender 5.0 | blender.org | GPL-3.0-or-later |
-| ComfyUI (including version 0.39.0 for Pixal3D) | github.com/comfyanonymous/ComfyUI (now Comfy-Org/ComfyUI) | GPL-3.0 |
-| uv, managed Python 3.12 | astral.sh, python.org | MIT / Apache-2.0; PSF License |
+| ComfyUI (в том числе версия 0.39.0 для Pixal3D) | github.com/comfyanonymous/ComfyUI (теперь Comfy-Org/ComfyUI) | GPL-3.0 |
+| uv, управляемый Python 3.12 | astral.sh, python.org | MIT / Apache-2.0; PSF License |
 | PyTorch | pytorch.org | BSD-3-Clause |
 | rembg, onnxruntime, numba, scikit-image, xatlas | PyPI | MIT / BSD |
-| u2net model | github.com/danielgatis/rembg | Apache-2.0 |
-| Hunyuan3D-2, 2mv, 2.1 models | huggingface.co/tencent | Tencent Hunyuan Community License: **does not apply in the EU, the United Kingdom and South Korea**; with an audience above 1 million monthly users a separate Tencent license is required |
-| SDXL base 1.0 model | huggingface.co/stabilityai | CreativeML Open RAIL++-M |
-| MV-Adapter weights (`mvadapter_i2mv_sdxl.safetensors`, views from a single image) | huggingface.co/huanngzh/mv-adapter | Apache-2.0 |
-| diffusers, peft, accelerate, timm, trimesh, antlr4-python3-runtime (Python packages in the ComfyUI environment for MV-Adapter) | PyPI | Apache-2.0 / MIT / BSD |
+| Модель u2net | github.com/danielgatis/rembg | Apache-2.0 |
+| Модели Hunyuan3D-2, 2mv, 2.1 | huggingface.co/tencent | Tencent Hunyuan Community License: **не действует на территории ЕС, Великобритании и Южной Кореи**; при аудитории свыше 1 млн пользователей в месяц нужна отдельная лицензия Tencent |
+| Модель SDXL base 1.0 | huggingface.co/stabilityai | CreativeML Open RAIL++-M |
+| Веса MV-Adapter (`mvadapter_i2mv_sdxl.safetensors`, ракурсы по одной картинке) | huggingface.co/huanngzh/mv-adapter | Apache-2.0 |
+| diffusers, peft, accelerate, timm, trimesh, antlr4-python3-runtime (пакеты Python в окружении ComfyUI для MV-Adapter) | PyPI | Apache-2.0 / MIT / BSD |
 | Godot 4.5.1 | godotengine.org | MIT |
 | Ollama | ollama.com | MIT |
-| Qwen3 and Qwen3-VL models (qwen3-vl:8b, texture and animation checks) | ollama.com/library/qwen3, ollama.com/library/qwen3-vl | Apache-2.0 |
-| Quaternius animations (ActionForge library) | actionforge.app | CC0 1.0 |
-| **Pixal3D** (code and "shape only" weights) | huggingface.co/TencentARC/Pixal3D | MIT (Tencent) |
-| TRELLIS.2 and the ComfyUI-Trellis2 node wrapper (visualbruno), pinned commit; the `ss_dec_conv3d_16l8_fp16` decoder from microsoft/TRELLIS-image-large | github.com/visualbruno/ComfyUI-Trellis2, huggingface.co/microsoft | MIT |
-| MoGe-2 ViT-L (`Ruicheng/moge-2-vitl`, camera from a single view) | huggingface.co/Ruicheng/moge-2-vitl | MIT |
-| NAF (feature upsampler; release code and weights) | github.com/valeoai/NAF | Apache-2.0 |
-| **DINOv3 ViT-L/16** (official timm copy `timm/vit_large_patch16_dinov3.lvd1689m`, converted to the transformers format) | huggingface.co/timm, Meta | **DINOv3 license**: royalty-free, commercial use allowed; military purposes and violation of trade restrictions are prohibited; when passing on the weights or derivatives the license text must be included (it sits next to the model, `LICENSE.md`) |
-| utils3d 1.7 (GitHub `EasternJournalist/utils3d`, not the PyPI package of the same name) | github.com/EasternJournalist/utils3d | MIT |
-| FlashAttention 2.8.3 (prebuilt wheel by kingbri1), triton-windows, cumesh, flex_gemm, o_voxel, NATTEN | github.com, PyPI | BSD-3-Clause / MIT |
-| **nvdiffrast** and **nvdiffrec_render** (installed by the Trellis2 nodes, AstraForge does **not use** them) | NVIDIA | **NVIDIA non-commercial license** |
-| meshlib (MeshLib, AMV Consulting) | — | **not installed and not used**: non-commercial license only; the Trellis2 nodes are patched to load without it, and holes are filled by CuMesh (MIT) |
-| PyMeshLab (required by the Trellis2 nodes at load time) | PyPI | GPL-3.0 |
-| Other Pixal3D engine packages (list and versions: `installer/pixal3d/requirements-lock.txt`): open3d, rembg, onnxruntime-gpu, opencv-python, trimesh, transformers, timm, etc. | PyPI | MIT / Apache-2.0 / BSD |
-| Python 3.12.10 (portable build, headers from dev.msi) | python.org | PSF License |
+| Модели Qwen3 и Qwen3-VL (qwen3-vl:8b, проверка текстур и анимации) | ollama.com/library/qwen3, ollama.com/library/qwen3-vl | Apache-2.0 |
+| Анимации Quaternius (библиотека ActionForge) | actionforge.app | CC0 1.0 |
+| **Pixal3D** (код и веса «только форма») | huggingface.co/TencentARC/Pixal3D | MIT (Tencent) |
+| TRELLIS.2 и обёртка узлов ComfyUI-Trellis2 (visualbruno), закреплённый коммит; декодер `ss_dec_conv3d_16l8_fp16` из microsoft/TRELLIS-image-large | github.com/visualbruno/ComfyUI-Trellis2, huggingface.co/microsoft | MIT |
+| MoGe-2 ViT-L (`Ruicheng/moge-2-vitl`, камера по одному виду) | huggingface.co/Ruicheng/moge-2-vitl | MIT |
+| NAF (апсемплер признаков; код и веса релиза) | github.com/valeoai/NAF | Apache-2.0 |
+| **DINOv3 ViT-L/16** (официальная копия timm `timm/vit_large_patch16_dinov3.lvd1689m`, преобразованная в формат transformers) | huggingface.co/timm, Meta | **лицензия DINOv3**: безвозмездная, коммерческое использование допустимо; запрещены военные цели и нарушение торговых ограничений; при передаче весов или производных нужно прикладывать текст лицензии (он лежит рядом с моделью, `LICENSE.md`) |
+| utils3d 1.7 (GitHub `EasternJournalist/utils3d`, не одноимённый пакет PyPI) | github.com/EasternJournalist/utils3d | MIT |
+| FlashAttention 2.8.3 (готовое колесо kingbri1), triton-windows, cumesh, flex_gemm, o_voxel, NATTEN | github.com, PyPI | BSD-3-Clause / MIT |
+| **nvdiffrast** и **nvdiffrec_render** | NVIDIA | **некоммерческая лицензия NVIDIA**: с версии 0.4 установщик их **не ставит** (и удаляет из прежних установок); узлы Trellis2 пропатчены, импорт необязательный |
+| meshlib (MeshLib, AMV Consulting) | — | **не ставится и не используется**: лицензия только некоммерческая; узлы Trellis2 пропатчены, чтобы загружаться без него, дыры заделывает CuMesh (MIT) |
+| PyMeshLab (нужен узлам Trellis2 при загрузке) | PyPI | GPL-3.0 |
+| Остальные пакеты движка Pixal3D (список и версии: `installer/pixal3d/requirements-lock.txt`): open3d, rembg, onnxruntime-gpu, opencv-python, trimesh, transformers, timm и др. | PyPI | MIT / Apache-2.0 / BSD |
+| Python 3.12.10 (портативная сборка, заголовки из dev.msi) | python.org | PSF License |
 
-The ComfyUI-MVAdapter node (github.com/huanngzh/ComfyUI-MVAdapter, Apache-2.0) is installed by the wizard into `data/runtime/custom_nodes/ComfyUI-MVAdapter`: the original from GitHub at a pinned commit plus small AstraForge edits (files in `installer/mvadapter/patch`, list in `NOTICE-ASTRAFORGE.md`).
+Узел ComfyUI-MVAdapter (github.com/huanngzh/ComfyUI-MVAdapter, Apache-2.0) устанавливается мастером в `data/runtime/custom_nodes/ComfyUI-MVAdapter`: оригинал с GitHub на закреплённом коммите плюс небольшие правки AstraForge (файлы в `installer/mvadapter/patch`, список в `NOTICE-ASTRAFORGE.md`).
 
-**Pixal3D (optional component).** The engine is installed into a separate folder (`runtime/ComfyUI-Pixal3D` by default) and runs as a separate program on port 8191. At load time the Trellis2 nodes import libraries with special licenses: `nvdiffrast` and `nvdiffrec_render` (NVIDIA, non-commercial license), `meshlib` (non-commercial and educational use) and `pymeshlab` (GPL-3.0). Therefore installation without them is not possible, but AstraForge:
+**Pixal3D (необязательный компонент).** Движок ставится в отдельную папку (`runtime/ComfyUI-Pixal3D` по умолчанию) и работает как отдельная программа на порту 8191. Узлы Trellis2 и их колёса (`o_voxel`, `utils3d`) импортируют при загрузке библиотеки с особыми лицензиями: `nvdiffrast` и `nvdiffrec_render` (NVIDIA, некоммерческая лицензия), `meshlib` (некоммерческое и учебное использование) и `pymeshlab` (GPL-3.0). AstraForge:
 
-- does not call nvdiffrast, nvdiffrec_render or the Trellis2/Pixal3D texturing (only the shape is used; the preview is rendered in Blender);
-- does not call meshlib: hole filling in the Pixal3D graph is done by `Trellis2FillHolesWithCuMesh` (CuMesh, MIT); the installer does not install the meshlib package (`installer/pixal3d/patch_trellis2.py` makes its import optional).
+- не ставит nvdiffrast и nvdiffrec_render: `installer/pixal3d/patch_trellis2.py` делает их импорт необязательным, узлы текстурирования Trellis2/Pixal3D без них не работают и студией не используются (только форма; предпросмотр рендерится в Blender);
+- не вызывает meshlib: заделка дыр в графе Pixal3D — `Trellis2FillHolesWithCuMesh` (CuMesh, MIT); пакет meshlib установщик не ставит (`installer/pixal3d/patch_trellis2.py` делает его импорт необязательным).
 
-If you use the result in commercial work, check these licenses yourself. Automatic downloading of DINOv3 from a third-party mirror is disabled in the node (the `ASTRAFORGE PATCH` edit in `nodes.py`): the weights are taken only from the official timm copy.
+Если вы используете результат в коммерческой работе, проверьте эти лицензии самостоятельно. Автоматическое скачивание DINOv3 со стороннего зеркала в узле отключено (правка `ASTRAFORGE PATCH` в `nodes.py`): веса берутся только из официальной копии timm.
 
-**VFX texture generators ("VFX" tab, optional `vfx` component).** They are not included in the archive. The wizard or
-`scripts/vfx/Install-VfxTools.ps1` downloads them from the authors' sites into a separate folder (`ASTRA_VFX_TOOLS`), and
-the user runs the PixaFlux, KumoWorks and Slate installers themselves. The full list is in `server/vfx-tools-catalog.json`.
+**Генераторы VFX-текстур (вкладка «VFX», необязательный компонент `vfx`).** В архив не входят. Мастер или
+`scripts/vfx/Install-VfxTools.ps1` скачивает их с сайтов авторов в отдельную папку (`ASTRA_VFX_TOOLS`), а
+установщики PixaFlux, KumoWorks и Slate запускает сам пользователь. Полный список — `server/vfx-tools-catalog.json`.
 
-| Component | Source | License |
+| Компонент | Откуда | Лицензия |
 |---|---|---|
 | Material Maker 1.7 | github.com/RodZill4/material-maker | MIT |
+| Pixelorama 1.2.3 (редактор пиксель-арта, запускается как внешняя программа) | github.com/Orama-Interactive/Pixelorama | MIT |
+| LoRA pixel-art-xl (nerijs) для генерации пиксель-арта (SDXL); скачивается в основной ComfyUI владельца (`models/loras`), в сборку и установщик не входит | huggingface.co/nerijs/pixel-art-xl | CreativeML OpenRAIL-M |
 | KumoWorks 1.0.1 | github.com/opentoonz/kumoworks | BSD-3-Clause |
 | Texture Generator Online, NormalMap Online | github.com/cpetry | MIT |
-| DisplacementX (Greeble), built from source | github.com/satelllte/displacementx | GPL-3.0 (the source sits alongside, `web/displacementx-src`) |
-| Neon Flames | github.com/jwagner/Neonflames | no license stated: personal use only, do not include in builds |
-| PixaFlux, Slate, FlowMap Painter, Pseudo Volume Generator | pixaflux.com, facedownfx.com, teckartist.com, acetix.itch.io | free programs under the authors' terms |
-| Impact Decal preset (Material Maker) | materialmaker.org | CC0 |
+| DisplacementX (Greeble), собирается из исходников | github.com/satelllte/displacementx | GPL-3.0 (исходники лежат рядом, `web/displacementx-src`) |
+| SculptGL (вкладка «Скульпт»), собирается из исходников; мост `scripts/sculpt/bridge.js` — часть AstraForge | github.com/stephomi/sculptgl | MIT (© Stéphane Ginier; текст лицензии лежит в сборке, `web/sculptgl/LICENSE.txt`) |
+| Neon Flames | github.com/jwagner/Neonflames | лицензия не указана: только личное использование; установщик его **не скачивает**, во вкладке «VFX» — только ссылка на сайт автора |
+| PixaFlux, Slate, FlowMap Painter, Pseudo Volume Generator | pixaflux.com, facedownfx.com, teckartist.com, acetix.itch.io | бесплатные программы на условиях авторов |
+| Заготовка Impact Decal (Material Maker) | materialmaker.org | CC0 |
 
-The Blender scripts and the ComfyUI node from this archive run inside programs under the GPL license. The MIT license
-is compatible with the GPL. When distributing a build that already bundles Blender or ComfyUI, the GPL
-applies to those programs.
+Скрипты Blender и узел ComfyUI из этого архива работают внутри программ под лицензией GPL. Лицензия MIT
+совместима с GPL. При распространении сборки, в которую уже вложены Blender или ComfyUI, на эти программы
+действует GPL.

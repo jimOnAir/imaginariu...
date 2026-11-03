@@ -1,0 +1,58 @@
+{
+  "textTo3D": {
+    "job": "950c961f-c485-4a6f-8cb8-54129d9ff7be",
+    "status": "completed",
+    "pngBytes": 746622,
+    "glbBytes": 4024164,
+    "glbVersion": 2,
+    "seconds": 43.076
+  },
+  "imageTo3D": {
+    "job": "65ce1454-1099-4233-9184-e5a22ee30d5b",
+    "status": "completed",
+    "seconds": 15
+  },
+  "localLLM": {
+    "model": "qwen3-27b-cc:latest",
+    "validatedMaterialAction": true
+  },
+  "unitTests": {
+    "passed": 7,
+    "failed": 0
+  },
+  "cloudProviders": {
+    "openai": "Implemented, not tested live: no user API key",
+    "anthropic": "Implemented, not tested live: no user API key"
+  },
+  "finalPipeline": {
+    "job": "9521059a-0d4c-4135-b81a-0705ac852bae",
+    "status": "completed",
+    "backgroundRemoval": "rembg/u2net, CPU",
+    "quality": "standard",
+    "seconds": 110.612,
+    "glbBytes": 7660996,
+    "vertices": 210504,
+    "triangles": 427730
+  },
+  "normalRecovery": "fixed and visually verified",
+  "rigEditor": {
+    "unitTests": 12,
+    "failed": 0,
+    "weightsChangedByBrush": 624,
+    "manualClip": "ArmRaise",
+    "godot": {
+      "arm_raise_changes_bone": true,
+      "bones": 27,
+      "clips": [
+        "ArmRaise",
+        "Idle",
+        "Walk"
+      ],
+      "godot": "4.7.2-stable (official)",
+      "meshes": 15,
+      "skeletons": 1,
+      "skinned_meshes": 15,
+      "walk_changes_bone": true
+    }
+  }
+}

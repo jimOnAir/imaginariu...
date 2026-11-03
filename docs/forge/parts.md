@@ -1,40 +1,39 @@
-# Generation by parts (`scripts/parts/`, step `assemble_parts`, 2026-10-13)
+# Генерация по частям (`scripts/parts/`, шаг `assemble_parts`, 13.10.2026)
 
-In our ComfyUI, Hunyuan3D-2mv builds the whole body as a single latent: `VAEDecodeHunyuan3D` with `octree_resolution 512` splits
-the bounding box of the entire figure into 512 voxels along its long side, so the head (~0.27 m out of 1.8) gets ~70 voxels
-and a hand gets only a handful. The idea: cut the head, torso, arms and legs out of the references separately, generate each
-part from a frame that **fills the generator's frame** (the same 512 voxels per part), then place the parts onto the whole
-mesh and fuse them into one model.
+Hunyuan3D-2mv в нашем ComfyUI строит всё тело одним латентом: `VAEDecodeHunyuan3D` с `octree_resolution 512` разбивает
+габарит всей фигуры на 512 вокселей по длинной стороне, поэтому на голову (~0,27 м из 1,8) приходится ~70 вокселей, на кисть
+— единицы. Идея: вырезать из референсов отдельно голову, торс, руки и ноги, сгенерировать каждую часть из кадра, который
+**заполняет кадр генератора** (те же 512 вокселей — на часть), потом поставить части на целую сетку и сплавить в одну модель.
 
-Tested on a test humanoid character (`<work dir>/mv/`): the head came out noticeably better than in the whole mesh
-(helmet crest and cheek guards, nose, eyes, mouth), the torso and arms are on par with the whole mesh, the legs are on par
-but worse in silhouette. Details and numbers are in the "Measurements" section.
+Проверено на ополченце (`C:/AstraForge/incoming/units_1013/militia/`): голова получилась заметно лучше целой сетки
+(гребень и нащёчники шлема, нос, глаза, рот), торс и руки — на уровне целой сетки, ноги — на уровне, но хуже по
+силуэту. Подробности и числа — в разделе «Замеры».
 
-## Files
+## Файлы
 
-| File | What |
+| Файл | Что |
 |---|---|
-| `scripts/parts/parts_prep.py` | cutting: part boxes from the silhouette, `parts/<part>/mv_front.png`, `mv_back.png`, `parts.json`, `boxes_preview.png` |
-| `scripts/parts/parts_generate.py` | Hunyuan3D-2mv for each part through ComfyUI, `parts/<part>/mesh_<seed>.glb` |
-| `scripts/parts/build_parts.py` | one command: cutting -> generation -> assembly in Blender, prints the GLB path and a report |
-| `scripts/blender/steps/assemble_parts.py`, `_parts_lib.py` | the Blender step "Assembly by parts" |
-| `server/forge-steps.mjs` | registry (module `parts`, step 28), `server/forge-pipeline.mjs` — inputs `concept` and `parts` |
-| `scripts/blender/tests/test_assemble_parts.py` (8 tests), `tests/forge-steps.test.mjs`, `tests/forge-pipeline.test.mjs` | tests |
+| `scripts/parts/parts_prep.py` | вырезка: рамки частей по силуэту, `parts/<часть>/mv_front.png`, `mv_back.png`, `parts.json`, `boxes_preview.png` |
+| `scripts/parts/parts_generate.py` | Hunyuan3D-2mv по каждой части через ComfyUI, `parts/<часть>/mesh_<сид>.glb` |
+| `scripts/parts/build_parts.py` | одна команда: вырезка → генерация → сборка в Blender, печатает путь к GLB и отчёт |
+| `scripts/blender/steps/assemble_parts.py`, `_parts_lib.py` | шаг Blender «Сборка по частям» |
+| `server/forge-steps.mjs` | реестр (модуль `parts`, 28-й шаг), `server/forge-pipeline.mjs` — входы `concept` и `parts` |
+| `scripts/blender/tests/test_assemble_parts.py` (8 тестов), `tests/forge-steps.test.mjs`, `tests/forge-pipeline.test.mjs` | тесты |
 
-The cutting and generation scripts run on Python from the ComfyUI venv (`<ComfyUI dir>/.venv/Scripts/python.exe`: numpy, scipy, PIL),
-the assembly step runs in Blender 5.0 (numpy only).
+Скрипты вырезки и генерации — на Python из venv ComfyUI (`D:/ComfyUI/.venv/Scripts/python.exe`: numpy, scipy, PIL),
+шаг сборки — в Blender 5.0 (только numpy).
 
-## Running
+## Запуск
 
 ```
-<ComfyUI dir>/.venv/Scripts/python.exe scripts/parts/build_parts.py ^
+D:/ComfyUI/.venv/Scripts/python.exe scripts/parts/build_parts.py ^
   --front C:/.../mv/ref_front.png --back C:/.../mv/ref_back.png ^
   --base  C:/.../mv/mesh_mv_703.glb --out C:/.../parts ^
   --seeds 703 --mv-out C:/.../mv/mesh_mv_parts.glb
 ```
 
-Finished part meshes are reused (`--force` regenerates; `--skip-prep`, `--skip-generate` run only the following stages;
-`--param voxel_m=0.003 --param target_tris=60000` set step parameters). Stage by stage:
+Готовые сетки частей берутся повторно (`--force` — заново; `--skip-prep`, `--skip-generate` — только следующие этапы;
+`--param voxel_m=0.003 --param target_tris=60000` — параметры шага). По этапам:
 
 ```
 parts_prep.py     --front ref_front.png --back ref_back.png --out parts/ [--boxes boxes.json] [--margin 0.045] [--parts head,legs]
@@ -42,195 +41,195 @@ parts_generate.py --parts-dir parts/ [--seeds 703 11 | head=703,11 torso=5] [--o
 blender -b --factory-startup --python scripts/blender/af_run.py -- assemble_parts request.json
 ```
 
-The step's `request.json`: `{"step": "assemble_parts", "inputs": {"mesh": "<whole mesh>", "concept": "<ref_front.png>",
-"parts": "<parts/parts.json>"}, "params": {...}, "out_dir": "..."}`. Through the forge: `parts_file` and `concept_file` are
-local paths, available only through the CLI `--direct` (they cannot be set over HTTP); `concept_asset` is a studio image; without
-it the asset's generation reference image is used. The step comes after the whole mesh has been obtained (`humanoid`); after it
-comes `cleanup` as usual (see "How to feed the result into the character build").
+`request.json` шага: `{"step": "assemble_parts", "inputs": {"mesh": "<целая сетка>", "concept": "<ref_front.png>",
+"parts": "<parts/parts.json>"}, "params": {...}, "out_dir": "..."}`. Через кузницу: `parts_file` и `concept_file` —
+локальные пути, только CLI `--direct` (по HTTP их задавать нельзя); `concept_asset` — картинка студии; без неё берётся
+опорная картинка генерации ассета. Шаг стоит после получения целой сетки (`humanoid`); после него `cleanup` обычным
+образом (см. «Как подставить в сборку бойца»).
 
-Requirements for the references: **T-pose, facing -Y** (the character's left = +X = the right side in the front view), front and back references
-as RGBA (alpha = the figure) of the same height, as produced by `prep_mv.py`.
+Требования к ссылкам: **T-поза, лицом в −Y** (персонаж слева = +X = справа на виде спереди), передний и задний референсы
+RGBA (альфа = фигура) одной высоты, как их делает `prep_mv.py`.
 
-## How it works
+## Как это работает
 
-### 1. Cutting (`parts_prep.py`)
+### 1. Вырезка (`parts_prep.py`)
 
-Everything is based on the silhouette of the front reference (alpha >= 128, small debris under 2 % is discarded):
+Всё по силуэту переднего референса (альфа ≥ 128, мелкий мусор меньше 2 % выброшен):
 
-- **head** — from the top of the head to the neck: the shoulders are the first row that is wider than everything above it by a factor of 1.45; the neck is the narrowest
-  row between the widest row of the head (helmet, hood) and the shoulders;
-- **arms (T-pose)** — the rows where the silhouette is one and a half times wider than the torso; the torso width and its axis are taken at chest level right under the
-  arms; an arm is the columns beyond the torso edges and the rows it occupies;
-- **torso** — from the neck to the hem of the upper garment (the row where the legs diverge: going up from the feet, the last row with two
-  separate legs), width — at the chest plus a margin, and at the hem if the hem is wider;
-- **legs** — from that same row down to the soles.
+- **голова** — от макушки до шеи: плечи — первая строка, которая шире всего, что выше неё, в 1,45 раза; шея — самая узкая
+  строка между самой широкой строкой головы (шлем, капюшон) и плечами;
+- **руки (T-поза)** — строки, на которых силуэт в полтора раза шире торса; ширина торса и его ось — на уровне груди сразу под
+  руками; рука — колонки за краями торса, строки, которые она занимает;
+- **торс** — от шеи до подола верхней одежды (строка, где ноги расходятся: идя от стоп вверх, последняя строка с двумя
+  отдельными ногами), ширина — по груди ± запас и по подолу, если он шире;
+- **ноги** — от этой же строки вниз до подошв.
 
-At every joint the parts overlap each other by `margin` = **4.5 % of the height** on both sides (joint overlap 9 %): the assembly
-has something to align and fuse. The back-view boxes are the front boxes mirrored about the torso axis of each view
-(the character's left is on the right in the front view and on the left in the back view), followed by a small shift search (+-1.5 % of the height) by the IoU
-of the mirrored front cut against the back one (on the test character the arms went 0.94 -> 0.96-0.97, the other parts unchanged). To use your own box instead of the automatic one:
-`--boxes boxes.json` (`{"head": [x0, y0, x1, y1], ...}` in pixels of the front reference, or a `parts.json` itself).
+На каждом стыке части заходят друг за друга на `margin` = **4,5 % роста** с обеих сторон (перекрытие стыка 9 %): сборке
+есть что совмещать и сплавлять. Рамки заднего вида — рамки переднего, зеркальные относительно оси туловища каждого вида
+(персонаж слева — справа на виде спереди и слева на виде сзади), затем маленький поиск сдвига (±1,5 % роста) по IoU
+зеркальной передней вырезки с задней (на ополченце у рук 0,94 → 0,96–0,97, у остальных частей без изменений). Своя рамка вместо автоматической —
+`--boxes boxes.json` (`{"head": [x0, y0, x1, y1], …}` в пикселях переднего референса или сам `parts.json`).
 
-For each part: a shared frame for the front and back views (by the bounding box of the silhouette inside the box, the same size for both views, each with its own centre),
-the figure outside the box is removed from alpha, the long side of the frame = 1280 px at the centre of a white 1536 px canvas — the input format of
-`gen_mv.py`. `parts.json` holds the boxes in pixels of the references (front and back), the bounding box of the silhouette in the box, the
-cut -> canvas transform (`frame`: size, scale, offsets), reference rows (`landmarks`), and the mesh paths.
+Для каждой части: общий кадр у вида спереди и сзади (по габариту силуэта в рамке, у обоих видов один размер, центр свой),
+фигура вне рамки убирается из альфы, длинная сторона кадра = 1280 px по центру белого холста 1536 px — формат входа
+`gen_mv.py`. В `parts.json` — рамки в пикселях референсов (спереди и сзади), габарит силуэта в рамке, преобразование
+вырезка → холст (`frame`: размер, масштаб, смещения), опорные строки (`landmarks`), пути к сеткам.
 
-Resolution gain: the head is cut out with a magnification of x5.9 (frame 191x217 px -> 1280), the torso x1.9, the arms x2.7, the legs x2.8
-(the whole body — x1.1).
+Выигрыш в разрешении: голова вырезается с увеличением ×5,9 (кадр 191×217 px → 1280), торс ×1,9, руки ×2,7, ноги ×2,8
+(целое тело — ×1,1).
 
-### 2. Generation (`parts_generate.py`)
+### 2. Генерация (`parts_generate.py`)
 
-The graph is word for word that of `gen_mv.py` (ImageOnlyCheckpointLoader -> CLIPVisionEncode front and back ->
-Hunyuan3Dv2ConditioningMultiView -> EmptyLatentHunyuan3Dv2(3072) -> KSampler 45 steps, cfg 5 -> VAEDecodeHunyuan3D (octree 512)
--> AstraMarchingCubes -> SaveGLB). GPU: one request at a time; before each one it checks `GET /queue` and waits for an empty
-queue (someone else's job), and `/free` and `/interrupt` are never called. Seeds: `--seeds 703` (default) for all parts,
-`--seeds head=703,11` — several for one part. Result: `parts/<part>/mesh_<seed>.glb`; `parts.json` gets `meshes` and the
-selected `mesh`.
+Граф — слово в слово `gen_mv.py` (ImageOnlyCheckpointLoader → CLIPVisionEncode спереди и сзади →
+Hunyuan3Dv2ConditioningMultiView → EmptyLatentHunyuan3Dv2(3072) → KSampler 45 шагов, cfg 5 → VAEDecodeHunyuan3D (octree 512)
+→ AstraMarchingCubes → SaveGLB). Видеокарта: один запрос за раз; перед каждым смотрит `GET /queue` и ждёт пустой
+очереди (чужая задача), `/free` и `/interrupt` не вызываются. Сиды: `--seeds 703` (по умолчанию) на все части,
+`--seeds head=703,11` — несколько на одну. Результат: `parts/<часть>/mesh_<сид>.glb`, в `parts.json` — `meshes` и
+выбранная `mesh`.
 
-### 3. Assembly (`assemble_parts`)
+### 3. Сборка (`assemble_parts`)
 
-1. **Whole mesh**: join it, scale to `height_m`, feet at z = 0, centre in X/Y (like `cleanup`). It is better to take the raw Hunyuan mesh
-   (`mesh_mv_703.glb`, 715 thousand triangles) rather than the 24-thousand `clean.glb`: it is needed for depths and gap filling,
-   details matter, and cleaning would already have eaten them. The mesh and the parts are welded by vertices (glTF splits vertices along normal seams).
-2. **Camera**: orthographic, strictly from the front (yaw and pitch = 0), scale and shift fitted by IoU to the silhouette of the
-   front reference (Nelder-Mead at 200/400/800 px, like the `paint_from_concept` fit without rotation). Pixel boxes of the
-   parts -> boxes in metres. IoU of the whole mesh with the reference is 0.9375.
-3. **Placing a part** (the part mesh is in the generator's coordinate system: box centre at zero, long side 2):
-   - **X / Z — by silhouette.** Per-axis scale and shift: the initial ones come from the bounding box of the silhouette in the box, then Nelder-Mead
-     by the IoU of the part's front projection with the reference silhouette inside the box. The reference is the truth for the front view: the part was generated
-     exactly from this cut, while the whole mesh is less accurate there (the helmet is smaller and blurrier: the silhouette IoU of the whole mesh is 0.9375,
-     for the parts inside their boxes 0.91-0.98). The generator does not preserve proportions: for the torso with sleeve stumps the width came out 15 %
-     larger than in the image — hence per-axis scale rather than uniform.
-   - **Y (depth) — from the whole mesh**, because the images do not define depth. The shift is the median of the difference of the depth maps
-     (front and back surface) of the part and the whole mesh over the pixels visible in both; the Y scale is the front-to-back thickness of the whole mesh
-     (`depth_scale: base`, within 0.8-1.25): for the test character the whole mesh is 9-24 % thicker than the parts, and without
-     this neighbouring parts would meet in steps. `part` — the part's own proportions.
-   - **ICP** (`refine: icp`) — symmetric trimmed ICP, a rigid rotation of at most `icp_max_rot_deg` + uniform scale
-     <= `icp_scale_range`, against the surface of the whole mesh in the box expanded by `box_expand` — in the same boxes it **measured worse than the
-     default** (see "Measurements"): the whole mesh pulls the part toward its own errors. The residual (trimmed RMS and
-     median of part <-> whole mesh distances, the share of points within 5 mm) is computed in any mode.
-   - **Flip**: the part is also tried rotated by 180° around Z (the generator might have put the face on the back); it is taken if the
-     residual drops by at least 40 %.
-4. **Joints.** Where the boxes of two parts overlap in a slab (thickness 5-20 % of the height, long side no shorter than 1.2
-   of the thickness; corner touches such as "helmet bust — sleeve" are not a joint), each part is cut along the line of the slab where the cross-sections of both
-   parts match best (the sum of differences of the cross-section extents along the other two axes in a thin slice of +-8 mm, within 70 % of the
-   slab), +-`joint_overlap_m` (2 voxels): the parts overlap only in a thin layer. The boolean operation uses the Manifold solver
-   (0.7 s per 700 thousand triangles), Exact is the fallback. Without this, a full overlap of the margins shows every surface
-   mismatch: the ends of the torso's sleeve stumps stuck out of the arm as a flat "patch". Small islands (floating debris from the
-   generator with fewer than `island_min` vertices) are removed.
-5. **A part without a mesh** (not generated, failed, or could not be placed): the whole mesh inside its box takes its place
-   (boolean intersection with a box over the full depth, flat cuts along the box faces — neighbouring parts reach into this box,
-   so the volumes overlap).
-6. **Fusion**: all parts and pieces of the whole mesh are joined and go through a voxel remesh (union: overlapping shells
-   disappear), optionally simplification to `target_tris`, normals, angle-based smoothing, scaling to `height_m`, feet at z = 0.
+1. **Целая сетка**: склеить, масштаб до `height_m`, ноги на z = 0, центр по X/Y (как `cleanup`). Лучше брать сырую сетку
+   Hunyuan (`mesh_mv_703.glb`, 715 тыс. треугольников), а не 24-тысячную `clean.glb`: она нужна для глубин и заполнения
+   пробелов, детали важны; чистка уже съела бы их. Сетка и части сварены по вершинам (glTF режет вершины по швам нормалей).
+2. **Камера**: ортографическая, строго спереди (рыскание и наклон = 0), масштаб и сдвиг подгоняются по IoU к силуэту
+   переднего референса (Нелдер — Мид на 200/400/800 px, как подгонка `paint_from_concept` без поворота). Пиксельные рамки
+   частей → рамки в метрах. IoU целой сетки с референсом 0,9375.
+3. **Постановка части** (сетка части — в системе генератора: центр рамки в нуле, длинная сторона 2):
+   - **X / Z — по силуэту.** Масштаб по каждой оси и сдвиг: начальные — по габариту силуэта в рамке, затем Нелдер — Мид
+     по IoU проекции части спереди с силуэтом референса внутри рамки. Референс — истина для вида спереди: часть сгенерирована
+     ровно из этой вырезки, а целая сетка там неточнее (шлем меньше и расплывчатее: IoU силуэта целой сетки 0,9375,
+     у частей внутри своих рамок 0,91–0,98). Генератор не держит пропорции: у торса с культями рукавов ширина вышла на 15 %
+     больше, чем по картинке, — поэтому масштаб по осям, а не равномерный.
+   - **Y (глубина) — по целой сетке**, потому что картинки глубину не задают. Сдвиг — медиана разности карт глубины
+     (передней и задней поверхности) части и целой сетки по пикселям, которые видны у обеих; масштаб по Y — толщина спереди
+     назад целой сетки (`depth_scale: base`, в пределах 0,8–1,25): у ополченца целая сетка толще частей на 9–24 %, и без
+     этого соседние части сходились бы уступами. `part` — собственные пропорции части.
+   - **ICP** (`refine: icp`) — симметричный усечённый ICP, жёсткий поворот не больше `icp_max_rot_deg` + равномерный масштаб
+     ≤ `icp_scale_range`, по поверхности целой сетки в рамке, расширенной на `box_expand` — в тех же рамках **замерен хуже
+     умолчания** (см. «Замеры»): целая сетка тянет часть к её собственным ошибкам. Остаточная невязка (усечённая СКО и
+     медиана расстояний часть ↔ целая сетка, доля точек в 5 мм) считается в любом режиме.
+   - **Разворот**: часть пробуется и повёрнутой на 180° вокруг Z (генератор мог посадить лицо на спину); берётся, если
+     невязка падает хотя бы на 40 %.
+4. **Стыки.** Там, где рамки двух частей перекрываются плитой (толщина 5–20 % роста, длинная сторона не короче 1,2
+   толщины; угловые касания вроде «бюст шлема — рукав» не стык), каждая часть режется по линии плиты, где сечения обеих
+   частей совпадают лучше всего (сумма разностей размахов сечений по двум другим осям в тонком срезе ±8 мм, внутри 70 %
+   плиты), ±`joint_overlap_m` (2 вокселя): части перекрываются только тонким слоем. Булева операция — решатель Manifold
+   (0,7 с на 700 тыс. треугольников), Exact — запасной. Без этого полное перекрытие запасов показывает каждое расхождение
+   поверхностей: торцы культей рукавов торса торчали плоской «заплаткой» из руки. Мелкие острова (летающий мусор
+   генератора меньше `island_min` вершин) удаляются.
+5. **Часть без сетки** (не сгенерирована, не прошла, не поставилась): на её место встаёт целая сетка внутри её рамки
+   (булево пересечение с коробкой на всю глубину, плоские срезы по граням рамки — соседние части заходят в эту рамку,
+   поэтому объёмы перекрываются).
+6. **Сплав**: все части и куски целой сетки склеиваются и проходят воксельный ремеш (объединение: перекрывающиеся оболочки
+   исчезают), по желанию — упрощение до `target_tris`, нормали, сглаживание по углу, рост `height_m`, ноги на z = 0.
 
-Outputs: `assembled.glb`, `assembled.blend` (Body + a hidden whole mesh), `preview.png` (a row of the whole mesh above a row of the
-assembly: front, back, side, head front and three-quarter), `parts_fit.json` (per part: per-axis scale, shift,
-IoU in the box before/after, depth shift and thickness, residuals, cuts; joints; camera; IoU) and, with `export_mv`,
-`assembled_mv.glb` in Hunyuan normalisation (box centred at the origin, long side 2, vertices without splits along
-normals). Checks: `parts_found`, `watertight` (error on open edges), `manifold`, `no_nan_verts`,
-`height_matches`, `grounded`, `silhouette_iou_min` (>= 0.85, error), `silhouette_iou` (not lower than the whole mesh by more than
-0.01), `part_residual_<part>` (residual > `icp_warn_m` = 12 mm) and `part_flipped_<part>` (warnings).
+Выходы: `assembled.glb`, `assembled.blend` (Body + скрытая целая сетка), `preview.png` (ряд целой сетки над рядом
+сборки: спереди, сзади, сбоку, голова спереди и в три четверти), `parts_fit.json` (на часть: масштаб по осям, сдвиг,
+IoU в рамке до/после, сдвиг и толщина по глубине, невязки, разрезы; стыки; камера; IoU) и при `export_mv` —
+`assembled_mv.glb` в нормировке Hunyuan (рамка по центру начала координат, длинная сторона 2, вершины без разрезов по
+нормалям). Проверки: `parts_found`, `watertight` (ошибка при открытых рёбрах), `manifold`, `no_nan_verts`,
+`height_matches`, `grounded`, `silhouette_iou_min` (≥ 0,85, ошибка), `silhouette_iou` (не ниже целой сетки более чем на
+0,01), `part_residual_<часть>` (невязка > `icp_warn_m` = 12 мм) и `part_flipped_<часть>` (предупреждения).
 
-## Parameters of the `assemble_parts` step
+## Параметры шага `assemble_parts`
 
-All are optional; names and hints are in the registry (`server/forge-steps.mjs`).
+Все необязательные; названия и подсказки — в реестре (`server/forge-steps.mjs`).
 
-| Parameter | Default | |
+| Параметр | По умолчанию | |
 |---|---|---|
-| `height_m` | 1.8 | height of the whole mesh and of the result |
-| `voxel_m` | empty = 0.0016 x height (2.9 mm) | fusion voxel. The whole body is generated with a ~3.5 mm step, the head with ~0.5 mm: a coarser voxel (`cleanup` uses 0.0033 x height = 6 mm) washes out the gain from the parts. At 4 mm the result is 0.6 M, at 2.9 mm 1.18 M triangles |
-| `target_tris` | empty | simplification of the result |
+| `height_m` | 1,8 | рост целой сетки и результата |
+| `voxel_m` | пусто = 0,0016 × рост (2,9 мм) | воксель сплава. Целое тело генерируется с шагом ~3,5 мм, голова — ~0,5 мм: воксель крупнее (`cleanup` берёт 0,0033 × рост = 6 мм) смывает выигрыш частей. На 4 мм результат 0,6 млн, на 2,9 мм — 1,18 млн треугольников |
+| `target_tris` | пусто | упрощение результата |
 | `refine` | `silhouette` | `silhouette` \| `icp` \| `none` |
-| `depth_scale` | `base` | `base` \| `part` \| a multiplier |
-| `trim_overlap`, `joint_overlap_m`, `island_min` | yes, 2 voxels, 0.002 | joint trimming, share of vertices for small islands |
-| `box_expand`, `icp_iters`, `icp_trim`, `icp_samples`, `icp_max_rot_deg`, `icp_scale_range` | 0.012, 40, 0.8, 15000, 6°, [0.8; 1.25] | ICP target and limits |
-| `icp_warn_m` | 0.012 | residual warning threshold |
-| `try_flip`, `flip_rms_m` | yes, 0 | check for a 180° flip (0 — always) |
-| `fill_gaps`, `gap_min_tris` | yes, 1500 | pieces of the whole mesh in place of parts without a mesh |
-| `camera` | `fit` | or `{px_per_m, offset_px, centre}` from `parts_fit.json` |
-| `pick` | `{}` | `{part: seed | path}` — which mesh to take |
-| `export_mv`, `shade_auto_smooth_deg`, `preview`, `preview_size`, `head_closeup` | no, 40, yes, 384, yes | |
+| `depth_scale` | `base` | `base` \| `part` \| множитель |
+| `trim_overlap`, `joint_overlap_m`, `island_min` | да, 2 вокселя, 0,002 | подрезка стыков, доля вершин для мелких островов |
+| `box_expand`, `icp_iters`, `icp_trim`, `icp_samples`, `icp_max_rot_deg`, `icp_scale_range` | 0,012, 40, 0,8, 15000, 6°, [0,8; 1,25] | цель и ограничения ICP |
+| `icp_warn_m` | 0,012 | порог предупреждения о невязке |
+| `try_flip`, `flip_rms_m` | да, 0 | проверка разворота на 180° (0 — всегда) |
+| `fill_gaps`, `gap_min_tris` | да, 1500 | куски целой сетки на месте частей без сетки |
+| `camera` | `fit` | или `{px_per_m, offset_px, centre}` из `parts_fit.json` |
+| `pick` | `{}` | `{часть: сид | путь}` — какую сетку брать |
+| `export_mv`, `shade_auto_smooth_deg`, `preview`, `preview_size`, `head_closeup` | нет, 40, да, 384, да | |
 
-## Measurements on the test character
+## Замеры на ополченце
 
-Inputs: `mv/ref_front.png`, `ref_back.png` (1371², figure 1066x1136 px), whole mesh `mesh_mv_703.glb`
-(715 thousand triangles; IoU with the front reference 0.9375). Seed 703 for all parts. Map: `parts/`.
+Исходные данные: `militia/mv/ref_front.png`, `ref_back.png` (1371², фигура 1066×1136 px), целая сетка `mesh_mv_703.glb`
+(715 тыс. треугольников; IoU с передним референсом 0,9375). Сид 703 на все части. Карта: `militia/parts/`.
 
-**Boxes (pixels of the front reference)**: head [589, 107, 779, 333], torso [511, 231, 857, 899], arm `arm_l` (on the right in the
-front view) [750, 306, 1228, 451], `arm_r` [140, 306, 618, 451], legs [499, 797, 871, 1264]; neck row 282, hem/leg
-fork row 848; joint overlap 102 px (9 % of the height), `boxes_preview.png`.
+**Рамки (пиксели переднего референса)**: голова [589, 107, 779, 333], торс [511, 231, 857, 899], рука `arm_l` (справа на
+виде спереди) [750, 306, 1228, 451], `arm_r` [140, 306, 618, 451], ноги [499, 797, 871, 1264]; строки шея 282, подол/развилка
+ног 848; перекрытие стыка 102 px (9 % роста), `boxes_preview.png`.
 
-**Generation** (RTX 4070): 156-160 s per part, 788 s for five parts (+156 s for repeating the torso after the box changed: the first torso
-box was wider by 2x45 px because of the lower edge of the sleeves, this is fixed in `parts_prep.py`). Meshes: head 2.37 M
-triangles (42 MB), torso 1.22 M, arms 0.47 M each, legs 1.78 M (face spacing ~0.5 mm for the head versus ~3.5 mm for the whole).
+**Генерация** (RTX 4070): по части 156–160 с, пять частей 788 с (+156 с на повтор торса после смены рамки: первая рамка
+торса была шире на 2×45 px из-за нижнего края рукавов, это исправлено в `parts_prep.py`). Сетки: голова 2,37 млн
+треугольников (42 МБ), торс 1,22 млн, руки по 0,47 млн, ноги 1,78 млн (шаг граней у головы ~0,5 мм против ~3,5 мм у целой).
 
-**Assembly** (each part, defaults): per-axis scale (X, Y, Z), silhouette IoU in the box, residual against the whole mesh:
+**Сборка** (каждая часть, умолчания): масштаб по осям (X, Y, Z), IoU силуэта в рамке, невязка до целой сетки:
 
-| part | scale X / Y / Z | IoU in the box | RMS, mm | median, mm | thickness whole/part |
+| часть | масштаб X / Y / Z | IoU в рамке | СКО, мм | медиана, мм | толщина целая/часть |
 |---|---|---|---|---|---|
-| head | 0.178 / 0.205 / 0.174 | 0.957 | 7.7 | 7.9 | 1.16 |
-| torso | 0.538 / 0.594 / 0.553 | 0.980 | 9.3 | 9.6 | 1.09 |
-| arm `arm_l` | 0.383 / 0.450 / 0.368 | 0.959 | 6.3 | 6.2 | 1.20 |
-| arm `arm_r` | 0.389 / 0.472 / 0.375 | 0.953 | 6.2 | 6.0 | 1.24 |
-| legs | 0.346 / 0.428 / 0.383 | 0.914 | 11.0 | 11.1 | 1.18 |
+| голова | 0,178 / 0,205 / 0,174 | 0,957 | 7,7 | 7,9 | 1,16 |
+| торс | 0,538 / 0,594 / 0,553 | 0,980 | 9,3 | 9,6 | 1,09 |
+| рука `arm_l` | 0,383 / 0,450 / 0,368 | 0,959 | 6,3 | 6,2 | 1,20 |
+| рука `arm_r` | 0,389 / 0,472 / 0,375 | 0,953 | 6,2 | 6,0 | 1,24 |
+| ноги | 0,346 / 0,428 / 0,383 | 0,914 | 11,0 | 11,1 | 1,18 |
 
-All residuals are below the 12 mm threshold, no flipped parts. Generator aspect deviation: torso X/Z 0.99 (after the box change;
-the first version 0.87), legs 0.92 (the weakest spot).
+Все невязки ниже порога 12 мм, развернутых частей нет. Различие генератора по аспекту: торс X/Z 0,99 (после смены рамки;
+первая версия 0,87), ноги 0,92 (самое слабое место).
 
-**Result**: silhouette IoU with the front reference **whole mesh 0.9375 -> assembly 0.9575** (assembly/whole mesh 0.921: the figure
-is assembled to the proportions of the reference, while the whole mesh is wider than it by ~3 %). The result is 1 183 272 triangles (voxel 2.88 mm), closed
-(0 open edges, 0 non-manifold), 1 piece, height 1.8 m. Assembly time 71 s: whole mesh 1.3, camera 2.9, part placement
-24.9, joint trimming 29 (boolean operations over 2.4 M), voxel remesh 1.9, metrics 3.8, GLB 1.7, preview 1.9.
-The whole `build_parts.py` on ready meshes — 76 s.
+**Итог**: IoU силуэта с передним референсом **целая сетка 0,9375 → сборка 0,9575** (сборка/целая сетка 0,921: фигура
+собрана по пропорциям референса, а целая сетка шире него на ~3 %). Результат 1 183 272 треугольников (воксель 2,88 мм), замкнут
+(открытых рёбер 0, неманифолдных 0), 1 кусок, рост 1,8 м. Время сборки 71 с: целая сетка 1,3, камера 2,9, постановка
+частей 24,9, подрезка стыков 29 (булевы операции над 2,4 млн), воксельный ремеш 1,9, метрики 3,8, GLB 1,7, превью 1,9.
+Весь `build_parts.py` на готовых сетках — 76 с.
 
-**Fit modes** (voxel 4 mm; assembly IoU with the reference, IoU of the parts in the boxes before -> after ICP):
+**Режимы подгонки** (воксель 4 мм; IoU сборки с референсом, IoU частей в рамках до → после ICP):
 
-| mode | assembly IoU | note |
+| режим | IoU сборки | примечание |
 |---|---|---|
-| `silhouette` (default) | 0.954 | |
-| `icp` | 0.951 | IoU in the boxes head 0.957 -> 0.921, legs 0.905 -> 0.890, head rotation 4.4°, RMS smaller (7.4 -> 6.0 mm): ICP against the whole mesh improves "agreement with it", but pulls the part away from the reference |
-| `none` (bounding boxes) | 0.954 | |
-| `depth_scale: part` | 0.953 | RMS to the whole mesh 9.7-10.5 mm instead of 6-9 |
-| without joint trimming | 0.955 | same geometry, but patches on the shoulders |
+| `silhouette` (умолчание) | 0,954 | |
+| `icp` | 0,951 | IoU в рамках голова 0,957 → 0,921, ноги 0,905 → 0,890, поворот головы 4,4°, СКО меньше (7,4 → 6,0 мм): ICP по целой сетке улучшает «совпадение с ней», но уводит часть от референса |
+| `none` (габариты) | 0,954 | |
+| `depth_scale: part` | 0,953 | СКО до целой сетки 9,7–10,5 мм вместо 6–9 |
+| без подрезки стыков | 0,955 | та же геометрия, но заплатки на плечах |
 
-**Are the parts better than the whole mesh?** The head — yes, and it is visible: in the whole mesh the helmet is smooth, without the crest and cheek guards of
-its shape, and the face is only a nose bump; in the assembly the helmet has a vertical bar, cheek guards, eyes, eyebrows, mouth and a collar (`compare.png`, and
-after simplification to the same 24 thousand triangles as in the character build, `compare_24k.png`: the simplified head stays
-recognisable, the whole mesh's does not). Torso, arms: the shape matches the whole mesh, with slightly crisper edges of the sleeves and hem, and the belt. Legs:
-the hem and boots are crisp, but the silhouette is worse than the reference (IoU 0.914 versus 0.98 for the torso) — the generator narrowed the legs by 8 %. The overall silhouette
-IoU rose by 2 points, mostly thanks to the head, shoulders and torso.
+**Лучше ли части, чем целая сетка?** Голова — да, и это видно: у целой сетки шлем гладкий, без гребня и нащёчников формы,
+лицо — только выступ носа; у сборки шлем с вертикальной планкой, нащёчники, глаза, брови, рот, воротник (`compare.png`, а
+после упрощения до тех же 24 тыс. треугольников, как в сборке бойца, — `compare_24k.png`: упрощённая голова остаётся
+узнаваемой, целой сетки — нет). Торс, руки: форма совпадает с целой сеткой, чуть чётче грани рукавов и подола, пояс. Ноги:
+подол и сапоги чёткие, но силуэт хуже референса (IoU 0,914 против 0,98 у торса) — генератор сузил ноги на 8 %. Общий IoU
+силуэта вырос на 2 пункта в основном за счёт головы, плеч и торса.
 
-## How to feed the result into the character build
+## Как подставить в сборку бойца
 
-`mv/mesh_mv_parts.glb` in the work directory is the result in Hunyuan normalisation (bbox centred: X +-0.953,
-Y +-0.225, Z +-1.0; for `mesh_mv_703.glb`: X +-0.968, Z +-0.999), 1.18 M triangles, 21 MB, without vertex splits. It passes
-`cleanup` (checked with the `cleanup` step at `height_m 1.8`, `target_tris 24000`: 18 s,
-IoU before/after 0.998, checklists green; output — `parts/cleanup24k/clean_from_mesh_mv_parts.glb`). `cleanup` without `voxel_remesh_m`
-only simplifies; with a voxel remesh of 0.0033 x height the head details get washed out — in that case set `voxel_remesh_m` to no more than 0.0016 x height.
-Painting from the concept (`paint_from_concept`) works on an ordinary model: the parts carry no colour.
+`C:/AstraForge/incoming/units_1013/militia/mv/mesh_mv_parts.glb` — результат в нормировке Hunyuan (bbox по центру: X ±0,953,
+Y ±0,225, Z ±1,0; у `mesh_mv_703.glb`: X ±0,968, Z ±0,999), 1,18 млн треугольников, 21 МБ, без разрезов вершин. Проходит
+`cleanup` (`bash build_unit.sh militia parts 24000`: проверено шагом `cleanup` с `height_m 1,8`, `target_tris 24000`: 18 с,
+IoU до/после 0,998, чек-листы зелёные; выход — `parts/cleanup24k/clean_from_mesh_mv_parts.glb`). `cleanup` без `voxel_remesh_m`
+только упрощает; с воксельным ремешем 0,0033 × рост детали головы смоются — тогда задайте `voxel_remesh_m` не больше 0,0016 × рост.
+Покраска по концепту (`paint_from_concept`) работает по обычной модели: цвета в частях нет.
 
-## Limitations
+## Ограничения
 
-- **T-pose only, facing -Y**, front and back references of the same height and a shared frame. Part boxes and depth are made
-  for a humanoid; creatures, robots, or a figure with props need their own boxes (`--boxes`).
-- **Depth is not guaranteed**: the images do not define it, it is taken from the whole mesh (thickness, shift) — the parts are thinner than the whole
-  by 9-24 %, but which of them is right is unknown without a side view.
-- **Steps at joints**: independently generated surfaces diverge by 5-15 mm; at the root of the arm a thin step is visible
-  (side view), at the neck almost none. Joint trimming and seam-line selection remove flat patches but do not smooth the steps themselves
-  (seam smoothing is a possible improvement).
-- **Legs** are worse than the other parts by silhouette (IoU 0.914, generator aspect 0.92); for the torso with the first box the width came out 15 %
-  larger than the image.
-- **Size**: the parts weigh tens of megabytes (head 42 MB, 2.4 M), joint trimming takes about 30 s, the whole step ~1.2 min.
-- Manifold boolean operations require closed meshes: Hunyuan meshes are such (checked), others go through Exact (slow).
-- The default fusion voxel is 2.9 mm: head details finer than that (0.5 mm) are not preserved in the final mesh; `voxel_m` 0.002 gives
-  ~2 M triangles.
-- The GPU is busy for ~13 min on five parts: cutting and assembly run on the CPU.
+- **Только T-поза, лицом в −Y**, передний и задний референс одной высоты и общий кадр. Рамки частей и глубина — для
+  гуманоида; для существ, роб, пары с реквизитом нужны свои рамки (`--boxes`).
+- **Глубина не гарантируется**: картинки её не задают, она берётся с целой сетки (толщина, сдвиг) — у частей она тоньше целой
+  на 9–24 %, но кто из них прав, без бокового вида неизвестно.
+- **Уступы на стыках**: независимо сгенерированные поверхности расходятся на 5–15 мм; у корня руки виден тонкий уступ
+  (вид сбоку), у шеи — почти нет. Подрезка стыков и выбор линии убирают плоские заплатки, но не сглаживают сами уступы
+  (сглаживание по шву — возможное улучшение).
+- **Ноги** хуже других частей по силуэту (IoU 0,914, аспект генератора 0,92); у торса при первой рамке ширина вышла на
+  15 % больше картинки.
+- **Размер**: части весят десятки мегабайт (голова 42 МБ, 2,4 млн), подрезка стыков — около 30 с, весь шаг ~1,2 мин.
+- Булевы операции Manifold требуют замкнутых сеток: сетки Hunyuan такие (проверено), прочие — через Exact (долго).
+- Воксельный сплав по умолчанию 2,9 мм: мельче детали головы (0,5 мм) в итоговой сетке не сохраняются; `voxel_m` 0,002 даёт
+  ~2 млн треугольников.
+- Видеокарта занята ~13 мин на пять частей: вырезка и сборка — на ЦП.
 
-## Tests
+## Тесты
 
-`blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- assemble_parts` — 8 tests (camera, joints, seam
-line selection, export in Hunyuan normalisation, head placement with aspect and thickness errors, a part rotated facing backward,
-`icp` / `none` modes, missing parts.json and the no-parts mode), 36 s. Node: `node --test --test-reporter=tap tests/*.test.mjs`
-— 167 tests (+1 registry, +1 pipeline: `parts_file` / `concept_file` CLI only, the `parts` input).
+`blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- assemble_parts` — 8 тестов (камера, стыки, выбор
+линии шва, экспорт в нормировке Hunyuan, постановка головы с ошибками аспекта и толщины, часть, повёрнутая лицом назад,
+режимы `icp` / `none`, отсутствие parts.json и режим без частей), 36 с. Узлы: `node --test --test-reporter=tap tests/*.test.mjs`
+— 167 тестов (+1 реестр, +1 конвейер: `parts_file` / `concept_file` только CLI, вход `parts`).

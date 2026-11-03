@@ -1,89 +1,88 @@
-# Module "mixamo": clip library and retargeting to any humanoid rig
+# Модуль «mixamo»: библиотека клипов и перенос на любой гуманоидный риг
 
-Files: `scripts/blender/steps/retarget.py`, `steps/clip_library.py`, `steps/_anim_lib.py`,
-`scripts/blender/tests/test_mixamo.py`, the library `data/library/animations/` (not tracked in git).
+Файлы: `scripts/blender/steps/retarget.py`, `steps/clip_library.py`, `steps/_anim_lib.py`,
+`scripts/blender/tests/test_mixamo.py`, библиотека `data/library/animations/` (в git не попадает).
 
-## What it does
+## Что делает
 
-**`retarget`** transfers Mixamo clips (and any FBX with a humanoid skeleton) onto a skinned rig. Outputs:
-- `animated.glb`: one glTF animation per clip, looping ones get the suffix `-loop`, the skin is kept.
-  The whole rig hierarchy goes into the file: §6 sockets on bones, props on sockets, child meshes;
+**`retarget`** переносит клипы Mixamo (и любые FBX с гуманоидным скелетом) на скиннованный риг. Выходы:
+- `animated.glb`: по одной glTF-анимации на клип, у зацикленных суффикс `-loop`, скин сохранён. В файл
+  уходит вся иерархия рига: сокеты §6 на костях, реквизит на сокетах, дочерние сетки;
 - `animated.blend`;
-- `clips.json` with metrics;
-- `preview.png`: one row per clip, 5 frames, three-quarter view, Workbench.
+- `clips.json` с метриками;
+- `preview.png`: строка на клип, 5 кадров, вид три четверти, Workbench.
 
-**`clip_library`** maintains the clip library: `scan`, `import`, `remove`, `preview`, `list`.
-The `index.json` format follows contract §7 and also carries a license note.
+**`clip_library`** ведёт библиотеку клипов: `scan`, `import`, `remove`, `preview`, `list`.
+Формат `index.json` соответствует §7 контракта, в нём же лежит лицензионная пометка.
 
-**`_anim_lib`** is the core, ported from an earlier in-house project: its retargeter, the scene helpers
-and `retime_action`. Bindings to that project's paths have been removed.
+**`_anim_lib`** — ядро, перенесённое из «Врат Героев»: `hg_retarget.py`, помощники `hg_scene.py`,
+`retime_action` из `hg_barbarian_unit.py`. Привязки к путям HG убраны.
 
-### Retargeting algorithm
+### Алгоритм переноса
 
-1. The bones on both sides are brought to canonical short Mixamo names; the scheme is chosen by vote.
-   Supported:
-   - `mixamorig:`, `mixamorig1:` and names without a prefix;
-   - the AstraForge template: `Root, Hips, Spine, Chest→Spine2, Neck, Head, HeadEnd→HeadTop_End,
+1. Кости обеих сторон приводятся к каноническим коротким именам Mixamo, схема выбирается голосованием.
+   Поддерживаются:
+   - `mixamorig:`, `mixamorig1:` и имена без префикса;
+   - шаблон AstraForge: `Root, Hips, Spine, Chest→Spine2, Neck, Head, HeadEnd→HeadTop_End,
      *UpperArm→*Arm, *LowerArm→*ForeArm, *UpperLeg→*UpLeg, *LowerLeg→*Leg, *Toes→*ToeBase,
-     *ToesEnd→*Toe_End`; `Root` and `*HandEnd` are not mapped;
-   - Rigify `DEF-`/`ORG-`/metarig (`spine`=Hips … `spine.006`=Head, `upper_arm.L` …);
-   - UE: `pelvis, spine_01..03` (UE5 uses `01/03/05`), `clavicle_l, upperarm_l, lowerarm_l, hand_l,
-     thigh_l, calf_l, foot_l, ball_l`, fingers.
-2. The rest pose is corrected per bone. The shortest-arc swing aligns the target bone with the source
-   bone at rest, and the target's own roll is preserved. Then
-   `target_world = C · source_delta · C⁻¹ · virtual_rest`.
-3. The root scale `k` is the hip-joint height of the target divided by that of the source. Leg IK is
-   analytic, two-bone, and the knee stays in the plane of the FK knee.
-4. Root-motion handling (below), the loop seam and speed are applied to the world trajectories before
-   IK, so the feet stay consistent with the processed pelvis.
+     *ToesEnd→*Toe_End`; `Root` и `*HandEnd` не сопоставляются;
+   - Rigify `DEF-`/`ORG-`/метариг (`spine`=Hips … `spine.006`=Head, `upper_arm.L` …);
+   - UE: `pelvis, spine_01..03` (у UE5 `01/03/05`), `clavicle_l, upperarm_l, lowerarm_l, hand_l,
+     thigh_l, calf_l, foot_l, ball_l`, пальцы.
+2. Поза покоя поправляется по каждой кости, как в HG. Кратчайший взмах (swing) совмещает кость цели с
+   костью источника в покое, собственный roll цели сохраняется. Затем
+   `мир_цели = C · Δисточника · C⁻¹ · виртуальный_покой`.
+3. Масштаб корня `k` = высота тазобедренных суставов цели / источника. Leg IK аналитический, двухзвенный,
+   колено остаётся в плоскости FK-колена.
+4. Обработка хода корня (ниже), шов петли и скорость применяются к мировым траекториям до IK. Поэтому
+   стопы согласованы с обработанным тазом.
 
-### Root motion (`root_motion`)
+### Движение корня (`root_motion`)
 
-| mode | locomotion (walk/run) | other clips (idle, attack, hit, cast, death, …) |
+| режим | локомоция (walk/run) | остальные клипы (idle, attack, hit, cast, death, …) |
 |---|---|---|
-| `lock` (default) | in place: the straight-line "first → last frame" travel is removed, and the game moves the character at `ground_speed_mps` | the pelvis travel **stays** on Hips: feet that stand in the source stand on the target too |
-| `keep` | travel on Hips | travel on Hips |
-| `extract` | travel is moved onto a non-deforming `root` bone (Godot root motion) | same |
+| `lock` (по умолчанию) | на месте: снимается прямой ход «первый → последний кадр», игра двигает персонажа со скоростью `ground_speed_mps` | ход таза **остаётся** на Hips: стопы, стоящие в источнике, стоят и у цели |
+| `keep` | ход на Hips | ход на Hips |
+| `extract` | ход переносится на недеформирующую кость `root` (root motion Godot) | так же |
 
-- An explicit `in_place` on a clip takes precedence over the mode.
-  - `in_place: true` removes only the straight start→end travel; the pelvis sway and jerks around it
-    remain. On a clip that returns to its starting point (idle, hit) this changes nothing.
-  - `in_place: "strict"` removes all horizontal pelvis travel, so the pelvis XY is constant. This is the
-    behavior of the earlier implementation. The feet slide by the amount of the sway, and the
-    `foot_skate` check reports it.
-- Locomotion is determined by category (`walk`, `run`). It can be overridden by the `locomotion` flag
-  on the clip or on the library entry, or by the `locomotion` tag.
-- Standing loops (idle) in `keep`/`extract` also close the world travel at the seam: the pelvis and
-  feet loop without a jump.
-- A clip in `lock` with travel over 0.25 m (a lunge, a death) keeps its travel on Hips. The step warns:
-  without `extract`, Godot returns the character to its place with a jump at the end of the clip.
-- `extract` takes an existing bone above Hips (`Root` in the template, `root` in UE) or adds `root` at
-  the origin.
+- Явный `in_place` в клипе важнее режима.
+  - `in_place: true` снимает только прямой ход начало→конец; покачивание и рывки таза вокруг него
+    остаются. На клипе, который возвращается в исходную точку (idle, hit), это ничего не меняет.
+  - `in_place: "strict"` убирает весь горизонтальный ход таза, XY таза постоянны. Это поведение HG.
+    Стопы при этом проскальзывают на величину покачивания, и проверка `foot_skate` об этом сообщает.
+- Локомоция определяется по категории (`walk`, `run`). Переопределить можно флагом `locomotion` у клипа
+  или у записи библиотеки, либо тегом `locomotion`.
+- Стоячие петли (idle) в `keep`/`extract` замыкают и мировой ход на шве: таз и стопы зацикливаются без
+  скачка.
+- Клип в `lock` с ходом больше 0,25 м (выпад, смерть) остаётся с ходом на Hips. Шаг предупреждает: без
+  `extract` Godot вернёт персонажа на место скачком в конце клипа.
+- `extract` берёт существующую кость над Hips (`Root` у шаблона, `root` у UE) или добавляет `root` в
+  начале координат.
 
-How this differs from the earlier implementation. Each change was found on a preview or in measurements:
+Чем отличается от HG. Каждое изменение найдено на превью или в замерах:
 
-| Earlier | Now | Why |
+| Было в HG | Стало | Почему |
 |---|---|---|
-| Bone direction = its tail | direction toward the head of the child bone along the chain; for leaf bones (a hand without fingers, a toe) the parent's swing | FBX leaf-bone tails are heuristic: on a Mixamo T-pose the hand "looks" 27° to the side, and wrists broke |
-| `C` from the Neck−Pelvis axis | `C` = only a rotation about the vertical | with a slouched A rest and a straight T rest of one skeleton, `C` picked up a tilt and the whole clip leaned over |
-| `k` from the head height of Hips | `k` from the hip joints (heads of UpLeg) | in the AstraForge template the joints are 5 cm below Hips: the legs did not reach |
-| IK on the ankle only | on contact the ball (ToeBase) is pinned, otherwise the ankle | with a different foot length the ball slid during heel lift |
-| — | a zero-length source bone (on one archer rig `Neck` coincides with `Head`) is not copied, the target bone follows its parent | its rotation moves nothing on the source, but on a 12 cm neck of another character it folded the head into the chest |
-| — | a neck and head without a usable reference keep the world orientation of their rest | in any rest pose the head is upright and faces forward |
-| `lock_root_xy` removes all pelvis XY on every clip | `lock`: only locomotion is made in place, and only the straight travel is removed | standing clips slid (a hit reaction: 24 cm, see below); for walking, the removed sway gave 3–10 times the source's sliding |
+| Направление кости = её хвост | направление к голове дочерней кости по цепи; у листовых костей (кисть без пальцев, носок) — взмах родителя | хвосты листовых костей FBX эвристичны: на T-позе Mixamo кисть «смотрит» на 27° в сторону, запястья ломались |
+| `C` по оси Шея−Таз | `C` = только поворот вокруг вертикали | у сутулого A-покоя и прямого T-покоя одного скелета `C` получал наклон, и весь клип заваливался |
+| `k` по высоте головы Hips | `k` по тазобедренным суставам (головы UpLeg) | у шаблона AstraForge суставы на 5 см ниже Hips: ноги не доставали |
+| IK только на лодыжку | при контакте подушечки прибивается подушечка (ToeBase), иначе лодыжка | при другой длине стопы подушечка скользила на отрыве пятки |
+| — | кость источника нулевой длины (у лучника HG `Neck` совпадает с `Head`) не копируется, кость цели следует за родителем | её поворот на источнике ничего не двигает, а на 12-см шее ангела складывал голову в грудь |
+| — | шея и голова без годного ориентира сохраняют мировую ориентацию своего покоя | в любом покое голова прямо и смотрит вперёд |
+| `lock_root_xy` снимает весь XY таза у всех клипов | `lock`: на месте только локомоция, и снимается только прямой ход | стоячие клипы скользили (удар ангела — 24 см, см. ниже); у ходьбы снятое покачивание давало проскальзывание в 3–10 раз больше источника |
 
-**Next in the chain: `motion_style`** (2026-10-11, `docs/forge/motion_style.md`): each character's own
-manner on top of the retargeted clips (tempo, stride, arms, lean, slouch, sway, limp, looseness,
-stiffness; feet stay planted, loops have no seam) and procedural deaths (8 variants instead of the 5
-library ones). The output of `retarget` (`animated.blend` + `clips.json`) is its input.
+**Дальше по цепочке — `motion_style`** (11.10, `docs/forge/motion_style.md`): своя манера каждого персонажа
+поверх перенесённых клипов (темп, шаг, руки, наклон, сутулость, покачивания, хромота, развязность,
+скованность; стопы стоят, петли без шва) и процедурные смерти (8 вариантов вместо 5 библиотечных).
+Выход `retarget` (`animated.blend` + `clips.json`) — его вход.
 
-## `retarget` parameters
+## Параметры `retarget`
 
 ```json
 {"step": "retarget",
- "inputs": {"mesh": "abs/rigged.glb|.fbx"}  /* or {"blend": "abs/file.blend"} */,
+ "inputs": {"mesh": "abs/rigged.glb|.fbx"}  /* или {"blend": "abs/file.blend"} */,
  "params": {
-   "clips": [{"source": "library:mixamo-walk | abs/path.fbx | mixamo-walk",
+   "clips": [{"source": "library:mixamo-zombie-walk | abs/path.fbx | mixamo-zombie-walk",
               "name": "walk", "trim": [1, 60], "loop": true, "in_place": true,
               "locomotion": true, "fps": 30, "speed": 1.0, "mirror": false}],
    "library": "…/data/library/animations",
@@ -97,120 +96,115 @@ library ones). The output of `retarget` (`animated.blend` + `clips.json`) is its
  "out_dir": "abs/out"}
 ```
 
-- `loop` defaults from the category (idle/walk/run → loop). The glTF animation name is `name` or
-  `name-loop`. Without `name`, the library id without the source prefix (`mixamo-`, `fbx-`) is used.
-- Loop seam: the difference between the last and first frame is spread smoothly over the last
-  `loop_blend` frames through a slerp of the delta. The first and last frame coincide.
-- There is one `fps` for the whole GLB. With different `fps` in one request, the fps of the first clip
-  is used and a warning is issued. `speed` and `trim` resample the source at fractional frames.
-- `apply_transforms: true` bakes the rotation and scale of the rig object and its meshes into the data.
-  Sockets and props keep their world position, and a socket's scale becomes 1 (a single
-  `transform_apply` is not enough: a socket on a bone drifted by 13 cm). Without this flag, a non-zero
-  rotation or scale of the rig gives the warning `rig_transform_identity` (contract §4).
-- `keep_existing_actions: false` deletes only this rig's actions: the assigned ones, those in its NLA,
-  and orphan actions with its bones. Actions of other objects (props, a second skeleton, shape keys)
-  stay in the `.blend` and do not go into the GLB.
+- `loop` по умолчанию берётся из категории (idle/walk/run → петля). Имя glTF-анимации — `name` или
+  `name-loop`. Без `name` берётся id библиотеки без префикса источника (`mixamo-`, `fbx-`).
+- Шов петли: разница между последним и первым кадром плавно раскладывается по последним `loop_blend`
+  кадрам через slerp дельты. Первый и последний кадр совпадают.
+- `fps` один на весь GLB. При разных `fps` в одном запросе берётся fps первого клипа и выдаётся
+  предупреждение. `speed` и `trim` пересэмплируют источник по дробным кадрам.
+- `apply_transforms: true` запекает поворот и масштаб объекта рига и его сеток в данные. Сокеты и
+  реквизит сохраняют мировое положение, у сокета масштаб становится 1 (одного `transform_apply` мало:
+  сокет на кости уезжал на 13 см). Без этого флага ненулевой поворот или масштаб рига даёт
+  предупреждение `rig_transform_identity` (контракт §4).
+- `keep_existing_actions: false` удаляет только действия этого рига: назначенные, из его NLA и
+  бесхозные действия с его костями. Действия других объектов (реквизит, второй скелет, shape keys)
+  остаются в `.blend`, в GLB не попадают.
 
-### Characters in robes and with a staff (2026-10-10, evening)
+### Персонажи в робе и с посохом (10.10, вечер)
 
-The first robed test character had three problems. The source idle (a bow stance) turned the torso by
-62°. The knees bent and the pelvis dropped by 9–12 cm, and the hem, weighted to the pelvis and thighs,
-went under the floor. The hand holding the staff dropped below its rest pose, and the butt of the staff
-went 26–29 cm into the floor. In the death clips the robed body fell through the floor by 0.4–0.6 m,
-and this happened with all five library deaths. The clip source is not to blame: those clips contain
-the same motions, but a robe has a thickness that the source does not.
-New parameters (global and per clip):
+В v1 некроманта (`docs/forge/necromancer.md`, раздел 8) было три проблемы. Idle лучника поворачивал
+корпус на 62° (стойка лучника). Колени сгибались, таз опускался на 9–12 см, и подол, взвешенный на таз и
+бёдра, уходил под пол. Кисть с посохом опускалась ниже покоя, и комель посоха уходил в пол на 26–29 см. В
+смерти тело в робе проваливалось под пол на 0,4–0,6 м, и так было у всех пяти смертей библиотеки.
+Источник клипа тут ни при чём: у этих клипов те же движения, но у робы толщина, которой нет у источника.
+Новые параметры (общие и у клипа):
 
-| parameter | default | what it does |
+| параметр | по умолчанию | что делает |
 |---|---|---|
-| `facing` | `keep` | `rest`: removes the mean rotation about the vertical at `facing_bone` (Hips). The rotation is performed about the vertical through the target's rest pelvis, and the foot trajectories and travel rotate with it |
-| `hips_drop` | 1.0 | the fraction of the pelvis lowering below rest that is kept. 0 means the pelvis is never below rest, the legs are straightened by IK, and the hem stays on the floor. A death needs 1 |
-| `hips_height_m` | — | explicit hip-joint height of the target for the root scale `k`. Under a robe the measured height is a guess |
-| `floor` | true | the ankle and ball IK targets are not lower than their rest height on the target |
-| `hand_floor` | — | `{"l"|"r": dz}`: the two-bone arm IK keeps the wrist no lower than rest − dz. The hand keeps its world orientation, so the staff stays vertical and does not go into the floor |
-| `ground` | `feet` | `mesh`: a frame whose lowest body point is below z = 0 lifts the whole body. The lowest point is computed by linear skinning of a sample of `ground_samples` (2000) vertices, the lift is smoothed over ±2 frames, tolerance `ground_tolerance_m` (0). A lying robe settles on the floor |
+| `facing` | `keep` | `rest`: снимается средний поворот вокруг вертикали у `facing_bone` (Hips). Поворот ведётся вокруг вертикали через таз покоя цели, вместе с ним поворачиваются траектории стоп и ход |
+| `hips_drop` | 1.0 | доля опускания таза ниже покоя, которая сохраняется. 0 — таз не ниже покоя, ноги выпрямляются IK, подол остаётся на полу. Смерти нужна 1 |
+| `hips_height_m` | — | явная высота тазобедренных суставов цели для масштаба корня `k`. Под робой измеренная высота — догадка |
+| `floor` | true | цели IK лодыжки и подушечки не ниже их высоты в покое цели |
+| `hand_floor` | — | `{"l"|"r": dz}`: двухзвенный IK руки держит запястье не ниже покоя − dz. Кисть сохраняет мировую ориентацию, посох остаётся вертикальным и не уходит в пол |
+| `ground` | `feet` | `mesh`: кадр, у которого нижняя точка тела ниже z = 0, поднимает всё тело. Нижняя точка считается линейным скиннингом выборки из `ground_samples` (2000) вершин, подъём сглаживается по ±2 кадрам, допуск `ground_tolerance_m` (0). Лежащая роба ложится на пол |
 
-`clips.json` records for each clip `facing` (the removed angle), `hips_drop` (the lowest source
-position and what was kept), `floor_clamped_frames`, `hand_floor_frames`, `ground` (the lifted frames
-and the maximum lift) and **`floor`**: the lowest point of the skinned body and of the props under the
-rig over `floor_samples` (16) frames. From them the warnings `floor_body_<clip>` /
-`floor_props_<clip>` are raised with the tolerance `floor_tolerance_m` of 2 cm. The test
-`test_facing_hips_drop_floor_hand_floor_and_ground` checks, on synthetic data: a clip rotated by 40°, a
-12 cm squat, "lying under the floor" and a lowered hand.
+В `clips.json` у каждого клипа записываются `facing` (снятый угол), `hips_drop` (самое низкое положение
+источника и то, что сохранено), `floor_clamped_frames`, `hand_floor_frames`, `ground` (поднятые кадры и
+максимальный подъём) и **`floor`**: самая низкая точка скиннованного тела и предметов под ригом по
+`floor_samples` (16) кадрам. По ним ставятся предупреждения `floor_body_<клип>` / `floor_props_<клип>`
+с допуском `floor_tolerance_m` 2 см. Тест `test_facing_hips_drop_floor_hand_floor_and_ground` на
+синтетике проверяет: повёрнутый на 40° клип, присед на 12 см, «лёжа под полом» и опущенную руку.
 
-### Checks (`checks`) and `clips.json` metrics
+### Проверки (`checks`) и метрики `clips.json`
 
-**Errors** (they fail the step):
+**Ошибки** (валят шаг):
 - NaN;
-- the played-back action matches the computation (< 1 mm);
-- loop seam ≤ 0.5° and ≤ 1 mm;
-- `in_place`: the pelvis at the end is where it was at the start (≤ 1 mm); for `strict`, pelvis drift
-  ≤ 1 mm on all frames;
-- names and number of animations in the GLB;
-- NaN in the GLB;
-- skin;
-- `gltf_sockets`: every input object with `game_socket` is a GLB node with `extras.game_socket`.
+- воспроизведённое действие совпадает с расчётом (< 1 мм);
+- шов петли ≤ 0,5° и ≤ 1 мм;
+- `in_place`: таз в конце там же, где в начале (≤ 1 мм); для `strict` — дрейф таза ≤ 1 мм на всех кадрах;
+- имена и число анимаций в GLB;
+- NaN в GLB;
+- скин;
+- `gltf_sockets`: каждый объект входа с `game_socket` есть узлом GLB с `extras.game_socket`.
 
-**Warnings:**
-- `foot_skate` greater than `max(2 cm, 1.3 × source)`;
-- the hand twist differs from the source by more than 25°;
-- the rig transform is not identity.
+**Предупреждения:**
+- `foot_skate` больше `max(2 см, 1,3 × источник)`;
+- скручивание кисти расходится с источником больше чем на 25°;
+- трансформ рига не единичный.
 
-**How foot sliding (`foot_skate_cm`) is computed.** The contact frames are determined by the
-**source**. These are frames where the source ball (otherwise ankle) lies within 2 cm of its minimum
-and moves slower than 0.3 m/s in its own "ground" frame. With "In Place" walking, the ground under the
-feet moves backward at treadmill speed. On those frames the XY path of the same point of the
-**target** foot is summed, with no speed cutoff, in the frame in which the GLB actually plays. For
-locomotion in place this is the world in which the game moves the character at a constant
-`ground_speed_mps`; for other clips it is the export itself, and for `extract`, with root motion
-applied.
+**Как считается скольжение стоп (`foot_skate_cm`).** Кадры контакта определяет **источник**. Это кадры,
+где подушечка (иначе лодыжка) источника лежит в пределах 2 см от своего минимума и движется медленнее
+0,3 м/с в своей системе «земли». У «In Place»-ходьбы земля под стопами едет назад со скоростью беговой
+дорожки. На этих кадрах суммируется XY-путь той же точки стопы **цели**, без отсечки по скорости, в той
+системе, в которой GLB реально играет. Для локомоции на месте это мир, по которому игра везёт персонажа
+с постоянной скоростью `ground_speed_mps`; для остальных клипов — сам экспорт, а для `extract` — с
+применённым root motion.
 
-`clips.json` fields:
-- `foot_skate_cm` / `foot_skate_src_cm`: sliding of the target and of the source;
-- `foot_plant_drift_cm` / `..._src_cm`: the largest drift of a planted foot from its plant point;
-- `foot_slide_cm`: the previous heuristic, kept for comparison;
-- `ground_speed_mps` and `ground_velocity_mps`;
-- `hips_drift_m` (pelvis XY range), `hips_end_offset_m`, `hips_net_travel_m`, `root_travel_m`;
+Поля `clips.json`:
+- `foot_skate_cm` / `foot_skate_src_cm` — скольжение цели и источника;
+- `foot_plant_drift_cm` / `..._src_cm` — наибольший уход стоящей стопы от точки постановки;
+- `foot_slide_cm` — прежняя эвристика, оставлена для сравнения;
+- `ground_speed_mps` и `ground_velocity_mps`;
+- `hips_drift_m` (размах таза по XY), `hips_end_offset_m`, `hips_net_travel_m`, `root_travel_m`;
 - `seam_rot_deg/seam_pos_mm`, `k_hip`, `arm_dir_err_deg`, `hand_twist_deg`, `ik_unreached_frames`,
   `ball_pinned_frames`;
 - `degenerate_source_bones`, `mapped_bones`, `unmapped_bones`.
 
-At the top level of `clips.json`: `exported_objects`, `sockets`, `rig_transform`.
+На верхнем уровне `clips.json`: `exported_objects`, `sockets`, `rig_transform`.
 
-## `clip_library` parameters
+## Параметры `clip_library`
 
 ```json
 {"step": "clip_library", "params": {"action": "import",
-  "folder": "<folder with downloaded Mixamo FBX>", "pattern": "**/*.fbx",
+  "folder": "C:/Dorn/Dops media/heroes-gates_worktrees/art/art/raw", "pattern": "*/anims/**/*.fbx",
   "files": ["abs.fbx", {"path": "abs.fbx", "name": "Sword idle", "category": "idle", "tags": ["sword"],
                         "source": "mixamo"}],
   "ids": ["mixamo-…"], "library": "…/data/library/animations"}, "out_dir": "abs/out"}
 ```
 
-- **The source, id and folder are set by one value, `source`.** It is `files[].source` if given.
-  Otherwise `mixamo` for a skeleton with Mixamo names (`mixamorig:` or no prefix) and `fbx` for the
-  rest (UE, Rigify, the template). The entry gets `source`, the id `<source>-<slug>`, the file
-  `<source>/<id>.fbx` and `<source>/<id>.poses.json`.
-- `import` copies the file and writes `poses.json`: 12 moments, 22 joints, glTF axes (Y up, facing
-  +Z), links for the stick figures in the UI.
-- Deduplication on two levels: an identical SHA1 or an identical motion (12 samples of world joints
-  within 3 mm at an equal frame count). From a group of duplicates the smaller file without skin is
-  copied, and the name is taken from the "production" file (not `superseded/_prev`, not
-  `candidates`). The other paths go into `also_found`, and their names into `aliases`.
-- The category is determined from the file and folder name (`idle, walk, run, attack, cast, hit,
-  death, jump, emote, other`). Tags: `sword, shield, bow, spear, magic, mounted, torch, unarmed`.
-- Entry fields:
-  - contract fields: `id, name, category, source, file, skeleton, frames, fps, root_motion, tags,
+- **Источник, id и папка задаются одним значением `source`.** Это `files[].source`, если указан. Иначе
+  `mixamo` для скелета с именами Mixamo (`mixamorig:` или без префикса) и `fbx` для остальных (UE, Rigify,
+  шаблон). Запись получает `source`, id `<source>-<slug>`, файл `<source>/<id>.fbx` и
+  `<source>/<id>.poses.json`.
+- `import` копирует файл и пишет `poses.json`: 12 моментов, 22 сустава, оси glTF (Y вверх, лицом к +Z),
+  связи для «палочек» в интерфейсе.
+- Дедупликация в два уровня: одинаковый SHA1 или одинаковое движение (12 сэмплов мировых суставов в
+  пределах 3 мм при равном числе кадров). Из группы дублей копируется меньший файл без скина, имя
+  берётся у «производственного» файла (не `superseded/_prev`, не `candidates`). Остальные пути
+  попадают в `also_found`, их имена — в `aliases`.
+- Категория определяется по имени файла и папки (`idle, walk, run, attack, cast, hit, death, jump,
+  emote, other`). Теги: `sword, shield, bow, spear, magic, zombie, mounted, torch, unarmed`.
+- Поля записи:
+  - контрактные: `id, name, category, source, file, skeleton, frames, fps, root_motion, tags,
     imported_from, has_skin, sha1`;
-  - additional: `bones, duration, frame_range, hips_travel_m, rest_pose T/A, size, poses, aliases,
+  - дополнительные: `bones, duration, frame_range, hips_travel_m, rest_pose T/A, size, poses, aliases,
     also_found, imported`.
-- License (`index.json → licence`). Mixamo clips may be used in your own projects, including
-  commercial ones. The raw FBX files may not be redistributed or sold as standalone assets, so the
-  library stays local. Only the user downloads from mixamo.com; the forge does not go online.
-- The step deliberately writes to `params.library`, i.e. outside `out_dir`: the library is shared
-  state.
+- Лицензия (`index.json → licence`). Клипы Mixamo можно использовать в своих проектах, включая
+  коммерческие. Сырые FBX нельзя распространять или продавать как отдельные ассеты, библиотека
+  остаётся локальной. С mixamo.com скачивает только владелец, кузница в сеть не ходит.
+- Шаг намеренно пишет в `params.library`, то есть вне `out_dir`: библиотека — общее состояние.
 
-## How to run
+## Как запускать
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
@@ -219,95 +213,114 @@ At the top level of `clips.json`: `exported_objects`, `sockets`, `rig_transform`
 "…/blender.exe" -b --factory-startup --python scripts/blender/tests/run_tests.py -- mixamo
 ```
 
-There are 18 tests, about 24 s (2026-10-10, evening: + `test_facing_hips_drop_floor_hand_floor_and_ground`); all pass, both in the shared run and in the one-liner. The synthetic
-tests need no assets. They check:
-- name schemes;
-- categories;
+Тестов 18, около 24 с (10.10, вечер: + `test_facing_hips_drop_floor_hand_floor_and_ground`); все проходят и в общем прогоне, и в однострочнике из задания. Синтетические
+тесты обходятся без ассетов. Они проверяют:
+- схемы имён;
+- категории;
 - `retime_action`;
-- retargeting onto a rig with arms down and a different roll;
+- перенос на риг с руками вниз и другим roll;
 - `extract`, `mirror`, `speed/fps/trim`;
-- a zero-length bone;
-- the full library cycle, including a UE clip with `source: fbx`;
-- **a standing clip with feet planted under default parameters**: the feet stay planted in the
-  re-imported GLB as well, and `strict` is caught by the check;
-- sockets, props and child meshes in the GLB;
-- foreign actions in the `.blend` and outside the GLB;
-- the rig scale warning and `apply_transforms`.
+- кость нулевой длины;
+- полный цикл библиотеки, включая UE-клип с `source: fbx`;
+- **стоячий клип со стопами на месте при параметрах по умолчанию**: стопы стоят и в переимпортированном
+  GLB, а `strict` ловится проверкой;
+- сокеты, реквизит и дочерние сетки в GLB;
+- чужие действия в `.blend` и вне GLB;
+- предупреждение о масштабе рига и `apply_transforms`.
 
-The `test_real_*` tests use external fixture assets (Mixamo-rigged characters, a rig with arms down,
-the AstraForge template, individual clips, plus `index.json`) and are skipped when those are not
-available.
+`test_real_*` используют ассеты HG: зомби, ангела, риг с руками вниз, шаблон AstraForge, удар ангела и
+idle_lookaround на зомби, плюс `index.json`.
 
-Each fix-related test was verified by mutation: if the old behavior is restored, the test fails. Seven
-mutations were checked: the former `lock`, export of skinned meshes only, no action filter, deleting
-all actions, no baking, a single `transform_apply`, and the old sliding metric.
+Каждый тест на исправление проверен мутацией: если вернуть старое поведение, тест падает. Проверено семь
+мутаций: прежний `lock`, экспорт только скиннованных сеток, отсутствие фильтра действий, удаление всех
+действий, отсутствие запекания, одиночный `transform_apply` и старая метрика скольжения.
 
-## What to download from Mixamo
+## Библиотека, собранная из HG (10.10.2026)
 
-For variety of gaits, deaths, weapon attacks and casts (2026-10-11), see the section "What to download
-from Mixamo for variety" in `docs/forge/motion_style.md`. Below is the original list of 2026-10-10.
+47 FBX из `art/raw/*/anims/**`. Дубликатов по SHA1 нет. 9 файлов оказались тем же движением
+(production-файлы militia со скином совпали с кандидатами без скина, плюс superseded-копии). Итого
+**38 уникальных клипов**, 22 МБ, импорт занимает 5 с. Все записи `source: mixamo`.
 
-These are search queries on mixamo.com; the exact name on the site may differ. Download FBX, Without
-Skin, 30 fps, and enable "In Place" for locomotion. Use the same character (or Y Bot) throughout.
+| Категория | Клипов | Примеры id |
+|---|---|---|
+| attack | 12 | militia-attack, militia-atk-bayonet-stab, militia-atk-sns-low, archer-shoot, archer-shoot-draw-arrow, zombie-attack, angel-attack-sword-and-shield-power-slash |
+| idle | 10 | militia-idle, militia-idle-block, militia-idle-swordplay, angel-idle-sword-and-shield, zombie-idle, archer-idle, knight/necro-rider-sit (тег mounted) |
+| death | 5 | militia-death, militia-death-forward, zombie-death, archer-death, angel-death |
+| hit | 5 | militia-hit, militia-hit-head, zombie-hit, archer-hit, angel-hit |
+| walk | 4 | militia-walk, zombie-walk, archer-walk, angel-walk (все «In Place») |
+| cast | 2 | knight-rider-cast, necro-rider-cast |
+| run / jump / emote | 0 | — |
 
-- run: "Running", "Standard Run", "Sword And Shield Run"; sprint: "Fast Run";
-- jump: "Jump", "Running Jump", "Falling Idle" + "Landing";
-- strafe: "Left Strafe Walking", "Right Strafe Walking", "Left/Right Strafe" (run),
-  "Sword And Shield Strafe"; step back: "Walking Backwards";
-- turns: "Left Turn 90", "Right Turn 90" (the root turns on the pelvis, see the limitations);
-- block: "Sword And Shield Block", "Standing Block Idle"; dodge: "Standing Dodge Backward",
-  "Dodging Left/Right", "Sword And Shield Roll" or "Quick Roll";
-- attacks: "Sword And Shield Slash", "Great Sword Slash", "Punching", "Standing Melee Kick",
-  "Standing Draw Arrow";
-- cast: "Standing 1H Magic Attack", "Standing 2H Magic Area Attack", "Spell Casting";
-- reactions: "Hit Reaction", "Standing React Large From Front/Back";
-- **a neutral death**: "Dying", "Falling Back Death", "Falling Forward Death";
-- emotes: "Victory Idle", "Waving", "Taunt", "Cheering", "Quick Formal Bow";
-- neutral: "Breathing Idle", "Walking".
+Скелеты: 22 кости (militia, zombie, angel; **в этих клипах нет ключей кистей**) и 33 кости (archer,
+всадники; кисти и указательные пальцы анимированы). Покой: 26 клипов в T-позе, 12 в A-позе (со скином).
 
-## Measurements (Blender 5.0.1, 30 fps, 2026-10-10)
+### Что докачать с Mixamo
 
-The time of the whole step for 5 clips is 2.4–4.5 s, depending on the preview size (the retarget takes
-about 1 s, the rest is GLB export and preview). In all runs `ok: true`, NaN 0, loop seam 0.0°, the GLB
-holds exactly the requested animations, and the durations match. The "sliding" and "foot drift"
-columns show target / source × k in cm, over the source contact frames. "Pelvis range" is the largest
-deviation of the pelvis in XY from the first frame.
+Подробный список для разнообразия походок, смертей, атак по оружию и кастов (11.10) — в
+`docs/forge/motion_style.md`, раздел «Что докачать с Mixamo для разнообразия». Ниже — исходный список 10.10.
 
-**(a) Test character 1** (Mixamo auto-rig, A-pose, 22 bones, 17 358 tris), library clips and the
-character's own walk, `lock` by default:
+Ниже — поисковые запросы на mixamo.com; точное имя на сайте может отличаться. Качать FBX, Without Skin,
+30 fps, для локомоции включить «In Place». Персонаж — один и тот же (или Y Bot).
 
-| clip | frames | mode | k | sliding | foot drift | pelvis range, m | IK not reached, frames |
+- бег: «Running», «Standard Run», «Sword And Shield Run»; спринт: «Fast Run»;
+- прыжок: «Jump», «Running Jump», «Falling Idle» + «Landing»;
+- стрейф: «Left Strafe Walking», «Right Strafe Walking», «Left/Right Strafe» (бег),
+  «Sword And Shield Strafe»; шаг назад: «Walking Backwards»;
+- повороты: «Left Turn 90», «Right Turn 90» (корень поворачивается на тазе, см. ограничения);
+- блок: «Sword And Shield Block», «Standing Block Idle»; уклон: «Standing Dodge Backward»,
+  «Dodging Left/Right», «Sword And Shield Roll» или «Quick Roll»;
+- атаки: «Sword And Shield Slash», «Great Sword Slash», «Punching», «Standing Melee Kick»,
+  «Standing Draw Arrow» (уже есть у лучника);
+- каст: «Standing 1H Magic Attack», «Standing 2H Magic Area Attack», «Spell Casting»;
+- реакции: «Hit Reaction», «Standing React Large From Front/Back»;
+- **нейтральная смерть**: «Dying», «Falling Back Death», «Falling Forward Death». Все 5 смертей в
+  библиотеке привязаны к оружию или существу;
+- эмоции: «Victory Idle», «Waving», «Taunt», «Cheering», «Quick Formal Bow»;
+- нейтральные: «Breathing Idle», «Walking» (сейчас все idle и walk привязаны к оружию или существу).
+
+## Замеры (Blender 5.0.1, 30 fps, 10.10.2026)
+
+Время всего шага на 5 клипов — 2,4–4,5 с, в зависимости от размера превью (перенос около 1 с,
+остальное — экспорт GLB и превью). Во всех
+прогонах `ok: true`, NaN 0, шов петли 0,0°, в GLB ровно запрошенные анимации, длительности совпадают.
+Колонки «скольжение» и «уход стопы» показывают цель / источник × k в см, по кадрам контакта источника.
+«Размах таза» — наибольшее отклонение таза по XY от первого кадра.
+
+**(a) Зомби HG** (`zombie/mixamo_rigged.fbx`, авториг Mixamo, A-поза, 22 кости, 17 358 tris), клипы
+militia и собственная ходьба зомби, `lock` по умолчанию:
+
+| клип | кадры | режим | k | скольжение | уход стопы | размах таза, м | IK не дотянулся, кадров |
 |---|---|---|---|---|---|---|---|
 | idle-loop | 77 | keep | 1.212 | 0.4 / 0.4 | 0.0 / 0.0 | 0.007 | 0 |
-| walk-loop | 122 | in_place, 0.30 m/s | 0.988 | 9.6 / 9.6 | 3.5 / 3.5 | 0.293 (jerks of the walk) | 0 |
-| attack | 71 | keep | 1.212 | 10.1 / 9.8 | 1.5 / 1.4 | 1.146 (lunge) | 23 |
+| walk-loop | 122 | in_place, 0,30 м/с | 0.988 | 9.6 / 9.6 | 3.5 / 3.5 | 0.293 (рывки зомби) | 0 |
+| attack | 71 | keep | 1.212 | 10.1 / 9.8 | 1.5 / 1.4 | 1.146 (выпад) | 23 |
 | hit | 30 | keep | 1.212 | 2.7 / 2.6 | 1.9 / 1.8 | 0.064 | 0 |
-| death | 70 | keep | 1.212 | 5.7 / 5.5 | 3.2 / 3.2 | 1.092 (ends at 1.09 m) | 0 |
+| death | 70 | keep | 1.212 | 5.7 / 5.5 | 3.2 / 3.2 | 1.092 (кончается в 1,09 м) | 0 |
 
-This character's walk drags a foot (the ball is pinned on all frames), so even the source has 9.6 cm.
+Ходьба зомби волочит ногу (подушечка прибита на всех кадрах), поэтому даже у источника 9,6 см.
 
-**(b) Test character 2** (Mixamo auto-rig) with clips of a bow stance (33 bones, hands animated),
-`root_motion: extract`. A `root` bone was added, and the GLB has 23 joints.
+**(b) Ангел HG** (`angel/mixamo_rigged.fbx`) с клипами лучника (33 кости, кисти анимированы),
+`root_motion: extract`. Добавлена кость `root`, в GLB 23 сустава.
 
-| clip | frames | mode | k | sliding | foot drift | pelvis range, m |
+| клип | кадры | режим | k | скольжение | уход стопы | размах таза, м |
 |---|---|---|---|---|---|---|
 | idle-loop | 154 | extract | 1.077 | 0.0 / 0.0 | 0.0 / 0.0 | 0.003 |
-| walk-loop | 37 | in_place, 1.12 m/s | 1.068 | **3.5 / 1.8** | 2.0 / 1.2 | 0.075 |
+| walk-loop | 37 | in_place, 1,12 м/с | 1.068 | **3.5 / 1.8** | 2.0 / 1.2 | 0.075 |
 | attack (shoot) | 151 | extract | 1.068 | 3.1 / 3.1 | 0.3 / 0.5 | 0.076 |
 | hit | 39 | extract | 1.068 | 7.8 / 7.5 | 1.8 / 1.7 | 0.112 |
-| death | 94 | extract | 1.068 | **3.8 / 2.2** | 1.1 / 0.9 | 1.102, on `root` 1.047 |
+| death | 94 | extract | 1.068 | **3.8 / 2.2** | 1.1 / 0.9 | 1.102, на `root` 1.047 |
 
-The `foot_skate` warnings are in bold. For the walk and death on a character with shorter legs, the
-feet slide a little more than the source. Right-hand twist, source/target: 0.7/1.1°, 10.5/10.9°,
-102.7/101.3°, 48.5/48.3°, 95.6/98.3°. Degenerate source bones: `Neck`, `RightHandIndex1`,
-`RightHandIndex3`.
+Жирным отмечены предупреждения `foot_skate`. У ходьбы и смерти лучника на ангеле с более короткими
+ногами стопы скользят чуть больше, чем у источника. Скручивание правой кисти, источник/цель: 0.7/1.1°,
+10.5/10.9°, 102.7/101.3°, 48.5/48.3°, 95.6/98.3°. Вырожденные кости источника: `Neck`,
+`RightHandIndex1`, `RightHandIndex3`.
 
-**(c) A synthetic rig with arms down**: pelvis 1.0 m against 0.86 for Mixamo, roll of all bones
-−1.1 rad. Clips in T-pose: an idle from the library, the rest from test character 1. `arm_dir_err`
-≤ 0.03°. An independent check (the played-back action against the re-imported FBX) keeps the arm
-directions within 3°; without the rest-pose correction the arms would be off by ≈90°.
+**(c) Синтетический риг с руками вниз**: таз 1,0 м против 0,86 у Mixamo, roll всех костей −1,1 рад.
+Клипы в T-позе: idle_lookaround militia, остальные — зомби. `arm_dir_err` ≤ 0,03°. Независимая
+проверка (воспроизведённое действие против переимпортированного FBX) держит направления рук в пределах
+3°; без поправки покоя руки ушли бы на ≈90°.
 
-| clip | mode | sliding | foot drift |
+| клип | режим | скольжение | уход стопы |
 |---|---|---|---|
 | idle-loop | keep | 0.1 / 0.1 | 0.0 / 0.0 |
 | walk-loop | in_place | 11.5 / 11.5 | 4.3 / 4.3 |
@@ -315,11 +328,11 @@ directions within 3°; without the rest-pose correction the arms would be off by
 | hit | keep | 1.1 / 1.1 | 0.3 / 0.3 |
 | death | keep | 7.7 / 7.7 | 2.6 / 2.7 |
 
-**(d) The AstraForge template** (names from `src/rig-core.js`, model width = height, as for a T-pose;
-input through `.blend`, `extract` onto its own `Root`). 24 of 27 bones were mapped; `Root`,
-`LeftHandEnd` and `RightHandEnd` are not mapped, as intended.
+**(d) Шаблон AstraForge** (имена из `src/rig-core.js`, ширина модели = росту, как у T-позы; вход через
+`.blend`, `extract` на собственную `Root`). Сопоставлено 24 кости из 27; `Root`, `LeftHandEnd` и
+`RightHandEnd` не сопоставлены, как и задумано.
 
-| clip | mode | sliding | foot drift | IK not reached |
+| клип | режим | скольжение | уход стопы | IK не дотянулся |
 |---|---|---|---|---|
 | idle-loop | extract | 0.4 / 0.3 | 0.0 / 0.0 | 0 |
 | walk-loop | in_place | 2.6 / 2.6 | 1.8 / 1.8 | 2 |
@@ -327,84 +340,83 @@ input through `.blend`, `extract` onto its own `Root`). 24 of 27 bones were mapp
 | hit | extract | 2.5 / 2.6 | 1.6 / 1.7 | 0 |
 | death | extract | 7.2 / 7.2 | 2.5 / 2.5 | 0 |
 
-**(e) A regression from a review note**: standing clips on test character 1. The former `lock`
-behavior equals the current `in_place: "strict"`.
+**(e) Регрессия по замечанию ревью**: стоячие клипы на зомби. Прежнее поведение `lock` равно нынешнему
+`in_place: "strict"`.
 
-| clip | default: sliding / foot drift | strict (old `lock`) | source |
+| клип | по умолчанию: скольжение / уход стопы | strict (старый `lock`) | источник |
 |---|---|---|---|
-| a hit reaction (source feet motionless) | 0.1 / 0.0 | 48.2 / **23.7** | 0.1 / 0.0 |
-| an idle with a look-around | 0.1 / 0.0 | 21.5 / 7.5 | 0.1 / 0.0 |
-| a low sword-and-shield attack (travel 2.26 m) | 5.6 / 1.7 | 118.3 / 65.5 | 5.8 / 2.2 |
+| angel hit (стопы источника неподвижны) | 0.1 / 0.0 | 48.2 / **23.7** | 0.1 / 0.0 |
+| militia idle_lookaround | 0.1 / 0.0 | 21.5 / 7.5 | 0.1 / 0.0 |
+| militia atk_sns_low (ход 2,26 м) | 5.6 / 1.7 | 118.3 / 65.5 | 5.8 / 2.2 |
 
-In the re-imported GLB the ankles of the hit reaction move by no more than 0.5 mm; with strict, by
-23.7 cm. The pelvis range of the hit (0.24 m) is now preserved.
+В переимпортированном GLB лодыжки удара ангела смещаются не больше чем на 0,5 мм; при strict — на 23,7 см.
+Размах таза удара (0,24 м) теперь сохранён.
 
-**(f) Walking in place: straight travel against strict** (on test character 1, sliding target /
-source, cm): its own walk 9.6 against 57.7 (source 9.6), a second walk 2.7 against 8.3 (2.7), a third
-3.0 against 10.8 (2.0), a fourth 2.1 against 21.1 (2.1).
+**(f) Ходьба на месте: прямой ход против strict** (на зомби, скольжение цель / источник, см):
+zombie walk — 9.6 против 57.7 (источник 9.6), militia — 2.7 против 8.3 (2.7), archer — 3.0 против 10.8
+(2.0), angel — 2.1 против 21.1 (2.1).
 
-**(g) The chain of the preset "Humanoid from a model"**: `rig_humanoid` (the current version of the
-humanoid module) on a test `model.glb` (9.7 s), then `retarget` with library clips idle/walk/attack/
-hit/death and default parameters, then `godot_package` (`validate: false`, Godot was not run).
-- `animated.glb`: 5 animations, 25 joints, 17 031 tris and **7 §6 sockets at the time of measurement**
-  (`socket_mount_hand_l/r`, `socket_mount_back`, `socket_mount_hip_l/r`, `socket_fx_head`,
-  `socket_fx_chest`; since 2026-10-10 the rig adds `socket_mount_shield_l/r`, 9 in total) with
-  `extras.game_socket`.
-- Sliding target / source, cm: idle 0.4/0.4, walk 2.7/2.7, attack 9.8/9.9, hit 2.7/2.7, death
-  5.6/5.6. Foot drift on idle 0.0/0.0.
-- `godot_package`: sockets 7, clips 5. Before the fix, sockets were lost in this chain.
+**(g) Цепочка пресета «Гуманоид из модели»**: `rig_humanoid` (текущая версия модуля humanoid) на
+`militia/model.glb` (9,7 с), затем `retarget` с клипами militia idle/walk/attack/hit/death из
+библиотеки и параметрами по умолчанию, затем `godot_package` (`validate: false`, Godot не запускался).
+- `animated.glb`: 5 анимаций, 25 суставов, 17 031 tris и **7 сокетов §6 на момент замера** (`socket_mount_hand_l/r`,
+  `socket_mount_back`, `socket_mount_hip_l/r`, `socket_fx_head`, `socket_fx_chest`; с 10.10 риг добавляет ещё
+  `socket_mount_shield_l/r`, всего 9) с `extras.game_socket`.
+- Скольжение цель / источник, см: idle 0.4/0.4, walk 2.7/2.7, attack 9.8/9.9, hit 2.7/2.7, death
+  5.6/5.6. Уход стопы на idle 0.0/0.0.
+- `godot_package`: sockets 7, clips 5. До исправления сокеты в этой цепочке терялись.
 
-The preview rows follow the order of `clips`. The red cross is the origin, the slab is the floor at
-z = 0. On the foot-trace plot, red is the left ankle, blue is the right, and the circle is the first
-frame.
+![Зомби (a): idle, walk, attack, hit, death](img/mixamo/mixamo_zombie_militia.png)
 
-In the template (d) the shoulder bones start to the side of the chest: `createSkeleton` has no
-clavicle from the spine. The preview stick figures draw only bones, so the arms look "detached". This
-is the template layout, not the retargeting.
+![Ангел (b): клипы лучника, root motion на кости root](img/mixamo/mixamo_angel_archer_rootmotion.png)
 
-## Honest limitations
+![Сверху (c) риг с руками вниз, снизу (d) шаблон AstraForge](img/mixamo/mixamo_synthetic_template.png)
 
-- In 22-bone Mixamo clips the hands are not animated: the wrist rigidly follows the forearm. Fingers
-  are transferred only if both skeletons have them.
-- Palm orientation is not derived from geometry. The swing preserves the target's roll, so if the
-  target's palms at rest are turned differently from the Mixamo T-pose (palm down), the forearm twist
-  will diverge.
-- IK is for the legs; for the arms there is only the `hand_floor` constraint (the wrist no lower than
-  rest − dz). There are no two-handed grips or contacts with objects. The hand sockets (§6) are
-  exported and follow the hand, but are not fitted to a grip. With a different arm length, a
-  two-handed grip and a bow will not meet.
-- **Travel of standing clips.** In `lock`, lunging attacks and deaths move away from their place: one
-  low sword-and-shield attack by 2.26 m, deaths by 1.0–1.3 m. The feet stand, but without `extract`
-  Godot returns the character with a jump at the end of the clip; the step warns about this. Such
-  clips need `root_motion: extract`.
-- **Sliding when travel is removed.**
-  - `in_place: "strict"` on any clip and `in_place: true` on a standing clip with travel slide
-    honestly (table e). The `foot_skate` check shows this, but the step is not failed: it is a
-    warning.
-  - Walking in place keeps the pelvis sway (a 0.29 m jerk on one test walk). The character must be
-    moved uniformly at `ground_speed_mps`.
-- On a character with shorter legs, a bow-stance walk and death slide 1.6–1.7 cm more than the source
-  (3.5 / 1.8 and 3.8 / 2.2 cm). On a lunge, IK does not reach on 23 frames because the target's legs
-  are shorter.
-- Root extraction is horizontal only (XY). Root rotation (yaw) is not extracted, and turning clips
-  rotate the pelvis.
-- The loop seam honestly closes only nearly looping clips. If a non-looping clip (an attack) is made
-  to loop, the tail gets a noticeable "rubber band".
-- `mirror` was verified numerically on synthetic data and not reviewed visually. It assumes a
-  symmetric source rest pose.
-- The sliding metric relies on source contacts: height up to 2 cm above the minimum, speed up to
-  0.3 m/s. Slow dragging (a dragged foot) counts as contact for both source and target. Compare with
+![Следы лодыжек удара ангела, вид сверху, сетка 10 см: слева strict (старый lock), справа новый lock](img/mixamo/mixamo_planted_feet.png)
+
+Строки превью идут в порядке `clips`. Красный крест — начало координат, плита — пол z = 0. На графике
+следов: красный — левая лодыжка, синий — правая, кружок — первый кадр.
+
+У шаблона (d) плечевые кости начинаются в стороне от груди: у `createSkeleton` нет ключицы от позвоночника.
+Палочки превью рисуют только кости, поэтому руки выглядят «оторванными». Это раскладка шаблона, а не
+перенос.
+
+## Честные ограничения
+
+- В 22-костных клипах Mixamo кисти не анимированы: запястье жёстко следует за предплечьем. Пальцы
+  переносятся, только если они есть у обоих скелетов.
+- Ориентация ладони не выводится из геометрии. Swing сохраняет roll цели, поэтому если ладони цели в
+  покое развёрнуты не так, как у T-позы Mixamo (ладонь вниз), скручивание предплечья разойдётся.
+- IK для ног; для рук только ограничение `hand_floor` (запястье не ниже покоя − dz). Хватов двумя руками и
+  контактов с предметом нет. Сокеты рук (§6) экспортируются и
+  следуют кисти, но под хват не подгоняются. При другой длине рук двуручный хват и лук не сойдутся.
+- **Ход стоячих клипов.** В `lock` атаки с выпадом и смерти уходят с места: militia atk_sns_low — на
+  2,26 м, смерти — на 1,0–1,3 м. Стопы стоят, но без `extract` Godot в конце клипа вернёт персонажа
+  скачком; шаг об этом предупреждает. Для таких клипов нужен `root_motion: extract`.
+- **Скольжение при снятии хода.**
+  - `in_place: "strict"` на любом клипе и `in_place: true` на стоячем клипе с ходом скользят честно
+    (таблица e). Проверка `foot_skate` это показывает, но шаг не валит: это предупреждение.
+  - Ходьба на месте сохраняет покачивание таза (у зомби рывки 0,29 м). Нужно двигать персонажа
+    равномерно со скоростью `ground_speed_mps`.
+- На ангеле ходьба и смерть лучника скользят на 1,6–1,7 см больше источника (3.5 / 1.8 и 3.8 / 2.2 см).
+  На выпаде militia у зомби IK не дотягивается на 23 кадрах: ноги зомби короче.
+- Вынос корня только горизонтальный (XY). Поворот корня (yaw) не выносится, клипы-повороты крутят таз.
+- Шов петли честно закрывает только почти зацикленные клипы. Если зациклить незацикленный (атаку), хвост
+  получит заметную «резинку».
+- `mirror` проверен численно на синтетике, визуально не просматривался. Он предполагает симметричный
+  покой источника.
+- Метрика скольжения опирается на контакты источника: высота до 2 см над минимумом, скорость до 0,3 м/с.
+  Медленное волочение (нога зомби) считается контактом и у источника, и у цели. Сравнивать нужно с
   `foot_skate_src_cm`.
-- Prop animations inside the rig hierarchy do not go into the GLB: they are disabled for the duration
-  of the export, and the step warns. Foreign actions are excluded through an internal filter of the
-  Blender 5.0 glTF exporter (`gltf_action_filter`). If the exporter changes, the step warns, and a
-  leak will be caught by the `gltf_animations` check.
-- Categories and tags are guessed from names. Tags derived from a folder name (archer → bow) may not
-  suit neutral motions. Duplicates with different trimming (a different frame count) are not
-  recognized.
-- Rigify and UE were verified on synthetic rigs (names, arm directions), not on real ones. In a
-  generated Rigify rig the DEF bones hang on constraints: a deform-only game rig is needed (the step
-  warns about constraints).
-- On one test character (Meshy and Mixamo auto-weights) the helmet and neck mesh visibly crumple when
-  the head turns by 60°. That is an asset weighting issue, not retargeting.
-- The preview is a gray Workbench without row labels.
+- Анимации реквизита внутри иерархии рига в GLB не попадают: на время экспорта они отключаются, шаг
+  предупреждает. Чужие действия исключаются через внутренний фильтр экспортёра glTF Blender 5.0
+  (`gltf_action_filter`). Если экспортёр изменится, шаг предупредит, а утечку поймает проверка
+  `gltf_animations`.
+- Категории и теги угадываются по именам. Теги по папке юнита (archer → bow) могут не подходить к
+  нейтральным движениям. Дубли с разной обрезкой (разное число кадров) не распознаются.
+- Rigify и UE проверены на синтетических ригах (имена, направления рук), не на реальных. У
+  сгенерированного Rigify кости DEF висят на ограничениях: нужен деформ-only игровой риг (шаг
+  предупреждает об ограничениях).
+- У ангела (Meshy и автовеса Mixamo) при повороте головы на 60° сетка шлема и шеи заметно мнётся. Это
+  вопрос весов ассета, а не переноса.
+- Превью — серый Workbench без подписей строк.

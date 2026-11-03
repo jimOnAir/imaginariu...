@@ -1,0 +1,21 @@
+AstraForge 0.4.10 — после обновления студия проверяет, всё ли установлено
+
+• Окно «Компоненты студии». После обновления студия сама проверяет компьютер и показывает каждую программу и модель: что уже стоит и какой версии, чего не хватает и что пора обновить. Отметьте галочками, что докачать, и нажмите «Установить отмеченное»: всё скачается в фоне, в папку программы, работать можно дальше. Уже установленное не трогается. После установки перезапустите студию (Stop.cmd → Start.cmd), чтобы новые модели появились в списках.
+• Наборы «Быстрая», «Полная — всё» и «Облегчённая» расставляют галочки сами; то, без чего не работает отмеченное, отмечается само. «Позже» закрывает окно — открыть его снова можно в «О программе → Компоненты студии».
+• Так можно доставить, например, FLUX.2 klein и Qwen-Image для вкладки «2D», не запуская установщик.
+• Бесплатные обновления, как и в 0.4.9, ставятся сами при следующем запуске.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.9: версия встанет сама при следующем запуске студии. У кого 0.4.5–0.4.8 без подписки: нажмите внизу окна «Бесплатное обновление — установить», затем «Обновить бесплатно» и «Перезапустить и обновить» — после перезапуска откроется проверка компонентов. У кого 0.4.4 или раньше: один раз скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх старой версии в ту же папку.
+
+—
+
+AstraForge 0.4.10 — after an update the studio checks that everything is installed
+
+• The "Studio components" window. After an update the studio checks the computer and lists every program and model: what is installed and which version, what is missing and what should be updated. Tick what to download and press "Install selected": everything downloads in the background into the program folder, and you can keep working. Anything already installed is left alone. After the install, restart the studio (Stop.cmd → Start.cmd) so the new models appear in the lists.
+• The "Quick", "Full — everything" and "Lite" presets set the ticks for you; anything a ticked item needs is ticked automatically. "Later" closes the window; reopen it in About → Studio components.
+• This is how you can add, for example, FLUX.2 klein and Qwen-Image for the 2D tab without running the installer.
+• Free updates, as in 0.4.9, install themselves on the next start.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.9: this version installs itself on the next studio start. On 0.4.5–0.4.8 without a subscription: press "Free update — install" at the bottom of the window, then "Update for free" and "Restart and update"; after the restart the component check opens. On 0.4.4 or older: download the installer once at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder.

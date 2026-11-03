@@ -1,0 +1,8 @@
+{
+  "alpha": 2,
+  "animations": 24,
+  "arm_frames": 25,
+  "loop": true,
+  "size": "(128.0, 128.0)",
+  "walk_frames": 24
+}

@@ -1,0 +1,19 @@
+AstraForge 0.4.16 — студия учится на общем опыте: общие рецепты в обновлении
+
+• Общие рецепты студий. Журнал самообучения, который студии присылают (если обучение не выключено в «О программе»), теперь сводится в рецепты по умолчанию и приходит с обновлением. Новый ассет того класса, где у других уже есть принятый результат, сразу стартует с проверенных параметров — например, пиксельные спрайты зомби с нормальными цветами и тёмной обводкой.
+• Ваш опыт главнее общего: параметры, которые вы задали сами, ваши принятые запуски и закреплённые рецепты всегда важнее общих. Общий рецепт заполняет только то, что не задано, и каждое значение проверяется.
+• Рецепт попадает в общий только после подтверждения на нескольких компьютерах или автором студии: один пользователь не может изменить настройки для всех. Чем больше вы оцениваете ассеты в «Приёмке» («принято», «брак»), тем лучше становятся рецепты для всех.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.9–0.4.15 и студия работает: версия встанет сама при следующем запуске. У кого 0.4.5–0.4.8 без подписки: нажмите внизу окна «Бесплатное обновление — установить», затем «Обновить бесплатно» и «Перезапустить и обновить».
+
+—
+
+AstraForge 0.4.16 — the studio learns from shared experience: shared recipes in the update
+
+• Shared studio recipes. The self-learning journal that studios send (unless learning is turned off in "About") is now summed up into default recipes that come with the update. A new asset of a class where others already have an accepted result starts right away with proven settings — for example, pixel sprites of zombies with normal colours and a dark outline.
+• Your own experience comes first: settings you set yourself, your accepted runs and pinned recipes always win over shared ones. A shared recipe only fills what is not set, and every value is checked.
+• A recipe becomes shared only after it is confirmed on several computers or by the studio author: one user cannot change the settings for everyone. The more you rate assets in "Review" ("accepted", "rejected"), the better the recipes get for everyone.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.9–0.4.15 with a working studio: this version installs itself on the next start. On 0.4.5–0.4.8 without a subscription: press "Free update — install" at the bottom of the window, then "Update for free" and "Restart and update".

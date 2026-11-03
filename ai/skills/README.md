@@ -1,21 +1,20 @@
-# AstraForge skills for LLMs
+# Скилы AstraForge для LLM
 
-This folder holds the skills that let any LLM (Claude Code, Codex, a local model) install, verify and drive the studio:
+Здесь лежат скилы, по которым любая LLM (Claude Code, Codex, локальная модель) ставит, проверяет и ведёт студию:
 
-| Skill | Contents |
+| Скилл | Что внутри |
 |---|---|
-| `astraforge/` | the whole studio: installation from scratch (`references/install.md`), inventory of components and models (`components.md`), architecture and CLI (`studio.md`), pitfalls (`troubleshooting.md`), state check `scripts/af_status.ps1` |
-| `astraforge-vfx/` | effects on a model, the VFX texture generator, external generators, export to Godot; Notion database export, check server, Godot check |
+| `astraforge/` | вся студия: установка с нуля (`references/install.md`), опись компонентов и моделей (`components.md`), снимок машины (`inventory.md`), устройство и CLI (`studio.md`), передача ассетов в игры (`games.md`), грабли (`troubleshooting.md`), проверка состояния `scripts/af_status.ps1` |
+| `astraforge-vfx/` | эффекты на модели, генератор VFX-текстур, внешние генераторы, экспорт в Godot; выгрузка базы Notion, проверочный сервер, проверка Godot |
+| `astraforge-learn/` | самообучение: перед заданием — рецепт и грабли класса ассета, после — сверка с концептом и вердикт, периодически — сводка журнала в `astraforge/references/recipes.md` и `quality-lessons.md` (`docs/forge/LEARN.md`) |
 
-This folder is the single source. In Claude Code it is connected with links (junctions), so any session sees the skills:
+Эта папка — единственный источник. В Claude Code она подключена ссылками (junction), поэтому скилы видит любая сессия:
 
 ```bat
-mklink /J "%USERPROFILE%\.claude\skills\astraforge" "<AstraForge folder>\ai\skills\astraforge"
-mklink /J "%USERPROFILE%\.claude\skills\astraforge-vfx" "<AstraForge folder>\ai\skills\astraforge-vfx"
+mklink /J "%USERPROFILE%\.claude\skills\astraforge" "<папка AstraForge>\ai\skills\astraforge"
+mklink /J "%USERPROFILE%\.claude\skills\astraforge-vfx" "<папка AstraForge>\ai\skills\astraforge-vfx"
+mklink /J "%USERPROFILE%\.claude\skills\astraforge-learn" "<папка AstraForge>\ai\skills\astraforge-learn"
 ```
 
-For other models these are plain markdown files: start with `astraforge/SKILL.md`. Documentation for humans is `README.md`
-and `docs/` in the studio root. When you change the studio, update the skill in the same commit.
-
-Do not put anything machine-specific in this folder (paths to your own projects, role ordering, a snapshot of what is
-installed, links to personal notes): keep that in `%USERPROFILE%\.claude\astraforge-local\README.md` — the skill reads it if it exists.
+Для других моделей это обычные markdown-файлы: начните с `astraforge/SKILL.md`. Подробная документация для людей —
+Obsidian, хаб `00 Dops Media/Проекты/AstraForge — система.md`. Меняете студию — обновляйте скилл в том же коммите.

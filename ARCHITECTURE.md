@@ -1,37 +1,37 @@
-# AstraForge architecture and roadmap
+# Устройство и развитие AstraForge
 
-## Implemented
+## Реализовано
 
-React + Three.js → Express on 127.0.0.1:3210 → a separate ComfyUI on 127.0.0.1:8190. SDXL creates a concept from text, rembg/U2Net removes the background on the CPU and fits the object into a white square, and Hunyuan3D 2.0 builds a mesh from the image. An existing ComfyUI on 8188 is not reconfigured. The scene, materials, transforms, keyframes, ready-made clips and particles run in the browser. Saved meshes without normals get computed normals before display.
+React + Three.js → Express на 127.0.0.1:3210 → отдельный ComfyUI на 127.0.0.1:8190. SDXL создаёт концепт по тексту, rembg/U2Net убирает фон на CPU и вписывает объект в белый квадрат, Hunyuan3D 2.0 строит меш по изображению. Существующий ComfyUI на 8188 не перенастраивается. Сцена, материалы, трансформации, ключевые кадры, готовые клипы и частицы исполняются в браузере. Сохранённые меши без нормалей получают рассчитанные нормали перед отображением.
 
-The LLM adapter supports Ollama, OpenAI Chat Completions and Anthropic Messages. The LLM returns JSON with a limited set of actions; Zod validates them before they are applied. It does not execute Blender Python, shell or arbitrary JS. The server stores keys in DPAPI; the client only receives a "connected" flag.
+Адаптер LLM поддерживает Ollama, OpenAI Chat Completions и Anthropic Messages. LLM возвращает JSON с ограниченным набором действий; Zod проверяет их до применения. Она не выполняет Blender Python, shell или произвольный JS. Сервер хранит ключи в DPAPI; клиент получает только признак подключения.
 
-`data/assets` holds images and GLB; `data/jobs` holds the queue and completed jobs; `data/projects` holds scenes with geometry; `data/exports` holds exported files; `data/runtime` holds the separate ComfyUI directories and logs; `data/models` holds weights. Weights must stay out of Git and source-code archives.
+`data/assets` — изображения и GLB; `data/jobs` — очередь и завершённые задания; `data/projects` — сцены с геометрией; `data/exports` — экспортированные файлы; `data/runtime` — отдельные каталоги ComfyUI и журналы; `data/models` — веса. Веса должны оставаться вне Git и архивов исходного кода.
 
-## Generator choice
+## Выбор генератора
 
-The reference setup is a 12 GB VRAM GPU with about 64 GB of RAM. Hunyuan3D 2.0 was chosen as the practical option: it is already supported by the installed ComfyUI and has official requirements of about 6 GB VRAM for geometry. [Hunyuan3D-2](https://github.com/Tencent-Hunyuan/Hunyuan3D-2#-models-zoo), [official ComfyUI workflow](https://docs.comfy.org/tutorials/3d/hunyuan3D-2).
+На текущем ПК RTX 4070 12 ГБ и около 64 ГБ RAM. Hunyuan3D 2.0 выбран как практический вариант: он уже поддерживается установленным ComfyUI и имеет официальные требования около 6 ГБ VRAM для геометрии. [Hunyuan3D-2](https://github.com/Tencent-Hunyuan/Hunyuan3D-2#-models-zoo), [официальный workflow ComfyUI](https://docs.comfy.org/tutorials/3d/hunyuan3D-2).
 
-TRELLIS.2 is a candidate for a more powerful GPU and detailed PBR geometry. The official implementation targets Linux and a minimum of 24 GB VRAM. Reduced modes in third-party builds have not been verified on a 12 GB GPU. [Microsoft TRELLIS.2](https://github.com/microsoft/TRELLIS.2#prerequisites).
+TRELLIS.2 — кандидат для более мощной GPU и детальной PBR-геометрии. Официальная реализация рассчитана на Linux и минимум 24 ГБ VRAM. Пониженные режимы сторонних сборок не проверены на этом компьютере. [Microsoft TRELLIS.2](https://github.com/microsoft/TRELLIS.2#prerequisites).
 
-Hunyuan3D 2.1 offers improved PBR textures, but the official requirements are 10 GB for shape and 21 GB for textures. Therefore the full standard pipeline cannot be promised on 12 GB. [Hunyuan3D-2.1](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1#-models-zoo).
+Hunyuan3D 2.1 предлагает улучшенные PBR-текстуры, но официальные требования составляют 10 ГБ для формы и 21 ГБ для текстур. Поэтому нельзя обещать полный стандартный pipeline на 12 ГБ. [Hunyuan3D-2.1](https://github.com/Tencent-Hunyuan/Hunyuan3D-2.1#-models-zoo).
 
-TripoSR is a potential lightweight mode for quick drafts. It is not installed in the current version: the main pipeline already goes through Hunyuan3D without extra CUDA dependencies. [TripoSR](https://github.com/VAST-AI-Research/TripoSR).
+TripoSR — потенциальный облегчённый режим быстрых черновиков. В текущую версию не установлен: основной pipeline уже проходит через Hunyuan3D без дополнительных CUDA-зависимостей. [TripoSR](https://github.com/VAST-AI-Research/TripoSR).
 
-## Next stages
+## Следующие этапы
 
-1. **Blender bridge.** A separate local worker with a limited set of import/export, decimate, remesh, UV, bake and skeleton-preparation operations. Operations must support cancellation, version saving and result verification. Do not run arbitrary Python from an LLM.
-2. **Creatures.** Anatomy and symmetry checks, mesh separation, manual skeleton editing, weights, auto-skinning and a motion library. Humanoid templates do not automatically solve rigging of dragons and multi-legged creatures. Different skeleton types and manual correction are needed.
-3. **Items and ships.** Multi-view concept, separation of hull/wings/engines, symmetry, hard edges, separate pivots, animation of mechanisms. A generated mesh needs review and retopology before use in a game.
-4. **Textures.** An isolated Hunyuan3D-Paint worker, sequential loading of geometry and textures, VRAM checks, UV and PBR packing. Quality and time must be compared separately on 12 GB; if memory is insufficient, provide for an external GPU only by explicit user choice.
-5. **Effects.** Emitters attached to objects and bones; custom birth/life/speed parameters; smoke, fire, bloom; export of effect descriptions for game engines. GLB by itself does not carry arbitrary particles.
-6. **Product packaging.** Installer, an independent managed runtime, model updates with SHA-256, disk-full handling, project recovery, LLM queues and cancellation, visual regression tests, license audit before distribution.
+1. **Blender bridge.** Отдельный локальный worker с ограниченными операциями импорта/экспорта, decimate, remesh, UV, bake и подготовкой скелета. Операции должны иметь отмену, сохранение версии и проверку результата. Произвольный Python от LLM не выполнять.
+2. **Существа.** Проверка анатомии и симметрии, разделение меша, ручная правка скелета, веса, автоскиннинг и библиотека движений. Человеческие шаблоны не решают автоматически риг драконов и многоногих существ. Нужны разные типы скелетов и возможность ручной корректировки.
+3. **Предметы и корабли.** Многовидовой концепт, разделение корпуса/крыльев/двигателей, симметрия, жёсткие рёбра, отдельные pivot, анимация механизмов. Генеративный меш требует проверки и ретопологии перед использованием в игре.
+4. **Текстуры.** Изолированный Hunyuan3D-Paint worker, последовательная загрузка геометрии и текстур, проверка VRAM, UV и упаковка PBR. Нужно отдельно сравнить качество и время на 12 ГБ; при нехватке памяти предусмотреть внешнюю GPU по явному выбору пользователя.
+5. **Эффекты.** Эмиттеры, привязанные к объектам и костям; собственные параметры рождения/жизни/скорости; дым, огонь, bloom; экспорт описаний эффектов для игровых движков. GLB сам по себе не переносит произвольные частицы.
+6. **Продуктовая упаковка.** Установщик, независимый управляемый runtime, обновление моделей с SHA-256, обработка переполнения диска, восстановление проекта, очереди и отмена LLM, визуальные регрессионные тесты, аудит лицензий перед распространением.
 
-These are development directions, not features that already exist. The sources are split into `src/scene.js`, `src/animation.js`, `src/App.jsx` and the server adapters `server/jobs.mjs`, `server/llm.mjs`, `server/runtime.mjs`.
+Это направления разработки, а не уже реализованные функции. Исходники разделены на `src/scene.js`, `src/animation.js`, `src/App.jsx` и серверные адаптеры `server/jobs.mjs`, `server/llm.mjs`, `server/runtime.mjs`.
 
-## Implemented in 0.3
-Local UV: server/uv.mjs → scripts/unwrap_uv.py → xatlas, installed in data/python. The remap result preserves skin/morph/normal/colour. Textures: src/media-core.js, src/texture-bake.js, src/media-tools.js. Sprites: a separate WebGLRenderer with a deterministic AnimationMixer, PNG/JSON/.tres in a ZIP. Project storage: server/projects.mjs, gzip JSON and metadata; old JSON files are still readable.
-Tripo: server/tripo-core.mjs checks operations and compatibility; server/tripo.mjs uses the official SDK API v3, a server-side DPAPI key, history, explicit submission and bounded result downloads. The browser does not receive the key. UI: src/TripoPanel.jsx. Generation remains an optional cloud feature; local tools do not require Tripo.
+## Реализовано в 0.3
+Локальные UV: server/uv.mjs → scripts/unwrap_uv.py → xatlas, установленный в data/python. Результат remap сохраняет skin/morph/normal/colour. Текстуры: src/media-core.js, src/texture-bake.js, src/media-tools.js. Спрайты: отдельный WebGLRenderer с детерминированным AnimationMixer, PNG/JSON/.tres в ZIP. Хранилище проектов: server/projects.mjs, gzip JSON и metadata; старые JSON читаются.
+Tripo: server/tripo-core.mjs проверяет операции и совместимость; server/tripo.mjs использует официальный SDK API v3, серверный DPAPI-ключ, историю, явную отправку и ограниченную загрузку результатов. Браузер не получает ключ. Интерфейс: src/TripoPanel.jsx. Генерация остаётся опциональной облачной; локальные инструменты не требуют Tripo.
 
 # Reference fidelity update — 2026-10-10
 
@@ -41,4 +41,4 @@ The isolated runtime whitelists only the application's `AstraForgeMesh` node whi
 
 `mesh-validation.mjs` enforces generated GLB byte/count bounds before import. The optimizer creates a working mesh before UV/rigging. Re-extraction reuses the stored input and available runtime cache, with recomputation when that cache has expired. Failed diagnostic geometry is not offered as a completed character.
 
-Detailed part reconstruction, validated unseen views, full neural PBR on a 12 GB device and anatomical acceptance are still incomplete. Code/data-level validity must not be presented as exact visual reference fidelity.
+Detailed part reconstruction, validated unseen views, full neural PBR on this 12 GB device and anatomical acceptance are still incomplete. Code/data-level validity must not be presented as exact visual reference fidelity.

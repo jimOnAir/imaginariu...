@@ -1,0 +1,24 @@
+{
+  "frames": 584,
+  "pages": 3,
+  "empty_frames": 0,
+  "distinct_frames": {
+    "Idle": 104,
+    "ArmRaise": 104,
+    "Walk": 184
+  },
+  "alpha_extrema": [
+    [
+      0,
+      255
+    ],
+    [
+      0,
+      255
+    ],
+    [
+      0,
+      255
+    ]
+  ]
+}

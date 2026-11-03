@@ -1,94 +1,105 @@
-# The AstraForge forge: building assets automatically and embedding them in games
+# Кузница AstraForge — как делать ассеты на автомате и встраивать их в игры
 
-State as of 2026-10-11. Everything runs locally: Blender 5.0.1 without a window, Godot 4.5.1 for checks,
-Hunyuan3D 2.1 in its own ComfyUI on port 8190. No cloud is used.
+Состояние на 11.10.2026. Всё работает локально: Blender 5.0.1 без окна, Godot 4.5.1 для проверок,
+Hunyuan3D 2.1 в собственном ComfyUI 8190. Облако не используется.
 
-## 1. Launching
+## 1. Запуск
 
-- Double-click `Start.cmd`, address http://127.0.0.1:3210. Stop with `Stop.cmd`.
-- In the studio, the **"Forge"** tab holds the wizard (what we create -> preparation -> skeleton -> motions -> items ->
-  effects -> export), "Jobs" (all builds, with a "Show in scene" button), and "Batch".
-- Command line from the AstraForge folder: `node scripts/forge.mjs presets`, `create`, `run`, `batch`,
-  `export`, `clips import`. The `--direct` flag works without a running studio.
+- Двойной щелчок по `Start.cmd`, адрес http://127.0.0.1:3210. Остановка — `Stop.cmd`.
+- В студии вкладка **«Кузница»**: мастер (что создаём → подготовка → скелет → движения → предметы →
+  эффекты → экспорт), «Задачи» (все сборки, кнопка «Показать в сцене»), «Пакет».
+- Командная строка из папки AstraForge: `node scripts/forge.mjs presets`, `create`, `run`, `batch`,
+  `export`, `clips import`. Флаг `--direct` работает без запущенной студии.
 
-## 2. Ready-made pipelines (presets)
+## 2. Готовые конвейеры (пресеты)
 
-| Preset | What it does |
+| Пресет | Что делает |
 |---|---|
-| `humanoid_from_mesh` | cleanup -> Mixamo auto-rig -> clips from the library (root motion) -> Godot package |
-| `creature_auto` | cleanup -> creature rig (template detected automatically) -> procedural gaits -> Godot |
-| `item_kit_sword`, `item_from_mesh` | a weapon from the kit or from a generated model -> Godot |
-| `ship_procedural`, `ship_from_mesh`, `turret` | ships and turrets -> package |
+| `humanoid_from_mesh` | чистка → авториг Mixamo → клипы из библиотеки (root motion) → пакет Godot |
+| `humanoid_hg_sprites` | то же, плюс спрайты «Врат» (3 ракурса, ячейка 320/448, 12 к/с) |
+| `humanoid_face_checked` | чистка → покраска по концепту → цикл «проверка лица → доработка» по крупным планам головы (`docs/forge/face_match.md`) → авториг → клипы → пакет Godot |
+| `creature_auto` | чистка → риг существа (шаблон определяется сам) → процедурные походки → Godot |
+| `item_kit_sword`, `item_from_mesh` | оружие из набора или из сгенерированной модели → Godot |
+| `ship_procedural`, `ship_from_mesh`, `turret` | корабли и турели по контракту Space Quest → пакет |
 
-Example: a character from a picture in one command.
+Пример: персонаж из картинки за одну команду.
 ```
-node scripts/forge.mjs create --kind humanoid --name "Knight" --from-glb model.glb --preset humanoid_from_mesh
+node scripts/forge.mjs create --kind humanoid --name "Рыцарь" --from-glb model.glb --preset humanoid_from_mesh
 ```
-The model comes from a studio generation (`--from-job <id>`), from a GLB/FBX/OBJ file, or from another asset.
+Модель берётся из генерации студии (`--from-job <id>`), из файла GLB/FBX/OBJ или из другого ассета.
 
-## 3. Characters
+## 3. Персонажи
 
-1. **Shape.** Picture or text -> Hunyuan 2.1 generation in the studio. For important details (skull, hand,
-   pommel) run a separate generation from an enlarged crop and use `replace_part`. Hunyuan 2.1 produces geometry only:
-   color comes from `paint_from_concept` applied to the generation's source picture (see `docs/forge/paint_from_concept.md`).
-2. **Details that beat the neural net.** `bone_kit` (skeletal hands, a bone staff, clasps), `item_kit`
-   (22 kinds of weapons, shields and props), `place_parts` (placing details over a surface or by poses),
-   `separate` (cutting merged props apart, `slit` cuts between a sleeve and a robe).
-3. **Items separately.** `extract_props` cuts a sword, shield, banner, bow, staff or book out of the generated body
-   (the fist stays with the body, caps are added at the cuts, paint is kept on both parts); each item becomes its own GLB with
-   grip sockets. An item that fails the quality check is replaced with a kit item of the same size in its colors
-   (`docs/forge/extract_props.md`). Without this the sword bends with the hand, the shield crumples, the plate armor stretches.
-4. **Rig.** `rig_humanoid`: Mixamo bone names, automatic markers (chin, groin, wrists,
-   elbows, knees) that can be corrected in the wizard, proportion and break checks. Sockets for hands, shields, back, head.
-   Hard plate armor (`hard_surface`): metal plates identified by paint are bound whole to their own bone.
-5. **Item in hand.** `attach_prop`: aligns the item's `socket_grip_main` with the hand socket; shields go
-   through `socket_mount_shield_*`. Items are swapped through sockets. With `extracted: true` all items cut out
-   in this run go back to their places (`skin_separate` is a rigid separate mesh on the hand); a cut-out shield
-   on a character with clips goes to the shield socket, fitted to the clip frames (it stands, facing outward and forward).
-6. **Motions.** `retarget` transfers Mixamo clips to any skeleton: in place for walking, root motion
-   for Godot, protection against sinking and twisting for characters in robes; `motion_style` provides a custom manner and death.
+1. **Форма.** Картинка или текст → генерация Hunyuan 2.1 в студии. Для важных деталей (череп, кисть,
+   навершие) — отдельная генерация по увеличенному фрагменту и `replace_part`. Hunyuan 2.1 даёт только
+   геометрию: цвет — `paint_from_concept` по картинке генерации (пакет концептов ставит его сразу после чистки; `docs/forge/paint_from_concept.md`).
+2. **Детали лучше нейросетки.** `bone_kit` (скелетные кисти, костяной посох, застёжки), `item_kit`
+   (22 вида оружия, щитов и реквизита), `place_parts` (расстановка деталей по поверхности или по позам),
+   `separate` (вырезать слитый реквизит, разрезы `slit` между рукавом и мантией).
+3. **Предметы отдельно.** `extract_props` вырезает меч, щит, знамя, лук, посох, книгу из сгенерированного тела
+   (кулак остаётся телу, крышки на разрезах, покраска на обеих частях), каждый предмет — свой GLB с сокетами
+   хвата; не прошедший проверку качества заменяется предметом набора того же размера в его цветах
+   (`docs/forge/extract_props.md`). Без этого меч гнётся с рукой, щит мнётся, латы тянутся.
+4. **Риг.** `rig_humanoid`: имена костей Mixamo, автоматические маркеры (подбородок, пах, запястья,
+   локти, колени) с правкой в мастере, проверки пропорций и разрывов. Сокеты рук, щитов, спины, головы.
+   Жёсткие латы (`hard_surface`): металлические пластины по покраске — целиком на свою кость.
+5. **Предмет в руку.** `attach_prop`: совмещение `socket_grip_main` предмета с сокетом руки; щиты —
+   через `socket_mount_shield_*`. Предметы меняются по сокетам. С `extracted: true` — все вырезанные предметы
+   этого прогона обратно на их места (`skin_separate` — жёсткая отдельная сетка на кисти); вырезанный щит
+   на персонаже с клипами — на сокет щита, подогнанный по кадрам клипов (стоит, смотрит наружу и вперёд).
+6. **Движения.** `retarget` переносит клипы Mixamo на любой скелет: на месте для ходьбы, root motion
+   для Godot, защита от проседания и разворота для персонажей в мантиях; `motion_style` — своя манера и смерть.
 
-Mixamo: download clips from mixamo.com (FBX, "Without Skin", 30 fps) and drag them into the
-"Motions" tab or run `node scripts/forge.mjs clips import <folder>`. The library holds 124 clips (38 Mixamo and 86 Quaternius/ActionForge, CC0);
-it lacks running, jumps, strafes and emotes. Uploading a character to the Mixamo site is prepared by the
-`prepare_mixamo` step; the forge itself does not go online.
+Пакет концептов «Врат» (`scripts/forge-concepts.mjs`): cleanup → paint_from_concept → extract_props →
+rig_humanoid → retarget → attach_prop (extracted) → motion_style → render_sprites → godot_package; после сборки —
+проверка предметов в руках по клипам, `--compare <старое состояние>` — листы «было / стало». Тиры юнитов —
+предложение `C:\AstraForge\incoming\hg_concepts_2026-10-11\tiers.md`.
 
-## 4. Creatures
+Mixamo: скачайте клипы с mixamo.com (FBX, «Without Skin», 30 к/с) и перетащите их во вкладку
+«Движения» или выполните `node scripts/forge.mjs clips import <папка>`. В библиотеке 124 клипа (38 Mixamo и 86 Quaternius/ActionForge, CC0);
+не хватает бега, прыжков, стрейфов и эмоций. Загрузку персонажа на сайт Mixamo готовит шаг
+`prepare_mixamo`, сама кузница в сеть не ходит.
 
-`rig_creature` with templates `quadruped`, `winged_quadruped`, `bird`, `hexapod`, `octopod`, `serpent`
-or `auto`; `anim_creature` builds idle, step, run, flight, gliding, attack, hit and death with
-foot placement. Height is set in the passport (`profile.height_m`), otherwise the file size stays.
+## 4. Существа
 
-## 5. Items and ships
+`rig_creature` с шаблонами `quadruped`, `winged_quadruped`, `bird`, `hexapod`, `octopod`, `serpent`
+или `auto`; `anim_creature` строит покой, шаг, бег, полёт, планирование, атаку, удар и смерть с
+постановкой ног. Рост задаётся в паспорте (`profile.height_m`), иначе остаётся размер файла.
 
-- **Weapons and props:** `item_kit` (parameters, style, seed, variant pack) or `item_from_mesh`.
-- **Procedural ship:** `ship_gen` (9 classes, 4 styles, layout families, seed).
-- **Ship from a concept:** Hunyuan generation -> `ship_from_mesh` (paint from the concept, armor,
-  markings, sockets, LOD, collision) -> `kitbash` (machine guns, nozzles, pipes, masts, lights on sockets).
-- **Turret:** `turret_gen` with the rig `socket_mount -> pivot_yaw -> pivot_pitch -> socket_muzzle_NN`.
+## 5. Предметы и корабли
 
-## 6. Batch mode
+- **Оружие и реквизит:** `item_kit` (параметры, стиль, зерно, пакет вариантов) или `item_from_mesh`.
+- **Корабль процедурно:** `ship_gen` (9 классов, 4 стиля, семейства компоновок, зерно).
+- **Корабль из концепта:** генерация Hunyuan → `ship_from_mesh` (покраска по концепту, броня,
+  надписи, сокеты, LOD, коллизия) → `kitbash` (пулемёты, сопла, трубы, мачты, огни на сокетах).
+  Образец — рецепт SQ-03: `outputs/ShipSQ03Forge/v2/recipe/steps_v2.json`.
+- **Турель:** `turret_gen` с ригом `socket_mount → pivot_yaw → pivot_pitch → socket_muzzle_NN`.
 
-`node scripts/forge.mjs batch items.json`, where `items.json` = `{"items":[{name, kind, source, preset|steps}]}`;
-in the wizard use the "Batch" tab (for example, 20 ships with seeds 1-20). Each asset gets an
-`asset.json` passport with versions; re-running a recipe yields the same geometry.
+## 6. Пакетный режим
 
-## 7. Embedding in projects
+`node scripts/forge.mjs batch items.json`, где `items.json` = `{"items":[{name, kind, source, preset|steps}]}`;
+в мастере — вкладка «Пакет» (например, 20 кораблей с зёрнами 1–20). Каждый ассет получает паспорт
+`asset.json` с версиями; повторный прогон рецепта даёт ту же геометрию.
 
-| Project | Export profile | Result | How to embed |
+## 7. Встраивание в проекты
+
+| Проект | Профиль экспорта | Что получается | Как встроить |
 |---|---|---|---|
-| Any Godot 4 | `godot` | an `<asset_id>/` folder: GLB, `.tscn`, an effects mounting script, `fx/*.tscn` | copy the folder into `res://` and instantiate the scene |
+| Любой Godot 4 | `godot` | папка `<asset_id>/`: GLB, `.tscn`, скрипт монтажа эффектов, `fx/*.tscn` | скопировать папку в `res://` и инстанцировать сцену |
+| Space Quest | `space_quest` | GLB по контракту (нос −Z, сокеты `socket_<вид>_<место>`, SQ_* материалы, LOD, `COL_SIMPLE`) + запись для `data/models.json` | папку — в `prototype/assets/models/<тип>/`, запись — в реестр |
+| «Врата Героев» | `heroes_gates` | листы `<clip>.png`, `_nw`, `_se`, запись для `data/sprites.json` | через роль art и обычный порядок слияний «Врат» |
 
-The forge never writes into other projects by itself: packages and registry entries are placed in
-`C:\AstraForge\library\assets\<id>\exports\`. All packages have been checked with a real Godot 4.5.1.
+Кузница никогда не пишет в чужие проекты сама: пакеты и записи реестров лежат в
+`C:\AstraForge\library\assets\<id>\exports\`. Все пакеты проверены настоящим Godot 4.5.1.
 
-## 8. Limitations
+## 8. Ограничения
 
-- Neural-net geometry is soft: close-ups need parametric details on top of it.
-- Color from a picture is a photo projection, not PBR; the hidden side is a guess by the generator or a mirror.
-- Positions of details and cuts on non-standard models are still tuned from measurements.
-- The forge library lives in `C:\AstraForge\library` (a short path). Another folder can be set with the environment
-  variable `ASTRA_FORGE_LIBRARY`.
-- Tripo is connected, but paid operations are not run without the owner's decision.
+- Нейросетевая геометрия мягкая: для крупных планов нужны параметрические детали поверх неё.
+- Цвет из картинки — проекция фото, не PBR; скрытая сторона — догадка генератора или зеркало.
+- Положения деталей и разрезов на нестандартных моделях пока подбираются по замерам.
+- Библиотека кузницы лежит в `C:\AstraForge\library` (короткий путь, перенос 11.10.2026; прежняя копия —
+  `data/library.moved-2026-10-11`). Другую папку задаёт переменная `ASTRA_FORGE_LIBRARY`.
+- Tripo подключён, но платные операции без решения владельца не запускаются.
 
-Details per module are in `docs/forge/*.md`, the contract is in `docs/FORGE-CONTRACT.md`, the API is in `docs/forge/API.md`.
+Подробности по модулям — `docs/forge/*.md`, контракт — `docs/FORGE-CONTRACT.md`, API — `docs/forge/API.md`,
+сквозной прогон — `docs/forge/SMOKE.md`.

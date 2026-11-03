@@ -1,131 +1,131 @@
-# Pixal3D: the second 3D engine (more accurate than Hunyuan3D)
+# Pixal3D: второй движок 3D (точнее Hunyuan3D)
 
-State as of 2026-10-14. Relates to `docs/forge/views.md` (views) and `docs/forge/API.md`.
+Состояние на 14.10.2026. Относится к `docs/forge/views.md` (ракурсы) и `docs/forge/API.md`.
 
-## What it is and why
+## Что это и зачем
 
-Pixal3D (Tencent ARC, built on TRELLIS.2) builds a shape from one or several views. The owner chose it after a comparison on a test humanoid character
-(`pixal3d/compare.png` in the work directory, numbers in `compare.json`; silhouette IoU against the supplied views):
+Pixal3D (Tencent ARC, поверх TRELLIS.2) строит форму по одному или нескольким видам. Владелец выбрал его после сравнения на ополченце
+(`C:\AstraForge\incoming\units_1013\militia\pixal3d\compare.png`, цифры — `compare.json`; IoU силуэта против поданных видов):
 
-| Variant | front | left | back | right | time | VRAM (peak above baseline) |
+| Вариант | спереди | слева | сзади | справа | время | видеопамять (пик над фоном) |
 |---|---|---|---|---|---|---|
-| Hunyuan3D-2mv, 4 views | 0.936 | 0.847 | 0.924 | 0.843 | ~150 s | — |
-| Pixal3D, 1 view | 0.898 | 0.709 | 0.869 | 0.736 | 355 s | 6.4 GB |
-| **Pixal3D, 4 views (fov 0.1 rad)** | **0.971** | **0.937** | **0.940** | **0.938** | **232 s** | **9.5 GB** |
+| Hunyuan3D-2mv, 4 вида | 0,936 | 0,847 | 0,924 | 0,843 | ≈150 с | — |
+| Pixal3D, 1 вид | 0,898 | 0,709 | 0,869 | 0,736 | 355 с | 6,4 ГБ |
+| **Pixal3D, 4 вида (fov 0,1 рад)** | **0,971** | **0,937** | **0,940** | **0,938** | **232 с** | **9,5 ГБ** |
 
-The face comes out noticeably crisper and more faceted. Pixal3D builds **the shape only**: it has no textures, those are still produced by the studio pipeline
-("paint_from_concept" from the front and back views), so the remaining steps (cleanup, rig, animation transfer) work with its mesh unchanged.
-
-```
-view cut-outs (RGBA, norm/cut_<slot>.png) ──► ComfyUI-Pixal3D :8191 ──► GLB ──► normalisation ──► like a Hunyuan3D mesh
- front · left · back · right (any set,        shape-only graph            (centre at zero, height 2,
- front is required) or a single view          pixal3dWorkflow             front faces -Y after import into Blender)
-```
-
-## How to use
-
-**Studio.** The "Views" block and the "Geometry quality" section of the "Create" tab contain a **"3D engine"** switch: Pixal3D (more accurate, about 4 minutes,
-~10 GB VRAM) or Hunyuan3D (faster). If Pixal3D is installed, it is selected by default (the choice is remembered in the browser); if not, the Pixal3D button
-is inactive, and a note under the switch says what is missing. With Pixal3D the settings it does not need are hidden (shape generator, "Fast/Balanced/Detailed", surface level).
-It is an ordinary generation job: queue, phase-by-phase progress, cancel, the "Results" history (prefixed "Pixal3D ·"). A single view is handled by the "Create 3D model" button
-(~6 minutes), several views by "Create 3D from views" (~4 minutes). Errors are shown in the UI language.
-
-**API.** `POST /api/jobs` with `"engine": "pixal3d"` (or `"auto"`); without the field Hunyuan3D works as before (`docs/forge/API.md`).
-
-**Command line.**
+Лицо получается заметно чётче и гранёнее. Pixal3D строит **только форму**: текстур у него нет, их по-прежнему даёт конвейер студии
+(«paint_from_concept» по видам спереди и сзади), поэтому остальные шаги (cleanup, риг, перенос анимаций) работают с его сеткой без изменений.
 
 ```
-node scripts/views/views_3d.mjs --views <view set folder> --out mesh.glb --engine pixal3d|hunyuan [--slots front,left,back,right]
+вырезки видов (RGBA, norm/cut_<слот>.png) ──► ComfyUI-Pixal3D :8191 ──► GLB ──► нормировка ──► как сетка Hunyuan3D
+ перед · слева · сзади · справа (любой набор,   shape-only граф          (центр в нуле, высота 2,
+ перед обязателен) или один вид                  pixal3dWorkflow          перед смотрит в −Y после импорта в Blender)
+```
+
+## Как пользоваться
+
+**Студия.** Блок «Ракурсы» и раздел «Качество геометрии» вкладки «Создать» содержат переключатель **«Движок 3D»**: Pixal3D (точнее, около 4 минут,
+≈10 ГБ видеопамяти) или Hunyuan3D (быстрее). Если Pixal3D установлен, он выбран по умолчанию (выбор запоминается в браузере); если нет — кнопка Pixal3D
+неактивна, под переключателем написано, чего не хватает. С Pixal3D скрыты настройки, которые ему не нужны (генератор формы, «Быстро/Баланс/Детально», уровень поверхности).
+Это обычное задание генерации: очередь, ход работы по фазам, отмена, история «Результаты» (с приставкой «Pixal3D ·»). Один вид даёт кнопка «Создать 3D-модель»
+(≈6 минут), несколько ракурсов — «Создать 3D по ракурсам» (≈4 минуты). Ошибки показываются по-русски.
+
+**API.** `POST /api/jobs` с `"engine": "pixal3d"` (или `"auto"`); без поля работает Hunyuan3D, как раньше (`docs/forge/API.md`).
+
+**Командная строка.**
+
+```
+node scripts/views/views_3d.mjs --views <папка набора> --out mesh.glb --engine pixal3d|hunyuan [--slots front,left,back,right]
         [--seed 1000] [--faces 700000]      # Pixal3D
         [--seed 703] [--quality high] [--level 0] [--swap-sides] [--comfy http://127.0.0.1:8190]   # Hunyuan3D
 ```
 
-Without `--engine`, `auto` is used: Pixal3D if installed, otherwise Hunyuan3D. Any set of views that includes the front: `--slots front,back` builds the graph from two views.
+Без `--engine` берётся `auto`: Pixal3D, если установлен, иначе Hunyuan3D. Любой набор видов с видом спереди: `--slots front,back` строит граф по двум видам.
 
-## Settings and installation
+## Настройки и установка
 
-The engine folder and address are set as follows (the first one found):
+Папка и адрес движка задаются так (первое найденное):
 
-| What | Source |
+| Что | Источник |
 |---|---|
-| ComfyUI-Pixal3D folder | the `ASTRA_PIXAL3D_DIR` variable, then `config\paths.json`, key `pixal3dDir` (written by the installer; `Start.cmd` copies it into the variable), then `C:\AstraForge\ComfyUI-Pixal3D` |
-| address | `ASTRA_PIXAL3D_URL` (or `pixal3dUrl` in `paths.json`), default `http://127.0.0.1:8191`; local http only |
+| папка ComfyUI-Pixal3D | переменная `ASTRA_PIXAL3D_DIR`, затем `config\paths.json`, ключ `pixal3dDir` (его пишет установщик; `Start.cmd` переносит в переменную), затем `C:\AstraForge\ComfyUI-Pixal3D` |
+| адрес | `ASTRA_PIXAL3D_URL` (или `pixal3dUrl` в `paths.json`), по умолчанию `http://127.0.0.1:8191`; только локальный http |
 
-"Installed" means: on disk there are a portable Python, ComfyUI, the ComfyUI-Trellis2 nodes, the Pixal3D weights (single- and multi-view), DINOv3 ViT-L/16 and MoGe-2 (the list is `PIXAL3D_REQUIREMENTS`
-in `server/pixal3d.mjs`). If something is missing the studio does not crash: the switch is inactive, a job with `engine: "pixal3d"` is rejected at once with a reason, and `auto` and the CLI use Hunyuan3D.
+«Установлен» значит: на диске есть портативный Python, ComfyUI, узлы ComfyUI-Trellis2, веса Pixal3D (одно- и многовидовые), DINOv3 ViT-L/16 и MoGe-2 (список — `PIXAL3D_REQUIREMENTS`
+в `server/pixal3d.mjs`). Чего-то не хватает — студия не падает: переключатель неактивен, задание с `engine: "pixal3d"` отклоняется сразу с причиной, `auto` и CLI берут Hunyuan3D.
 
-**On-demand start.** No separate button is needed: the first job starts the engine itself in a hidden window with the same parameters as `Start ComfyUI (Pixal3D, 8191).bat`
-(its own caches in the install folder, system CUDA and Python variables cleared), waits for readiness (~6 s on a warm machine, 1-2 minutes on a cold start) and writes a log to
-`data\runtime\pixal3d.log`. In advance: `POST /api/runtime/pixal3d/start`. An already running instance (for example one started by hand with the batch file) is used as is by the studio and **is not stopped**.
-An instance started by the studio gets its own database (`--database-url`, otherwise two ComfyUI instances of the same folder fight over `ComfyUI\user\comfyui.db`) and a temporary folder `data\runtime\pixal3d-temp`:
-by this marker `Stop.cmd` finds and stops exactly that instance, and on a normal studio exit it is removed together with it.
+**Запуск по требованию.** Отдельная кнопка не нужна: первое задание само запускает движок скрытым окном теми же параметрами, что `Start ComfyUI (Pixal3D, 8191).bat`
+(свои кэши в папке установки, системные CUDA и Python-переменные сброшены), ждёт готовности (на прогретой машине ≈6 с, холодный старт 1–2 минуты) и пишет журнал в
+`data\runtime\pixal3d.log`. Заранее: `POST /api/runtime/pixal3d/start`. Уже работающий экземпляр (например, запущенный вручную батником) студия использует как есть и **не останавливает**.
+Запущенный студией экземпляр получает свою базу (`--database-url`, иначе два ComfyUI одной папки спорят за `ComfyUI\user\comfyui.db`) и временную папку `data\runtime\pixal3d-temp`:
+по этой метке `Stop.cmd` находит и останавливает именно его, а при штатном выходе студии он снимается вместе с ней.
 
-**Fixed generation parameters** (those chosen in the evaluation; `pixal3dWorkflow` in `server/schema.mjs`): heun sampler, 25 steps for the coarse shape and 12 steps each for 512/1024, ~700 thousand faces
-(`--faces`), for several views a fixed FOV of 0.1 rad and azimuths 0/90/180/270 (front/left/back/right), for a single view the MoGe-2 camera. The seed comes from the job (1000 in the evaluation).
-There is no quality switch; "Re-extract the surface" is unavailable for Pixal3D (the mesh is final, there is no surface level): a different result comes from a different seed.
+**Фиксированные параметры генерации** (те, что выбраны в оценке; `pixal3dWorkflow` в `server/schema.mjs`): сэмплер heun, 25 шагов грубой формы и по 12 шагов 512/1024, ≈700 тыс. граней
+(`--faces`), для нескольких видов фиксированный FOV 0,1 рад и азимуты 0/90/180/270 (перед/слева/сзади/справа), для одного вида камера MoGe-2. Seed берётся из задания (в оценке 1000).
+Переключателя качества нет; «Переизвлечь поверхность» для Pixal3D недоступно (сетка готовая, без уровня поверхности): другой результат даёт другой seed.
 
-**Mesh normalisation.** The Pixal3D output is already in the glTF convention (+Y up, front toward +Z), so only a move to the origin and uniform scaling to height 2 are done
-(`server/glb-normalize.mjs`; on the test character it matches vertex for vertex the result of the Python normaliser `normalize_seed_mesh.py`, which tried 24 rotations; the identity rotation won for a single view too).
+**Нормировка сетки.** Выход Pixal3D уже в соглашении glTF (+Y вверх, перед к +Z), поэтому проводится только перенос в начало координат и равномерное масштабирование до высоты 2
+(`server/glb-normalize.mjs`; на ополченце совпадает вершина в вершину с результатом Python-нормировщика `normalize_seed_mesh.py`, перебравшего 24 поворота; единичный поворот выиграл и для одного вида).
 
-## GPU: the two engines do not run at the same time
+## Видеокарта: два движка не работают одновременно
 
-Pixal3D takes about 9.5 GB of 12, and Hunyuan keeps its models in memory, so they cannot be in VRAM together. Rules (`server/gpu-handover.mjs`):
+Pixal3D занимает около 9,5 ГБ из 12, а Hunyuan держит модели в памяти, поэтому им нельзя быть в видеопамяти вместе. Правила (`server/gpu-handover.mjs`):
 
-1. All jobs still take the shared GPU mutex (the default name is set in `server/gpu-lock.mjs` and can be overridden with `ASTRA_GPU_LOCK_NAME`; the Blender steps take the same one), and the studio's job queue runs one at a time: the two engines do not generate simultaneously.
-2. Under the lock, **before** a job on engine X, the studio checks the other engine's queue (`GET /queue`). While something there is running or waiting, the studio **waits** (the job shows "Waiting for ... to finish its job"), and the running job **is not interrupted**.
-3. When the other engine is idle, `POST /free {"unload_models": true, "free_memory": true}` is sent to it, and the studio waits until its memory is actually freed (no longer than 8 s).
-4. After a Pixal3D job the studio itself unloads its models (if the queue is empty), so that the memory goes to the next consumer.
-5. An unresponsive engine (not started, not installed) is skipped. This applies to Hunyuan3D from views, from a single image, an SDXL concept, and MV-Adapter.
+1. Все задания по-прежнему берут общий замок `Global\HG_GPU_RENDER` (его же берут шаги Blender), а очередь заданий студии идёт по одному: два движка не генерируют одновременно.
+2. Под замком, **перед** заданием на движке X студия смотрит очередь другого движка (`GET /queue`). Пока там что-то выполняется или ждёт, студия **ждёт** (в задании видно «Жду, пока … закончит своё задание»), идущее задание **не прерывается**.
+3. Когда другой движок простаивает, ему отправляется `POST /free {"unload_models": true, "free_memory": true}`, и студия дожидается, пока его память действительно освободится (не дольше 8 с).
+4. После задания Pixal3D студия сама выгружает его модели (если очередь пуста), чтобы память досталась следующему потребителю.
+5. Не отвечающий движок (не запущен, не установлен) пропускается. Это действует для Hunyuan3D по ракурсам, по одному изображению, SDXL-концепта и для MV-Adapter.
 
-If another program sends jobs directly to port 8191, they join ComfyUI's own queue before or after the studio's job; the studio does not interrupt them and simply waits for its own result.
+Если другая программа шлёт задания прямо в порт 8191, они встают в очередь самого ComfyUI перед или после студийного; студия их не прерывает и просто ждёт результата своего.
 
-## Time and memory (RTX 4070, 12 GB)
+## Время и память (RTX 4070, 12 ГБ)
 
-Checked on 2026-10-14 through the studio API (`POST /api/jobs` jobs, test character, seed 1000, `views/codex` views; VRAM — peak above baseline per the engine's `/af/vram` and per `nvidia-smi`):
+Проверено 14.10.2026 через API студии (задания `POST /api/jobs`, ополченец, seed 1000, виды `views/codex`; видеопамять — пик над базой по `/af/vram` движка и по `nvidia-smi`):
 
-| Run | Engine time | VRAM (peak above baseline) | Triangles | Silhouette IoU front / left / back / right |
+| Запуск | Время движка | Видеопамять (пик над базой) | Треугольников | IoU силуэта спереди / слева / сзади / справа |
 |---|---|---|---|---|
-| 4 views, GPU free | 239.7 s (job 243 s) | 10.3 GB per `nvidia-smi`, 10.8 GB per the engine probe (the card is completely full) | 653 thousand | 0.971 / 0.937 / 0.940 / 0.938 |
-| 4 views, right after Hunyuan (GPU handover) | 220.4 s | 10.8 GB | — | — |
-| 2 views (front + back), CLI | 241.1 s | 9.4 GB | 660 thousand | 0.970 / 0.848 / 0.936 / 0.862 |
-| 1 view ("Create 3D model" button) | 262.4 s (job 266 s) | 6.4 GB | 684 thousand | 0.892 / 0.711 / 0.861 / 0.734 |
+| 4 вида, видеокарта свободна | 239,7 с (задание 243 с) | 10,3 ГБ по `nvidia-smi`, 10,8 ГБ по пробнику движка (карта заполнена целиком) | 653 тыс. | 0,971 / 0,937 / 0,940 / 0,938 |
+| 4 вида, сразу после Hunyuan (передача карты) | 220,4 с | 10,8 ГБ | — | — |
+| 2 вида (перед + сзади), CLI | 241,1 с | 9,4 ГБ | 660 тыс. | 0,970 / 0,848 / 0,936 / 0,862 |
+| 1 вид (кнопка «Создать 3D-модель») | 262,4 с (задание 266 с) | 6,4 ГБ | 684 тыс. | 0,892 / 0,711 / 0,861 / 0,734 |
 
-- Agreement with the evaluation: the result's dimensions via the API are +-0.9423 x +-1 x +-0.1944, the same as the evaluated `mv\mesh_mv_pixal3d.glb`; IoU to `ref_front.png` 0.9695 against 0.9697 (back 0.955
-  against 0.952), i.e. the orientation and scale are the same. The triangle count floats by a few percent between runs (653-694 thousand), the shape is the same.
-- Phases of four views (for the progress bar): loading the model and DINOv3 ~8 s, coarse shape 68 s, 512 shape 46 s, 1024 shape 86 s, decoding 6 s, surface rebuild 15 s, holes and simplification 8 s.
-- GPU handover: after a Hunyuan job (6.7 GB in memory) Pixal3D unloaded it in 2 s (in the measurements 8190 held 96 MiB), then Hunyuan "Fast" on 4 views took 26-28 s including the Pixal3D unload.
-  Two jobs submitted at once (Pixal3D and Hunyuan) ran in turn: of 259 queue samples of both engines, in none were both executing a job at the same time.
-- On-demand start: a second instance on port 8199 came up in 6 s (warm caches), found the Pixal3D nodes, and a repeated start reused it; the `Stop` rule found and stopped only it (8190 and 8191 stayed).
-- The GPU lock works across processes: a CLI started during a studio job printed "Waiting for the GPU to be released" and started after it.
+- Совпадение с оценкой: габариты результата по API ±0,9423 × ±1 × ±0,1944, как у оценённой `militia\mv\mesh_mv_pixal3d.glb`; IoU к `ref_front.png` 0,9695 против 0,9697 (сзади 0,955
+  против 0,952), то есть ориентация и масштаб те же. Число треугольников между прогонами плавает на несколько процентов (653–694 тыс.), форма та же.
+- Фазы четырёх видов (для полосы хода): загрузка модели и DINOv3 ≈8 с, грубая форма 68 с, форма 512 — 46 с, форма 1024 — 86 с, декодирование 6 с, перестройка поверхности 15 с, дыры и упрощение 8 с.
+- Передача видеокарты: после задания Hunyuan (6,7 ГБ в памяти) Pixal3D выгрузил его за 2 с (в замерах 8190 держал 96 МиБ), следом Hunyuan «Быстро» по 4 видам занял 26–28 с вместе с выгрузкой Pixal3D.
+  Два задания, отправленные сразу (Pixal3D и Hunyuan), шли по очереди: из 259 замеров очередей обоих движков ни в одном оба не выполняли задание одновременно.
+- Запуск по требованию: второй экземпляр на порту 8199 поднялся за 6 с (кэши тёплые), нашёл узлы Pixal3D, повторный запуск его переиспользовал; `Stop`-правило нашло и остановило только его (8190 и 8191 остались).
+- Замок видеокарты работает между процессами: CLI, запущенный во время студийного задания, написал «Ожидаю освобождения видеокарты» и стартовал после него.
 
-## Licences
+## Лицензии
 
-- Pixal3D (code and weights, Tencent ARC) — MIT; TRELLIS.2 and the ComfyUI-Trellis2 wrapper — MIT; MoGe — MIT; NAF — Apache-2.0.
-- DINOv3 — the DINOv3 licence (commercial use is allowed; when redistributing weights its text must be included); the weights come from the official copy `timm/vit_large_patch16_dinov3.lvd1689m`
-  (converted to the transformers format by a converter, the licence text lies alongside).
-- **nvdiffrast (NVIDIA) is not used**: it has a non-commercial licence. It is installed only because the Trellis2 node imports it on load. The studio graph is shape only:
-  no Trellis2/Pixal3D texturing and no rasterisation; the test `tests/pixal3d.test.mjs` prevents any node with `Texturing`, `Rasteriz`, `Render`, `UnWrap`, `nvdiff` from appearing in the graph.
-  The untextured preview is rendered in Blender.
+- Pixal3D (код и веса, Tencent ARC) — MIT; TRELLIS.2 и обёртка ComfyUI-Trellis2 — MIT; MoGe — MIT; NAF — Apache-2.0.
+- DINOv3 — лицензия DINOv3 (коммерческое использование допустимо; при раздаче весов нужно прикладывать её текст); веса берутся из официальной копии `timm/vit_large_patch16_dinov3.lvd1689m`
+  (в формат transformers переведены конвертером, текст лицензии лежит рядом).
+- **nvdiffrast (NVIDIA) не используется**: у него некоммерческая лицензия. Он установлен только потому, что узел Trellis2 импортирует его при загрузке. Граф студии — только форма:
+  ни текстурирования Trellis2/Pixal3D, ни растеризации; тест `tests/pixal3d.test.mjs` не даёт появиться в графе ни одному узлу с `Texturing`, `Rasteriz`, `Render`, `UnWrap`, `nvdiff`.
+  Предпросмотр без текстур рендерится в Blender.
 
-## Limitations
+## Ограничения
 
-- VRAM: about 10 GB free is needed. If another program holds it (Blender, a browser with WebGL, a game), the job ends with a clear "out of video memory" error.
-- Progress goes by phases with a timer: the engine itself does not report steps inside phases, so the bar moves in stages (the percentages are an estimate, not exact progress).
-- Cancel interrupts the job at a ComfyUI node boundary: it can take up to a minute for the engine to stop; the next job on the other engine waits for it.
-- One view is worse than four (0.90/0.71/0.87/0.74): the side and back are completed by inference. For a final character use views.
-- Checked on a humanoid in a T-pose (the test character). Four-legged creatures and objects were not checked.
-- No textures: after Pixal3D, as after Hunyuan3D, studio steps are needed (painting from the front and back views).
+- Видеопамять: нужно около 10 ГБ свободных. Если её держит другая программа (Blender, браузер с WebGL, игра), задание завершится понятной ошибкой «не хватило видеопамяти».
+- Ход работы идёт по фазам с таймером: сам движок не сообщает шаги внутри фаз, поэтому полоса идёт ступенями (проценты — оценка, не точный прогресс).
+- Отмена прерывает задание на границе узла ComfyUI: может пройти до минуты, пока движок остановится; следующее задание на другом движке дождётся его.
+- Один вид хуже четырёх (0,90/0,71/0,87/0,74): боковые и задние стороны достраиваются. Для финального персонажа берите ракурсы.
+- Проверено на гуманоиде в T-позе (ополченец). Существа на четырёх лапах и предметы не проверялись.
+- Текстур нет: после Pixal3D, как и после Hunyuan3D, нужны шаги студии (покраска по виду спереди и сзади).
 
-## Tests
+## Тесты
 
-`tests/pixal3d.test.mjs` (the graph for one/two/three/four views and its match with the evaluated graphs, the ban on texturing nodes, settings and installation lookup, engine start with a
-fake process, GLB normalisation, the entire generation against a fake ComfyUI with a websocket: upload, progress, memory error, cancel) and `tests/gpu-handover.test.mjs`
-(waiting for a busy engine without interruption, unloading, skipping a non-running one, the lock around the handover, two jobs on different engines never run together).
+`tests/pixal3d.test.mjs` (граф для одного/двух/трёх/четырёх видов и его совпадение с оцененными графами, запрет текстурных узлов, настройки и поиск установки, запуск движка с
+подставным процессом, нормировка GLB, вся генерация против подставного ComfyUI с вебсокетом: загрузка, ход, ошибка памяти, отмена) и `tests/gpu-handover.test.mjs`
+(ожидание занятого движка без прерывания, выгрузка, пропуск не запущенного, замок вокруг передачи, два задания на разных движках никогда не идут вместе).
 
-## Files
+## Файлы
 
-`server/pixal3d.mjs` (settings, installation check, engine start and stop), `server/pixal3d-run.mjs` (one generation: view upload, lock, graph, progress, GLB),
-`server/gpu-handover.mjs` (GPU handover), `server/glb-normalize.mjs` (normalisation), `server/schema.mjs` (`pixal3dWorkflow`, the `engine` field),
-`server/jobs.mjs` (the `runPixal3d` branch), `server/index.mjs` (`engine` in jobs, `pixal3d` in `/api/status`), `server/views.mjs` (`forJob` also returns the `cutFiles` cut-outs),
-`scripts/views/views_3d.mjs` (CLI), `scripts/Start.ps1` and `scripts/Stop.ps1`, `src/ViewsPanel.jsx` (`EngineSelect`), `src/App.jsx`, `src/views.css`.
-The engine itself and its description are in `<ComfyUI-Pixal3D dir>\ASTRAFORGE_README.md`.
+`server/pixal3d.mjs` (настройки, проверка установки, запуск и остановка движка), `server/pixal3d-run.mjs` (одна генерация: загрузка видов, замок, граф, ход, GLB),
+`server/gpu-handover.mjs` (передача видеокарты), `server/glb-normalize.mjs` (нормировка), `server/schema.mjs` (`pixal3dWorkflow`, поле `engine`),
+`server/jobs.mjs` (ветка `runPixal3d`), `server/index.mjs` (`engine` в заданиях, `pixal3d` в `/api/status`), `server/views.mjs` (`forJob` отдаёт и вырезки `cutFiles`),
+`scripts/views/views_3d.mjs` (CLI), `scripts/Start.ps1` и `scripts/Stop.ps1`, `src/ViewsPanel.jsx` (`EngineSelect`), `src/App.jsx`, `src/views.css`.
+Сам движок и его описание — `C:\AstraForge\ComfyUI-Pixal3D\ASTRAFORGE_README.md`.

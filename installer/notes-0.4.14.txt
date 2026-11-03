@@ -1,0 +1,23 @@
+AstraForge 0.4.14 — Node.js ставится и там, где nodejs.org не отвечает; понятные сообщения при запуске
+
+• После установки ярлык AstraForge писал «Node.js was not found» и красный текст PowerShell: исправлено. Node.js — основа студии — раньше качался только с nodejs.org; если сайт не отвечал, студия не запускалась. Теперь установщик берёт тот же файл с запасных зеркал Node.js и сверяет его контрольную сумму.
+• Если студии всё-таки чего-то не хватает, при запуске написано по-русски, что случилось и что сделать: запустить «Установить AstraForge.cmd» в папке приложения (он докачает только недостающее) или прислать файл installer\install.log на support@dops.media.
+• Студия находит Node.js из своей папки runtime\node, даже если файл настроек не сохранился.
+
+Если у вас ярлык пишет «Node.js was not found»: скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх в ту же папку. Уже скачанное заново не качается, проекты и настройки сохранятся.
+
+Бесплатно — для личного и другого некоммерческого использования. Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование и каждое обновление в день выхода. Один ключ — один компьютер.
+У кого стоит 0.4.9–0.4.13 и студия работает: версия встанет сама при следующем запуске. У кого 0.4.5–0.4.8 без подписки: нажмите внизу окна «Бесплатное обновление — установить», затем «Обновить бесплатно» и «Перезапустить и обновить».
+
+—
+
+AstraForge 0.4.14 — Node.js installs even where nodejs.org does not answer; clear messages on start
+
+• After setup the AstraForge shortcut showed "Node.js was not found" and red PowerShell text: fixed. Node.js, which the studio runs on, used to come only from nodejs.org; if the site did not answer, the studio could not start. The installer now takes the same file from backup Node.js mirrors and verifies its checksum.
+• If the studio is still missing something, the start window says what happened and what to do: run "Установить AstraForge.cmd" in the application folder (it downloads only what is missing) or send installer\install.log to support@dops.media.
+• The studio finds Node.js in its own runtime\node folder even if the settings file was not saved.
+
+If your shortcut says "Node.js was not found": download the installer at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder. Anything already downloaded is not downloaded again; projects and settings are kept.
+
+Free for personal and other noncommercial use. Subscription ($5/month or $49/year): commercial use and every update on release day. One key — one computer.
+On 0.4.9–0.4.13 with a working studio: this version installs itself on the next start. On 0.4.5–0.4.8 without a subscription: press "Free update — install" at the bottom of the window, then "Update for free" and "Restart and update".

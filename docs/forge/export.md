@@ -1,17 +1,17 @@
-# The "export" module: sprites and Godot packages
+# Модуль «export»: спрайты и пакеты Godot
 
-Two Blender worker steps (contract `docs/FORGE-CONTRACT.md`):
+Два шага Blender-воркера (контракт `docs/FORGE-CONTRACT.md`):
 
-- `render_sprites` - sprite sheets from an (animated) model: 8 isometric directions (`iso8`) or your
-  own set of directions (`custom`);
-- `godot_package` - a package folder for Godot 4.5: GLB + a `.tscn` scene with effects on sockets + README;
-  the package is validated by a real Godot 4.5.1 without a window.
+- `render_sprites` — листы спрайтов из (анимированной) модели: 8 направлений изометрии (`iso8`),
+  профиль «Врат Героев» (`heroes_gates`), свой набор направлений (`custom`) или пиксель-арт (`pixel`, см. ниже);
+- `godot_package` — папка-пакет для Godot 4.5: GLB + сцена `.tscn` с эффектами на сокетах + README +
+  запись реестра Space Quest или «Врат Героев»; пакет проверяется настоящим Godot 4.5.1 без окна.
 
-Module files: `scripts/blender/steps/{render_sprites,godot_package,_export_lib}.py`,
+Файлы модуля: `scripts/blender/steps/{render_sprites,godot_package,_export_lib}.py`,
 `scripts/blender/data/fx_presets.json`, `scripts/blender/godot/{validate_package,af_fx_mount,af_preview}.gd`,
-`scripts/blender/tests/test_export.py`. Nothing is written into any target project.
+`scripts/blender/tests/test_export.py`. В проекты «Врат Героев» и Space Quest ничего не пишется.
 
-## Running
+## Запуск
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
@@ -20,20 +20,22 @@ Module files: `scripts/blender/steps/{render_sprites,godot_package,_export_lib}.
 
 ```json
 {"step": "render_sprites",
- "inputs": {"mesh": "C:/abs/character.glb"},
- "params": {"profile": "iso8", "asset_id": "character", "clips": ["idle", "walk"],
-            "height_m": 1.7},
+ "inputs": {"mesh": "C:/abs/zombie.glb"},
+ "params": {"profile": "heroes_gates", "asset_id": "zombie", "clips": ["idle", "walk"],
+            "height_m": 1.7, "shadow_alpha_max": 0.55, "shadow_edge_fade_px": 24},
  "out_dir": "C:/abs/out"}
 ```
 
-A package for a ship (64.8 m, nozzles `size_class: "L"`). Presets are metric; without `params.scale`
-the step scales them to the socket and the asset by itself - here `engine_trail`/`thruster_glow` get k = 10 and `nav_light`
-gets k = 10.8. An explicit `scale` overrides the auto scale:
+Пакет корабля Space Quest (64.8 м, сопла `size_class: "L"`). Пресеты метрические; без `params.scale`
+шаг сам масштабирует их под сокет и ассет — здесь `engine_trail`/`thruster_glow` получат k = 10, `nav_light`
+k = 10.8. Явный `scale` перекрывает автомасштаб. `fit_units`/`min_units` — единицы рендера игры, не метры
+(см. «Единицы Space Quest» ниже), задаются по соседям роли в `models.json`:
 
 ```json
 {"step": "godot_package",
- "inputs": {"glb": "C:/abs/ship_flat.glb"},
- "params": {"asset_id": "ship_gunship", "profile": "godot", "kind": "ship",
+ "inputs": {"glb": "C:/Dorn/Dops media/space_quest/3d/source/blender/ship_sq03_gunship_flat.glb"},
+ "params": {"asset_id": "ship_sq03_gunship", "profile": "space_quest", "kind": "ship",
+            "fit_units": 3.4, "min_units": 0.6,
             "fx": [{"preset": "engine_trail", "socket": "socket_thruster_main_port"},
                    {"preset": "engine_trail", "socket": "socket_thruster_main_starboard"},
                    {"preset": "thruster_glow", "socket": "socket_thruster_main_port"},
@@ -41,296 +43,415 @@ gets k = 10.8. An explicit `scale` overrides the auto scale:
  "out_dir": "C:/abs/out"}
 ```
 
-Tests: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- export`.
+Тесты: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- export`.
+
+Экспорт в **Unity** (шаг `unity_package`, профиль `unity`, импортёр `com.astraforge.unity`, проверка в Unity без окна) — [unity.md](unity.md).
 
 ## render_sprites
 
-The camera is orthographic, on an empty rig at the origin; the lights (a sun from the top-left-front of the screen,
-a cold rim light from behind-right, and a sky light) are children of the same rig. A direction
-is obtained by rotating the rig around Z, so the lighting is identical in all directions and the skeleton's root
-motion is left untouched. The world origin (the support point under the feet) is projected exactly onto the cell anchor;
-1 m = `pixels_per_meter` pixels horizontally, a vertical meter is `ppm·cos(elev)`.
+Камера ортогональная, на риге-пустышке в начале координат; свет (солнце сверху-слева-спереди экрана,
+холодный контровой сзади-справа, небо — как в `hg_scene.setup_lights`) — дети того же рига. Направление
+получается поворотом рига вокруг Z, поэтому свет одинаков во всех направлениях, а корневое движение
+скелета не трогается. Мировое начало координат (точка опоры под ногами) проецируется ровно в якорь ячейки;
+1 м = `pixels_per_meter` пикселей по горизонтали, вертикальный метр — `ppm·cos(elev)`.
 
-| Parameter | Default | What |
+| Параметр | По умолчанию | Что |
 |---|---|---|
-| `profile` | `iso8` | `iso8`, `custom` |
-| `asset_id` | file name | snake_case; a name like `01_pathfinder` becomes `a_01_pathfinder` (with a warning) |
-| `forward` | `-Y`; `+Y` if `inputs.manifest` -> `kind` is ship/prop/turret | `+Y` adds 180° to all views: S shows the ship's nose |
-| `clips` | `all` | a list of names (`idle`) or action names (`idle-loop`) |
-| `loop` | by the `-loop`/`_loop` suffix, otherwise idle/walk/run | `{clip: bool}` |
-| `frames` | iso8: clip length × fps (≤ `max_frames`=48) | a number or `{clip: n}` |
-| `fps` | 12 | |
-| `ranges`, `ranges_fps` | the action's range | `{clip: [start, end]}` in frames at `ranges_fps` |
-| `in_place` | `auto` | `auto` (loops: remove the pure root drift; one-shots: as is), `lock` (hip XY = first frame), `drift`, `none` |
-| `pixels_per_meter` | 100 | fixed scale of the profile |
-| `elevation_deg` | iso8 30 (2:1) | camera tilt |
-| `directions` | `S,SW,W,NW,N,NE,E,SE` | a subset; `custom`: `[[name, yaw°], ...]` |
-| `padding_px` | 6 | margin around the maximum extent of all frames of all clips and directions |
-| `cell`, `anchor` | computed | a forced cell (identical across different assets) |
-| `height_m`, `center`, `normalize_pose` | -, `feet`, iso8 `rest` | scale to a given height; support = the middle of the lowest 12 % of vertices |
-| `max_cell_px`, `min_body_px` | 2048, 24 | a cell side larger than this, or a body projection (max of width/height) smaller than this, is an error **before rendering** |
-| `max_sheet_px` | 8192 | soft limit for the sheet side; > 16384 (the Godot texture limit) is an error before rendering |
-| `engine`, `samples` | iso8 `EEVEE` 32 | `EEVEE`, `CYCLES` (OptiX/CUDA), `WORKBENCH` |
-| `shadow` | false (Cycles only) | shadow catcher + a rim light without its own shadow (`rim_off_catcher`); in iso8/custom the auto cell includes the shadow projection |
-| `shadow_alpha_max`, `shadow_edge_fade_px`, `alpha_floor` | 0; 0 (iso8/custom with shadow 4, with a forced cell 16); 6 | shadow alpha cap, shadow edge fade, alpha floor |
-| `cols` | iso8 - one row per direction if it fits in `max_sheet_px`, otherwise even rows | columns in the sheet |
-| `validate_godot` | true | load the `.tres` in Godot 4.5.1 |
+| `profile` | `iso8` | `iso8`, `heroes_gates`, `custom`, `pixel` (раздел «Профиль pixel») |
+| `asset_id` | имя файла | snake_case; имя вроде `01_pathfinder` становится `a_01_pathfinder` (с предупреждением) |
+| `forward` | `-Y`; `+Y`, если `inputs.manifest` → `kind` корабль/реквизит/турель | `+Y` добавляет 180° ко всем видам: S показывает нос корабля |
+| `clips` | `all` | список имён (`idle`) или имён действий (`idle-loop`) |
+| `loop` | по суффиксу `-loop`/`_loop`, иначе idle/walk/run | `{clip: bool}` |
+| `frames` | iso8: длина клипа × fps (≤ `max_frames`=48); HG: 12, hit 6, герой idle/cast 16 | число или `{clip: n}` |
+| `fps` | 12 | у HG всегда 12 |
+| `ranges`, `ranges_fps` | диапазон действия | `{clip: [start, end]}` в кадрах при `ranges_fps` |
+| `in_place` | `auto` | `auto` (петли: снять чистый снос корня, разовые: как есть), `lock` (XY бёдер = первый кадр), `drift`, `none` |
+| `pixels_per_meter` | 100 | фиксированный масштаб профиля |
+| `elevation_deg` | iso8 30 (2:1), HG 25 | наклон камеры |
+| `directions` | `S,SW,W,NW,N,NE,E,SE` | подмножество; `custom`: `[[имя, yaw°], …]` |
+| `padding_px` | 6 | поле вокруг максимального габарита всех кадров всех клипов и направлений |
+| `cell`, `anchor` | вычисляются | принудительная ячейка (одинаковая для разных ассетов) |
+| `height_m`, `center`, `normalize_pose` | —, `feet`, iso8 `rest` / HG `first_frame` | масштаб под рост; опора = середина нижних 12 % вершин (`hg_scene.normalize`) |
+| `max_cell_px`, `min_body_px` | 2048, 24 | сторона ячейки больше или проекция тела (макс. из ширины/высоты) меньше — ошибка **до рендера** |
+| `max_sheet_px` | 8192 | мягкий предел стороны листа; > 16384 (предел текстуры Godot) — ошибка до рендера |
+| `engine`, `samples` | iso8 `EEVEE` 32, HG `CYCLES` 64 | `EEVEE`, `CYCLES` (OptiX/CUDA), `WORKBENCH` |
+| `shadow` | HG true (только Cycles) | ловец теней + контровой без своей тени (`rim_off_catcher`); в iso8/custom авто-ячейка включает проекцию тени |
+| `grade`, `grade_materials` | HG true | `hg_sheets.grade` (насыщенность ×1.1, контраст ×1.05) и `hg_scene.grade_materials` |
+| `shadow_alpha_max`, `shadow_edge_fade_px`, `alpha_floor` | 0; 0 (iso8/custom с тенью 4, с принудительной ячейкой 16); 6 | как `hg_sheets.pack` (у зомби в спеке 0.55 и 24) |
+| `cols` | HG 4; iso8 — строка на направление, если влезает в `max_sheet_px`, иначе ровные строки | столбцов в листе |
+| `kind` | `unit` | HG: `unit` 320×320 якорь (160,272), `hero` 448×448 (224,384) |
+| `adaptive_cell` | HG `unit`: true | модель, вылезающая из 320 px, получает следующую ячейку `HG_CELL_STEPS`: 384 (якорь 192, 328), затем 448 (224, 384 — ячейка героя); см. «Ячейка по размеру» |
+| `event_frames` | HG unit: attack 6, cast 6, shoot 8 (с предупреждением); герой cast — без умолчания | `{clip: кадр}` |
+| `validate_godot` | true | загрузить `.tres` в Godot 4.5.1 |
 
-iso8 directions are the character's rotation (it faces -Y per §4): S 0° (facing the camera), SW -45°, W -90°,
-NW -135°, N 180°, NE 135°, E 90°, SE 45°; with `forward: "+Y"` 180° is added to all of them.
+Направления iso8 — поворот персонажа (смотрит в −Y по §4): S 0° (лицом к камере), SW −45°, W −90°,
+NW −135°, N 180°, NE 135°, E 90°, SE 45°; при `forward: "+Y"` ко всем прибавляется 180°. Профиль HG
+воспроизводит `hg_render_directions.py`: курс base −25° (модель развёрнута к камере на −25°), `nw` 135°,
+`se` −45°, остальное игра отражает.
 
-Protection against wrong units: if `height_m` is not set and the rest-pose height is outside 0.3...15 m, there is a warning with
-a `height_m` hint; a cell larger than `max_cell_px`, a body smaller than `min_body_px`, an overhang beyond a fixed cell
-by more than half the cell, or a sheet larger than 16384 px give a `ValueError` with a hint before rendering (the GPU lock
-is not occupied in vain).
+Защита от неверных единиц: если `height_m` не задан и рост в покое вне 0.3…15 м — предупреждение с
+подсказкой `height_m`; ячейка больше `max_cell_px`, тело меньше `min_body_px`, вылет за фиксированную ячейку
+больше половины ячейки или лист больше 16384 px — `ValueError` с подсказкой ещё до рендера (замок GPU не
+занимается впустую).
 
-Outputs: PNG sheets (iso8 - `<clip>.png` with all directions as rows; if the stack is taller than `max_sheet_px`,
-`<clip>_<DIR>.png` for each direction), `sprites.json` (cell, anchor, `godot_offset` for `AnimatedSprite2D`, `forward`, the clip's `layout`, frame rectangles,
-the support points of every frame: `root_px` - the projection of the point under the hips, `feet_px` - the points under the foot bones
-(in `feet_bones` order), `feet_mid_px` - their midpoint; fps, loops, `time_scale`), `<asset_id>_frames.tres`
-(`SpriteFrames`, animations `<clip>_<DIR>`; paths are relative), `preview.png` (frame 0 of each
-direction), `preview_frames.png` (all frames of the first direction), `godot_check.json`.
+Выходы: листы PNG (iso8 — `<clip>.png` со всеми направлениями по строкам; если стопка выше `max_sheet_px` —
+`<clip>_<DIR>.png` на каждое направление; HG — `<clip>.png`, `<clip>_nw.png`, `<clip>_se.png` по 4 столбца),
+`sprites.json` (ячейка, якорь, `godot_offset` для `AnimatedSprite2D`, `forward`, `layout` клипа, прямоугольники
+кадров, опоры каждого кадра: `root_px` — проекция точки под бёдрами, `feet_px` — точки под костями стоп
+(порядок `feet_bones`), `feet_mid_px` — их середина; fps, петли, `time_scale`), `<asset_id>_frames.tres`
+(`SpriteFrames`, анимации `<clip>_<DIR>`; у HG — их ключи `idle`, `idle_nw`, `idle_se`; пути относительные),
+`heroes_gates_sprites_entry.json` (запись `data/sprites.json` в их формате), `preview.png` (кадр 0 каждого
+направления), `preview_frames.png` (все кадры первого направления), `godot_check.json`.
 
-Checks: `cell_fit` (vertices inside the cell), `body_scale_px_per_m`
-(the body scale on the rendered frames - see below), `sprite_size_sane`,
-`sheet_size`, `frames_body_inside_cell` (no empty frames, the body is no closer than 2 px to the edge), `alpha_residue_px`, `feet_on_ground_<clip>` (min z of the deformed mesh in loops),
+Проверки: `cell_fit` (вершины в ячейке, у HG с полем 4 px — как в их `correct_fit`), `body_scale_px_per_m`
+(масштаб тела на отрендеренных кадрах — см. ниже), `sprite_size_sane`,
+`sheet_size`, `frames_body_inside_cell` (нет пустых кадров, тело не ближе 2 px к краю — `pixel_support` из
+`hg_pack_directions.py`), `alpha_residue_px`, `feet_on_ground_<clip>` (мин. z деформированной сетки в петлях),
 `lighting_spread`, `godot_spriteframes`.
 
-`body_scale_px_per_m` checks the body height by alpha on the rendered frames against the height of the vertex projection at
-100 px/m (median over all frames, tolerance 3 %) and the top of the body against the projection through the anchor (<= 3 px).
+### Профиль pixel (27.10)
 
-### `cloth_sim` cloth cache (2026-10-12)
+Спрайты в настоящем пиксель-арте: геометрия как у `iso8`, но рендер без сглаживания, а после него — детерминированная
+постобработка (`scripts/pixel/pixelize.py`, чистый numpy; тот же модуль превращает в пиксель-арт любую картинку,
+см. [pixel.md](pixel.md)). Цвета берутся только из палитры, альфа только 0 или 255.
 
-If the `.blend` came from the `cloth_sim` step (`docs/forge/cloth_sim.md`), the character's clothing (`Body_cloth_<group>`) carries
-a baked simulation: one shape key per clip frame and, per clip, a shape-key action;
-the object property `af_cloth_cache` = `{armature action: key action}`. On every clip switch (`_bind`) `render_sprites`
-calls `_export_lib.bind_cloth_cache(clip actions)`: the clothing gets this clip's action enabled and its Armature
-modifier disabled (the keys hold finished positions), and the key values of the previous clip are zeroed (otherwise a key
-animated by the previous action keeps its last value). A clip without a cache and the rest-pose measurement (`_rest_points`,
-iso8 normalization) use ordinary skinning (keys 0, Armature enabled). The cell and the first-pass checks are computed from the
-simulated cloth. Test: `test_render_sprites_plays_cloth_cache` (a plane with a "left/right" cache of 0.6 m in
-two clips: in each clip's sheet the cloth is on its own side, and the cell holds both).
+```json
+{"step": "render_sprites",
+ "inputs": {"mesh": "C:/abs/knight.glb"},
+ "params": {"profile": "pixel", "asset_id": "knight", "height_m": 2.0, "clips": ["idle", "walk"],
+            "colors": 32, "outline": "auto", "supersample": 2},
+ "out_dir": "C:/abs/out"}
+```
+
+| Параметр | По умолчанию | Что |
+|---|---|---|
+| `pixels_per_meter` | 24 | масштаб ГОТОВОГО спрайта: человек 2 м при наклоне 30° — около 42 px по высоте |
+| `directions` | `S,SW,W,NW,N,NE,E,SE` | как в `iso8` |
+| `frames`, `fps` | 8 кадров на клип, 8 | цикл из 8 кадров идёт ровно секунду |
+| `engine`, `samples` | `EEVEE`, 1 | фильтр плёнки 0 (без сглаживания); тени отключены: нет ловца теней (`shadow` игнорируется с предупреждением), у ламп `use_shadow=false`; `self_shadow: true` возвращает тени ламп |
+| `supersample` | 1 | 2…4: рендер в k раз крупнее, затем среднее по блоку (premultiplied alpha) и только потом квантование |
+| `downscale` | 1 | 2…8: рендер в k раз крупнее и nearest (центральный пиксель блока); с `supersample` одновременно не задаётся |
+| `palette` | `auto` | `auto` — median cut (вес цвета — корень из числа пикселей) по ВСЕМ кадрам ассета сразу, чтобы цвет не мигал от кадра к кадру; путь к `.png` (любая картинка или полоса 1 px на цвет), `.gpl` (GIMP) или `.hex` (Lospec); `none` — без квантования |
+| `colors` | 32 | размер авто-палитры; при контуре один цвет резервируется под него, если в теле нет достаточно тёмного |
+| `levels`, `saturation` | `true`, 1.2 | растянуть яркость всех кадров вместе (перцентили 2…98 → 14…240, оттенок сохраняется) и поднять насыщенность до палитры: тёмные тусклые текстуры иначе дают грязную палитру |
+| `dither`, `dither_strength` | `false`, 0.5 | упорядоченный Bayer 4×4 по координатам ячейки (узор одинаков во всех кадрах) |
+| `outline` | `none` | `dark` — самый тёмный цвет палитры; `auto` — цвет соседнего тела, затемнённый до ближайшего более тёмного цвета палитры; 1 px снаружи тела, 4-соседство |
+| `alpha_threshold` | 128 | альфа ≥ порога → 255, иначе 0 |
+| `padding_px`, `min_body_px` | 4, 16 | поле вокруг тела (в готовых пикселях) и минимальный размер тела |
+| `cell`, `anchor` | вычисляются | в ГОТОВЫХ пикселях; якорь всегда на целом пикселе, поэтому точка опоры стабильна во всех кадрах |
+| `preview_zoom` | 4 | `preview.png` и `preview_frames.png` увеличены nearest |
+
+Дополнительные выходы: `palette` (`palette.png`, 1 px на цвет) и `palette_gpl` (`palette.gpl` для Pixelorama и GIMP);
+в `sprites.json` — блок `pixel` (палитра, контур, дизеринг, `texture_filter: "nearest"`). Проверки: `pixel_palette_only`
+(все различные цвета видимых пикселей всех кадров, включая контур, входят в палитру) и `pixel_alpha_binary`;
+`body_scale_px_per_m` здесь только предупреждение: острие копья тоньше пикселя без сглаживания пропадает, и тело
+законно ниже проекции вершин. В Godot узлу со спрайтами задайте `texture_filter = Nearest`.
+
+![Пример листа](img/pixel/sprites_preview.png)
+
+### Ячейка по размеру (heroes_gates, 11.10)
+
+Фиксированная ячейка отряда 320 px (якорь 160, 272) мала для широкой стойки и длинного оружия: Healing monk
+(булава и щит в стороны) вылезал из неё уже в покое и шаге — `cell_fit`, шаг падал. Игра читает ячейку и якорь
+каждой записи `data/sprites.json` (`game/sprites/hg_sprite_lib.gd`: кадры режутся по `cell` записи,
+`frame_region(i, cols, cell)`; смещение спрайта `-anchor`; масштаб у всех отрядов один — `display_scale`),
+у героев уже стоит 448 (224, 384). Поэтому `render_sprites` для `kind: unit` берёт **наименьшую ячейку
+`HG_CELL_STEPS` = 320 → 384 → 448, в которую влезают все кадры всех клипов и видов**, с якорем этой ячейки
+(земля в 48 px от низа у 320 и в 64 px у 448, у 384 — 56: якорь 192, 328). Если что-то лежит ниже линии
+земли на экране (тело после смерти, упавшее к камере), якорь внутри ячейки поднимается ровно настолько,
+сколько нужно (игра принимает любой якорь записи). Масштаб не меняется: 100 px/м. Его проверяет
+`body_scale_px_per_m` на отрендеренных кадрах — высота тела по альфе против высоты проекции вершин при
+100 px/м (медиана по всем кадрам, допуск 3 %) и верх тела против проекции через якорь (≤ 3 px). Выбранная
+ячейка и якорь — в `sprites.json` (`cell`, `anchor`, `cell_adapted`) и в записи
+`heroes_gates_sprites_entry.json`; предупреждение называет, на сколько px модель вылезала из 320.
+Больше 448 ячейка не растёт: модель, не влезающая и туда, получает `cell_fit` как раньше.
+`adaptive_cell: false` — прежняя фиксированная ячейка; явные `cell`/`anchor` теперь работают и в HG.
+
+| персонаж (пилот 11.10, `pilot2d`) | вылет из 320 / 384 / 448, px | ячейка, якорь | масштаб по кадрам |
+|---|---|---|---|
+| Healing monk (булава + щит) | 22 / 0 | 384, (192, 314) — якорь поднят на 14 px (тело падает к камере) | 100,9 px/м |
+| Bone swordsman (два меча) | 53 / 21 / 0 | 448, (224, 384) | 100,8 px/м |
+| Knight #3 (меч 0,93 м) | 64 / 32 / 0 | 448, (224, 384) | 100,9 px/м |
+| Knight #5 (меч 1,11 м в широком замахе) | 89 / 57 / 25 | не влезает и в 448: `cell_fit` | 100,8 px/м |
+| Lich sorcerer (роба ложится после смерти) | 0 | 320, (160, 272) | 100,9 px/м |
+
+Тест: `test_hg_adaptive_unit_cell` (фигура с шестом 5 м → 384, запись с ячейкой, 100 px/м; `adaptive_cell:
+false` → `cell_fit`; диск радиусом 2 м на высоте колен → 448 с якорем выше стандартного).
+
+### Кэш ткани `cloth_sim` (12.10)
+
+Если `.blend` пришёл из шага `cloth_sim` (`docs/forge/cloth_sim.md`), одежда персонажа (`Body_cloth_<группа>`) несёт
+запечённую симуляцию: по ключу формы на каждый кадр клипа и по действию ключей формы на клип; свойство объекта
+`af_cloth_cache` = `{действие арматуры: действие ключей}`. `render_sprites` при каждом переключении клипа (`_bind`)
+зовёт `_export_lib.bind_cloth_cache(действия клипа)`: у одежды включается действие этого клипа и выключается её
+модификатор Armature (ключи хранят готовые позиции), значения ключей прошлого клипа обнуляются (иначе ключ, который
+анимировало прошлое действие, сохраняет последнее значение). Клип без кэша и замер позы покоя (`_rest_points`,
+нормировка iso8) идут на обычном скиннинге (ключи 0, Armature включён). Ячейка и проверки первого прохода считаются по
+симулированной ткани. Тест: `test_render_sprites_plays_cloth_cache` (плоскость с кэшем «влево/вправо» на 0,6 м у
+двух клипов: в листе каждого клипа ткань на своей стороне, ячейка вмещает обе).
 
 ## godot_package
 
-The GLB from `cloth_sim` (`cloth.glb`) is an ordinary character GLB: the same armature plus `cloth_<group>_<chain>_<joint>` bones,
-the same clip names; the package and the Godot 4.5.1 validation work unchanged (pilot: the scene loaded, `idle`/`walk`
-loops, 9 sockets, no engine errors).
+GLB из `cloth_sim` (`cloth.glb`) — обычный GLB персонажа: та же арматура плюс кости `cloth_<группа>_<цепь>_<сустав>`,
+те же имена клипов; пакет и проверка Godot 4.5.1 работают без изменений (пилот: лич, иерофант — сцена загружена, петли
+`idle`/`walk`, 9 сокетов, ошибок движка нет).
 
-| Parameter | Default | What |
+| Параметр | По умолчанию | Что |
 |---|---|---|
-| `asset_id` | required | `^[a-z][a-z0-9]*(_[a-z0-9]+)*$` |
-| `profile` | `godot` | `godot` |
-| `forward_axis` | as in the GLB | `-Z`: the `model` node in the scene is rotated 180° around Y for `look_at`; the GLB is not touched |
-| `source_forward` | from the passport `kind` / `params.kind`; otherwise a guess with a warning | the GLB's nose: ships/props/turrets `-Z`, characters/creatures/items `+Z`; the guess: thruster/turret/launcher/muzzle sockets -> `-Z`, otherwise `+Z` |
-| `kind` | - | the asset kind when there is no passport (`ship`, `humanoid`, ...) |
-| `fx` | `manifest.fx` | `[{preset, socket, params}]`; params: `scale`, `color`, `amount`, `lifetime`, any preset field |
-| `fx_auto_scale` | true | false - presets at native size when there is no `params.scale` |
-| `autoplay` | - | the animation on `_ready` (`idle-loop` or `idle`; `af_fx_mount.play_animation` tries the name as is and without one `-loop`/`_loop`/`-cycle`/`_cycle` suffix) |
-| `comment` | passport name | free-form comment for the package |
-| `inputs.sprites` | - | `sprites.json` from `render_sprites`: the sheets and `.tres` are put into `sprites/` and validated |
-| `fx_preview`, `fx_preview_frames` | false, `[14, 30, 46]` | Movie Maker frames into `fx_preview.png` (the Godot window runs for ~3 s, hence off by default) |
+| `asset_id` | обязателен | `^[a-z][a-z0-9]*(_[a-z0-9]+)*$` |
+| `profile` | `godot` | `godot`, `space_quest` (запись `models.json`), `heroes_gates` (запись `sprites.json`) |
+| `forward_axis` | как у GLB | `-Z`: узел `model` в сцене повёрнут на 180° вокруг Y под `look_at`; GLB не трогается |
+| `source_forward` | из `kind` паспорта / `params.kind`; иначе догадка с предупреждением | нос GLB: корабли/реквизит/турели `-Z`, персонажи/существа/предметы `+Z`; догадка: сокеты thruster/turret/launcher/muzzle или профиль `space_quest` → `-Z`, иначе `+Z` |
+| `kind` | — | вид ассета без паспорта (`ship`, `humanoid`, …) |
+| `fx` | `manifest.fx` | `[{preset, socket, params}]`; params: `scale`, `color`, `amount`, `lifetime`, любое поле пресета |
+| `fx_auto_scale` | true | false — пресеты в родном размере, если нет `params.scale` |
+| `autoplay` | — | анимация на `_ready` (`idle-loop` или `idle`; `af_fx_mount.play_animation` пробует имя как есть и без одного суффикса `-loop`/`_loop`/`-cycle`/`_cycle`) |
+| `sq_type`, `comment` | `ships`, имя паспорта | поля записи Space Quest |
+| `fit_units`, `min_units` | по роли (`sq_class`, иначе `kind`): корабль 3,4 / 0,6, турель 1,5 / 0,12, модуль 0,3 / 0,05, станция 20 / 0, дрон 2 / 0,15, банк 1 / 0, прочее 1 / 0; умолчание `min_units` не больше `fit_units` | **единицы рендера** записи `models.json`, не метры; `min_units` от 0 (схема сервера до 17.10 требовала ≥ 0,001) |
+| `sq_class` | — (по `kind`) | роль для умолчаний: `ship`, `turret`, `module`, `station`, `drone`, `bank` или класс бюджета (`ship_s/m/l`, `hull_module`, `station_core`, `station_module`, `structure_kit`, `drone_kit`, `asteroid_kit`, `debris_kit`) |
+| `inputs.sprites` | — | `sprites.json` из `render_sprites`: листы и `.tres` кладутся в `sprites/` и проверяются |
+| `fx_preview`, `fx_preview_frames` | false, `[14, 30, 46]` | кадры Movie Maker в `fx_preview.png` (окно Godot на ~3 с, поэтому не по умолчанию) |
 
-**Effect scale.** Presets are metric: each is tuned to a reference - `reference_socket_m` (the seat/nozzle
-diameter: `engine_trail`, `thruster_glow` 0.45 m, `muzzle_flash` 1 m) and `reference_size_m` (the asset's long
-axis: ship effects 6 m, human-scale 1.8 m, `smoke` 3 m, `muzzle_flash` 1 m). Without `params.scale`, k is taken as follows:
-1) the socket diameter (`diameter_m` / `mount_d_m` / `nozzle_d_m`) ÷ `reference_socket_m`; 2) the `size_class` of the socket or
-of its parent (a turret rig `socket_mount -> ... -> socket_muzzle_*`) - the midpoint of the class range: S 1.0, M 2.25,
-L 4.5 m ÷ `reference_socket_m` (for nozzles S ≈ 2.2, M 5, L 10); 3) the asset's long axis in the rest pose ÷
-`reference_size_m`; 4) otherwise 1. k multiplies all lengths: `quad_size`, speeds, damping, accelerations, gravity,
-the emitter shape, the light radius and `visibility_aabb` (otherwise the effect is culled when the box leaves the frame).
-The k used and its source are written to `af_package.json` (`fx[].scale`, `scale_source`, `quad_size_m`,
-`visibility_aabb`) and to the README. The warning check `fx_scale_vs_asset`: a particle smaller than 1 % of the asset's long axis,
-or a "particle/asset" ratio more than 4 times off the preset's computed one (the second rule does not apply when
-k comes from a socket diameter or `size_class`: such an effect is fitted to its own muzzle or nozzle, not to the whole
-ship). `af_fx_mount.gd` removes the socket's scale
-relative to the package root (a socket under a 0.01 node from a centimeter FBX), while the root's own scale
-still scales the effects together with the model.
+**Масштаб эффектов.** Пресеты метрические: каждый настроен под эталон — `reference_socket_m` (диаметр
+посадки/сопла: `engine_trail`, `thruster_glow` 0.45 м, `muzzle_flash` 1 м) и `reference_size_m` (длинная ось
+ассета: корабельные 6 м, человеческие 1.8 м, `smoke` 3 м, `muzzle_flash` 1 м). Без `params.scale` k берётся так:
+1) диаметр сокета (`diameter_m` / `mount_d_m` / `nozzle_d_m`) ÷ `reference_socket_m`; 2) `size_class` сокета или
+его родителя (риг турели `socket_mount → … → socket_muzzle_*`) — середина диапазона Space Quest: S 1.0, M 2.25,
+L 4.5 м ÷ `reference_socket_m` (у сопел S ≈ 2.2, M 5, L 10); 3) длинная ось ассета в позе покоя ÷
+`reference_size_m`; 4) иначе 1. k умножает все длины: `quad_size`, скорости, затухание, ускорения, гравитацию,
+форму излучателя, радиус света и `visibility_aabb` (иначе эффект отсекается, когда коробка уходит из кадра).
+Использованный k и его источник пишутся в `af_package.json` (`fx[].scale`, `scale_source`, `quad_size_m`,
+`visibility_aabb`) и README. Проверка-предупреждение `fx_scale_vs_asset`: частица меньше 1 % длинной оси ассета
+или отношение «частица/ассет» дальше чем в 4 раза от расчётного у пресета (второе правило не применяется, когда
+k взят из диаметра или `size_class` сокета: такой эффект подогнан под своё дуло или сопло, а не под весь
+корабль). `af_fx_mount.gd` снимает масштаб
+сокета относительно корня пакета (сокет под узлом 0.01 из сантиметрового FBX), а масштаб самого корня
+(`fit_units` Space Quest) по-прежнему масштабирует эффекты вместе с моделью.
 
-Package `<asset_id>/`: `<asset_id>.glb` (byte for byte), `<asset_id>.tscn` (`Node3D` + a GLB instance `model` +
-`af_fx_mount.gd`), `af_fx_mount.gd` (on `_ready` it looks for sockets by `extras.game_socket`, then by name with
-`: . @ / " %` replaced by `_`, and places the FX; `trigger(socket)` restarts one-shots), `fx/<preset>.tscn`
-(`GPUParticles3D` + `ParticleProcessMaterial` + `QuadMesh`/`StandardMaterial3D`, optionally `OmniLight3D`),
-`fx/textures/*.png` (procedural), `README.md`, `af_package.json`. All paths inside are relative:
-the folder can be placed in any project directory (verified by placing it at `res://packages/<id>/`).
+**Единицы Space Quest (17.10.2026).** `fit_units`/`min_units` записи `models.json` — единицы рендера:
+`SQModelLibrary._instance` (`sq_model_library.gd`) масштабирует модель под число единиц, которое просит вид, и
+отдаёт `null` (вид рисует примитив), если оно меньше `min_units`. Виды просят 10 (ангар, `sq_hangar_backdrop.gd`),
+14 (полёт и бой, `sq_space_view_3d.gd`, `sq_combat_scene.gd`), 20 (станции). До 17.10 умолчание было в метрах —
+длинная ось и 15 % от неё: корабль 117 м получал 117 / 17,6 и не рисовался ни в ангаре, ни в полёте, станция 300 м
+(`min_units` 45) — нигде. Теперь без параметров берутся единицы роли (соседи в `models.json` на 17.10: SQ-03 и
+`asset_pack/ships` 3,4 / 0,6, `asset_pack/turrets` 1,5 / 0,12, `modules/` 0,3 / 0,05, станция кузницы 20 / 0,
+`asset_pack/drones` 2 / 0,15, банки `forge/` 1 / 0) с предупреждением «render units, not metres»; итог и откуда он
+взят — `af_package.json` и `stats` → `sq_units`. Проверки профиля `space_quest`: `sq_min_units_visible` —
+`min_units` > 10 предупреждение (модель пропадёт в ангаре; в `value.hidden_in` — какие виды её теряют), > 20 ошибка
+(ни один вид её не нарисует); `sq_fit_not_below_min` — `fit_units` < `min_units` ошибка (вызов без единиц модель не
+рисует никогда). Числа всё равно лучше задавать явно, по соседям той же роли.
 
-**Sockets and pivots.** A socket is a node with `extras.game_socket` or a name `socket_*`; the check
-`socket_names_snake_ascii` (a warning in the `godot` profile) and the socket search in Godot go
-only by these. Turret rig nodes `pivot_yaw` / `pivot_pitch` (`_export_lib.is_rig_pivot`) are not counted as sockets,
-even if an old GLB carries `game_socket` on them: they are written separately to `af_package.json` -> `pivots` (axis,
-range) and to the README; the warning check `rig_pivots` requires `axis` + `range_degrees` and no
-`game_socket` (contract §6). Before this fix `pivot_yaw` did not match the `socket_*` pattern and the turret package
-failed with an error.
+Пакет `<asset_id>/`: `<asset_id>.glb` (байт-в-байт), `<asset_id>.tscn` (`Node3D` + экземпляр GLB `model` +
+`af_fx_mount.gd`), `af_fx_mount.gd` (на `_ready` ищет сокеты по `extras.game_socket`, затем по имени с заменой
+`: . @ / " %` на `_`, ставит FX; `trigger(сокет)` перезапускает разовые), `fx/<preset>.tscn`
+(`GPUParticles3D` + `ParticleProcessMaterial` + `QuadMesh`/`StandardMaterial3D`, опц. `OmniLight3D`),
+`fx/textures/*.png` (процедурные), `README.md`, `af_package.json`, запись реестра. Все пути внутри относительные:
+папку можно положить в любой каталог проекта (проверено размещением в `res://packages/<id>/`).
 
-**FX axes.** An effect emits along its local **+Y**. For ordinary sockets this is **Godot +Y = socket +Z in Blender**
-("outward": the turret seat normal, the blade/shaft of `socket_mount_hand_*`); `muzzle_flash` goes along **Godot -Z = Blender +Y**
-(forward of the muzzle). Nozzle sockets (`kind: thruster` or `socket_thruster_*`) are an exception: the nozzle frame
-of Forge ships is not unique (`extras.frame`, `_ship_lib.THRUSTER_FRAMES`, `docs/forge/ships.md`), and the local +Y
-can be "up". This was the case: with the `thrust` (default) and `exhaust` frames the `engine_trail` / `thruster_glow` trails
-flew upward - the `+Y` of the socket `socket_thruster_main_port` in Godot 4.5.1 was `[0, 1, 0]`, and only the
-legacy frame and old GLBs worked. Now for every nozzle socket the step finds the **exhaust axis in the socket's own axes**
-(glTF/Godot):
+**Сокеты и пивоты.** Сокет — узел с `extras.game_socket` или с именем `socket_*`; проверка
+`socket_names_snake_ascii` (в профилях `space_quest` и `heroes_gates` — ошибка) и поиск сокетов в Godot идут
+только по ним. Узлы рига турели `pivot_yaw` / `pivot_pitch` (`_export_lib.is_rig_pivot`) сокетами не считаются,
+даже если старый GLB несёт на них `game_socket`: они пишутся отдельно в `af_package.json` → `pivots` (ось,
+диапазон) и в README; проверка-предупреждение `rig_pivots` требует `axis` + `range_degrees` и отсутствие
+`game_socket` (контракт §6). До этой правки `pivot_yaw` не проходил шаблон `socket_*` и пакет турели в профиле
+`space_quest` падал с ошибкой.
 
-| socket `extras.frame` | exhaust axis | meaning of the frame |
+**Оси FX.** Эффект излучает вдоль своей локальной **+Y**. У обычных сокетов это **+Y Godot = +Z сокета в Blender**
+(«наружу»: нормаль посадки турели, клинок/древко у `socket_mount_hand_*`); `muzzle_flash` — вдоль **−Z Godot = +Y
+Blender** (вперёд дула Space Quest). Сокеты сопел (`kind: thruster` или `socket_thruster_*`) — исключение: рамка
+сопла у кораблей Forge не одна (`extras.frame`, `_ship_lib.THRUSTER_FRAMES`, `docs/forge/ships.md`), и локальная +Y
+бывает «вверх». Так и было: у рамок `thrust` (по умолчанию) и `exhaust` трейлы `engine_trail` / `thruster_glow`
+летели вверх — `+Y` сокета `socket_thruster_main_port` в Godot 4.5.1 равнялась `[0, 1, 0]`, работала только
+`sq_legacy` и старые GLB Space Quest. Теперь для каждого сокета сопла шаг находит **ось выхлопа в осях самого
+сокета** (glTF/Godot):
+
+| `extras.frame` сокета | ось выхлопа | смысл рамки |
 |---|---|---|
-| `thrust` (the `ship_gen` default) | +Z | glTF -Z is thrust (forward along the ship), the exhaust goes the opposite way |
-| `exhaust` | -Z | glTF -Z is the exhaust direction, as for a muzzle |
-| none (old GLBs, the test's `build_ship`) | by geometry | usually +Y |
+| `thrust` (умолчание `ship_gen`) | +Z | glTF −Z — тяга (вперёд по кораблю), выхлоп в обратную сторону |
+| `exhaust` | −Z | glTF −Z — направление выхлопа, как у дула |
+| `sq_legacy` | +Y | glTF +Y — выхлоп (`out` из `ship_sq03_gunship.json`) |
+| нет (старые GLB Space Quest, `build_ship` теста) | по геометрии | обычно +Y |
 
-The documented axis is cross-checked against the geometry: after importing into Blender, the world direction of this axis (glTF local +X, +Y,
-+Z = Blender +X, +Z, -Y) must point aft - the dot product with the stern >= 0.5 (the stern is Blender -Y for a GLB
-with a -Z nose, +Y for a +Z nose; the same `source_forward` as for the scene axes is used). If there is no frame, the name is unfamiliar, or
-the frame contradicts the geometry, the one of the six local axes (±X, ±Y, ±Z) that points aft best is taken;
-the reason is written to `emit_axis_from` (`extras.frame thrust` / `inferred: most aft-pointing local axis +Y` /
-`extras.frame thrust contradicts geometry; inferred: ...`), and a contradiction of a documented frame also produces a
-warning. The axis is given to every FX binding on such a socket whose preset emits along +Y (in
-`fx_presets.json` that is all but `muzzle_flash` - it and presets with another `direction` are not touched): `fx[].emit_axis` and
-`emit_axis_from`, `emit_aft_dot` in `af_package.json` (in `sockets[]` - `frame`, `exhaust_axis`, `exhaust_axis_from`),
-a phrase in the README, and the key `"emit_axis": Vector3(x, y, z)` in the scene's `fx_bindings` dictionary. `af_fx_mount.gd` rotates the
-FX instance so that its +Y lies on `emit_axis` (`Quaternion(Vector3.UP, axis)`, for -Y a 180° rotation around X)
-and after that, as before, removes the socket scale; `Node3D.scale` does not reset the rotation - verified on a socket
-under a 0.01 node. For `+Y` the rotation is identity, so the behavior for old GLBs did not change.
+Документированная ось сверяется с геометрией: после импорта в Blender направление этой оси в мире (локальные +X, +Y,
++Z glTF = +X, +Z, −Y Blender) должно смотреть назад — скалярное произведение с кормой ≥ 0.5 (корма — −Y Blender у GLB
+с носом −Z, +Y у носа +Z; берётся тот же `source_forward`, что и для осей сцены). Если рамки нет, имя незнакомое или
+рамка противоречит геометрии, берётся та из шести локальных осей (±X, ±Y, ±Z), что смотрит назад точнее всего;
+причина пишется в `emit_axis_from` (`extras.frame thrust` / `inferred: most aft-pointing local axis +Y` /
+`extras.frame thrust contradicts geometry; inferred: …`), а противоречие документированной рамки — ещё и
+предупреждением. Ось получает каждая привязка FX на таком сокете, чей пресет излучает вдоль +Y (в
+`fx_presets.json` это все, кроме `muzzle_flash` — он и пресеты с другим `direction` не трогаются): `fx[].emit_axis` и
+`emit_axis_from`, `emit_aft_dot` в `af_package.json` (в `sockets[]` — `frame`, `exhaust_axis`, `exhaust_axis_from`),
+фраза в README, ключ `"emit_axis": Vector3(x, y, z)` в словаре `fx_bindings` сцены. `af_fx_mount.gd` поворачивает
+экземпляр FX так, чтобы его +Y легла на `emit_axis` (`Quaternion(Vector3.UP, ось)`, для −Y — поворот на 180° вокруг X)
+и после этого, как раньше, снимает масштаб сокета; `Node3D.scale` поворот не сбрасывает — проверено на сокете
+под узлом 0.01. Для `+Y` поворот тождественный, поведение для `sq_legacy` и старых GLB не изменилось.
 
-Axis checks. `fx_thruster_axis` (error): every such binding has an exhaust axis whose world direction
-points aft (>= 0.5). This is a safeguard against data loss, not against a skewed socket: among the six axes there is always
-one within ~55° of the stern, so a socket rotated so that no axis matches the real exhaust passes
-the check, and the effect goes along the nearest axis (up to ~55° off the stern) - for Forge ships the frames are exact, and for
-`ship_from_mesh` it is worth looking at `emit_aft_dot`. `godot_fx_thruster_aft` (error): `validate_package.gd` computes the +Y axis of the
-FX node in the package root's axes (`axis_y_root`, from `global_transform`) and compares it with the package's stern, `expect_axis`: +Z for a
-GLB with a -Z nose, -Z for a +Z nose, with x and z of opposite sign if the scene rotated the model 180° (`forward_axis` differs from the
-GLB's nose); `axis_ok` is a dot product >= 0.9, and for a nozzle canted by the model itself the `expect_dot` threshold is lower
-by 0.05 than the measured cant (but not below 0.5), otherwise an honestly canted nozzle would fail the check. The stern is set by
-`source_forward`: if it was guessed (no `kind`/passport), there is already a warning about that, and the exhaust axis is checked
-against the guessed stern.
+Проверки оси. `fx_thruster_axis` (ошибка): у каждой такой привязки есть ось выхлопа, мировое направление которой
+смотрит назад (≥ 0.5). Это страховка от потери данных, а не от косого сокета: среди шести осей всегда найдётся
+одна не дальше ~55° от кормы, поэтому сокет, повёрнутый так, что ни одна ось не совпадает с реальным выхлопом, пройдёт
+проверку, а эффект пойдёт вдоль ближайшей оси (до ~55° от кормы) — для кораблей Forge рамки точные, у
+`ship_from_mesh` стоит смотреть `emit_aft_dot`. `godot_fx_thruster_aft` (ошибка): `validate_package.gd` считает ось +Y
+узла FX в осях корня пакета (`axis_y_root`, из `global_transform`) и сравнивает с кормой пакета, `expect_axis`: +Z для
+GLB с носом −Z, −Z для носа +Z, x и z с обратным знаком, если сцена повернула модель на 180° (`forward_axis` не равен
+носу GLB); `axis_ok` — скалярное произведение ≥ 0.9, для сопла, наклонённого самой моделью, порог `expect_dot` ниже
+на 0.05 от измеренного наклона (не ниже 0.5), иначе честно наклонённое сопло проваливало бы проверку. Корму задаёт
+`source_forward`: если он угадан (нет `kind`/паспорта), предупреждение об этом уже есть, а ось выхлопа проверена
+относительно угаданной кормы.
 
-`fx_presets.json` presets: `engine_trail`, `thruster_glow`, `aura`, `magic_cast`, `fire`, `smoke`, `sparks`,
+Пресеты `fx_presets.json`: `engine_trail`, `thruster_glow`, `aura`, `magic_cast`, `fire`, `smoke`, `sparks`,
 `ice`, `poison`, `heal`, `muzzle_flash`, `nav_light`.
 
-Validation: a throwaway project is assembled in `out_dir/_godot_check` (`config_version=5`, `4.5`,
-GL Compatibility, file logging and shader cache disabled), the package is copied to `res://packages/<id>/`, then
-`--headless --import` and `--headless --script res://validate_package.gd` run. The Godot process is started with
-`APPDATA`/`LOCALAPPDATA` = `out_dir/_godot_check/_home` (with `.gdignore`): editor settings and `user://`
-stay inside `out_dir`, and nothing is written to `%APPDATA%/Godot` (contract §3). The script prints a line
-`AFGODOT {json}`: the scene loaded and instantiated, animations and `loop_mode`, sockets (node, parent, world
-position and +Y axis), FX under sockets (scale relative to the root `scale_rel`, the emission axis in root axes
-`axis_y_root`, and with `expect_axis` also `axis_dot` / `axis_ok`, `visibility_aabb`, particle size), each FX scene
-separately, `SpriteFrames` (frames, loops, speed, frame size). This JSON lies whole in the `godot_validation` check; from it come also
-`godot_scene_loads`, `godot_animation_loops`, `godot_sockets_found`,
-`godot_fx_attached`, `godot_fx_thruster_aft` (only if there are FX on nozzles), `godot_engine_errors` (the `ERROR`/`SCRIPT ERROR`
-lines of the log).
+Проверка: в `out_dir/_godot_check` собирается одноразовый проект (`config_version=5`, `4.5`,
+GL Compatibility, журнал в файл и кэш шейдеров выключены), пакет копируется в `res://packages/<id>/`, затем
+`--headless --import` и `--headless --script res://validate_package.gd`. Процесс Godot запускается с
+`APPDATA`/`LOCALAPPDATA` = `out_dir/_godot_check/_home` (с `.gdignore`): настройки редактора и `user://`
+остаются внутри `out_dir`, в `%APPDATA%/Godot` ничего не пишется (контракт §3). Скрипт печатает строку
+`AFGODOT {json}`: сцена загружена и инстанцирована, анимации и `loop_mode`, сокеты (узел, родитель, мировая
+позиция и ось +Y), FX под сокетами (масштаб относительно корня `scale_rel`, ось излучения в осях корня
+`axis_y_root`, а при `expect_axis` ещё `axis_dot` / `axis_ok`, `visibility_aabb`, размер частицы), каждая FX-сцена
+отдельно, `SpriteFrames` (кадры, петли, скорость, размер кадра). Этот JSON целиком лежит в проверке
+`godot_validation`; по нему же `godot_scene_loads`, `godot_animation_loops`, `godot_sockets_found`,
+`godot_fx_attached`, `godot_fx_thruster_aft` (только если есть FX на соплах), `godot_engine_errors` (строки
+`ERROR`/`SCRIPT ERROR` журнала).
 
-**Clip names for Godot import.** The Godot 4.5 scene importer (`resource_importer_scene.cpp`, `_pre_fix_node`) checks an animation name in turn
-for the markers `loop_mode`, `loop`, `cycle` (`-marker`/`_marker` at the end, or `$marker`), sets a loop,
-strips the marker and calls `rename_animation(ORIGINAL_name, new)`. If two markers match (`pitch_cycle-loop`: first `-loop`,
-then `_cycle`), the second rename looks for the already nonexistent original name - `ERROR: Animation not found: pitch_cycle-loop`,
-and the clip stays `pitch_cycle` with a loop. There are no references to the suffixed name in `af_fx_mount.gd`/`af_preview.gd`/`.tscn` - the error
-comes from the import itself. `godot_package` models this rule (`_export_lib.godot_import_name`) and in the package GLB renames
-such clips to a name that imports to the same `clip_base` without a repeated rename (`godot_safe_clip_name`:
-`pitch_cycle-loop` -> `pitch_cycle-cycle` -> in Godot `pitch_cycle`, `loop_mode = 1`). Other clips and the binary part of the GLB are
-unchanged (only the JSON block is edited, `rename_glb_animations`). The renames are in `stats.clip_renames`, in `af_package.json`
-(`clips[].package_name`) and in the package README; the `godot_animation_loops` check expects the name from the package.
+**Имена клипов для импорта Godot.** Импортёр сцен Godot 4.5 (`resource_importer_scene.cpp`, `_pre_fix_node`) по очереди
+проверяет у имени анимации метки `loop_mode`, `loop`, `cycle` (`-метка`/`_метка` в конце или `$метка`), ставит петлю,
+снимает метку и зовёт `rename_animation(ИСХОДНОЕ_имя, новое)`. Если совпали две метки (`pitch_cycle-loop`: сначала `-loop`,
+потом `_cycle`), второе переименование ищет уже несуществующее исходное имя — `ERROR: Animation not found: pitch_cycle-loop`,
+клип остаётся `pitch_cycle` с петлёй. Ссылок на имя с суффиксом в `af_fx_mount.gd`/`af_preview.gd`/`.tscn` нет — ошибку
+даёт сам импорт. `godot_package` моделирует это правило (`_export_lib.godot_import_name`) и в GLB пакета переименовывает
+такие клипы в имя, которое импортируется в то же `clip_base` без повторного переименования (`godot_safe_clip_name`:
+`pitch_cycle-loop` → `pitch_cycle-cycle` → в Godot `pitch_cycle`, `loop_mode = 1`). Остальные клипы и бинарная часть GLB не
+меняются (правится только JSON-блок, `rename_glb_animations`). Переименования — в `stats.clip_renames`, в `af_package.json`
+(`clips[].package_name`) и в README пакета; проверка `godot_animation_loops` ждёт имя из пакета.
 
-## Measurements (2026-10-10, RTX 4070, Blender 5.0.1, Godot 4.5.1)
+## Замеры (10.10.2026, RTX 4070, Blender 5.0.1, Godot 4.5.1)
 
-Module tests are run with `run_tests.py -- export`; temporary folders are not left behind. Among them:
-`test_godot_import_names_and_glb_rename`; the turret test requires `clip_renames`, `pitch_cycle` with `loop_mode = 1` and an empty `godot_engine_errors`;
-three exhaust-axis tests; and `test_turret_package_pivots_are_not_sockets`: `turret_gen` -> `godot_package` with a Godot check,
-the same turret with obsolete `game_socket` on the pivots (the `rig_pivots` warning, no errors) and the `ship_gen` nozzle's `mount_d_m`
-as the `engine_trail` scale source ("socket diameter ...").
+Тесты модуля (17.10): **26 PASS** — + `test_sq_units_defaults_by_role` (умолчания по роли, проверки видов 10 / 14 / 20) и `test_sq_package_big_ship_units_not_metres` (корабль 117 м → запись 3,4 / 0,6 вместо 117 / 17,6; станция через `sq_class` → 20 / 0; `min_units` 25 — ошибка); общий прогон `export,ships,kitbash` 61 PASS, 0 FAIL, 201 с; сервер 299 из 299.
 
-**Nozzle exhaust axis (2026-10-10, evening).** Three tests: `test_thruster_frames_fx_aft_godot` (a `ship_gen` fighter, seed 1, in both
-frames `thrust` / `exhaust` -> `godot_package` with `engine_trail` + `thruster_glow` on every
-`socket_thruster_*`: `emit_axis` = +Z / -Z, in Godot 4.5.1 each FX's `axis_y_root` = `[0, 0, 1]`, i.e. aft;
-the socket's own +Y is `[0, 1, 0]` (up) for `thrust` and `exhaust`),
-`test_thruster_axis_legacy_inferred_and_rotated_model` (a GLB without `extras.frame` -> the +Y axis is "inferred"; `muzzle_flash` and
-non-nozzle sockets get no axis; a `thrust`-frame socket under a 0.01 node - scale removed, rotation kept; a model rotated
-by `forward_axis: "+Z"` expects `axis_y_root` = -Z) and `test_thruster_axis_contradicting_frame_and_canted_nozzle` (the
-`thrust` frame on sockets with "+Y" geometry - geometry wins, one
-warning; an unfamiliar frame; a nozzle canted by 30° - `axis_dot` 0.866 is accepted). Without the rotation in
-`af_fx_mount.gd`, the first two tests fail on `godot_fx_thruster_aft`. On a real GLB: a ship_gen ship with four `thrust` nozzles from the library -
-`axis_y_root` of all FX is `[0, 0, 1]`, `axis_ok` everywhere, no engine errors.
+Тесты модуля (12.10): **25 тестов** — + `test_render_sprites_plays_cloth_cache` (кэш ткани `cloth_sim` переключается с клипом); прогон 12.10: 24 прежних PASS, новый PASS отдельно. Раньше: **23 PASS, 0 FAIL, 118 с** (11.10, ночь: + `test_hg_adaptive_unit_cell`; проверка `body_scale_px_per_m` во всех
+тестах рендера). Раньше 22 PASS, 0 FAIL, 79 с (`run_tests.py -- export`; 10.10, вечер: `test_godot_import_names_and_glb_rename`,
+а тест турели требует `clip_renames`, `pitch_cycle` с `loop_mode = 1` и пустой `godot_engine_errors`; затем три теста
+оси выхлопа, +25 с), временных папок не остаётся. Новый
+`test_turret_package_pivots_are_not_sockets`: `turret_gen` → `godot_package` (`space_quest`) с проверкой в Godot,
+та же турель с устаревшими `game_socket` на пивотах (предупреждение `rig_pivots`, без ошибок) и `mount_d_m` сопла
+`ship_gen` как источник масштаба `engine_trail` («socket diameter …»).
 
-**Turret** (`turret_gen` M, 2 barrels, military, seed 1 -> `turret_m_military_b2_001`, `kind: turret`, `muzzle_flash` on both muzzles): Godot 4.5.1 headless - the scene loaded and
-instantiated, sockets found **3 of 3** (`socket_mount`, `socket_muzzle_01/02`), pivots 2 (outside the socket
-list), FX 2 of 2, loops `yaw_sweep`/`pitch_cycle` = 1, `fire_recoil` = 0; all error checks green, 4.3 s
-per step (Godot 2.9 s). The `godot_engine_errors` warning ("Animation not found: pitch_cycle-loop" on import) was resolved
-on 2026-10-10 in the evening: the clip in the package GLB is called `pitch_cycle-cycle` (see "Clip names for Godot import"), the Godot 4.5.1 log
-is clean, `pitch_cycle`/`yaw_sweep` have a loop, `fire_recoil` does not. A read-only GLB inspection (`--class turret --strict`)
-of the source and of the packed GLB: PASS, 3 sockets.
+**Ось выхлопа сопел (10.10, вечер).** Три теста: `test_thruster_frames_fx_aft_godot` (`ship_gen` fighter seed 1 во всех
+рамках `thrust` / `exhaust` / `sq_legacy` → `godot_package` с `engine_trail` + `thruster_glow` на каждом
+`socket_thruster_*`: `emit_axis` = +Z / −Z / +Y, в Godot 4.5.1 `axis_y_root` каждого FX = `[0, 0, 1]`, то есть назад;
+собственная +Y сокета при этом `[0, 1, 0]` (вверх) у `thrust` и `exhaust` и `[0, 0, 1]` у `sq_legacy`),
+`test_thruster_axis_legacy_inferred_and_rotated_model` (GLB без `extras.frame` → ось +Y «inferred»; `muzzle_flash` и
+несопловые сокеты без оси; сокет рамки `thrust` под узлом 0.01 — масштаб снят, поворот сохранён; модель, повёрнутая
+`forward_axis: "+Z"`, ждёт `axis_y_root` = −Z) и `test_thruster_axis_contradicting_frame_and_canted_nozzle` (рамка
+`thrust` на сокетах с геометрией «+Y» и `sq_legacy` на сокете с геометрией «+Z» — выигрывает геометрия, одно
+предупреждение; незнакомая рамка; сопло, наклонённое на 30°, — `axis_dot` 0.866 принимается). Без поворота в
+`af_fx_mount.gd` оба первых теста падают на `godot_fx_thruster_aft`. На реальных GLB: `ship_sq03_gunship_hy21.glb`
+из `ShipSQ03Forge` (сопла `sq_legacy`, ось +Y) и ship_gen-корабль с четырьмя соплами `thrust` из библиотеки —
+`axis_y_root` всех FX `[0, 0, 1]`, `axis_ok` везде, ошибок движка нет.
 
-**iso8, a test character, default parameters** (raw Mixamo: `idle.fbx` with a skin + `walk.fbx`,
-clips `idle-loop`/`walk-loop`, 100 px/m, 48 frames per clip): 2 × 48 × 8 = 768 frames, EEVEE, render 68.6 s
-(0.089 s/frame), the step 81.7 s together with the Godot check. Cell 224×200, anchor (112, 158). The sheets are
-**5376×3200** (24 columns × 2 even rows per direction; it was 8064×3200 with a half-empty second row),
-5.5 and 6.1 MB. Body brightness spread across directions 1.08. Min foot z: idle 0...0.002 m, walk -0.028...0.035 m.
-Deviation of the support points from the anchor: hips idle 4.9 px / walk 30.3 px, foot midpoint idle 2.6 px / walk 30.7 px -
-this is the clip's own sideways sway; `drift` keeps it, `lock` removes it at the cost of foot sliding. Godot loaded all 16 `SpriteFrames` animations.
+**Турель Space Quest** (`turret_gen` M, 2 ствола, military, seed 1 → `turret_m_military_b2_001`, профиль
+`space_quest`, `kind: turret`, `muzzle_flash` на обоих дулах): Godot 4.5.1 headless — сцена загружена и
+инстанцирована, сокетов найдено **3 из 3** (`socket_mount`, `socket_muzzle_01/02`), пивотов 2 (вне списка
+сокетов), FX 2 из 2, петли `yaw_sweep`/`pitch_cycle` = 1, `fire_recoil` = 0; все проверки-ошибки зелёные, 4.3 с
+на шаг (Godot 2.9 с). Предупреждение `godot_engine_errors` («Animation not found: pitch_cycle-loop» при импорте) снято
+10.10 вечером: клип в GLB пакета называется `pitch_cycle-cycle` (см. «Имена клипов для импорта Godot»), журнал Godot 4.5.1
+чист, `pitch_cycle`/`yaw_sweep` с петлёй, `fire_recoil` без. Инспектор Space Quest
+`glb_inspect.py --class turret --strict` (только чтение) на исходном и на упакованном GLB: PASS, сокетов 3.
 
-**custom + Cycles shadow** (the same walk, 6 frames, views 0° and -60°): the 356×188 cell includes the shadow projection,
-12 frames in 6.4 s (0.53 s/frame, OptiX); frames with alpha within 2 px of the edge - **0 of 12** (before the fix the shadow
-was cut off by the cell edge with a straight line).
+**iso8, зомби «Врат Героев», параметры по умолчанию** (сырой Mixamo: `idle.fbx` со скином + `walk.fbx`,
+клипы `idle-loop`/`walk-loop`, 100 px/м, 48 кадров на клип): 2 × 48 × 8 = 768 кадров, EEVEE, рендер 68.6 с
+(0.089 с/кадр), шаг 81.7 с вместе с проверкой Godot. Ячейка 224×200, якорь (112, 158). Листы теперь
+**5376×3200** (24 столбца × 2 ровные строки на направление; было 8064×3200 с полупустой второй строкой),
+5.5 и 6.1 МБ. Разброс яркости тела по направлениям 1.08. Мин. z стоп: idle 0…0.002 м, walk −0.028…0.035 м.
+Отклонение опор от якоря: бёдра idle 4.9 px / walk 30.3 px, середина стоп idle 2.6 px / walk 30.7 px —
+боковое раскачивание самого клипа (в спеке HG: «hips sway sideways up to 0.28 m»); `drift` его сохраняет,
+`lock` убирает ценой скольжения стоп. Godot загрузил все 16 анимаций `SpriteFrames`.
 
-**Unit protection** (through `af_run`): a 1.7 cm marker -> `AFERROR ... projected model is only 1.6 px
-(min_body_px=24; ... fix the units with params.height_m ...)`, exit code 1; a 170 m marker (centimeters taken as meters) ->
-`sprite cell 4412x15972 px exceeds max_cell_px=2048`, exit code 1, in 1.4 s - before rendering. A 17 m marker at 10 px/m
-renders with a `height_m` warning.
+**custom + тень Cycles** (тот же walk, 6 кадров, виды 0° и −60°): ячейка 356×188 включает проекцию тени,
+12 кадров за 6.4 с (0.53 с/кадр, OptiX); кадров с альфой на 2 px от края — **0 из 12** (до правки тень
+обрезалась краем ячейки прямой линией).
 
-**iso8, a static generated model** (Hunyuan, 119 997 tris, 3.0 m -> `height_m` 1.8, scale 0.6): 8 frames in 1.5 s,
-cell 160×228 at 100 px/m. Anchoring on the feet shifted the model by
-14.6 cm: the extent center is offset by the held item, and the anchor is now under the body. S - facing, the item in the character's left hand on the
-right of the screen, N - the back.
+![iso8 zombie](img/export/iso8_zombie_directions.png)
 
-**godot_package, a 64.8 m test ship** (36 676 tris, 17 sockets, nozzles
-`size_class L`, flare diameter 6.4 m): without `params.scale`, `engine_trail` and `thruster_glow` got k = 10
-(L: 4.5 m / 0.45 m), `nav_light` on the mast k = 10.8 (64.8 m / 6 m); the trail particle is 9.5 m,
-`visibility_aabb` (-80, -20, -80, 160, 160, 160) - Godot returned the same values, `scale_rel` = 1.0;
-`fx_scale_vs_asset` ok; the step took 7.3 s together with the Movie Maker preview, of which Godot import and validation 3.4 s. With `fx_auto_scale: false` (the old behavior) - a dotted line of
-beads and an invisible flame, and `fx_scale_vs_asset` gives 4 warnings. The GLB nose `-Z` was guessed from the sockets - with a
-warning (in the example above `kind: "ship"` removes it).
+**Защита от единиц** (через `af_run`): маркер 1.7 см → `AFERROR … projected model is only 1.6 px
+(min_body_px=24; … fix the units with params.height_m …)`, код 1; маркер 170 м (сантиметры как метры) →
+`sprite cell 4412x15972 px exceeds max_cell_px=2048`, код 1, за 1.4 с — до рендера. Маркер 17 м при 10 px/м
+рендерится с предупреждением про `height_m`.
 
-**A test character** (`profile: godot`, `forward_axis: -Z`, iso8 sprites): the long axis in the rest pose is 1.70 m, `aura` and
-`poison` got k = 0.944, `fire` an explicit 0.5; `idle-loop`/`walk-loop` -> `idle`/`walk` with `loop_mode = 1`,
-`socket_fx_chest`/`socket_mount_hand_r` under `BoneAttachment3D`, all FX `scale_rel` = 1.0, the `model` axis -Z,
-16 `SpriteFrames` animations without discrepancies, engine errors 0. A 5.85 m test ship with 0.44 m nozzles
-(`mount_d_m`) stays at native size (k = 0.978); a socket under a 0.01 scale node gives FX with `scale_rel` = 1.0.
+**heroes_gates, тот же зомби**, idle + walk, Cycles OptiX 64 spp с ловцом теней: 72 кадра за 44.2 с
+(0.61 с/кадр), шаг 49.7 с. Нормировка по первому кадру idle до 1.7 м дала масштаб **1.0936** — в их
+`zombie.blend` `UNIT_ROOT` = **1.094**; рост в позе покоя 1.859 м против 1.858 м. Сверка кадра 0 с
+отгруженными `assets/units/zombie/idle*.png`: верх тела совпадает в пределах 1–3 px во всех трёх видах,
+площадь тени — в пределах 1 %. Отличия — художественные правки HG под этот юнит, которые модуль не повторяет:
+перекрашенная текстура `zombie_color_fix`, доворот скелета на 15°, поднятые плечи из `zombie_fix.py`.
 
-Effects in Godot 4.5.1 (GL Compatibility, Movie Maker frames): a board with all 12 presets and a flying test
-ship, and below it a gunship without auto scale and with it (frames 4, 18, 34: the trail accelerates,
-the red navigation light on the mast is visible).
+![heroes gates vs shipped](img/export/heroes_gates_vs_shipped.png)
 
-## Limitations (honestly)
+**iso8 статичный некромант** (Hunyuan, 119 997 тр., 3.0 м → `height_m` 1.8, масштаб 0.6): 8 кадров за 1.5 с,
+ячейка 160×228 при 100 px/м; имя по умолчанию `corrected_necromancer`. Опора по стопам сдвинула модель на
+14.6 см: центр габарита смещён посохом, якорь теперь под телом. S — лицом, посох в левой руке персонажа справа
+на экране, N — спина.
 
-- The FX auto scale is a heuristic. A class's seat is taken as the midpoint of its range (S 1.0, M 2.25, L 4.5 m); L -> 10
-  was tuned by eye on a gunship (flare 6.4 m; the exact ratio would give 14). The ship module writes only `size_class` on nozzles,
-  so the exact size will appear once `mount_d_m` is written into the socket. The fallback rule by the asset's long
-  axis is crude for small details (a muzzle flash on a whole ship comes out large) - there `params.scale` is needed;
-  `fx_scale_vs_asset` catches only obvious misses.
-- EEVEE in Blender 5.0 has no shadow catcher, so iso8 has no ground shadow by default; a shadow exists only
-  with `engine: CYCLES`. The cell is symmetric about the anchor, so a shadow falling to one side widens it on both
-  (356×188 for the test character). Cycles leaves a pale line (alpha ~10) along the frame edge - by default the 4 px shadow fade removes it.
-- Pose-specific fits for individual units (lifting a blade above the ground, folding wings, shifting a corpse into the cell) are specific to units and not
-  carried over: a model that does not fit the cell is a `cell_fit` error, not an automatic fix. Palette compression of
-  sheets is not carried over either - sheets are RGBA (iso8 default is 5.5-6.1 MB per clip).
-- Artistic fixes for a specific unit (texture recoloring, a turn of the skeleton, shoulder repair) are outside the module;
-  the test character was taken raw from a Mixamo upload, and the shoulder deformations are whatever that rig gave.
-- GL Compatibility does not support particle trails (`trail_enabled`, verified: Godot
-  writes a warning). `engine_trail` is large semi-transparent particles in world coordinates: in motion they
-  merge into a solid trail, standing still they collect into a bright spot at the nozzle (use `thruster_glow` for parking);
-  on very fast ships "beads" may show through again.
-- The effect presets were checked structurally in Godot (loading, class, material, attachment, scale) and viewed
-  by eye in Movie Maker scenes; they were not tuned to any particular game's art direction, and the textures are procedural.
-  A visual preview requires running a Godot game windowed (`fx_preview`).
-- The FX direction depends on how the source module oriented the socket; the export module does not fix the socket
-  frame. Without a passport and `kind`, the GLB nose is guessed (with a warning).
-- `forward_axis: -Z` rotates the `model` node in the `.tscn`; the GLB itself stays `+Z`, and the package metadata
-  honestly records the GLB's axis.
-- `in_place: auto` for loops removes only pure root drift; hip sway stays in the frame.
-  The root bone is found heuristically (`mixamorig:Hips`, `Hips`, `root`, `pelvis`, otherwise the first one without a parent),
-  the feet by `mixamorig:LeftFoot/RightFoot`, otherwise bones with `foot`/`paw_` in the name.
-- iso8 without `frames` takes the clip length (a 4.4 s idle -> 52 frames) and cuts it to `max_frames`; the actual
-  speed-up is written to `time_scale`.
-- Rider + mount bundles (actions `<clip>|<skeleton>`) are supported by convention, but were not tested on real
-  assets.
-- The Godot check runs without a window: it does not judge the picture, only loading, names, loop modes, scale and
-  attachment. Earlier runs (before this fix) left `%APPDATA%/Godot/app_userdata/af_godot_check`
-  (logs, shader cache) - the folder can be deleted by hand.
+![necromancer](img/export/iso8_necromancer_static.png)
+
+**godot_package, корабль Space Quest `ship_sq03_gunship_flat.glb`** (64.8 м, 36 676 тр., 17 сокетов, сопла
+`size_class L`, диаметр раструба 6.4 м): без `params.scale` `engine_trail` и `thruster_glow` получили k = 10
+(L: 4.5 м / 0.45 м), `nav_light` на мачте — k = 10.8 (64.8 м / 6 м); частица следа 9.5 м,
+`visibility_aabb` (−80, −20, −80, 160, 160, 160) — те же значения вернул Godot, `scale_rel` = 1.0;
+`fx_scale_vs_asset` ок; шаг 7.3 с вместе с превью Movie Maker, из них импорт и проверка Godot 3.4 с. С `fx_auto_scale: false` (старое поведение) — пунктир из
+бусин и невидимый огонь, `fx_scale_vs_asset` даёт 4 предупреждения. Нос GLB `-Z` угадан по сокетам — с
+предупреждением (в примере выше `kind: "ship"` его снимает).
+
+**Зомби** (`profile: godot`, `forward_axis: -Z`, спрайты iso8): длинная ось в позе покоя 1.70 м, `aura` и
+`poison` получили k = 0.944, `fire` — явный 0.5; `idle-loop`/`walk-loop` → `idle`/`walk` с `loop_mode = 1`,
+`socket_fx_chest`/`socket_mount_hand_r` под `BoneAttachment3D`, все FX `scale_rel` = 1.0, ось `model` −Z,
+16 анимаций `SpriteFrames` без расхождений, ошибок движка 0. Тестовый корабль 5.85 м с соплами 0.44 м
+(`mount_d_m`) остаётся в родном размере (k = 0.978); сокет под узлом масштаба 0.01 даёт FX с `scale_rel` = 1.0.
+
+Эффекты в Godot 4.5.1 (GL Compatibility, кадры Movie Maker): доска со всеми 12 пресетами, летящий тестовый
+корабль, ниже — канонерка Space Quest без автомасштаба и с ним (кадры 4, 18, 34: след разгоняется,
+красный навигационный огонь на мачте виден).
+
+![fx](img/export/fx_presets_godot.png)
+
+## Ограничения (честно)
+
+- Автомасштаб FX — эвристика. Посадка класса берётся серединой диапазона (S 1.0, M 2.25, L 4.5 м); L → 10
+  подобрано по виду канонерки (раструб 6.4 м, точное отношение дало бы 14). Модуль кораблей пишет у сопел
+  только `size_class`, поэтому точный размер появится, когда в сокет пишут `mount_d_m`. Запасное правило по
+  длинной оси ассета грубое для мелких деталей (вспышка дула на целом корабле выйдет крупной) — там нужен
+  `params.scale`; `fx_scale_vs_asset` ловит только явные промахи.
+- EEVEE в Blender 5.0 не умеет ловец теней, поэтому iso8 по умолчанию без тени на земле; тень есть только
+  с `engine: CYCLES`. Профиль HG по умолчанию рендерит Cycles (как оригинал), ~0.6 с/кадр. Ячейка
+  симметрична относительно якоря, поэтому тень, падающая в одну сторону, расширяет её в обе (у зомби 356×188).
+  Cycles оставляет по краю кадра бледную линию (альфа ~10) — по умолчанию её снимает затухание тени 4 px.
+- Позовые подгонки HG (`correct_fit`: подъём клинка над землёй, складывание крыльев ангела, сдвиг трупа в
+  ячейку) специфичны для юнитов и не перенесены. Вместо них отряд берёт ячейку 384 или 448 (с якорем, поднятым
+  для тела, лежащего к камере); модель, не влезающая в 448, — ошибка `cell_fit`, а не автоматическая правка. Палитровое сжатие листов (`hg_sheets --palette`) тоже не перенесено — листы RGBA
+  (iso8 зомби по умолчанию — 5.5–6.1 МБ на клип).
+- Художественные правки конкретного юнита (перекраска текстуры, доворот, починка плеч) — вне модуля;
+  тестовый зомби взят сырым из загрузки в Mixamo, деформации плеч такие, какие дал этот риг.
+- GL Compatibility (оба целевых проекта) не поддерживает следы частиц (`trail_enabled`, проверено: Godot
+  пишет предупреждение). `engine_trail` — крупные полупрозрачные частицы в мировых координатах: в движении
+  сливаются в сплошной след, на месте собираются в яркое пятно у сопла (для стоянки — `thruster_glow`);
+  на очень быстрых кораблях снова может проступить «бусинами».
+- Пресеты эффектов проверены структурно в Godot (загрузка, класс, материал, прикрепление, масштаб) и просмотрены
+  глазами на сценах Movie Maker; под арт-дирекцию конкретной игры они не настраивались, текстуры процедурные.
+  Визуальное превью требует оконного запуска игры Godot (`fx_preview`).
+- Направление FX зависит от того, как сокет развёрнут модулем-источником; модуль экспорта рамку сокета
+  не исправляет. Без паспорта и `kind` нос GLB угадывается (с предупреждением).
+- `forward_axis: -Z` разворачивает узел `model` в `.tscn`; сам GLB остаётся `+Z`, и запись Space Quest честно
+  пишет ось GLB.
+- `in_place: auto` для петель снимает только чистый снос корня; раскачивание бёдер остаётся в кадре.
+  Кость корня ищется эвристикой (`mixamorig:Hips`, `Hips`, `root`, `pelvis`, иначе первая без родителя),
+  стопы — `mixamorig:LeftFoot/RightFoot`, иначе кости с `foot`/`paw_` в имени.
+- iso8 без `frames` берёт длину клипа (idle зомби 4.4 с → 52 кадра) и режет до `max_frames`; фактическое
+  ускорение пишется в `time_scale`. Профиль HG, как и оригинал, сжимает любой клип в 12 кадров по 12 fps.
+- `event_frame` по умолчанию у юнитов HG — самое частое значение в их `sprites.json` (attack 6 при разбросе
+  4…9); для точного кадра удара нужен `params.event_frames`.
+- Связки «всадник + конь» (действия `<clip>|<скелет>`) поддержаны по соглашению HG, но на реальных
+  ассетах не проверялись.
+- Проверка Godot — без окна: она не оценивает картинку, только загрузку, имена, режимы петель, масштаб и
+  прикрепление. Прошлые прогоны (до этой правки) оставили `%APPDATA%/Godot/app_userdata/af_godot_check`
+  (журналы, кэш шейдеров) — папку можно удалить вручную.

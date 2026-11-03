@@ -1,148 +1,148 @@
-# Views: 3D from several views (ChatGPT or local MV-Adapter)
+# Ракурсы: 3D по нескольким видам (ChatGPT или локальный MV-Adapter)
 
-State as of 2026-10-13. Installation and memory — `docs/forge/views_install.md`, HTTP routes — `docs/forge/API.md` ("Views" section).
+Состояние на 13.10.2026. Установка и память — `docs/forge/views_install.md`, HTTP-маршруты — `docs/forge/API.md` (раздел «Ракурсы»).
 
-## Why
+## Зачем
 
-Hunyuan3D from a single image sees only the front: the back, sides and thickness are inferred. The Hunyuan3D-2mv model accepts
-up to four views at once (front, left, back, right). The more views, the less guessing and the fewer "empty" areas on the back.
-But usually you have **one** view. So the app can create the rest and build 3D from all of them.
+Hunyuan3D по одной картинке видит только перёд: спину, бока и толщину он достраивает. Модель Hunyuan3D-2mv принимает
+до четырёх видов сразу (спереди, слева, сзади, справа). Чем больше видов, тем меньше догадок и тем меньше «пустых» мест на спине.
+Но обычно у вас есть **один** вид. Поэтому приложение умеет создавать остальные и собирать 3D по всем.
 
 ```
-front view (T-pose) ──► views: left / back / right ──► one frame (1536², long side 1280)
-        │                  ChatGPT | MV-Adapter | your files        │
+вид спереди (T-поза) ──► ракурсы: слева / сзади / справа ──► один кадр (1536², длинная сторона 1280)
+        │                  ChatGPT | MV-Adapter | ваши файлы        │
         └────────────────────────────────────────────────────────────┴──► Hunyuan3D-2mv ──► GLB
 ```
 
-## What creates the views
+## Что создаёт ракурсы
 
-| Source | How it works | Speed (RTX 4070) | Strengths | Weaknesses |
+| Источник | Как работает | Скорость (RTX 4070) | Сильные стороны | Слабые стороны |
 |---|---|---|---|---|
-| **ChatGPT** | the Codex app on a ChatGPT subscription, no API key; each view is sent the source image (and the back, if already done) | 57-65 s per view, 3 views in ~3 min | keeps style, cut, details of clothing and gear; an honest back | the image goes to OpenAI; depends on the subscription and the ChatGPT queue; the view is not strictly orthographic |
-| **Local (MV-Adapter)** | SDXL base + `mvadapter_i2mv_sdxl`, ComfyUI on port 8190, no internet | ~34 s for all views (640 px, 30 steps), 41 s with preparation | offline, strictly orthographic views at one scale, consistent silhouettes | invents the details at the back and sides (on the test character the back came out with a yoke instead of a solid blue), the style is a bit softer, resolution 640 px |
-| **Your own files** | any slot can be uploaded by yourself (PNG/JPG/WEBP) | — | the most accurate if you have real views | — |
+| **ChatGPT** | приложение Codex по подписке ChatGPT, без API-ключа; на каждый вид уходит исходная картинка (и уже готовая спина) | 57–65 с на вид, 3 вида за ≈3 мин | держит стиль, крой, детали одежды и снаряжения; спина честная | картинка уходит в OpenAI; зависит от подписки и очереди ChatGPT; ракурс не строго ортографический |
+| **Локально (MV-Adapter)** | SDXL base + `mvadapter_i2mv_sdxl`, ComfyUI на порту 8190, без интернета | ≈34 с на все виды (640 px, 30 шагов), 41 с с подготовкой | офлайн, строгие ортографические виды в одном масштабе, силуэты согласованы | детали сзади и сбоку придумывает (на ополченце спина оказалась с «кокеткой» вместо сплошной синей), стиль чуть мягче, разрешение 640 px |
+| **Свои файлы** | любой слот можно загрузить самому (PNG/JPG/WEBP) | — | точнее всего, если у вас есть настоящие виды | — |
 
-Your own views always stay: automatic generation fills only empty slots (the ↻ button on a slot recreates exactly that one).
+Свои виды всегда остаются: автоматическая генерация заполняет только пустые слоты (кнопка ↻ у слота создаёт именно его заново).
 
-Slots: **front, left, back, right**. The convention for their meaning:
+Слоты: **перед, слева, сзади, справа**. Договорённость об их смысле:
 
-- "left" — the camera is on the **character's left-hand** side, the character looks toward the **left edge** of the frame;
-- "right" — the camera is to the character's right, the character looks toward the right edge;
-- for MV-Adapter, azimuth 90° is "left", 270° is "right" (checked on a real run with an asymmetric belt pouch);
-- in a side view of a T-pose the near arm points into the camera (the sleeve/hand is seen end-on), the far one is hidden behind the body: the ChatGPT prompt demands this.
-- the model accepts exactly four views; two more (front-left 45°, front-right 315°) are supported only by the API and CLI (`frontLeft`, `frontRight`, they do not affect 3D).
+- «слева» — камера со стороны **левой руки персонажа**, персонаж смотрит к **левому краю** кадра;
+- «справа» — камера справа от персонажа, он смотрит к правому краю;
+- у MV-Adapter азимут 90° — это «слева», 270° — «справа» (проверено на реальном прогоне по асимметричному поясному кошельку);
+- в боковом виде T-позы ближняя рука направлена в камеру (видна рукав/кисть «в торец»), дальняя спрятана за телом: промпт для ChatGPT это требует.
+- модель принимает ровно четыре вида; ещё два (перед-слева 45°, перед-справа 315°) умеют только API и CLI (`frontLeft`, `frontRight`, на 3D не влияют).
 
-All views are cut out of the background (rembg + a colour mask for the grey studio background), brought to one figure height and placed in a shared frame:
-a white 1536 px square, long side 1280 px (the same as ordinary concept preparation does). The floor shadow is removed.
+Все виды вырезаются из фона (rembg + маска по цвету для серого студийного фона), приводятся к одной высоте фигуры и ставятся в общий кадр:
+белый квадрат 1536 px, длинная сторона 1280 px (то же, что делает обычная подготовка концепта). Тень на полу убирается.
 
-## How to use: the studio
+## Как пользоваться: студия
 
-The "Create" tab, the **"Views"** block under "Concept image":
+Вкладка «Создать», блок **«Ракурсы»** под «Изображением концепта»:
 
-1. Upload the front view (a character in a T-pose, preferably without a weapon: a weapon in the hands confuses the side views).
-2. Choose the source: "ChatGPT" or "Local". The **"Generate views"** button fills the empty slots; progress is shown at the top, and you can cancel.
-3. You can drag your own file into any slot or click the upload icon. Hovering over a finished slot offers: replace, recreate, remove.
-4. Above the button is the **"3D engine"** switch: **Pixal3D** (more accurate and crisper, about 4 minutes, ~10 GB VRAM; the default if installed) or **Hunyuan3D-2mv**
-   (faster, softer shape). Details and numbers — `docs/forge/pixal3d.md`.
-5. **"Create 3D from views"**: an ordinary generation job (queue, cancel, "Results" history), quality and seed come from the "Geometry quality" block below
-   (Pixal3D has no quality switch). If there is only one view (just the front), the button is inactive: for one view there is the ordinary button.
+1. Загрузите вид спереди (персонаж в T-позе, лучше без оружия: оружие в руках путает боковые виды).
+2. Выберите источник: «ChatGPT» или «Локально». Кнопка **«Сгенерировать ракурсы»** заполнит пустые слоты; сверху видно ход работы, можно отменить.
+3. В любой слот можно перетащить свой файл или нажать значок загрузки. При наведении на готовый слот: заменить, создать заново, убрать.
+4. Над кнопкой — переключатель **«Движок 3D»**: **Pixal3D** (точнее и чётче, около 4 минут, ≈10 ГБ видеопамяти; по умолчанию, если установлен) или **Hunyuan3D-2mv**
+   (быстрее, форма мягче). Подробности и цифры — `docs/forge/pixal3d.md`.
+5. **«Создать 3D по ракурсам»**: обычное задание генерации (очередь, отмена, история «Результаты»), качество и seed — из блока «Качество геометрии» ниже
+   (у Pixal3D переключателя качества нет). Если ракурс один (только перёд), кнопка не активна: для одного вида есть обычная кнопка.
 
-The result is loaded into the scene as after an ordinary generation. In "Results" such a model is labelled "Model from views (N views)" (for Pixal3D prefixed "Pixal3D ·"),
-"Re-extract the surface" works for Hunyuan3D (the sample is taken from the engine cache: a repeat took 3 s); Pixal3D has no such button.
+Результат загружается в сцену, как после обычной генерации. В «Результатах» такая модель подписана «Модель по ракурсам (N вида)» (у Pixal3D с приставкой «Pixal3D ·»),
+«Переизвлечь поверхность» работает для Hunyuan3D (выборка берётся из кеша движка: повтор занял 3 с); у Pixal3D этой кнопки нет.
 
-## How to use: the command line
+## Как пользоваться: командная строка
 
 ```
-# 1. views
+# 1. ракурсы
 node scripts/views/views_generate.mjs --input front.png --out views/codex     --provider codex
 node scripts/views/views_generate.mjs --input front.png --out views/mvadapter --provider mvadapter
-#    your own view + the missing ones from ChatGPT:
+#    свой ракурс + недостающее от ChatGPT:
 node scripts/views/views_generate.mjs --input front.png --out views/mix --provider codex --manual back=my_back.png
-#    redo just one view:
+#    только один вид заново:
 node scripts/views/views_generate.mjs --out views/codex --provider codex --slots left --overwrite
-#    what is ready to work:
+#    что готово к работе:
 node scripts/views/views_generate.mjs --status
 
-# 2. 3D from any set of views (front is required)
+# 2. 3D по любому набору видов (перед обязателен)
 node scripts/views/views_3d.mjs --views views/codex --out mesh_4v.glb --quality high --seed 703
 node scripts/views/views_3d.mjs --views views/codex --out mesh_2v.glb --slots front,back
-#    engine: --engine pixal3d | hunyuan | auto (default auto = Pixal3D if installed); Pixal3D has its own --seed (1000) and --faces (700000)
+#    движок: --engine pixal3d | hunyuan | auto (по умолчанию auto = Pixal3D, если установлен); у Pixal3D свои --seed (1000) и --faces (700000)
 node scripts/views/views_3d.mjs --views views/codex --out mesh_px.glb --engine pixal3d
 
-# 3. untextured comparison (Blender) and a summary sheet
-blender -b --factory-startup --python scripts/views/compare_render.py -- <renders folder> label=mesh.glb ...
-python scripts/views/compare_sheet.py <renders folder> spec.json views_3d_compare.png
+# 3. сравнение без текстур (Blender) и сводный лист
+blender -b --factory-startup --python scripts/views/compare_render.py -- <папка рендеров> метка=mesh.glb ...
+python scripts/views/compare_sheet.py <папка рендеров> spec.json views_3d_compare.png
 python scripts/views/contact_sheet.py views_sheet.jpg "ChatGPT=views/codex" "MV-Adapter=views/mvadapter"
 ```
 
-`views_generate` parameters: `--slots left,back,right,frontLeft,frontRight`, `--seed`, `--size 512|640|768` (the app lowers 768 to 640 by itself),
-`--steps`, `--note "character details for ChatGPT"`, `--aspect 3:4`, `--comfy http://127.0.0.1:8190`. The Python scripts run from the ComfyUI environment (`<ComfyUI dir>/.venv`).
-As a library: `import { views_generate } from './scripts/views/views_generate.mjs'`.
+Параметры `views_generate`: `--slots left,back,right,frontLeft,frontRight`, `--seed`, `--size 512|640|768` (768 приложение само снизит до 640),
+`--steps`, `--note "детали персонажа для ChatGPT"`, `--aspect 3:4`, `--comfy http://127.0.0.1:8190`. Python-скрипты запускаются из окружения ComfyUI (`D:/ComfyUI/.venv`).
+Как библиотека: `import { views_generate } from './scripts/views/views_generate.mjs'`.
 
-## The set folder
+## Папка набора
 
 ```
-<folder>/views.json                  sources, seconds, prompts, seed, progress of the last run
-<folder>/front.png left.png back.png right.png   the finished set in one frame (the same as norm/norm_<slot>.png)
-<folder>/raw/<slot>.png              as received (ChatGPT, MV-Adapter, uploaded by you)
-<folder>/norm/norm_<slot>.png        shape generator input: white 1536² frame, shared scale
-<folder>/norm/cut_<slot>.png         the same with a transparent background; thumb_<slot>.jpg — thumbnail; frame.json — frame and scales
-<folder>/work/                       intermediate (provider images, the MV-Adapter reference frame)
+<папка>/views.json                  источники, секунды, промпты, seed, ход последнего запуска
+<папка>/front.png left.png back.png right.png   готовый набор в одном кадре (то же, что norm/norm_<слот>.png)
+<папка>/raw/<слот>.png              как получено (ChatGPT, MV-Adapter, загружено вами)
+<папка>/norm/norm_<слот>.png        вход генератора формы: белый кадр 1536², общий масштаб
+<папка>/norm/cut_<слот>.png         то же с прозрачным фоном; thumb_<слот>.jpg — миниатюра; frame.json — кадр и масштабы
+<папка>/work/                       промежуточное (картинки провайдеров, опорный кадр MV-Adapter)
 ```
 
-In the studio the sets live in `data/views/<id>/` (not in git). A set is bound to a concept: the same concept opens the same set.
+В студии наборы лежат в `data/views/<id>/` (не в git). Набор привязан к концепту: тот же концепт открывает тот же набор.
 
-## Result on the test character (T-pose, no weapon)
+## Результат на ополченце (T-поза, без оружия)
 
-Input: `front_tpose.png` of the test character. Results in `views/`: `views_sheet.jpg` (views from the two sources),
-`views_3d_compare.png` and `views_3d_compare_seed11.png` (untextured models: front, left, back, 3/4), `views_3d_compare*.json` (numbers),
-`codex/` and `mvadapter/` (sets with all files and `views.json`). The best four-view model: `mv/mesh_mv_views4.glb`
-(ChatGPT, seed 703; normalisation the same as the other `mesh_mv_*.glb`: raw ComfyUI output, height axis +-1).
+Вход: `C:/AstraForge/incoming/units_1013/militia/front_tpose.png`. Результаты в `…/militia/views/`: `views_sheet.jpg` (виды двух источников),
+`views_3d_compare.png` и `views_3d_compare_seed11.png` (модели без текстур: спереди, слева, сзади, 3/4), `views_3d_compare*.json` (числа),
+`codex/` и `mvadapter/` (наборы со всеми файлами и `views.json`). Лучшая модель по четырём видам: `…/militia/mv/mesh_mv_views4.glb`
+(ChatGPT, seed 703; нормировка та же, что у остальных `mesh_mv_*.glb`: сырой выход ComfyUI, ось по высоте ±1).
 
-View creation: ChatGPT 57 / 64 / 65 s (left / back / right, 3 views 191 s); MV-Adapter 33.8 s for three views together (41 s with preparation).
-Hunyuan3D-2mv, "Detailed" quality (45 steps, 512³): 2 views 153-156 s, 4 views 176-180 s.
+Создание ракурсов: ChatGPT 57 / 64 / 65 с (слева / сзади / справа, 3 вида 191 с); MV-Adapter 33,8 с на три вида вместе (41 с с подготовкой).
+Hunyuan3D-2mv, качество «Детально» (45 шагов, 512³): 2 вида 153–156 с, 4 вида 176–180 с.
 
-Silhouette IoU (render of the untextured model against the image; 1 — a match; two seeds each):
+IoU силуэта (рендер модели без текстуры против изображения; 1 — совпадение; по два seed):
 
-| Set | seed | front | left | back | right |
+| Набор | seed | спереди | слева | сзади | справа |
 |---|---|---|---|---|---|
-| ChatGPT, 2 views (front + back) | 703 | 0.905 | 0.790 | 0.875 | 0.789 |
-| ChatGPT, 2 views | 11 | 0.925 | 0.790 | 0.902 | 0.789 |
-| **ChatGPT, 4 views** | 703 | **0.936** | 0.847 | 0.924 | 0.843 |
-| **ChatGPT, 4 views** | 11 | **0.932** | 0.849 | 0.906 | 0.846 |
-| MV-Adapter, 4 views | 703 | 0.934 | 0.895 | 0.937 | 0.896 |
-| MV-Adapter, 4 views | 11 | 0.926 | 0.876 | 0.929 | 0.876 |
+| ChatGPT, 2 вида (перед + сзади) | 703 | 0,905 | 0,790 | 0,875 | 0,789 |
+| ChatGPT, 2 вида | 11 | 0,925 | 0,790 | 0,902 | 0,789 |
+| **ChatGPT, 4 вида** | 703 | **0,936** | 0,847 | 0,924 | 0,843 |
+| **ChatGPT, 4 вида** | 11 | **0,932** | 0,849 | 0,906 | 0,846 |
+| MV-Adapter, 4 вида | 703 | 0,934 | 0,895 | 0,937 | 0,896 |
+| MV-Adapter, 4 вида | 11 | 0,926 | 0,876 | 0,929 | 0,876 |
 
-How to read it. The only real image here is the front view (it is also the input in every variant): the mean over two seeds is 0.915 for two views, 0.934 for four
-ChatGPT views and 0.930 for four MV-Adapter views. The gain on the front view is small (on seed 11 it is within the seed spread). The IoU for the left, back and right views shows
-how closely the model sticks to the images given to it, not to the truth: with two views the model simply has no side images (0.79), with four the views match at 0.84-0.90.
-The real gain is visible by eye (sheet `views_3d_compare.png`): with two views the sides and thickness are inferred (the helmet and tunic "float" in profile), with four the profile,
-belt, pouch and boots read well, and the back repeats the supplied view.
+Как читать. Единственная настоящая картинка здесь — вид спереди (он же вход во всех вариантах): среднее по двум seed 0,915 у двух видов, 0,934 у четырёх
+видов ChatGPT и 0,930 у четырёх видов MV-Adapter. Прирост на переднем виде невелик (на seed 11 он в пределах разброса seed). IoU по виду слева, сзади и справа показывает,
+насколько модель держится за поданные ей картинки, а не за истину: у двух видов боковых картинок в модели просто нет (0,79), с четырьмя виды совпадают на 0,84–0,90.
+Настоящий выигрыш виден глазами (лист `views_3d_compare.png`): с двух видов бока и толщина достраиваются (шлем и туника «плывут» в профиле), с четырьмя профиль,
+пояс, кошелёк и сапоги читаются, спина повторяет поданный вид.
 
-An honest verdict on the sources for this character:
+Честный вердикт по источникам на этом персонаже:
 
-- **ChatGPT**: the views are very close to the source in cut, colour and detail; the side views came out as real profiles with the arm "into the camera", the back is plausible (belt, pouch on the character's right).
-  The model from these views is the most detailed and the most faithful. Downside: a minute per view, a subscription is needed, the image goes to OpenAI.
-- **MV-Adapter**: fast, offline, the views are strictly orthographic and consistent with each other, so the silhouettes in 3D match the images better (0.88-0.90).
-  But the details are invented: on the back, instead of a solid blue tunic, a light "yoke" appeared, the figure in profile is fuller than the original, the resolution is low (640 px).
-  Fine for a draft and when going online is not allowed; for a final character ChatGPT or your own views are better.
-- Left/right check (views supplied with the sides swapped): the model barely reacts to the swap (silhouettes and pouch stay in place), so a convention error would be hard to notice here;
-  the convention was chosen by the model's view order (front, left, back, right: the camera circles the character counter-clockwise seen from above) and matches the MV-Adapter azimuths.
+- **ChatGPT**: ракурсы очень близки к исходнику по крою, цвету и деталям; боковые виды получились настоящими профилями с рукой «в камеру», спина правдоподобная (пояс, кошелёк справа от персонажа).
+  Модель по этим видам самая детальная и самая верная. Минус: минута на вид, нужна подписка, картинка уходит в OpenAI.
+- **MV-Adapter**: быстро, офлайн, виды строго ортографические и согласованы между собой, поэтому силуэты в 3D лучше совпадают с картинками (0,88–0,90).
+  Но детали придуманы: на спине вместо сплошной синей туники появилась светлая «кокетка», фигура в профиле плотнее оригинала, разрешение невысокое (640 px).
+  Годится для черновика и когда нельзя выходить в сеть; для финального персонажа лучше ChatGPT или свои виды.
+- Проверка «лево/право» (поданы виды, обмененные местами): модель почти не реагирует на перестановку (силуэты и кошелёк на месте), поэтому ошибка соглашения здесь была бы незаметна;
+  соглашение выбрано по порядку видов модели (перед, слева, сзади, справа: камера обходит персонажа против часовой стрелки, если смотреть сверху) и совпадает с азимутами MV-Adapter.
 
-## Limitations
+## Ограничения
 
-- ChatGPT draws views rather than renders them: small discrepancies between views are possible (tunic length, fold positions). Hunyuan3D-2mv smooths them but does not fix them.
-- All sources guess the hidden parts. On the test character MV-Adapter got the back wrong; ChatGPT got it mostly right, but that is one character. Check against your own intent.
-- Hunyuan3D-2mv accepts four views; the 45° ones do not affect 3D. The left/right sides were checked by the model's view order and by geometry,
-  but on a symmetric character swapping left/right barely changes the result (checked: the swap gave the same silhouettes).
-- Local MV-Adapter: size <= 640 px with four views on 12 GB; six views only at 512. While it runs the GPU is busy, as in 3D generation (the shared GPU lock).
-- Characters not in a T-pose, four-legged creatures and objects were not checked: the prompts and MV-Adapter are designed for upright figures.
-- 3D from views uses `hunyuan3d-dit-v2-mv.safetensors`; without this model the button returns a clear error.
-- Privacy: the "ChatGPT" source sends the source view (and the back) to OpenAI through the Codex app. "Local" sends nothing.
+- ChatGPT рисует виды, а не рендерит: между видами возможны мелкие расхождения (длина туники, положение складок). Hunyuan3D-2mv их сглаживает, но не исправляет.
+- Все источники угадывают скрытое. На ополченце MV-Adapter ошибся в спине; ChatGPT ошибся мало, но это один персонаж. Сверяйте со своим замыслом.
+- Hunyuan3D-2mv принимает четыре вида; 45° на 3D не влияет. Левая/правая стороны проверены по порядку видов модели и по геометрии,
+  но на симметричном персонаже перестановка слева/справа результата почти не меняет (проверено: перестановка дала те же силуэты).
+- Локальный MV-Adapter: размер ≤640 px при четырёх видах на 12 ГБ; шесть видов только в 512. Во время его работы видеокарта занята, как при генерации 3D (общий замок видеокарты).
+- Персонажи не в T-позе, существа на четырёх лапах и предметы не проверялись: промпты и MV-Adapter рассчитаны на фигуры, стоящие прямо.
+- 3D по ракурсам использует `hunyuan3d-dit-v2-mv.safetensors`; без этой модели кнопка вернёт понятную ошибку.
+- Конфиденциальность: источник «ChatGPT» отправляет исходный вид (и спину) в OpenAI через приложение Codex. «Локально» ничего не отправляет.
 
-## Files
+## Файлы
 
-`scripts/views/` — `views_generate.mjs` (the `views_generate` entry), `views_3d.mjs`, `codex_image.mjs`, `views_mvadapter.mjs`, `views_prompts.mjs`,
-`views_prep.py` (cut-out and shared frame), `make_sdxl_config.py`, `compare_render.py`, `compare_sheet.py`, `contact_sheet.py`, `comfy_client.mjs`.
-Server: `server/views.mjs` (`/api/views` routes), `server/schema.mjs` (`hunyuanMultiViewWorkflow`, `viewSetId`), `server/jobs.mjs` (the multi-view job branch).
-Interface: `src/ViewsPanel.jsx`, `src/views.css`. ComfyUI node: `data/runtime/custom_nodes/ComfyUI-MVAdapter/` (`astra_views.py`). Tests: `tests/views.test.mjs`.
+`scripts/views/` — `views_generate.mjs` (вход `views_generate`), `views_3d.mjs`, `codex_image.mjs`, `views_mvadapter.mjs`, `views_prompts.mjs`,
+`views_prep.py` (вырезание и общий кадр), `make_sdxl_config.py`, `compare_render.py`, `compare_sheet.py`, `contact_sheet.py`, `comfy_client.mjs`.
+Сервер: `server/views.mjs` (маршруты `/api/views`), `server/schema.mjs` (`hunyuanMultiViewWorkflow`, `viewSetId`), `server/jobs.mjs` (ветка многоракурсной задачи).
+Интерфейс: `src/ViewsPanel.jsx`, `src/views.css`. Узел ComfyUI: `data/runtime/custom_nodes/ComfyUI-MVAdapter/` (`astra_views.py`). Тесты: `tests/views.test.mjs`.

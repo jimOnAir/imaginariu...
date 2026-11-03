@@ -1,30 +1,30 @@
-# Views: what is installed and how (MV-Adapter in its own ComfyUI)
+# Ракурсы: что установлено и как (MV-Adapter в собственном ComfyUI)
 
-State as of 2026-10-13. Relates to `docs/forge/views.md`. Everything downloaded was explicitly authorised:
-the `huanngzh/mv-adapter` weights, the `huanngzh/ComfyUI-MVAdapter` node and the Python packages of this node. Nothing else was downloaded
-(no BiRefNet, no other VAE, no SDXL in diffusers format).
+Состояние на 13.10.2026. Относится к `docs/forge/views.md`. Всё скачанное разрешено владельцем:
+веса `huanngzh/mv-adapter`, узел `huanngzh/ComfyUI-MVAdapter` и Python-пакеты этого узла. Ничего больше не скачивалось
+(ни BiRefNet, ни другого VAE, ни SDXL в формате diffusers).
 
-## What and where
+## Что и куда
 
-| What | From | To | Size |
+| Что | Откуда | Куда | Размер |
 |---|---|---|---|
-| `mvadapter_i2mv_sdxl.safetensors` (Apache-2.0) | huggingface.co/huanngzh/mv-adapter | `data/models/mvadapter/` | 3.60 GB |
-| ComfyUI-MVAdapter node 1.0.2 (Apache-2.0) | github.com/huanngzh/ComfyUI-MVAdapter (zip of the main branch) | `data/runtime/custom_nodes/ComfyUI-MVAdapter/` | 0.5 MB without the README images |
-| SDXL configs and tokenizers (no weights) | assembled locally by `scripts/views/make_sdxl_config.py` from ComfyUI files and the published SDXL base values | `data/models/mvadapter/sdxl-config/` | 2 MB |
-| SDXL base 1.0 and its own VAE | already present: `<ComfyUI dir>/models/checkpoints/sd_xl_base_1.0.safetensors` | — | — |
+| `mvadapter_i2mv_sdxl.safetensors` (Apache-2.0) | huggingface.co/huanngzh/mv-adapter | `data/models/mvadapter/` | 3,60 ГБ |
+| узел ComfyUI-MVAdapter 1.0.2 (Apache-2.0) | github.com/huanngzh/ComfyUI-MVAdapter (zip ветки main) | `data/runtime/custom_nodes/ComfyUI-MVAdapter/` | 0,5 МБ без картинок README |
+| конфиги и токенайзеры SDXL (без весов) | собраны локально `scripts/views/make_sdxl_config.py` из файлов ComfyUI и опубликованных значений SDXL base | `data/models/mvadapter/sdxl-config/` | 2 МБ |
+| SDXL base 1.0 и его собственный VAE | уже были: `D:/ComfyUI/models/checkpoints/sd_xl_base_1.0.safetensors` | — | — |
 
-The node is added to the launch whitelist: `server/runtime.mjs` now starts ComfyUI with
-`--whitelist-custom-nodes AstraForgeMesh ComfyUI-MVAdapter` and the variables `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`
-(a safeguard: no node of this engine will go to the network).
+Узел внесён в белый список запуска: `server/runtime.mjs` теперь стартует ComfyUI с
+`--whitelist-custom-nodes AstraForgeMesh ComfyUI-MVAdapter` и переменными `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`
+(страховка: ни один узел этого движка не пойдёт в сеть).
 
-## Python packages (`<ComfyUI dir>/.venv`)
+## Python-пакеты (`D:/ComfyUI/.venv`)
 
-Before installation a `pip freeze` was saved (131 lines). Only missing packages were installed, with version constraints
-`pip install -c freeze_before.txt ...`: pip could not touch any package that was already installed. Summary of the before/after diff:
+Перед установкой сохранён `pip freeze` (131 строка). Ставились только отсутствующие пакеты, с ограничением версий
+`pip install -c freeze_before.txt …`: pip не мог тронуть ни один уже стоящий пакет. Резюме diff до/после:
 
 ```diff
 + accelerate==1.15.0
-+ antlr4-python3-runtime==4.9.3        # needed by omegaconf, which was already installed without it
++ antlr4-python3-runtime==4.9.3        # нужен omegaconf, который уже стоял без него
 + diffusers==0.40.0
 + importlib_metadata==9.0.1
 + peft==0.21.2
@@ -33,11 +33,11 @@ Before installation a `pip freeze` was saved (131 lines). Only missing packages 
 + zipp==4.1.1
 ```
 
-In total 139 lines against 131: eight additions, zero changes, zero removals.
+Итого 139 строк против 131: восемь добавлений, ноль изменений, ноль удалений.
 
-Verified after installation (versions the same as before):
+Проверено после установки (версии те же, что до):
 
-| Package | Before | After |
+| Пакет | До | После |
 |---|---|---|
 | torch | 2.11.0+cu128 | 2.11.0+cu128 |
 | torchvision | 0.26.0+cu128 | 0.26.0+cu128 |
@@ -45,53 +45,53 @@ Verified after installation (versions the same as before):
 | numpy | 2.5.2 | 2.5.2 |
 | transformers | 5.15.1 | 5.15.1 |
 | huggingface_hub | 1.28.0 | 1.28.0 |
-| safetensors, tokenizers, pillow, scipy | 0.8.0, 0.22.2, 12.3.0, 1.18.0 | unchanged |
+| safetensors, tokenizers, pillow, scipy | 0.8.0, 0.22.2, 12.3.0, 1.18.0 | без изменений |
 
-`pip check` reports one remark that existed before the installation: `submitit 1.5.4 requires cloudpickle`
-(the submitit package is needed by demucs and has nothing to do with views).
+`pip check` сообщает одно замечание, существовавшее и до установки: `submitit 1.5.4 requires cloudpickle`
+(пакет submitit нужен demucs, к ракурсам отношения не имеет).
 
-The node's `requirements.txt` demands `diffusers==0.31.0`, `transformers==4.46.3`, `huggingface_hub==0.24.6`,
-`accelerate==1.1.1`. That would downgrade `transformers` 5.15.1 and `huggingface_hub` 1.28.0, on which the rest of ComfyUI runs,
-so the pins were not applied. The node manifest (`pyproject.toml`) allows `>=`, so `diffusers 0.40` is fine.
+Файл `requirements.txt` узла требует `diffusers==0.31.0`, `transformers==4.46.3`, `huggingface_hub==0.24.6`,
+`accelerate==1.1.1`. Это понизило бы `transformers` 5.15.1 и `huggingface_hub` 1.28.0, на которых работает остальной ComfyUI,
+поэтому закрепления не применялись. Манифест узла (`pyproject.toml`) допускает `>=`, так что `diffusers 0.40` подходит.
 
-Before/after files: `docs/forge/views_freeze_before.txt`, `docs/forge/views_freeze_after.txt`.
+Файлы до/после: `docs/forge/views_freeze_before.txt`, `docs/forge/views_freeze_after.txt`.
 
-## Node patches (list in `data/runtime/custom_nodes/ComfyUI-MVAdapter/NOTICE-ASTRAFORGE.md`)
+## Правки узла (список в `data/runtime/custom_nodes/ComfyUI-MVAdapter/NOTICE-ASTRAFORGE.md`)
 
-1. `utils.local_sdxl_config()` and `LdmPipelineLoader`: `from_single_file(config=<local folder>, local_files_only=True)`.
-   Without this diffusers goes to huggingface.co for the SDXL configs.
-2. `enable_vae_slicing/tiling` in diffusers 0.40 moved from the pipeline to `pipeline.vae`: a fallback path is added.
-3. A new node `AstraMVAdapterViews` (`astra_views.py`): loading, generation and freeing of VRAM in a single node.
-   The stock nodes keep the entire pipeline (~8 GB) on the GPU between jobs, which gets in the way of Hunyuan3D in the same process.
-   The node: `unload_all_models()` before work, manual offload of the text encoders and VAE (`offload=text+vae`), full memory return afterwards.
+1. `utils.local_sdxl_config()` и `LdmPipelineLoader`: `from_single_file(config=<локальная папка>, local_files_only=True)`.
+   Без этого diffusers идёт за конфигами SDXL на huggingface.co.
+2. `enable_vae_slicing/tiling` в diffusers 0.40 переехали с pipeline на `pipeline.vae`: добавлен запасной путь.
+3. Новый узел `AstraMVAdapterViews` (`astra_views.py`): загрузка, генерация и освобождение видеопамяти одним узлом.
+   Штатные узлы держат весь pipeline (≈8 ГБ) на видеокарте между заданиями, что мешает Hunyuan3D в том же процессе.
+   Узел: `unload_all_models()` до работы, ручной offload текстовых энкодеров и VAE (`offload=text+vae`), полный возврат памяти после.
 
-Why not `enable_model_cpu_offload`: accelerate copies kwargs dictionaries, while MV-Adapter passes the cache of reference hidden
-states inside a dictionary: the cache was lost (`KeyError: ...attn1.processor`). Manual offload does not do this.
+Почему не `enable_model_cpu_offload`: accelerate копирует словари kwargs, а MV-Adapter передаёт кеш опорных скрытых
+состояний внутри словаря: кеш терялся (`KeyError: …attn1.processor`). Ручной offload этого не делает.
 
-## Memory and speed (RTX 4070 12 GB, 4 views, 30 steps)
+## Память и скорость (RTX 4070 12 ГБ, 4 вида, 30 шагов)
 
-Peak `torch.cuda.max_memory_allocated`; the system desktop takes another ~1.3 GB:
+Пик `torch.cuda.max_memory_allocated`, в системе ещё ≈1,3 ГБ занимает рабочий стол:
 
-| Size | VRAM peak | Time | Conclusion |
+| Размер | Пик видеопамяти | Время | Вывод |
 |---|---|---|---|
-| 512x512 | 8.7 GB | 3 steps in 3.6 s (~10 s after loading the weights) | fits with margin |
-| 640x640 | 9.7 GB | 34 s for the whole job (30 steps) | **default** |
-| 768x768 | 11.0 GB (12.5 without manual offload) | 77 s for 3 steps including loading: the GPU spills to swap | do not use |
+| 512×512 | 8,7 ГБ | 3 шага за 3,6 с (после загрузки весов ≈10 с) | помещается с запасом |
+| 640×640 | 9,7 ГБ | 34 с на всё задание (30 шагов) | **по умолчанию** |
+| 768×768 | 11,0 ГБ (без ручного offload 12,5) | 77 с за 3 шага вместе с загрузкой: видеокарта уходит в подкачку | не использовать |
 
-Six views (45° added) are computed only at 512. Without manual offload the peak at 640 would be ~11 GB.
-The app limits the size itself (`safeSize`) and on an out-of-memory error repeats at 512.
+Шесть видов (добавлены 45°) считаются только в 512. Без ручного offload пик на 640 был бы ≈11 ГБ.
+Приложение само ограничивает размер (`safeSize`) и при ошибке нехватки памяти повторяет в 512.
 
-## How to check after a reinstall
+## Как проверить после переустановки
 
 ```
-node scripts/views/views_generate.mjs --status          # codex.available and mvadapter.ready must be true
+node scripts/views/views_generate.mjs --status          # codex.available и mvadapter.ready должны быть true
 node scripts/views/views_generate.mjs --input front.png --out out --provider mvadapter
 ```
 
-If `mvadapter.ready=false`: no weights, no `sdxl-config` (run `scripts/views/make_sdxl_config.py`)
-or ComfyUI was started before the node was installed (Stop.cmd, then Start.cmd).
+Если `mvadapter.ready=false`: нет весов, нет `sdxl-config` (запустите `scripts/views/make_sdxl_config.py`)
+или ComfyUI запущен до установки узла (Stop.cmd, затем Start.cmd).
 
-## What is not done
+## Что не сделано
 
-The installer (`installer/Install.ps1`) does not download the MV-Adapter weights and node: this is a maintainer decision
-(for licensing, the line is already in `THIRD_PARTY_NOTICES.md`).
+В установщик (`installer/Install.ps1`) загрузка весов MV-Adapter и узла не добавлена: это решает владелец
+(по лицензиям строка уже внесена в `THIRD_PARTY_NOTICES.md`).

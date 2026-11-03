@@ -1,192 +1,215 @@
-# Ships module: ship_gen, turret_gen, ship_from_mesh
+# Модуль «корабли»: ship_gen, turret_gen, ship_from_mesh
 
-Three steps of the Blender worker, following `docs/FORGE-CONTRACT.md`:
+Три шага Blender-воркера по контракту Space Quest (SQ) и `docs/FORGE-CONTRACT.md`:
 
-| Step | What it does |
+| Шаг | Что делает |
 |---|---|
-| `ship_gen` | procedural sci-fi ship: 9 roles x 3 layouts x 4 factions, seed, livery, LOD0/1/2, sockets, COL_SIMPLE, manifest |
-| `turret_gen` | turret with a `socket_mount -> pivot_yaw -> pivot_pitch -> socket_muzzle_NN` rig and three glTF clips |
-| `ship_from_mesh` | AI-generated ship mesh -> seam welding, orientation, scale, decimation to a budget, `AF_*` materials, heuristic sockets with confidence |
+| `ship_gen` | процедурный корабль: 9 ролей × 3 раскладки × 4 фракции, сид, ливрея, LOD0/1/2, сокеты, COL_SIMPLE, манифест SQ |
+| `turret_gen` | турель с ригом SQ `socket_mount → pivot_yaw → pivot_pitch → socket_muzzle_NN` и тремя клипами glTF |
+| `ship_from_mesh` | сгенерированный ИИ меш корабля → сварка швов, ориентация, масштаб, децимация под бюджет, материалы SQ, сокеты по эвристикам с уверенностью |
 
-Files: `scripts/blender/steps/ship_gen.py`, `turret_gen.py`, `ship_from_mesh.py`, shared code in `steps/_ship_lib.py`,
-tests in `scripts/blender/tests/test_ships.py`.
+Файлы: `scripts/blender/steps/ship_gen.py`, `turret_gen.py`, `ship_from_mesh.py`, общий код `steps/_ship_lib.py`,
+тесты `scripts/blender/tests/test_ships.py`, картинки `docs/forge/img/ships/`.
 
-## Axes, names, sockets
+## Оси, имена, сокеты
 
-- Blender: nose **+Y**, up +Z, starboard +X, mirror at X = 0; glTF (`export_yup`): nose **-Z**, up +Y. The root is at the
-  center of the bounding box (check `origin_x_centered` <= 1 cm); the length is exactly `length_m` (+/- 3 %).
-- Meshes `M_hull_<material>` (joined by material, 7-8 surfaces); a turret has `M_root_*`, `M_yaw_*`, `M_pitch_*`,
-  `M_barrel_steeltrim`. Collision `COL_SIMPLE-convcolonly`, <= 64 vertices. LODs are separate files `*_lod1.glb`, `*_lod2.glb`.
-- Materials come only from the `AF_*` library with PBR values; faction and livery change values, not names. Glass uses
-  `alphaMode BLEND`, emission lives in separate materials.
-- Sockets `socket_<kind>_<place>`; the place vocabulary is `forward`/`aft`, `port`/`starboard`, `dorsal`/`ventral`, `main`.
-  `extras`: `game_socket`, `kind`, `size_class` on turret/thruster/launcher/cargo, `mount_d_m` on turret mounts
-  (ring diameter) **and on every `socket_thruster_*`** (nozzle exit diameter, m; `godot_package` uses it to scale
-  effects), `fx` and `side`/`color` on lights, `frame` on thrusters, `confidence`/`heuristic` on ship_from_mesh. The check
-  `thruster_mount_d_m` (error) reads `mount_d_m > 0` on all thrusters from the GLB.
-- Frames: turret/utility/dock/sensor/lights - Blender +Z outward, +Y forward (glTF +Y outward, -Z forward). Lights:
-  `socket_fx_nav_port` (red) at -X, outward -X; `socket_fx_nav_starboard` (green) at +X, outward +X - the check
-  `nav_lights_sides` reads this from the GLB. Muzzle: glTF -Z = firing direction.
-- The thruster frame is selectable through the `thruster_frame` parameter: `thrust` (default, glTF -Z = thrust, i.e.
-  forward along the ship) or `exhaust` (glTF -Z = exhaust, same as the muzzle). The chosen frame is written to
-  `extras.frame` and to the manifest `axis`; the check `thruster_frame` compares it against the GLB.
+- Blender: нос **+Y**, верх +Z, правый борт +X, зеркало X = 0; glTF (`export_yup`): нос **−Z**, верх +Y. Корень —
+  в центре габарита (проверка `origin_x_centered` ≤ 1 см), длина ровно `length_m` (± 3 %).
+- Меши `M_hull_<материал>` (join по материалу, 7–8 поверхностей), турель — `M_root_*`, `M_yaw_*`, `M_pitch_*`,
+  `M_barrel_steeltrim`. Коллизия `COL_SIMPLE-convcolonly`, ≤ 64 вершин. LOD — отдельные файлы `*_lod1.glb`, `*_lod2.glb`.
+- Материалы — только библиотека `SQ_*` с PBR-значениями флота из `build_all_concepts.py`; фракция и ливрея меняют
+  значения, не имена. Стекло — `alphaMode BLEND`, эмиссия — отдельными материалами.
+- Сокеты `socket_<вид>_<место>`, место — словарь SQ: `forward`/`aft`, `port`/`starboard`, `dorsal`/`ventral`, `main`.
+  `extras`: `game_socket`, `kind`, `size_class` у turret/thruster/launcher/cargo, `mount_d_m` у турельных гнёзд
+  (диаметр кольца) **и у каждого `socket_thruster_*`** (диаметр среза сопла, м; по нему `godot_package` масштабирует
+  эффекты), `fx` и `side`/`color` у огней, `frame` у сопел, `confidence`/`heuristic` у ship_from_mesh. Проверка
+  `thruster_mount_d_m` (ошибка) читает `mount_d_m > 0` у всех сопел из GLB. В манифест SQ поле не пишется: схема
+  `manifest.schema.json` запрещает лишние поля в строке сокета.
+- Рамки: турель/утилита/док/сенсор/огни — Blender +Z наружу, +Y вперёд (glTF +Y наружу, −Z вперёд). Огни:
+  `socket_fx_nav_port` (красный) на −X, наружу −X; `socket_fx_nav_starboard` (зелёный) на +X, наружу +X — проверка
+  `nav_lights_sides` читает это из GLB. Дуло — glTF −Z = направление выстрела.
+- **Рамка сопла не решена владельцем SQ**, поэтому параметр `thruster_frame`: `thrust` (по умолчанию, glTF −Z = тяга,
+  вперёд по кораблю), `exhaust` (glTF −Z = выхлоп, как у дула), `sq_legacy` (glTF +Y = выхлоп, как `out:[0,-1,0]` в
+  `ship_sq03_gunship.json`). Выбранная рамка пишется в `extras.frame` и в `axis` манифеста; проверка `thruster_frame`
+  сверяет её с GLB.
 
 ## ship_gen
 
-A per-role design function builds the ship into a single bmesh: section lofts (profiles with a waist step for
-military/industrial, a superellipse for sleek, a lobed one for alien), airfoil wings and fins, turned nozzles with a
-glowing interior `AF_EmissiveDrive`, superstructures with a sloped brow and a glazing strip, a cockpit canopy with a frame.
-Panels are `inset` hull faces; large hatches are a raised `AF_SteelTrim` lid (a dark recess read as a hole), side hatches
-are a steel frame with an armored door. On alien ships the glowing seams run along whole hull rings (`inset_region` over a
-row of faces) rather than random rectangles; alien claws are no thinner than ~1.6 % of the length. Greebles are placed by
-rules, the starboard side is mirrored to port. Turret mounts are chosen by priority (side/side pairs together; if one slot
-is left and only pairs are free, the single mount is swapped for a pair).
+Дизайн-функция роли собирает корабль в один bmesh: лофты по сечениям (профили со ступенью талии у military/industrial,
+суперэллипс у sleek, лепестковый у alien), аэропрофильные крылья и кили, токарные сопла со светящейся внутренностью
+`SQ_EmissiveDrive`, надстройки со скошенным лбом и полосой остекления, фонарь кабины с переплётом. Панели — `inset`
+граней корпуса; крупные люки — приподнятая крышка `SQ_SteelTrim` (тёмная впадина читалась как дыра), боковые люки —
+стальная рамка с бронедверью. У alien светящиеся швы идут по целым кольцам корпуса (`inset_region` по ряду граней),
+а не случайными прямоугольниками; когти alien не тоньше ~1,6 % длины. Грибблы ставятся правилами, правый борт
+зеркалится на левый. Турельные гнёзда выбираются по приоритету (пары борт/борт вместе; если остался один слот, а
+свободны только пары — одиночное гнездо меняется на пару).
 
-**Seed variety.** Every role has three layouts (`FAMILIES`), the seed cycles through them - neighbouring seeds never share
-a layout, the starting layout depends on role and faction; `params.layout` sets it explicitly. Proportions, node
-variants, engine count and palette come from an RNG seeded with crc32(seed, role).
+**Разнообразие по сиду.** У каждой роли три раскладки (`FAMILIES`), сид перебирает их по кругу — соседние сиды
+никогда не совпадают по раскладке, стартовая раскладка зависит от роли и фракции; `params.layout` задаёт её явно.
+Пропорции, варианты узлов, число двигателей и палитра берутся из ГСЧ с зерном crc32(сид, роль).
 
-| Role | Layouts |
+| Роль | Раскладки |
 |---|---|
-| fighter, interceptor | `arrow` (wing by style, fins by faction), `twin_boom` (two booms with engines, a stabilizer between them), `dart` (needle, delta at the rear, canard, ventral fin) |
-| gunship | `brick` (hull + superstructure + missile pylons + nacelles), `hammer` (hammerhead across the nose with a bridge and turrets at the ends), `catamaran` (two hulls + central cockpit + wing deck) |
-| corvette | `destroyer` (superstructure amidships), `spear` (bridge near the nose, long deckhouse, nacelles on swept pylons, fin), `arrowhead` (wedge in plan, tower aft, splayed fins) |
-| freighter | `truss` (truss with containers on three sides), `flatbed` (two trusses, 2-3 container columns), `bulk` (solid hull with hold covers and a bridge aft) |
-| miner | `pods` (nacelles on pylons, drills: double/axial/quad), `crane` (manipulators with drills, hoppers on the sides), `scoop` (funnel scoop with ribs, nacelles under the belly) |
-| frigate | `wedge` (wedge, tower aft), `hammer` (hammerhead at the bow, tower amidships, nacelles), `fork` (forked bow with a spinal gun between the prongs) |
-| carrier | `flattop` (solid deck, island), `hangar_pods` (spine + two hangar nacelles with open noses), `stepdeck` (lower flight deck + upper hangar block tapering toward the bow) |
-| transport | `pods` (capsules around a truss, ring), `drums` (2-3 large habitat drums, vertical radiators), `barge` (solid hull with rows of windows, ring, X radiators) |
+| fighter, interceptor | `arrow` (крыло по стилю, кили по фракции), `twin_boom` (две балки с двигателями, стабилизатор между ними), `dart` (игла, дельта сзади, ПГО, подфюзеляжный киль) |
+| gunship | `brick` (корпус + надстройка + пилоны с ракетами + мотогондолы), `hammer` (молот поперёк носа с мостиком и турелями на концах), `catamaran` (два корпуса + центральная кабина + крыло-палуба) |
+| corvette | `destroyer` (надстройка в середине), `spear` (мостик у носа, длинная рубка, гондолы на стреловидных пилонах, киль), `arrowhead` (клин в плане, башня на корме, развал килей) |
+| freighter | `truss` (ферма с контейнерами с трёх сторон), `flatbed` (две фермы, 2–3 колонки контейнеров), `bulk` (сплошной корпус с крышками трюма и мостиком на корме) |
+| miner | `pods` (гондолы на пилонах, буры: двойные/осевой/счетверённые), `crane` (манипуляторы с бурами, бункеры по бортам), `scoop` (ковш-воронка с ребрами, гондолы под днищем) |
+| frigate | `wedge` (клин, башня на корме), `hammer` (молот на носу, башня в середине, гондолы), `fork` (раздвоенный нос со спинальным орудием между зубцами) |
+| carrier | `flattop` (сплошная палуба, остров), `hangar_pods` (хребет + две ангарные гондолы с открытыми носами), `stepdeck` (нижняя полётная палуба + сужающийся к носу верхний ангарный блок) |
+| transport | `pods` (капсулы вокруг фермы, кольцо), `drums` (2–3 больших жилых барабана, вертикальные радиаторы), `barge` (сплошной корпус с рядами окон, кольцо, X-радиаторы) |
 
-`params`: `class` (required), `seed` (1), `layout` (auto | name | index), `length_m` (by role; outside the class range
-the budget class is chosen by length), `faction` industrial|military|sleek|alien (military), `turret_count`,
-`engine_count` (1-6), `wing_style` (fighter/interceptor: auto|none|delta|swept|forward|straight|x|stub|crescent;
-gunship: auto|none|stub), `greeble_density` 0-1 (0.6), `livery` {armor|graphite|trim|panel|glass|status|drive|marking:
-`"#rrggbb"` or `[r,g,b]` linear}, `palette_variant` 0-2, `thruster_frame`, `asset_id`, `tier`, `lods` (true),
-`preview` (true), `preview_turrets` (true: turret copies in the preview only), `preview_size` (300), `uv` smart|box.
-Every clamped, replaced or ignored value produces a line in `warnings`
-(for example `engine_count 9 clamped to 6`, `wing_style applies to fighter / interceptor / gunship; ignored for frigate`).
+Параметры `params`: `class` (обяз.), `seed` (1), `layout` (auto | имя | индекс), `length_m` (по роли; вне диапазона
+класса бюджетный класс берётся по длине), `faction` industrial|military|sleek|alien (military), `turret_count`,
+`engine_count` (1–6), `wing_style` (fighter/interceptor: auto|none|delta|swept|forward|straight|x|stub|crescent;
+gunship: auto|none|stub), `greeble_density` 0–1 (0.6), `livery` {armor|graphite|trim|panel|glass|status|drive|marking:
+`"#rrggbb"` или `[r,g,b]` линейные}, `palette_variant` 0–2, `thruster_frame`, `asset_id`, `tier`, `lods` (true),
+`preview` (true), `preview_turrets` (true: турели-копии только в превью), `preview_size` (300), `uv` smart|box,
+`sq_inspector` (true). Каждое зажатое, заменённое или проигнорированное значение даёт строку в `warnings`
+(например, `engine_count 9 clamped to 6`, `wing_style applies to fighter / interceptor / gunship; ignored for frigate`).
 
-Outputs: `ship.glb`, `ship_lod1.glb`, `ship_lod2.glb`, `ship.blend` (after join, orphans purged), `ship.json`
-(manifest), `ship.definition.json` (parameters + chosen layout), `preview.png`. `stats.layout` holds the layout and
-variants, `stats.registry_entry` holds the entry for `models.json`.
+Полное превью одного корабля (¾ спереди и сзади, бок, верх, нос; турели-копии на гнёздах) —
+`img/ships/ship_frigate_military_001.png`.
+
+Выходы: `ship.glb`, `ship_lod1.glb`, `ship_lod2.glb`, `ship.blend` (после join, сироты вычищены), `ship.json`
+(манифест SQ), `ship.definition.json` (параметры + выбранная раскладка), `preview.png`. В `stats.layout` —
+раскладка и варианты, в `stats.registry_entry` — запись для `models.json`.
 
 ## turret_gen
 
-Base plate with bolts, a rotating table + turret with trunnion cheeks (yaw), a mantlet with a status strip (pitch), barrels
-as one mesh `M_barrel_steeltrim` (the recoil target). Ring S/M/L = 1.2 / 2.4 / 4.8 m (`ring_m` within the class range
-0.3...1.5 / 3 / 6 m). Pivots: `pivot_yaw` "local Z" [-180, 180], `pivot_pitch` "local X" [-10, 60] (L: [-5, 45]).
-**Pivots are not sockets** (§6 of the contract): they carry extras `kind: "pivot"`, `axis`, `range_degrees`, but no
-`game_socket`; the turret's sockets are only `socket_mount` and `socket_muzzle_NN`. The checks `pivots_not_sockets` and
-`turret_sockets_only_mount_muzzles` read this from the GLB; pivot rows stay in the manifest (`kind: "pivot"` is in the schema).
-Clips (30 fps): `yaw_sweep-loop` 4 s, `pitch_cycle-loop` 3 s, `fire_recoil` 0.4 s. Aiming at runtime is done by code.
-`barrels` outside 1-4 and `ring_m` outside the class are clamped with a warning. Outputs: `turret.glb` (+ LOD1/2 with the
-same rig), `turret.blend`, `turret.json`, `turret.definition.json`, `preview.png`.
-
-**`barrel_style: rotary`** - every barrel becomes a six-barrel block (`_ship_lib.rotary_barrels`: drum, 6 barrels around
-a spindle, 2 clamps, flared muzzles); the rig and the clips are the same.
+Опорная плита с болтами, поворотный стол + башня со скулами цапф (yaw), маска с полосой статуса (pitch), стволы одним
+мешем `M_barrel_steeltrim` (на нём отдача). Кольцо S/M/L = 1.2 / 2.4 / 4.8 м (`ring_m` в пределах класса
+0.3…1.5 / 3 / 6 м). Пивоты: `pivot_yaw` "local Z" [−180, 180], `pivot_pitch` "local X" [−10, 60] (L: [−5, 45]).
+**Пивоты — не сокеты** (контракт SQ и §6): у них extras `kind: "pivot"`, `axis`, `range_degrees`, но нет `game_socket`;
+сокеты турели — только `socket_mount` и `socket_muzzle_NN`. Проверки `pivots_not_sockets` и
+`turret_sockets_only_mount_muzzles` читают это из GLB; в манифесте строки пивотов остаются (`kind: "pivot"` есть в схеме).
+Клипы (30 к/с): `yaw_sweep-loop` 4 с, `pitch_cycle-loop` 3 с, `fire_recoil` 0.4 с. Наводка в игре — кодом (SQ §192).
+`barrels` вне 1–4 и `ring_m` вне класса зажимаются с предупреждением. Выходы: `turret.glb` (+ LOD1/2 с тем же
+ригом), `turret.blend`, `turret.json`, `turret.definition.json`, `preview.png`.
 
 ## ship_from_mesh
 
-1. Import, drop empties/cameras/collisions, join into one mesh, **weld**: `remove_doubles` at 1e-5 of the diagonal,
-   degenerate faces, normals recomputed (UVs are stored per corner and are not lost). A generated GLB is cut along
-   every UV/normal seam; without welding, collapse decimation tore the LODs apart.
-2. Up = +Z of the input (or `params.up`); the longitudinal axis is the PCA of face areas; the nose is `params.nose` or a
-   vote of three cues (tapering end, blunt faces facing back, bright albedo pixels) with `nose_confidence`.
-3. Scale to `length_m`, bounding-box center -> 0. Collapse decimation of **one welded mesh** to 90 % of the budget,
-   material labels on that topology, and only then the cut by materials. LOD1/2 are decimated copies of the same
-   labelled mesh (no open boundaries between material pieces). Check `silhouette_iou_lod1/2`: IoU of the top and side
-   silhouettes against LOD0 >= 0.85 (an error for LOD0 >= 3000 tris, a warning for tiny inputs).
-   **If collapse stalls above the LOD budget** (edges with 3+ faces - internal sheets of an AI mesh glued to the hull,
-   which Blender does not collapse), the LOD is built from a **closed voxel proxy** of LOD0 (`_ship_lib.voxel_proxy_lod`:
-   remesh with voxel L/150, then L/220 and L/300 on failure, then collapse to the budget; the material of each face comes
-   from the nearest LOD0 face, UVs from the nearest corners, so the cut by materials and the texture work like regular
-   LODs). The proxy is accepted only if it fits the budget and the top/side silhouettes against LOD0 are >= 0.85;
-   otherwise the collapse result stays, with a warning. The decimation log is `stats.lod_decimation` (`target`, `tris`,
-   `method: collapse | voxel_proxy`, passes, silhouette of the collapse variant). Tried and rejected: squeezing with a
-   ratio, planar + collapse (2663 tris), cutting edges with 3+ faces (1496 tris, but side IoU 0.73 - collapse drags the
-   cut edges apart).
-4. Materials: `classify` (albedo color -> HSV rules -> `AF_*` materials, mean color per class; without a texture it uses
-   material/vertex colors, and then only materials with emission count as light), `keep_texture` (a single `AF_Armor`
-   with a 2048^2 JPEG albedo for ship_m/l, 1024^2 for ship_s), `single`.
-5. Sockets with `extras.confidence`. Thrusters: if the stern has `drive` faces pointing back, the patches of those faces
-   (the best cue); otherwise faces pointing back within a narrow stern band of 1.5 -> 3 -> 6 -> 10 % of the length. Points
-   are taken **uniformly by area**, not by centroids; a patch is split only where the density along the long axis has two
-   peaks with a clear valley; the nozzle exit plane is the rearmost vertex in the patch. If the mesh is X-symmetric (share
-   of mirrored occupied cells > 0.7), findings are mirrored and merged closer than 0.6 diameter; those confirmed on both
-   sides get +0.1, one-sided ones x0.6; on an asymmetric mesh everything gets x0.75 and a warning. Turrets are flat open
-   areas the size of the ring (also from area-uniform points), in pairs on a symmetric mesh. Lights are the extreme point
-   at -X and its mirror, the antenna is the top, the dock is the flat belly.
-6. Provenance: `source`/`generator` are guessed from the path by default (hunyuan/trellis/triposr/instantmesh ->
-   own `source`; meshy/tripo/rodin -> `external` + name), otherwise `external` / `unknown`. The default `asset_id` is
-   `ship_<s|m|l>_<file name>_<file sha1, 6 chars>` - two `model.glb` files do not collide.
-7. Before saving the .blend, the source materials and images are removed (`orphans_purge`). Outputs: `ship.glb`,
-   `ship_lod1/2.glb`, `ship.blend`, `ship.json`, `ship.definition.json` (with orientation and weld stats),
-   `preview.png` (markers: red discs - turrets, cyan cones - thrusters), `lod_strip.png` (LOD0 | LOD1 | LOD2 from one
-   camera).
+1. Импорт, отброс пустышек/камер/коллизий, join в один меш, **сварка**: `remove_doubles` на 1e-5 диагонали,
+   вырожденные грани, пересчёт нормалей (UV хранятся по уголкам и не теряются). Сгенерированный GLB разрезан по
+   каждому шву UV/нормалей; без сварки collapse-децимация рвала LOD.
+2. Верх = +Z входа (или `params.up`); продольная ось — PCA площадей граней; нос — `params.nose` или голосование трёх
+   признаков (сужение торца, тупые грани назад, яркие пиксели альбедо) с `nose_confidence`.
+3. Масштаб до `length_m`, центр габарита → 0. Collapse-децимация **одного сваренного меша** до 90 % бюджета, метки
+   материалов на этой топологии, и только потом разрез по материалам. LOD1/2 — децимированные копии того же
+   размеченного меша (между кусками материалов нет открытых границ). Проверка `silhouette_iou_lod1/2`: IoU силуэтов
+   сверху и сбоку против LOD0 ≥ 0.85 (ошибка для LOD0 ≥ 3000 тр., для крошечных входов — предупреждение).
+   **Если collapse встаёт выше бюджета LOD** (рёбра с 3+ гранями — внутренние листы ИИ-сетки, приклеенные к корпусу,
+   Blender их не схлопывает), LOD строится из **закрытого воксельного прокси** LOD0 (`_ship_lib.voxel_proxy_lod`: ремеш
+   с вокселем L/150, при неудаче L/220 и L/300, затем collapse до бюджета; материал каждой грани — с ближайшей грани
+   LOD0, UV — с ближайших уголков, так что разрез по материалам и текстура работают как у обычных LOD). Прокси берётся,
+   только если он уложился в бюджет и силуэты сверху/сбоку против LOD0 ≥ 0.85; иначе остаётся результат collapse с
+   предупреждением. Ход децимации — `stats.lod_decimation` (`target`, `tris`, `method: collapse | voxel_proxy`,
+   проходы, силуэт collapse-варианта). Пробовали и отбросили: дожим коэффициентом, planar + collapse (2663 тр.),
+   разрезание рёбер с 3+ гранями (1496 тр., но IoU сбоку 0.73 — collapse растаскивает края разреза).
+4. Материалы: `classify` (цвет альбедо → правила HSV → SQ-материалы, средний цвет класса; без текстуры — цвета
+   материалов/вершин, тогда светом считаются только материалы с эмиссией), `keep_texture` (один `SQ_Armor` с
+   альбедо 2048² JPEG для ship_m/l, 1024² для ship_s), `single`.
+5. Сокеты с `extras.confidence`. Сопла: если у кормы есть грани `drive`, смотрящие назад, — пятна этих граней (лучший
+   признак), иначе грани, смотрящие назад, в узкой кормовой полосе 1,5 → 3 → 6 → 10 % длины. Точки берутся
+   **равномерно по площади**, а не центроидами; пятно режется только там, где плотность вдоль длинной оси имеет два
+   пика с явной впадиной; плоскость среза сопла — самая задняя вершина в пятне. Если меш X-симметричен (доля
+   зеркальных занятых ячеек > 0.7), находки зеркалятся и сливаются ближе 0.6 диаметра; подтверждённые с двух сторон
+   получают +0.1, односторонние — ×0.6; на несимметричном меше всё ×0.75 и предупреждение. Турели — плоские
+   незакрытые участки размером с кольцо (тоже по точкам по площади), на симметричном меше парами. Огни — крайняя
+   точка по −X и её зеркало, антенна — верх, док — плоское днище.
+6. Происхождение: `source`/`generator` по умолчанию угадываются по пути (hunyuan/trellis/triposr/instantmesh →
+   свой `source`; meshy/tripo/rodin → `external` + имя), иначе `external` / `unknown`. `asset_id` по умолчанию
+   `ship_<s|m|l>_<имя файла>_<sha1 файла, 6 знаков>` — два `model.glb` не столкнутся.
+7. Перед сохранением .blend исходные материалы и картинки удаляются (`orphans_purge`). Выходы: `ship.glb`,
+   `ship_lod1/2.glb`, `ship.blend`, `ship.json`, `ship.definition.json` (с ориентацией и статистикой сварки),
+   `preview.png` (маркеры: красные диски — турели, голубые конусы — сопла), `lod_strip.png` (LOD0 | LOD1 | LOD2 с
+   одной камеры).
 
-### ship_from_mesh: palette, lights, protrusion turrets, concept-image painting, armor, decals
+## ship_from_mesh: палитра, огни, турели-выступы, разметка по концепту, броня, надписи (10.10, SQ-03 v2)
 
-**Palette.** `params.palette`: `input` (default) - the colors of the input itself: mean class colors, and for
-`drive`/`status` the emission color of the input materials (or texture) normalized to brightness 1; a glow found only on
-thrusters (or only on lights) colors both glow materials. `faction` - the faction palette (`faction`, military by
-default). `params.livery` (`"#rrggbb"`, `[r, g, b]` or `{rgb, metal, rough, strength}`) goes on top. Where each color
-came from is in `stats.palette_source`, the result in `stats.palette`.
+**Палитра (исправление).** `classify` раньше всегда брал палитру `military`: оранжевое свечение входа становилось
+синим, огни — красными. Теперь `params.palette`: `input` (по умолчанию) — цвета самого входа: средние цвета классов,
+а для `drive`/`status` — цвет эмиссии материалов входа (или текстуры), приведённый к яркости 1; свечение, найденное
+только на соплах (или только на огнях), красит оба материала свечения. `faction` — палитра фракции (`faction`,
+по умолчанию military). `params.livery` (`"#rrggbb"`, `[r, g, b]` или `{rgb, metal, rough, strength}`) — поверх.
+Откуда взят каждый цвет — `stats.palette_source`, итог — `stats.palette`.
 
-**Navigation lights.** The top view over surface points is opened with a square of ~2.8 % of the length
-(`hull_top_analysis`): thin protrusions (barrels, masts, antennas) vanish and the hull body remains; lights go on the
-widest cell of the body, and among those the foremost one; height comes from the extreme points there; on a symmetric
-mesh they are mirrored.
+**Навигационные огни (исправление).** Раньше — вершина с минимальным X (у SQ-03 это конец ствола гатлинга). Теперь
+вид сверху по точкам поверхности размыкается квадратом ~2,8 % длины (`hull_top_analysis`): тонкие выступы (стволы,
+мачты, антенны) исчезают, остаётся тело корпуса; огни ставятся на самую широкую клетку тела, из таких — на самую
+переднюю; высота — по крайним точкам там; на симметричном меше зеркально.
 
-**Turrets at protrusions.** `turret_sockets: protrusions` (or `auto`: protrusions if there are >= 2) - sockets
-`socket_turret_<side>_<forward|aft>` at the base of thin transverse protrusions that the opening cut off from the hull
-(length >= 3.5 % L, width <= 35 % of the length, direction along +/-X), the socket +Z points outward along the barrel,
-extras `barrel_length_m`. The default is still `flats`. The `kitbash` step places gatling guns exactly on these sockets.
+**Турели у выступов.** `turret_sockets: protrusions` (или `auto`: выступы, если их ≥ 2) — сокеты `socket_turret_<борт>_
+<forward|aft>` у основания тонких поперечных выступов, которые размыкание отрезало от корпуса (длина ≥ 3,5 % L,
+ширина ≤ 35 % длины, направление по ±X), +Z сокета — наружу вдоль ствола, extras `barrel_length_m`. По умолчанию
+по-прежнему `flats`. Шаг `kitbash` ставит гатлинги ровно на эти сокеты.
 
-**Thrusters when painting.** A concept image shows the inside of a nozzle from one side, so the glow lies in crescents and
-a single nozzle used to split into two. `thruster_cue`: `auto` (with `paint` - by the exit geometry, the glow only
-confirms, +0.2 confidence), `glow`, `geometry`; nearby patches of one ring (closer than 0.8 of the size) are merged.
+**Сопла при разметке.** Концепт видит внутренность сопла с одной стороны — свечение ложится серпами, и по нему
+одно сопло распадалось на два. `thruster_cue`: `auto` (с `paint` — по геометрии среза, свечение только подтверждает,
++0,2 к уверенности), `glow`, `geometry`; близкие пятна одного кольца (ближе 0,8 размера) сливаются.
 
-**Painting from a concept image (`params.paint`).** On the full-size welded mesh before decimation:
-1. concept mask - the image alpha (a reference PNG from `prepare_concept.py` with a haze filter) or `paint.mask`;
-2. pixel labels (`paint_label_image`, v1 rules of `label_image.py` without scipy): a gray closing removes thin dark
-   seams, then armor / steel (`trim`) / graphite / panel (very dark) / glow (warm, bright, saturated); radii scale with the
-   image width; `regions` - rectangles in image fractions with a label (`only` - change only those labels): this is how a
-   bridge window became glass and letters became armor (inscriptions come back as decals);
-3. camera `fit`: a search over directions (15 deg x 7 heights, 50 mm) with 2D similarity by area and silhouette center,
-   then Nelder-Mead over [azimuth, height, distance, target xyz, roll, focal] at 320 and 640 px (triangle raster by area
-   sampling); for fitting, the mesh is temporarily decimated to `fit_tris` (24 000). An explicit camera is a dict or json
-   (`{location, rotation_matrix, lens_mm, resolution}`, the v1 format is also accepted);
-4. projection of face centers with a z-buffer from a triangle sample (a face is visible if it is the nearest in its
-   pixel; pixels without a sample - minimum 3 x 3), only faces with `toward > min_toward` (0.3: grazing faces take their
-   neighbors);
-5. the hidden side by X mirror: the surface nearest to the mirrored point (BVH) and its label, if the normals agree;
-6. the rest - the majority of labelled neighbors within 2.5 % L (niche floors next to dark walls stay dark), otherwise
-   the rules (a stern facing back is steel; everything else is armor);
-7. majority smoothing over adjacent faces, absorption of islands (dark < 1.5e-3 L^2, armor < 4e-4 L^2; connectivity
-   islands over the whole dark mask), after decimation `smooth_lod0` more passes on LOD0;
-8. class colors are means over visible faces (the bright half by luminance: shadows are not albedo), dark ones with a
-   lower albedo limit, glow with saturation restored (`glow_gamma` 1.6: bright areas of the image clip to white).
-Outputs: `paint_camera.json`, `paint_overlay.png` (green - common, red - concept only, blue - mesh only),
-`stats.paint` (camera, silhouette IoU, label sources, colors).
+**Разметка по концепту (`params.paint`).** На полноразмерной сварной сетке до децимации:
+1. маска концепта — альфа картинки (опорная PNG `prepare_concept.py` с фильтром дымки) или `paint.mask`;
+2. метки пикселей (`paint_label_image`, правила v1 `label_image.py` без scipy): серое замыкание снимает тонкие тёмные
+   швы, затем броня / сталь (`trim`) / графит / панель (очень тёмное) / свечение (тёплое, яркое, насыщенное), радиусы
+   масштабируются по ширине картинки; `regions` — прямоугольники в долях картинки с меткой (`only` — менять только
+   эти метки): так окно мостика стало стеклом, а буквы — бронёй (надписи возвращаются декалями);
+3. камера `fit`: перебор направлений (15° × 7 высот, 50 мм) с подобием 2D по площади и центру силуэта, затем
+   Нелдер — Мид по [азимут, высота, дистанция, цель xyz, крен, фокус] на 320 и 640 px (растр треугольников — выборкой
+   по площади); для подгонки сетка временно децимируется до `fit_tris` (24 000). Явная камера — dict или json
+   (`{location, rotation_matrix, lens_mm, resolution}`, формат v1 тоже принимается);
+4. проекция центров граней с z-буфером из выборки треугольников (видна грань, если она ближайшая в своём пикселе;
+   пиксели без выборки — минимум 3 × 3), только грани с `toward > min_toward` (0,3: скользящие грани берут соседей);
+5. скрытый борт — по зеркалу X: ближайшая к зеркальной точке поверхность (BVH) и её метка, если нормали согласны;
+6. оставшиеся — большинство меченых соседей в радиусе 2,5 % L (полы ниш рядом с тёмными стенами остаются тёмными),
+   иначе правила (корма, смотрящая назад, — сталь; остальное — броня);
+7. сглаживание большинством по смежным граням, поглощение островов (тёмные < 1,5e-3 L², броня < 4e-4 L²; острова
+   связности — по всей тёмной маске), после децимации ещё `smooth_lod0` проходов на LOD0;
+8. цвета классов — средние по видимым граням (светлая половина по яркости: тени — не альбедо), тёмные — с нижним
+   пределом альбедо, свечение — с восстановлением насыщенности (`glow_gamma` 1,6: яркое на картинке клиппится в белое).
+Выходы: `paint_camera.json`, `paint_overlay.png` (зелёный — общее, красный — только концепт, синий — только сетка),
+`stats.paint` (камера, IoU силуэта, источники меток, цвета).
 
-**Armor (`params.armor_texture`).** Kit set `scripts/blender/data/kits/kits.json`: a seamless hexagonal-plate armor kit
-(`*_armor_hex`) and a plain-panel kit (`*_armor_plain`); the source and the build method of each are recorded in
-kits.json (build script `build_*_armor_textures.py`). On `AF_Armor` there is an albedo (with a multiplier for the palette
-color) and a normal map, UVs are a box unwrap in meters / `tile_m`; `regions` with `box` give a separate material
-(`AF_ArmorPlain`). The tile size is stored on the material (`af_tile_m`).
+**Броня (`params.armor_texture`).** Набор `scripts/blender/data/kits/kits.json`: `sq_armor_hex` (бесшовные
+шестигранные плиты, производные от запечённой текстуры Space Quest — источник и способ сборки записаны в kits.json,
+скрипт `build_sq_armor_textures.py`) и `sq_armor_plain`. На `SQ_Armor` — альбедо (с множителем под цвет палитры) и
+карта нормалей, UV — box-развёртка в метрах / `tile_m`; `regions` с `box` дают отдельный материал
+(`SQ_ArmorPlain`) — кормовой блок SQ-03 гладкий, как на концепте. Размер плитки хранится на материале (`af_tile_m`).
 
-**Decals (`params.decals`).** `{text, side: port | starboard | both | top, position: [y, z] | [x, y], size: [w, h],
-font, bold, align, color, wear, line_scales, slashed_zero}`. The text is drawn by the Blender font engine (Workbench,
-ortho camera) into an RGBA atlas with wear (chips, scratches); the decal mesh is a grid in the plane of the mean hull
-normal under the text, projected onto the hull and lifted by 0.055 % L; material `AF_Marking` (BLEND). On the starboard
-side the text reads correctly (reading direction toward the bow). LOD1 is coarser; if it does not fit the LOD1 budget it
-is removed (with a warning). The default font is **DejaVu Sans Bold** (`C:/Windows/Fonts/DejaVuSans-Bold.ttf`; the
-Bitstream Vera / DejaVu license is free, a texture with rasterized text may be distributed without restrictions; the font
-file itself is not copied). **Bahnschrift** does not work: it is a variable font with overlapping contours, and Blender's
-curve fill makes holes in it (T becomes "V", the tail of Q breaks) - verified; its Microsoft license allows using rendered
-text but not redistributing the file.
+**Надписи (`params.decals`).** `{text, side: port | starboard | both | top, position: [y, z] | [x, y], size: [w, h],
+font, bold, align, color, wear, line_scales, slashed_zero}`. Текст рисуется движком шрифтов Blender (Workbench,
+ортокамера) в атлас RGBA с износом (сколы, царапины), сетка-деколь — решётка в плоскости средней нормали корпуса под
+надписью, спроецированная на корпус и приподнятая на 0,055 % L; материал `SQ_Marking` (BLEND). На правом борту текст
+читается правильно (направление чтения — к носу). LOD1 — грубее; если не помещается в бюджет LOD1 — убирается
+(предупреждение). Шрифт по умолчанию — **DejaVu Sans Bold** (`C:/Windows/Fonts/DejaVuSans-Bold.ttf`; лицензия Bitstream
+Vera / DejaVu — свободная, текстура с растровым текстом распространяется без ограничений; сам файл шрифта не
+копируется). **Bahnschrift** не подходит: это вариативный шрифт с перекрывающимися контурами, и заливка кривых
+Blender делает в нём дыры (T становится «V», хвост Q рвётся) — проверено; его лицензия Microsoft разрешает
+использовать отрисованный текст, но не распространять файл.
 
-## Running
+**turret_gen: `barrel_style: rotary`** — каждый ствол становится шестиствольным блоком (`_ship_lib.rotary_barrels`:
+барабан, 6 стволов вокруг шпинделя, 2 хомута, раструбы), риг и клипы те же.
+
+**Замер на SQ-03 v2** (сырой Hunyuan3D 2.1, 664 676 тр.; концепт после `prepare_concept.py` с фильтром дымки;
+рецепт `outputs/ShipSQ03Forge/v2/recipe/steps_v2.json`; Blender 5.0.1, CPU): шаг 114 с, из них подгонка камеры ~57 с,
+разметка 16 с. Камера: аз 212,5°, высота 27,2°, 107 м, 53,6 мм; IoU силуэта с маской концепта **0,967** (v1 со своей
+камерой, подогнанной вне кузницы, — 0,968). Грани полной сетки: проекция 171 044, зеркало 134 216, соседи 228 494,
+правила — остальное; LOD0 22 913 тр. (`target_tris` 22 000 — место для kitbash), LOD1 6 741, LOD2 1 666
+(`lod_targets`), метки LOD0: броня 16 555, графит 1 694, сталь 938, панель 2 219, стекло 44, свечение 107. Палитра
+из концепта (линейная): броня 0,64 / 0,55 / 0,49, графит 0,037 / 0,028 / 0,028, свечение 1,0 / 0,27 / 0,05 (раньше
+`military` давал синее свечение). Турели — 4 выступа-ствола (`protrusions`, длина 6,4 м, x ±8,86 м); огни — на корпусе
+(до правки — на концах стволов, x ±15,24 м). Надписи: «SQ-Ø3 / COMBAT UNIT 7» и «7» на обоих бортах, 1 356 / 372 тр.
+LOD0 / LOD1. Броня: шестигранная `sq_armor_hex` впереди, `sq_armor_plain` на кормовом блоке (y < −6 м), плитка 20,4 м.
+
+Тесты: `run_tests.py -- ships` (10.10, ночь) — 28 тестов, все PASS (вместе с export и kitbash — 54 / 54, 0 пропусков); новые: `test_ship_from_mesh_palette_input_keeps_glow_colours`
+(оранжевое свечение и огни входа остаются оранжевыми, `faction` даёт синий, `livery` перекрывает),
+`test_ship_from_mesh_nav_lights_on_hull_and_protrusion_turrets` (огни на корпусе шириной 6 м, а не на концах стволов;
+4 турели у оснований стволов, ось наружу), `test_ship_from_mesh_paint_armor_texture_and_decals` (синтетический корабль
+отрисован «концептом» с известной камеры: подогнанная камера в пределах 15° / 10°, IoU ≥ 0,9, тёмный пояс → графит/
+панель, свечение — цвет концепта, текстура брони с картой нормалей, `SQ_Marking` BLEND, надписи на обоих бортах,
+манифест по схеме SQ).
+
+## Запуск
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
@@ -197,104 +220,149 @@ text but not redistributing the file.
 {"step": "turret_gen", "params": {"size": "M", "barrels": 2, "faction": "industrial", "seed": 4}, "out_dir": "D:/out/t"}
 {"step": "ship_from_mesh", "inputs": {"mesh": "D:/gen/ship.glb"}, "params": {"class": "gunship"}, "out_dir": "D:/out/fm"}
 ```
-Tests: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- ships` (~25 s).
-Test temp folders are deleted after a successful test; previews no longer leave `af_ship_prev_*` in %TEMP%.
+Тесты: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- ships` — 23 теста, ~25 с.
+Временные папки тестов удаляются после успешного теста; превью больше не оставляют `af_ship_prev_*` в %TEMP%.
+Путь к Space Quest — переменная `ASTRA_SQ_ROOT` (по умолчанию `C:/Dorn/Dops media/space_quest`); нет файлов —
+инспектор и схема пропускаются.
 
-## Measurements (2026-10-10, Blender 5.0.1, CPU)
+## Замеры (10.10.2026, Blender 5.0.1, CPU)
 
-Test fleet: 18 ships, two layouts per role, plus 4 turrets. Building a ship with LODs and a preview takes 0.74-1.30 s.
+Тестовый флот — 18 кораблей, по две раскладки на роль (`img/ships/contact_sheet.png`: слева направо, сверху вниз
+как в таблице; нижний ряд — 4 турели). Сборка корабля с LOD, превью и SQ-инспектором — 0.74–1.30 с.
 
-| # | asset_id | layout | class | L x W x H, m | tris LOD0 / LOD1 / LOD2 | IoU LOD2 / LOD1 | surfaces | nodes | MB | turrets | thrusters | COL verts / coverage |
+| # | asset_id | раскладка | класс | L×W×H, м | тр. LOD0 / LOD1 / LOD2 | IoU LOD2 / LOD1 | поверхн. | узлов | МБ | турелей | сопел | COL верш. / покрытие |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|
-| 1 | ship_fighter_military_002 | arrow | ship_s | 14x10.1x2.3 | 4920 / 1594 / 555 | 0.97 / 0.98 | 8 | 18 | 0.23 | 2 | 1 | 64 / 0.997 |
-| 2 | ship_fighter_industrial_001 | twin_boom | ship_s | 14x12.0x2.3 | 4578 / 1490 / 502 | 0.96 / 0.98 | 8 | 18 | 0.20 | 2 | 1 | 64 / 0.998 |
-| 3 | ship_interceptor_sleek_001 | dart | ship_s | 18x7.5x3.2 | 6352 / 2069 / 719 | 0.97 / 0.97 | 8 | 19 | 0.25 | 2 | 2 | 64 / 0.998 |
-| 4 | ship_interceptor_alien_001 | arrow | ship_s | 18x9.6x2.5 | 4964 / 1621 / 563 | 0.96 / 0.97 | 8 | 19 | 0.21 | 2 | 2 | 64 / 0.999 |
-| 5 | ship_gunship_military_002 | hammer | ship_m | 42x22.2x14.3 | 6040 / 1965 / 671 | 0.96 / 0.98 | 8 | 24 | 0.28 | 4 | 2 | 64 / 0.996 |
-| 6 | ship_gunship_industrial_001 | catamaran | ship_m | 42x14.5x8.8 | 11020 / 3204 / 1227 | 0.99 / 0.99 | 8 | 24 | 0.43 | 4 | 3 | 64 / 0.989 |
-| 7 | ship_corvette_military_001 | destroyer | ship_m | 70x22.0x20.3 | 8112 / 2640 / 913 | 0.97 / 0.98 | 8 | 24 | 0.38 | 4 | 4 | 64 / 0.993 |
-| 8 | ship_corvette_alien_001 | spear | ship_m | 70x27.0x22.0 | 6462 / 2110 / 717 | 0.96 / 0.98 | 8 | 24 | 0.28 | 4 | 4 | 64 / 0.997 |
-| 9 | ship_freighter_industrial_002 | truss | ship_m | 60x14.8x12.2 | 8656 / 2819 / 966 | 0.91 / 0.99 | 8 | 22 | 0.44 | 2 | 3 | 64 / 0.977 |
-| 10 | ship_freighter_sleek_002 | bulk | ship_m | 60x13.0x27.0 | 5624 / 1836 / 636 | 0.97 / 0.98 | 8 | 22 | 0.24 | 2 | 3 | 64 / 0.983 |
-| 11 | ship_miner_industrial_002 | pods | ship_m | 48x18.0x17.2 | 4356 / 1426 / 490 | 0.92 / 0.98 | 8 | 21 | 0.20 | 2 | 2 | 64 / 0.992 |
-| 12 | ship_miner_military_002 | crane | ship_m | 48x16.3x15.6 | 5376 / 1757 / 596 | 0.91 / 0.97 | 8 | 21 | 0.27 | 2 | 2 | 64 / 0.993 |
-| 13 | ship_frigate_military_001 | fork | ship_l | 160x46.4x43.9 | 10660 / 3471 / 1185 | 0.95 / 0.97 | 8 | 29 | 0.46 | 8 | 4 | 64 / 0.991 |
-| 14 | ship_frigate_alien_002 | hammer | ship_l | 160x67.3x61.1 | 8062 / 2627 / 893 | 0.98 / 0.99 | 8 | 27 | 0.35 | 8 | 3 | 64 / 0.996 |
-| 15 | ship_carrier_industrial_001 | flattop | ship_l | 240x66.4x58.2 | 8820 / 2608 / 1002 | 0.94 / 0.95 | 8 | 26 | 0.43 | 6 | 4 | 64 / 0.994 |
-| 16 | ship_carrier_military_001 | hangar_pods | ship_l | 240x96.7x81.7 | 13004 / 4229 / 1447 | 0.94 / 0.96 | 8 | 27 | 0.60 | 6 | 4 | 64 / 0.996 |
-| 17 | ship_transport_sleek_001 | pods | ship_l | 200x81.9x36.4 | 11532 / 3751 / 1278 | 0.98 / 0.98 | 7 | 23 | 0.43 | 4 | 4 | 64 / 0.982 |
-| 18 | ship_transport_industrial_001 | barge | ship_l | 200x73.3x73.3 | 9944 / 2934 / 1109 | 0.96 / 0.99 | 8 | 24 | 0.48 | 4 | 4 | 64 / 0.995 |
+| 1 | ship_fighter_military_002 | arrow | ship_s | 14×10.1×2.3 | 4920 / 1594 / 555 | 0.97 / 0.98 | 8 | 18 | 0.23 | 2 | 1 | 64 / 0.997 |
+| 2 | ship_fighter_industrial_001 | twin_boom | ship_s | 14×12.0×2.3 | 4578 / 1490 / 502 | 0.96 / 0.98 | 8 | 18 | 0.20 | 2 | 1 | 64 / 0.998 |
+| 3 | ship_interceptor_sleek_001 | dart | ship_s | 18×7.5×3.2 | 6352 / 2069 / 719 | 0.97 / 0.97 | 8 | 19 | 0.25 | 2 | 2 | 64 / 0.998 |
+| 4 | ship_interceptor_alien_001 | arrow | ship_s | 18×9.6×2.5 | 4964 / 1621 / 563 | 0.96 / 0.97 | 8 | 19 | 0.21 | 2 | 2 | 64 / 0.999 |
+| 5 | ship_gunship_military_002 | hammer | ship_m | 42×22.2×14.3 | 6040 / 1965 / 671 | 0.96 / 0.98 | 8 | 24 | 0.28 | 4 | 2 | 64 / 0.996 |
+| 6 | ship_gunship_industrial_001 | catamaran | ship_m | 42×14.5×8.8 | 11020 / 3204 / 1227 | 0.99 / 0.99 | 8 | 24 | 0.43 | 4 | 3 | 64 / 0.989 |
+| 7 | ship_corvette_military_001 | destroyer | ship_m | 70×22.0×20.3 | 8112 / 2640 / 913 | 0.97 / 0.98 | 8 | 24 | 0.38 | 4 | 4 | 64 / 0.993 |
+| 8 | ship_corvette_alien_001 | spear | ship_m | 70×27.0×22.0 | 6462 / 2110 / 717 | 0.96 / 0.98 | 8 | 24 | 0.28 | 4 | 4 | 64 / 0.997 |
+| 9 | ship_freighter_industrial_002 | truss | ship_m | 60×14.8×12.2 | 8656 / 2819 / 966 | 0.91 / 0.99 | 8 | 22 | 0.44 | 2 | 3 | 64 / 0.977 |
+| 10 | ship_freighter_sleek_002 | bulk | ship_m | 60×13.0×27.0 | 5624 / 1836 / 636 | 0.97 / 0.98 | 8 | 22 | 0.24 | 2 | 3 | 64 / 0.983 |
+| 11 | ship_miner_industrial_002 | pods | ship_m | 48×18.0×17.2 | 4356 / 1426 / 490 | 0.92 / 0.98 | 8 | 21 | 0.20 | 2 | 2 | 64 / 0.992 |
+| 12 | ship_miner_military_002 | crane | ship_m | 48×16.3×15.6 | 5376 / 1757 / 596 | 0.91 / 0.97 | 8 | 21 | 0.27 | 2 | 2 | 64 / 0.993 |
+| 13 | ship_frigate_military_001 | fork | ship_l | 160×46.4×43.9 | 10660 / 3471 / 1185 | 0.95 / 0.97 | 8 | 29 | 0.46 | 8 | 4 | 64 / 0.991 |
+| 14 | ship_frigate_alien_002 | hammer | ship_l | 160×67.3×61.1 | 8062 / 2627 / 893 | 0.98 / 0.99 | 8 | 27 | 0.35 | 8 | 3 | 64 / 0.996 |
+| 15 | ship_carrier_industrial_001 | flattop | ship_l | 240×66.4×58.2 | 8820 / 2608 / 1002 | 0.94 / 0.95 | 8 | 26 | 0.43 | 6 | 4 | 64 / 0.994 |
+| 16 | ship_carrier_military_001 | hangar_pods | ship_l | 240×96.7×81.7 | 13004 / 4229 / 1447 | 0.94 / 0.96 | 8 | 27 | 0.60 | 6 | 4 | 64 / 0.996 |
+| 17 | ship_transport_sleek_001 | pods | ship_l | 200×81.9×36.4 | 11532 / 3751 / 1278 | 0.98 / 0.98 | 7 | 23 | 0.43 | 4 | 4 | 64 / 0.982 |
+| 18 | ship_transport_industrial_001 | barge | ship_l | 200×73.3×73.3 | 9944 / 2934 / 1109 | 0.96 / 0.99 | 8 | 24 | 0.48 | 4 | 4 | 64 / 0.995 |
 
-"IoU" is the lower of the top and side silhouette IoU against LOD0. The height of large ships includes masts and
-antennas. LOD1 = 29-33 %, LOD2 = 11 % of LOD0. Generic budgets (tris LOD0/LOD1/LOD2): ship_s 20000/6000/1500, ship_m
-40000/12000/3000, ship_l 60000/18000/5000; <= 9 surfaces, <= 9 materials, 3/6/12 MB.
+«IoU» — меньшее из IoU силуэтов сверху и сбоку против LOD0. Высота крупных кораблей включает мачты и антенны.
+LOD1 = 29–33 %, LOD2 = 11 % от LOD0. Бюджеты SQ (тр. LOD0/LOD1/LOD2): ship_s 20000/6000/1500, ship_m
+40000/12000/3000, ship_l 60000/18000/5000; ≤ 9 поверхностей, ≤ 9 материалов, 3/6/12 МБ.
 
-**Nodes.** The budget has two limits: the per-class limit (<= 32 per ship, <= 16 per turret) and a stricter row
-(hull <= 24, turret <= 12). The first is an error, the second is the warning `nodes_strict_row`. It is exceeded by 4 of
-the 18 ships (frigates with 29 and 27, carriers with 26 and 27: 8 / 6 turrets + thrusters + lights) and by 3 of the 4
-turrets (13-15 nodes).
+**Узлы.** В `budgets.md` две строки: таблица классов (≤ 32 на корабль, ≤ 16 на турель — по ней же считает
+`glb_inspect.py`) и более строгая строка «Коллизия, кости, анимации» (корпус ≤ 24, турель ≤ 12). Ошибкой проверяется
+первая (её применяет инспектор), вторая — предупреждение `nodes_strict_row`. Её превышают 4 корабля из 18
+(фрегаты 29 и 27, носители 26 и 27: 8 / 6 турелей + сопла + огни) и 3 турели из 4 (13–15 узлов).
 
-**Collision.** "Coverage" = volume of COL_SIMPLE / volume of the full convex hull of the mesh (0.977-0.999). It does
-**not** check COL volume against hull volume: the "hull" volume of a kitbash of intersecting parts is undefined.
+**Классы бюджета (17.10.2026).** `_ship_lib.SQ_BUDGETS` несёт все **15** классов инспектора игры (`glb_inspect.py`
+`BUDGETS`): `ship_s/m/l`, `turret`, `module`, `drone`, `station_module`, `station_core`, `asteroid`, `prop`,
+`weapon_missile` и банки MultiMesh `asteroid_kit`, `debris_kit`, `structure_kit`, `drone_kit` (`per_mesh`).
+Пределы `tris`, `surfaces`, `materials`, `mb`, `nodes`, `t_surfaces`, `t_materials` и флаг `per_mesh` совпадают
+с инспектором (тест `test_sq_budgets_match_inspector` сверяет их, когда копия Space Quest на месте); ступени LOD
+и строгая строка узлов — из `budgets.md` (дрон ≤ 8, станционный модуль ≤ 16; у классов без строки проверки
+`nodes_strict_row` нет; у банков ступени — 35 % / 12 % от нулевой, у `weapon_missile` нет LOD2). У банков
+`budget_checks` судит треугольники и поверхности **самого тяжёлого меша** (`glb_summary` →
+`worst_mesh_triangles` / `worst_mesh_surfaces`, счёт как у инспектора), размер файла, узлы и материалы — по
+файлу. Шаги кораблей по-прежнему строят только `ship_s/m/l` и `turret`: пресетов станции, постройки, дрона и
+режима «банк» в студии нет (запросы F1, F2 роли `art` Space Quest).
 
-**Seed variety** (military, three seeds per role). IoU of the top and side silhouettes between seeds 1-3 of the same role
-and faction, before the fix (military): corvette 0.978 top, gunship 0.970 side, frigate 0.959 top; all 9 roles had at
-least one pair > 0.85. After: 9 roles x 4 factions x seed triples 1-3 and 4-6 (216 pairs) - maximum **0.843** (sleek
-carrier); the test on military 1-3 - maximum 0.811. The test requires < 0.85 for both top and side for every pair.
+**Коллизия.** «Покрытие» = объём COL_SIMPLE / объём полной выпуклой оболочки меша (0.977–0.999). Это **не** ворота
+SQ 11 (объём COL 90–130 % объёма корпуса): объём «корпуса» у кибаша из пересекающихся деталей не определён,
+ворота 11 не оцениваются (так и записано в `validation.notes` манифеста).
 
-Turrets:
+**Разнообразие по сиду** (`img/ships/seed_variety.png`: military, по строкам fighter / interceptor | gunship /
+corvette | freighter / miner | frigate / carrier | transport, по три сида). IoU силуэтов сверху и сбоку между сидами
+1–3 одной роли и фракции, до правки (military): корвет 0.978 сверху, канонерка 0.970 сбоку, фрегат 0.959 сверху,
+у всех 9 ролей хотя бы одна пара > 0.85. После: 9 ролей × 4 фракции × тройки сидов 1–3 и 4–6 (216 пар) — максимум
+**0.843** (носитель sleek), тест на military 1–3 — максимум 0.811. Тест требует < 0.85 и сверху, и сбоку для каждой пары.
 
-| asset_id | size | barrels | ring, m | height, m | tris LOD0 / LOD1 / LOD2 | surfaces | nodes | MB |
+Турели (нижний ряд `contact_sheet.png`):
+
+| asset_id | размер | стволов | кольцо, м | высота, м | тр. LOD0 / LOD1 / LOD2 | поверхн. | узлов | МБ |
 |---|---|---|---|---|---|---|---|---|
 | turret_s_sleek_b1_003 | S | 1 | 1.20 | 0.78 | 2108 / 678 / 228 | 7 | 12 | 0.10 |
 | turret_m_military_b2_001 | M | 2 | 2.40 | 1.64 | 2344 / 760 / 254 | 7 | 13 | 0.11 |
 | turret_l_industrial_b3_002 | L | 3 | 4.80 | 3.29 | 2716 / 836 / 296 | 7 | 14 | 0.13 |
 | turret_l_alien_b4_002 | L | 4 | 4.80 | 3.29 | 3104 / 1006 / 340 | 7 | 15 | 0.14 |
 
-ship_from_mesh on synthetic inputs:
+ship_from_mesh (`img/ships/ship_from_mesh.png`: сверху превью Meshy SQ-03 с маркерами сокетов, снизу LOD0 | LOD1 |
+LOD2 с одной камеры):
 
-| input | weld: vertices / boundary edges | tris in -> LOD0 / LOD1 / LOD2 | IoU LOD2 top / side | nose | sockets (confidence) | MB glb / blend |
+| вход | сварка: вершин / граничных рёбер | тр. вход → LOD0 / LOD1 / LOD2 | IoU LOD2 сверху / сбоку | нос | сокеты (уверенность) | МБ glb / blend |
 |---|---|---|---|---|---|---|
-| synthetic: ship_gen corvette `arrowhead`, merged, nose -> -X, scale 0.03 | 8988 -> 3856 / 8536 -> 0 | 7440 -> 7440 / 2422 / 800 | 0.983 / 0.963 | auto, 1.0 | 4 of 4 adjacent bells in a row, exactly at the original sockets; 3 of 4 turrets (all on the underside) | 0.31 / 0.41 |
-| review primitive: box + cone + 2 cylinders with n-gon caps, 4 objects, no materials/UVs, scale 0.01, nose -X, OBJ | 121 -> 121 | 226 -> 226 / 72 / 24 | 0.978 / 0.473 (warning: input < 3000 tris) | auto, 1.0 | exactly 2 thrusters at x = +/-0.666 m (0.95), 2 turrets on the back | 0.02 / 0.09 |
+| Meshy image-to-3D SQ-03, class gunship, 42 м, classify | 60537 → 19540 / 59554 → 187 | 39658 → 35272 / 11166 / 2784 | 0.946 / 0.929 (LOD1 0.993 / 0.992) | авто, 0.64 | 2 сопла port/starboard зеркально (0.95), 4 турели (0.58–0.76), огни/док/антенна (0.5–0.6) | 2.16 / 2.13 (было 17) |
+| то же, `keep_texture` | так же | так же | 0.945 / 0.927 | авто, 0.64 | те же | 2.90 / 7.95 (упакованное альбедо 2048²) |
+| то же, **class fighter** (пресет `ship_from_mesh`, 14 м; 10.10, вечер) | так же | 39658 → 17628 / 5583 / **1393** (бюджет LOD2 1500, цель 1425; collapse вставал на 2699 → воксельный прокси 0.093 м) | 0.967 / 0.972 (collapse-вариант был 0.930 / 0.915; LOD1 0.985 / 0.976) | авто, 0.64 | 2 сопла (0.96), 2 турели, огни/док/антенна | 1.25 / 1.12 |
+| синтетика: ship_gen-корвет `arrowhead`, слит, нос → −X, масштаб 0.03 | 8988 → 3856 / 8536 → 0 | 7440 → 7440 / 2422 / 800 | 0.983 / 0.963 | авто, 1.0 | 4 из 4 касающихся колоколов в ряд, точно на месте исходных сокетов; 3 из 4 турелей (все снизу) | 0.31 / 0.41 |
+| примитив из ревью: короб + конус + 2 цилиндра с n-угольными торцами, 4 объекта, без материалов/UV, масштаб 0.01, нос −X, OBJ | 121 → 121 | 226 → 226 / 72 / 24 | 0.978 / 0.473 (предупреждение: вход < 3000 тр.) | авто, 1.0 | ровно 2 сопла x = ±0.666 м (0.95), 2 турели на спине | 0.02 / 0.09 |
 
-On synthetics the tests compare `mount_d_m` with the geometry: two cylinders of r = 0.38 on 12.6 ship units - +/-25 %,
-the thrusters of a merged ship_gen corvette found by ship_from_mesh - 0.5...1.3 of the generator's value. Test
-`test_voxel_proxy_lod_budget_materials_uv` covers a synthetic case with a 3-face edge (voxel proxy LOD).
+Происхождение Meshy теперь `source: external`, `generator: meshy`, `asset_id: ship_m_model_fdc7a5`.
 
-## Fixes from the 2026-10-10 review
+SQ-инспектор `glb_inspect.py --strict` (только чтение, `py -3 -B`): **PASS у 18 кораблей, 4 турелей и 5 прогонов
+ship_from_mesh**. Манифесты проходят `manifest.schema.json`. Тесты: **25/25 PASS, 33 с** (10.10, вечер:
+`test_real_ship_from_mesh_meshy_sq03_fighter_lods` — fighter на SQ-03: оба LOD в бюджете, LOD2 через прокси, силуэты
+≥ 0.9, ≥ 2 материалов и UV у LOD2; `test_voxel_proxy_lod_budget_materials_uv` — синтетика с ребром на 3 грани).
 
-Navigation lights (they were on the wrong side and looked into the hull) -> `nav_lights` normalizes the side, check
-`nav_lights_sides`, a test over all roles. ship_from_mesh LODs tore -> weld + decimation of one mesh + LODs from its
-copies + silhouette check. Seeds produced clones -> three layouts per role, RNG by crc32(seed, role), a silhouette test.
-Thrusters on a symmetric primitive (4 instead of 2), empty planes -> area-uniform points, split by two peaks, mirroring.
-Default provenance and `asset_id`, orphans in the .blend, `fore` -> `forward`, thruster frame choice, temp folders,
-warnings for clamped parameters, alien seams, claws, carrier island, hatches.
+**Раунд интеграции 10.10 (вечер).** `mount_d_m` сопел (диаметр среза колокола после подгонки длины; у ship_from_mesh —
+поперечник пятна сопла):
 
-## Limitations (honest)
+| ассет | длина, м | сопла: `mount_d_m`, м (`size_class`) | инспектор |
+|---|---|---|---|
+| ship_fighter_sleek_001 | 14 | 1.036 (S) | PASS |
+| ship_freighter_industrial_002 | 60 | 3 × 3.693 (L) | PASS |
+| ship_corvette_military_005 | 70 | 6.066, 2 × 4.726 (L) | PASS |
+| ship_frigate_military_001 | 160 | 4 × 10.834 (L) | PASS |
+| ship_carrier_military_001 | 240 | 2 × 18.312, 2 × 15.534 (L) | PASS |
+| ship_from_mesh, Meshy SQ-03 (gunship, 42 м) | 42 | port / starboard 4.001 (L), уверенность 0.95 | PASS |
 
-- Ships are assembled from procedural primitives (lofts, prisms, turned bodies, boxes): a clean kitbash for a game
-  camera, not hand modeling. No textures - only flat PBR factors; panels are geometry, not normal maps. Smart UV on LOD0
-  for a future bake, box UV on LOD1/2.
-- The preview is Workbench: emission is drawn as a flat color, no glow; not a final render.
-- Three layouts per role are three silhouettes, not endless variety: seeds 1 and 4 of the same role and faction share a
-  layout and differ in proportions, node variants and palette. Alien differs by profile, seams, curved wings and claws,
-  but layouts are shared across factions.
-- Turrets in ship previews are copies for the picture only; they are not in `ship.glb`.
-- `size_class` of a thruster is computed from the diameter (S <= 1.5, M <= 3, otherwise L), so frigate (10.8 m) and carrier
-  (15.5-18.3 m) thrusters are also "L"; the exact size is in `mount_d_m`.
-- <= 32 nodes per ship: with many turrets/thrusters, low-priority sockets are dropped with a warning; the stricter 24/12
-  row is not met by frigates, carriers and turrets (warning).
-- 7-8 surfaces: the <= 9 limit is met, the <= 4 target is not (warning).
-- COL_SIMPLE is convex: on carriers, transports with a ring, miners with drills and a scoop it covers voids. gltf-validator
-  and a headless Godot import were not run (manifest `-1` / `SKIPPED`).
-- ship_from_mesh is heuristics, not understanding of shape. With symmetric ends the nose confidence drops - then set
-  `nose`. Up is always +Z of the input unless `up` is given. On a texture, everything bright and saturated counts as glow -
-  yellow-orange markings near the stern too (for inputs without a texture only materials with emission count as light).
-  Thrusters without emission are found by faces pointing back: if the flat stern cut of the hull sits almost flush with the
-  nozzles, they may merge into one patch. Turrets go on flat places, not where the author intended; a paneled back may
-  yield none (synthetic: 3 of 4, all on the underside). Collapse decimation, not retopology: LOD2 of a dense AI mesh is
-  faceted (no holes or tears, silhouette >= 0.93). The voxel proxy of a far LOD smooths small details and merges gaps
-  thinner than a voxel (L/150 = 9 cm on a 14 m fighter); its UVs are transferred from the nearest corners, so on UV-island
-  seams the `keep_texture` texture may smear. `keep_texture` is a projection of the AI albedo, not PBR; a .blend with a
-  packed 2048^2 albedo weighs ~8 MB.
+На синтетике тесты сверяют `mount_d_m` с геометрией: два цилиндра r = 0.38 на 12.6 единицах корабля — ±25 %, сопла
+слитого корвета ship_gen, найденные ship_from_mesh, — 0.5…1.3 от значения генератора. Турель
+`turret_m_military_b2_001` после правки пивотов: инспектор `--strict` PASS, **сокетов 3** (`socket_mount`,
+`socket_muzzle_01/02`; раньше в список попадали и `pivot_yaw`/`pivot_pitch`), узлов 13 как прежде; `godot_package`
+профиль `space_quest` + Godot 4.5.1 — все проверки-ошибки зелёные (`docs/forge/export.md`).
+
+## Что исправлено по ревью 10.10
+
+Навигационные огни (были на чужом борту и смотрели внутрь корпуса) → `nav_lights` нормализует сторону, проверка
+`nav_lights_sides`, тест по всем ролям. LOD ship_from_mesh рвались → сварка + децимация одного меша + LOD из его
+копий + проверка силуэтов. Сиды давали клоны → три раскладки на роль, ГСЧ по crc32(сид, роль), тест по силуэтам.
+Сопла на симметричном примитиве (4 вместо 2), пустые плоскости → точки по площади, разрез по двум пикам, зеркалирование.
+Происхождение и `asset_id` по умолчанию, сироты в .blend, `fore` → `forward`, выбор рамки сопла, временные папки,
+предупреждения о зажатых параметрах, переменная `ASTRA_SQ_ROOT`, швы alien, когти, остров носителя, люки.
+
+## Ограничения (честно)
+
+- Корабли собраны из процедурных примитивов (лофты, призмы, токарные тела, ящики): аккуратный кибаш под игровую
+  камеру, а не ручное моделирование. Текстур нет — только плоские PBR-факторы SQ; панели — геометрия, не карты
+  нормалей. Smart UV на LOD0 под будущий бейк, box UV на LOD1/2.
+- Превью — Workbench: эмиссия нарисована плоским цветом, без свечения; не финальный рендер.
+- Три раскладки на роль — это три силуэта, а не бесконечное разнообразие: сиды 1 и 4 одной роли и фракции имеют одну
+  раскладку и отличаются пропорциями, вариантами узлов и палитрой. Alien отличается профилем, швами, изогнутыми
+  крыльями и когтями, но раскладки у фракций общие.
+- Турели на превью кораблей — копии только для картинки; в `ship.glb` их нет.
+- Рамка сопла — решение владельца SQ; по умолчанию `thrust`, остальные две доступны параметром.
+- `size_class` сопла считается по диаметру как у посадок SQ (S ≤ 1.5, M ≤ 3, иначе L), поэтому сопла фрегата
+  (10.8 м) и носителя (15.5–18.3 м) тоже «L», хотя посадки SQ кончаются на 6 м; точный размер — в `mount_d_m`.
+- ≤ 32 узлов на корабль: при многих турелях/соплах низкоприоритетные сокеты отбрасываются с предупреждением; строже
+  строка 24/12 у фрегатов, носителей и турелей не выполняется (предупреждение).
+- Поверхностей 7–8: уровень §193 (≤ 9) выполнен, целевой §151.2 (≤ 4) — нет (предупреждение).
+- COL_SIMPLE выпуклая: у носителей, транспортов с кольцом, шахтёров с бурами и ковшом закрывает пустоты; ворота 11 не
+  оцениваются. gltf-validator и headless-импорт Godot не запускались (в манифесте `-1` / `SKIPPED`).
+- ship_from_mesh — эвристики, а не понимание формы. Нос Meshy SQ-03 угадан с уверенностью 0.64; при симметричных
+  торцах уверенность падает — тогда задавать `nose`. Верх всегда +Z входа, если не задан `up`. По текстуре свечением
+  считается всё яркое и насыщенное — жёлто-оранжевая маркировка у кормы тоже (у входов без текстуры светом считаются
+  только материалы с эмиссией). Сопла без эмиссии ищутся по граням, смотрящим назад: если плоский кормовой срез
+  корпуса стоит почти вровень с соплами, они могут слиться в одно пятно. Турели ставятся на плоские места, не туда,
+  где их задумал автор; на панелированной спине их может не найтись (синтетика: 3 из 4, все снизу). Collapse-децимация,
+  не ретопология: LOD2 у плотного ИИ-меша гранёный (без дыр и разрывов, силуэт ≥ 0.93). Воксельный прокси дальнего LOD
+  сглаживает мелкие детали и сливает щели тоньше вокселя (L/150 = 9 см у 14-метрового истребителя); UV на нём
+  перенесены с ближайших уголков, поэтому на стыках UV-островов текстура `keep_texture` может смазываться. `keep_texture` — проекция
+  ИИ-альбедо, не PBR; .blend с упакованным альбедо 2048² весит ~8 МБ.
+- Реального Hunyuan-корабля на диске не нашлось; проверено на Meshy image-to-3D (тот же класс входа), синтетике и
+  примитиве.

@@ -1,0 +1,14 @@
+{
+  "arm_raise_changes_bone": true,
+  "bones": 27,
+  "clips": [
+    "ArmRaise",
+    "Idle",
+    "Walk"
+  ],
+  "godot": "4.7.2-stable (official)",
+  "meshes": 15,
+  "skeletons": 1,
+  "skinned_meshes": 15,
+  "walk_changes_bone": true
+}

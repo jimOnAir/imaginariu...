@@ -1,34 +1,32 @@
-# The items module: a kit of weapons and props, items from generated meshes, attaching to a character
+# Модуль «предметы» (items): набор оружия и реквизита, предметы из сгенерированных сеток, крепление к персонажу
 
-Blender steps: `item_kit`, `item_from_mesh`, `attach_prop` (shared code: `scripts/blender/steps/_items_lib.py`).
-Self-check: `scripts/blender/tests/test_items.py` has 23 tests, all passing, ~41 s (2026-10-10: + `refit_socket`, `grip_dir`).
-All numbers in this document were produced by a single run of `test_items.make_evidence()` on the code of
-2026-10-10, 17:10. How to run it: see "How to run".
-Compatibility with `server/forge-steps.mjs`: `item_kit` accepts `batch` as a number (N adjacent seeds) or a list, and
-`dims` as an object; `item_from_mesh` accepts `budget` and `grip: [x, y, z]`.
+Шаги Blender: `item_kit`, `item_from_mesh`, `attach_prop` (общий код — `scripts/blender/steps/_items_lib.py`).
+Самопроверка: `scripts/blender/tests/test_items.py` — 23 теста, все проходят, ~41 с (10.10, вечер: + `refit_socket`, `grip_dir`).
+Все числа и картинки этого документа получены одним прогоном `test_items.make_evidence()` на текущем коде
+(10.10.2026, 17:10). Как его запустить — в разделе «Как запускать».
+Совместимость с `server/forge-steps.mjs`: `item_kit` принимает `batch` числом (N соседних зёрен) или списком,
+`dims` объектом; `item_from_mesh` — `budget` и `grip: [x, y, z]`.
 
-## Axes and the grip frame
+## Оси и рамка хвата (контракт §4, §6)
 
-- An item stands on `z = 0`, Z up, meters, transforms applied. The main axis (blade, haft, handle) is **+Z**, the
-  edge / front side is **−Y**. `params.origin`: `bbox` (default, the X/Y center of the bounding box at zero) or `axis`
-  (the handle axis at zero).
-- `socket_grip_main` is the common grip frame: local +Z leaves the fist on the thumb side (along the blade / haft
-  away from the wrist), −Y points where the straightened fingers point (toward the edge / face), X = Y × Z. For a
-  sword, axe, staff and shield the frame coincides with the item axes. It is rotated for: blaster pistol grips (+Z
-  along the slanted grip, 16°), crossbow stocks (+Z forward along the stock), and the crossbow's `socket_grip_off`
-  (left hand from below).
-- `socket_grip_off` is the second hand of two-handed items; `socket_fx_tip` is the effect point, with local +Z = the
-  emission direction. In extras: `game_socket`, `kind`, `frame`.
-- Shields: the face is −Y, a bracket handle stands vertically behind the center (a "center grip"), and the enarme
-  strap is modeled.
-- Blasters point their muzzle to −Y by default (the item frame). For props whose nose is +Y, use
-  `params.forward: "+Y"`: the item is rotated by 180° about Z and the sockets keep their frames relative to the
-  geometry. Which variant a consuming project needs is for that project to decide (see the limitations).
+- Предмет стоит на `z = 0`, Z вверх, метры, трансформы применены. Главная ось (клинок, древко, рукоять) — **+Z**,
+  лезвие / лицевая сторона — **−Y**. `params.origin`: `bbox` (по умолчанию, центр габарита X/Y в нуле, как в §4) или
+  `axis` (в нуле ось рукояти).
+- `socket_grip_main` — общая рамка хвата: локальная +Z выходит из кулака со стороны большого пальца (вдоль клинка /
+  древка от кисти), −Y — туда, куда смотрят выпрямленные пальцы (к лезвию / лицу), X = Y × Z. У меча, топора, посоха,
+  щита рамка совпадает с осями предмета. С поворотом: пистолетные рукояти бластеров (+Z вдоль наклонной рукояти, 16°),
+  ложа арбалета (+Z вперёд вдоль ложи), `socket_grip_off` арбалета (левая рука снизу).
+- `socket_grip_off` — вторая рука у двуручных; `socket_fx_tip` — точка эффекта, локальная +Z = направление выброса.
+  В extras: `game_socket`, `kind`, `frame`.
+- Щиты: лицо −Y, ручка-скоба вертикально за центром (хват «центральной рукоятью»), ремень-энарм смоделирован.
+- Бластеры по умолчанию смотрят дулом в −Y (рамка предмета). Для реквизита Space Quest (§4: нос +Y) —
+  `params.forward: "+Y"`: предмет поворачивается на 180° вокруг Z, сокеты сохраняют рамки относительно геометрии.
+  Какой вариант правильный для экипажа Space Quest — вопрос владельцу контракта (см. ограничения).
 
-## 1. item_kit: the procedural kit
+## 1. item_kit — процедурный набор
 
-22 types: `sword, greatsword, dagger, axe, battle_axe, mace, warhammer, spear, halberd, staff (head: crystal | skull | orb |
-crook), wand, bow (with a string), crossbow, shield_round, shield_kite, shield_tower, buckler, torch, potion, book,
+22 типа: `sword, greatsword, dagger, axe, battle_axe, mace, warhammer, spear, halberd, staff (head: crystal | skull | orb |
+crook), wand, bow (с тетивой), crossbow, shield_round, shield_kite, shield_tower, buckler, torch, potion, book,
 blaster_pistol, blaster_rifle`.
 
 ```json
@@ -36,47 +34,44 @@ blaster_pistol, blaster_rifle`.
   "palette": {"metal": "#c0c4ca", "grip": {"color": "#402818", "roughness": 0.8}},
   "blade_length": 0.8, "guard": "curved", "pommel": "scent"}, "out_dir": "abs/out"}
 ```
-- `style`: `medieval | dark | elven | scifi | random`; palettes are by material role (`metal, metal_dark, trim, grip, wood,
-  accent, gem, bone, emit, …`), and `palette` overrides color / metallic / roughness / emission.
-- `seed` changes the proportions and all `auto` substyles. For swords the spread is wider: blade length ±20 %, width
-  ±30 %, grip ±20 %, guard ±35 %; blade profile (`straight / tapered / broad / leaf / falchion`, the falchion is now
-  in medieval too), guard curvature, pommel, fuller length (`fuller_length`, 0.42–0.82 of the blade), ricasso
-  (`ricasso`, in medieval/dark with a 50 % probability, 3.5–6.5 cm, with a taper and a blunt edge). The same seed gives
-  the same mesh.
-- `ornament` 0–3: 1 is rivets, rings, finials, an emblem; 2 is gems, tassels, the mace's back spike, the book strap; 3
-  is runes (emission), the umbo on the kite/tower shield, "wings" on the spear.
-- Dimensions per type: `blade_length, blade_width, blade_thickness, grip_length, grip_radius, guard_width, pommel_radius,
+- `style`: `medieval | dark | elven | scifi | random`; палитры по ролям материалов (`metal, metal_dark, trim, grip, wood,
+  accent, gem, bone, emit, …`), `palette` переопределяет цвет / metallic / roughness / emission.
+- `seed` меняет пропорции и все `auto`-подстили. У мечей разброс расширен: длина клинка ±20 %, ширина ±30 %, рукоять
+  ±20 %, гарда ±35 %; профиль клинка (`straight / tapered / broad / leaf / falchion`, фальшион теперь и в medieval),
+  изгиб гарды, навершие, длина дола (`fuller_length`, 0,42–0,82 клинка), рикассо (`ricasso`, у medieval/dark с
+  вероятностью 50 %, 3,5–6,5 см, сужение и тупая кромка). Тот же seed — та же сетка.
+- `ornament` 0–3: 1 — заклёпки, кольца, финиалы, эмблема; 2 — камни, кисти, шип обуха, ремень книги; 3 — руны (эмиссия),
+  умбон у каплевидного/башенного щита, «крылья» копья.
+- Размеры по типам: `blade_length, blade_width, blade_thickness, grip_length, grip_radius, guard_width, pommel_radius,
   haft_length, haft_radius, head_size, head_radius, flanges, shaft_length, shaft_radius, head_length, head_width,
   length, radius, brace_height, recurve, size, width, height, thickness, flame, shape, emblem`; `budget_tris`.
-  `size` is the scale of the crossbow / blasters; the preview size is `preview_size` (the preview used to take `size`
-  and inflate the crossbow to 158 m; fixed, with a regression test).
-- `params.batch`: a list of variants (each on top of the common params) or a number of adjacent seeds → a subfolder
-  per variant (the name is sanitized to `[A-Za-z0-9_-]` and checked to be inside `out_dir`) + `contact_sheet.png` +
-  `batch.json`. Batch outputs: `glb` and `blend` are lists (the pipeline takes the first), `preview` is the sheet,
-  `json` is `batch.json`. Sheet: `sheet_cols`, `sheet_tile`, `sheet_title`, `sheet_scale` (`common` is a common scale,
-  so lengths are comparable; the default if all variants are of one type; otherwise `fit`). Tile caption: triangles,
-  ornament, length.
+  `size` — масштаб арбалета / бластеров; размер превью — `preview_size` (раньше превью брало `size` и раздувало
+  арбалет до 158 м — исправлено, есть регрессионный тест).
+- `params.batch`: список вариантов (каждый поверх общих params) или число соседних зёрен → подпапка на вариант (имя
+  очищается до `[A-Za-z0-9_-]` и проверяется, что папка внутри `out_dir`) + `contact_sheet.png` + `batch.json`.
+  Выходы пакета: `glb` и `blend` — списки (конвейер берёт первый), `preview` — лист, `json` — `batch.json`.
+  Лист: `sheet_cols`, `sheet_tile`, `sheet_title`, `sheet_scale` (`common` — общий масштаб, длины сравнимы; по
+  умолчанию, если все варианты одного типа; иначе `fit`). Подпись плитки: треугольники, орнамент, длина.
 
-Modeling: section lofts (a blade with a fuller, bevels, ricasso and a point; teeth on the dark style), lathe bodies
-(grips with a spiral wrap, pommels, ferrules, flasks), extruded outlines with a bevel (axe heads with a separate
-light edge, mace flanges, a pick, a halberd blade), pipes along a curve (bowstring, shield rim, handle bracket, staff
-crook), faceted crystals, a low-poly skull. One mesh per item, 3–8 Principled BSDF materials (base color / metallic /
-roughness / emission are exported to glTF), a `UVMap` unwrap, smoothing by angle.
+Моделирование: лофты сечений (клинок с долом, фасками, рикассо, остриём; зубцы у тёмного стиля), токарные тела
+(рукояти со спиральной обмоткой, навершия, втулки, флаконы), выдавленные контуры с фаской (головы топоров с отдельной
+светлой кромкой, фланцы булав, клевец, перо алебарды), трубки по кривой (тетива, обод щита, скоба рукояти, крюк посоха),
+гранёные кристаллы, низкополигональный череп. Одна сетка на предмет, 3–8 материалов Principled BSDF (base color /
+metallic / roughness / emission экспортируются в glTF), развёртка `UVMap`, сглаживание по углу.
 
-Fixed in this round regarding shading: axe cheeks and the halberd blade (extruded outlines of variable thickness)
-now get interior vertices (constrained Delaunay triangulation, `plate(fill=…)`), so the radial streaks from fan
-triangles are gone; along the way an old bug was found and fixed: the axe-head outline closed as a "bow" (the eye
-points went in reverse order), which caused creases at the eye. The mace's back spike is a forged rhombus with a
-taper, 2.7 cm thick at the eye (it was a flat wedge). The shield enarme is a 7 mm × 36 mm strap with rivets, standing
-off the board. The `materials_principled` check now really verifies that a Principled BSDF is connected to the
-Material Output.
+Исправлено в этом раунде по затенению: щёки топоров и перо алебарды (выдавленные контуры с переменной толщиной) теперь
+получают внутренние вершины (ограниченная триангуляция Делоне, `plate(fill=…)`) — радиальные полосы от веерных
+треугольников исчезли; заодно найдена и исправлена старая ошибка — контур головы топора замыкался «бантиком» (точки
+проушины шли в обратном порядке), отсюда были складки у проушины. Шип обуха — кованый ромб с сужением, толщина у
+проушины 2,7 см (был плоский клин). Энарм щита — ремень 7 мм × 36 мм с заклёпками, отстоит от доски. Проверка
+`materials_principled` теперь действительно проверяет, что Principled BSDF подключён к Material Output.
 
-Outputs: `item.glb` (socket nodes with extras, `af_item_type` and `af_forward` in the mesh extras), `item.blend`,
-`item.json`, `preview.png`.
+Выходы: `item.glb` (сокеты-узлы с extras, `af_item_type` и `af_forward` в extras меша), `item.blend`, `item.json`,
+`preview.png`.
 
-### Measurements (all types, ornament 2, seed 0)
+### Замеры (все типы, ornament 2, seed 0)
 
-| type | tris / budget | size, m (X×Y×Z) | type | tris / budget | size, m |
+| тип | треуг. / бюджет | габарит, м (X×Y×Z) | тип | треуг. / бюджет | габарит, м |
 |---|---|---|---|---|---|
 | sword | 2074 / 2500 | 0.04×0.18×0.97 | bow | 1184 / 4000 | 0.04×0.20×1.47 |
 | greatsword | 2730 / 4000 | 0.06×0.25×1.57 | crossbow | 1018 / 4000 | 0.64×0.84×0.13 |
@@ -90,260 +85,256 @@ Outputs: `item.glb` (socket nodes with extras, `af_item_type` and `af_forward` i
 | staff (orb) | 1658 / 4000 | 0.10×0.10×1.90 | blaster_pistol | 1110 / 2500 | 0.04×0.28×0.17 |
 | wand | 752 / 2500 | 0.02×0.02×0.39 | blaster_rifle | 1856 / 4000 | 0.05×1.00×0.24 |
 
-Staffs: skull (dark) 2964, orb 1658, crook 1510. A sweep of 176 builds (22 types × 4 styles × seed 1–2, ornament 3):
-the maximum for one-handed items is 2250 / 2500 (sword medieval s1), for two-handed 3664 / 4000 (shield_kite medieval
-s1); non-manifold edges: 0 in all of them. The GLB of an item is 28–118 KB. A batch of 25 variants with previews takes
-6.7 s.
+Посохи: череп (dark) 2964, сфера 1658, крюк 1510. Перебор 176 сборок (22 типа × 4 стиля × seed 1–2, ornament 3):
+максимум одноручных 2250 / 2500 (sword medieval s1), двуручных 3664 / 4000 (shield_kite medieval s1); несвязных
+(non-manifold) рёбер — 0 во всех. GLB предмета 28–118 КБ. Пакет из 25 вариантов с превью — 6,7 с.
 
-Variants by seed (common scale): 6 swords with seeds 101–106 have lengths of 0.81–0.97 m; profiles broad / tapered /
-falchion / tapered / leaf / leaf; cross and curved guards of different widths (0.13–0.23 m); pommels scent / teardrop /
-disc / ball; 1550–1938 tris. Silhouettes now differ by the length, width and shape of the blade, not only by the guard
-curvature. 4 staffs: crystal (elven), orb, crook, and a skull with horns and glowing eye sockets (dark, ornament 3);
-1510–2964 tris.
+Варианты по seed (общий масштаб): 6 мечей seed 101–106 — длина 0,81–0,97 м; профили broad / tapered / falchion /
+tapered / leaf / leaf; гарды cross и curved разной ширины (0,13–0,23 м); навершия scent / teardrop / disc / ball;
+1550–1938 треуг. Силуэты теперь различаются длиной, шириной и формой клинка, а не только изгибом гарды. 4 посоха:
+кристалл (эльфийский), сфера, крюк, череп с рогами и светящимися глазницами (тёмный, ornament 3 — для некроманта),
+1510–2964 треуг.
 
-## 2. item_from_mesh: an item from a generated mesh
+![Набор](img/items/items_kit_sheet.png)
+![Варианты по seed](img/items/items_variants.png)
+
+## 2. item_from_mesh — предмет из сгенерированной сетки
 
 ```json
 {"step": "item_from_mesh", "inputs": {"mesh": "abs/hunyuan_sword.glb"},
  "params": {"kind": "blade", "length_m": 0.95, "grip": "auto", "texture_max": 1024,
             "crop": {"segment": [[x,y,z],[x,y,z]], "radius": 0.15}}, "out_dir": "abs/out"}
 ```
-Order: import and merge → weld the vertices split along UV seams → optional crop (`crop`: box or capsule) → removal of
-small detached pieces → PCA over triangle areas → a profile of sections along the axis → grip → the handle axis from
-the section centers → the blade side from the head area → rotation into the item frame, scaling to `length_m` →
-Collapse decimation to the budget → textures larger than `texture_max` are reduced → sockets, export. Outputs:
-`item.glb/.blend/.json`, `preview.png`, `profile.png` (the section profile: the red line is the main grip, the green
-one the second hand).
+Порядок: импорт и слияние → сварка вершин, разрезанных по швам UV → необязательная вырезка (`crop`: коробка или капсула)
+→ удаление мелких оторванных кусков → PCA по площадям треугольников → профиль сечений вдоль оси → хват → ось рукояти по
+центрам сечений → сторона лезвия по площади головы → поворот в рамку предмета, масштаб `length_m` → децимация Collapse
+до бюджета → текстуры > `texture_max` уменьшаются → сокеты, экспорт. Выходы: `item.glb/.blend/.json`, `preview.png`,
+`profile.png` (профиль сечений: красная линия — основной хват, зелёная — вторая рука).
 
-Grip rules (a length > 1.15 m makes a blade / axe / mace / polearm / staff two-handed and adds `socket_grip_off`):
-- blades: the grip is the longest round stretch of constant radius in the handle-side half, measured on vertices in
-  6 mm layers and only within 4.5 cm of the axis (the far ends of the guard do not interfere; a narrow spike pommel,
-  a teardrop pommel and a ricasso ring are round but shorter or of a different radius). The one-handed grip is the
-  middle of the handle; the two-handed one is 5 cm below the guard, with the second hand 11 cm lower (no closer than
-  3 cm to the pommel and never closer than 9 cm to the main one);
-- axes / maces: one-handed, the thinnest round window near the butt; two-handed, at 0.41 and 0.115 of the length from
-  the butt (as in `item_kit`);
-- polearms / staffs / wands / torches: a fraction of the length (`GRIP_T`); a known type (`type: spear | halberd`)
-  uses the proportions of the kit; the second hand is at 0.14 of the length from the butt (polearms) or 0.14 of the
-  length below the main one (staff);
-- shields: the center of the back plane + 3.5 cm, the face is the convex side;
-- `grip.point` / `grip.t` / `edge` are set manually (needed for firearms, bows and everything off-axis).
+Правила хвата (длина > 1,15 м делает клинок / топор / булаву / древковое / посох двуручным, добавляется
+`socket_grip_off`):
+- клинки: рукоять — самый длинный круглый участок постоянного радиуса в половине со стороны рукояти, по вершинам
+  в слоях 6 мм и только в радиусе 4,5 см от оси (дальние концы гарды не мешают; узкое навершие-шип, каплевидное
+  навершие, кольцо рикассо — круглые, но короче или другого радиуса). Одноручный хват — середина рукояти; двуручный —
+  5 см под гардой, вторая рука на 11 см ниже (не ближе 3 см к навершию и никогда не ближе 9 см к основной);
+- топоры / булавы: одноручные — самое тонкое круглое окно у торца; двуручные — 0,41 и 0,115 длины от торца
+  (как в `item_kit`);
+- древковые / посохи / жезлы / факелы — доля длины (`GRIP_T`), известный тип (`type: spear | halberd`) — пропорции
+  набора; вторая рука — 0,14 длины от торца (древковые) или на 0,14 длины ниже основной (посох);
+- щиты — центр тыльной плоскости + 3,5 см, лицо — выпуклая сторона;
+- `grip.point` / `grip.t` / `edge` задают вручную (нужно для огнестрела, луков и всего неосевого).
 
-Budget: by default the module budget (2500 one-handed / 4000 two-handed, staff, shield); a larger `budget_tris` (for
-example the server's) is cut down to the module budget with a warning unless `allow_over_budget` is set. Checks:
-`tris_within_budget`, `within_module_budget` (an error; with `allow_over_budget`, a warning), `sockets_in_glb` (on the
-exported GLB), `grip_section_holdable` (the section at the grip is round with radius 0.5–4.5 cm, otherwise the grip
-landed on the blade / head), `materials_principled`, `length_m`.
+Бюджет: по умолчанию бюджет модуля (2500 одноручное / 4000 двуручное, посох, щит); больший `budget_tris` (например,
+серверный) урезается до бюджета модуля с предупреждением, если не задан `allow_over_budget`. Проверки:
+`tris_within_budget`, `within_module_budget` (ошибка; с `allow_over_budget` — предупреждение), `sockets_in_glb` (по
+экспортированному GLB), `grip_section_holdable` (сечение у хвата круглое, радиус 0,5–4,5 см — иначе хват попал на
+клинок / голову), `materials_principled`, `length_m`.
 
-Measurements on "generated" copies of kit items (Subdivision ×2, random rotation, scale 1.7):
+Замеры на «сгенерированных» копиях предметов набора (Subdivision ×2, случайный поворот, масштаб 1,7):
 
-| item | tris before → after | main grip error | second hand: error / gap | rule |
+| предмет | треуг. до → после | ошибка основного хвата | вторая рука: ошибка / зазор | правило |
 |---|---|---|---|---|
-| sword | 33 600 → 2 462 | 0.5 cm | — | middle of the handle |
-| greatsword | 43 631 → 3 939 | 0.2 cm | 0.2 cm / 11 cm | 5 cm below the guard |
-| dagger | 25 472 → 2 462 | 0.0 cm | — | middle of the handle |
-| axe | 27 952 → 2 462 | 0.4 cm (edge on −Y) | — | thin window near the butt |
-| battle_axe | 56 896 → 3 938 | 0.5 cm | 0.2 cm / 34 cm | 0.41 / 0.115 of the length |
-| mace | 22 496 → 2 462 | 1.6 cm | — | thin window near the butt |
-| warhammer | 34 432 → 3 940 | 0.2 cm | 0.3 cm / 35 cm | 0.41 / 0.115 of the length |
-| halberd | 30 048 → 3 940 | 0.5 cm (blade on −Y) | 4.0 cm / 55 cm | fraction 0.42 |
-| spear (`type: spear`) | 20 064 → 3 940 | 0.3 cm | 0.1 cm / 50 cm | kit proportions |
-| staff (orb) | 26 720 → 3 940 | 10.8 cm | 7.8 cm / 27 cm | fraction 0.56 |
-| kite shield | 58 120 → 3 940 | 3.9 cm (2.0 along Y) | — | center of the back, face by curvature |
+| меч | 33 600 → 2 462 | 0,5 см | — | середина рукояти |
+| двуручный меч | 43 631 → 3 939 | 0,2 см | 0,2 см / 11 см | 5 см под гардой |
+| кинжал | 25 472 → 2 462 | 0,0 см | — | середина рукояти |
+| топор | 27 952 → 2 462 | 0,4 см (лезвие на −Y) | — | тонкое окно у торца |
+| секира (battle_axe) | 56 896 → 3 938 | 0,5 см | 0,2 см / 34 см | 0,41 / 0,115 длины |
+| булава | 22 496 → 2 462 | 1,6 см | — | тонкое окно у торца |
+| боевой молот | 34 432 → 3 940 | 0,2 см | 0,3 см / 35 см | 0,41 / 0,115 длины |
+| алебарда | 30 048 → 3 940 | 0,5 см (перо на −Y) | 4,0 см / 55 см | доля 0,42 |
+| копьё (`type: spear`) | 20 064 → 3 940 | 0,3 см | 0,1 см / 50 см | пропорции набора |
+| посох (сфера) | 26 720 → 3 940 | 10,8 см | 7,8 см / 27 см | доля 0,56 |
+| каплевидный щит | 58 120 → 3 940 | 3,9 см (2,0 по Y) | — | центр тыльной стороны, лицо по кривизне |
 
-The two-handed grips pointed out by review (the greatsword 17 cm lower, the battle axe 22 cm) now match the kit to
-within 0.5 cm. Robustness to the handle shape: 54 runs (sword, greatsword, dagger × seed 1–6 × medieval / dark /
-elven) give a mean error of 0.68 cm and a maximum of 2.9 cm (a dark sword with a spike pommel); by style: medieval ≤
-1.1 cm, elven ≤ 0.5 cm, dark ≤ 2.9 cm.
+Двуручные хваты, на которые указало ревью (двуручный меч ниже на 17 см, секира — на 22 см), теперь совпадают с
+набором в пределах 0,5 см. Устойчивость к форме рукояти: 54 прогона (меч, двуручный меч, кинжал × seed 1–6 ×
+medieval / dark / elven) — средняя ошибка 0,68 см, максимум 2,9 см (тёмный меч с навершием-шипом), по стилям:
+medieval ≤ 1,1 см, elven ≤ 0,5 см, dark ≤ 2,9 см.
 
-## 3. attach_prop: an item into the hand
+Реальный ассет: посох вырезан из `Corrected-necromancer.glb` (Hunyuan 2.1, 119 947 треуг., 3,0 м в студийных единицах)
+капсулой (0.51, −0.38, −0.05)→(0.80, −0.47, 3.05), r = 0.15: 51 289 вершин отрезано, 3 мелких куска удалено, 3 940 треуг.,
+длина 1,80 м, череп-навершие наверху, текстуры 4096 и 2048 → 1024, GLB 6,0 МБ. Хват задан `grip.t = 0.65` — там
+остался обрубок кисти генерации.
+
+![Посохи и предмет из сетки](img/items/items_staffs_and_from_mesh.png)
+
+## 3. attach_prop — предмет в руку
 
 ```json
 {"step": "attach_prop",
- "inputs": {"character": "abs/character/mixamo_rigged.fbx",
-            "clips": ["abs/character/anims/attack.fbx", {"file": "abs/character/anims/idle.fbx", "loop": true}]},
+ "inputs": {"character": "abs/zombie/mixamo_rigged.fbx",
+            "clips": ["abs/zombie/anims/attack.fbx", {"file": "abs/zombie/anims/idle.fbx", "loop": true}]},
  "params": {"attachments": [
    {"item": "abs/sword/item.glb", "hand": "r", "mode": "bone_child"},
    {"item": "abs/kite/item.glb", "hand": "l", "mode": "bone_child", "fit": "auto"}]},
  "out_dir": "abs/out"}
 ```
-Single variant: `inputs.item` + `params.hand / mode / offset / fit / item_scale`. Others: `clips_check` (true),
-`frames_per_clip` (12), `preview_clip`, `thumb_hint`, `standoff` (shields), `refit_shield_mount`, `replace`,
-`socket_along` (0.42). The shield-socket fitting code and the pose QA (`fit_shield_mount`, `fit_rotation`,
-`evaluate_pose`, `Body`, `pose_record`) lives in `_items_lib.py`, and `rig_humanoid` calls it too.
+Одиночный вариант: `inputs.item` + `params.hand / mode / offset / fit / item_scale`. Прочее: `clips_check` (true),
+`frames_per_clip` (12), `preview_clip`, `thumb_hint`, `standoff` (щиты), `refit_shield_mount`, `replace`,
+`socket_along` (0.42). Код подбора щитового сокета и QA по позам (`fit_shield_mount`, `fit_rotation`,
+`evaluate_pose`, `Body`, `pose_record`) живёт в `_items_lib.py` — его же вызывает `rig_humanoid`.
 
-- Character: `.blend`, `.glb`, `.fbx` with `mixamorig:*` bones. The height is measured in the rest pose (it used to be
-  measured in the clip pose: re-attaching to its own `equipped.glb` gave 1.45 m instead of 1.70 m).
-- Clips: a path or `{"file", "name", "loop"}`; the action name is the file name (or `name`); looped ones get the
-  suffix `-loop`, and `loop` defaults to true for the names `idle* / walk* / run*`. For one of the test characters the
-  GLB has `attack` and `idle-loop`.
-- Hand socket: if the rig has no `socket_mount_hand_<r|l>`, it is created on the hand bone (0.42 of the hand length
-  from the wrist, on the palm side by the palm thickness + 1.5 cm; +Z is the thumb side = the character's "forward";
-  if an item is sewn into the hand, along its axis, with a warning). **This is the only hand frame of the forge**: the
-  same function `_items_lib.hand_socket_frame` builds the hand sockets in `rig_humanoid` and `import_mixamo_rig`
-  (`_humanoid_lib.add_human_sockets`), so `attach_prop` takes them as they are. On a real generated humanoid after
-  `rig_humanoid`, the socket matches what `attach_prop` would compute itself to 1e-4 (both in `.blend` and after glTF),
-  and the kit sword sits without fitting: the grip is 0.8 cm from the hand, the blade along the socket +Z (cosine >
-  0.995); this is checked by a test in `test_humanoid` (the real-rig kit sword and shield without refit). For a hand
-  holding a found item, `rig_humanoid` passes its direction (`grip_dir`: +Z exactly along the item) and excludes the
-  item's vertices (`exclude`); such a socket is more accurate than what `attach_prop` would guess from the sewn-in
-  item.
-- **Shields have a separate mount socket `socket_mount_shield_<r|l>`** (the fix for the main review remark). It is a
-  child of the hand bone, and its frame = the frame of `socket_mount_hand_<side>` × the fitted rotation + an offset.
-  The fit is done once per character and hand on a canonical shield (the shield grip frame: +Z up, −Y the face; board
-  0.54 × 0.80 m, 16 mm, the back 3.2 cm in front of the grip, a bracket handle), not on a specific shield: 7 680
-  rotations are enumerated, the goal is that the shield stands and looks outward at rest (weight 0.35) and on clip
-  frames, the 8 best are checked for intersection with the body; then an offset along the face until the open hand no
-  longer pierces the board (up to 12 cm). Any kit shield or `item_from_mesh` shield is attached by aligning its own
-  `socket_grip_main` with this socket, the same way Godot will do it. If the rig already has the socket (a
-  `rig_humanoid`/`import_mixamo_rig` rig, or a rerun on `equipped.blend`), it is used as is and not changed; it is
-  re-fitted only with `refit_shield_mount: true`. `rig_humanoid` builds `socket_mount_shield_l/r` with the same fit
-  (`_items_lib.rest_shield_mounts` → `fit_shield_mount`, one implementation) for the rest pose, exactly what
-  `attach_prop` does with `fit: rest`: on a real humanoid the world matrices of the shield from the rig's socket and
-  from a socket rebuilt by `attach_prop` match to 1e-4. With clips, `attach_prop` would fit the socket on their frames
-  too, but the rig's socket takes precedence ("once per character"). The name `socket_mount_shield_*` is part of
-  the socket naming; the 4×4 matrix is still duplicated in the extras `shield_mount_matrix` of the hand socket for
-  early readers.
-- `bone_child`: the item is a separate object under its own mount socket (in glTF: hand joint → socket → item);
-  `skin_rigid`: the item mesh is merged into the character mesh with weight 1.0 on the hand bone. The self-check
-  `grip_on_mount`: the `socket_grip_main` of the attached item matches the mount socket (error 0.0 mm / 0.0°).
-  `offset` is a fine adjustment of a specific item in the frame of the mount socket; it lives on the item node and is
-  not reproduced when swapping by sockets (it is written to `attach.json`).
-- **`refit_socket` (2026-10-10).** `offset` lives on the item node, and swapping by sockets does not reproduce it. With
-  `refit_socket: true` (in params or on an attachment), the offset is baked into the socket itself:
-  `socket_mount_hand_<side>` in the rest pose is moved onto the item's `socket_grip_main` (`H_new = H · offset`) and
-  remains a child of the hand bone. The item hangs under it with an identity offset, `swap_by_socket_matching: true`.
-  The world fit matches a run without refit to 1e-4. The move is written to `attach.json → socket_refit`
-  (`delta_pos_m`, `delta_angle_deg`, before/after matrices) and to the socket extras (`refit_offset_matrix`,
-  `refit_by_item`), so the following swaps place an item the same way. The other items of the same hand are
-  recomputed into the new frame. For shields on the shield socket, refit does not apply. The test
-  `test_attach_refit_socket_bakes_offset_for_swaps` checks that the world matrices match, that the socket = old ×
-  offset, and the swap by alignment.
-- **`grip_dir`.** It is `[x, y, z]` or `up/down/forward/back/out/in` in the character's frame (facing −Y, `out` is
-  away from the body). It works for a socket that `attach_prop` creates itself when the rig has none: +Z exactly along
-  this direction (`_items_lib.grip_dir_vector`, the same `hand_socket_frame`). `rig_humanoid` has the same parameter,
-  `params.grip_dirs`.
-- Names: on the attached copy `socket_grip_main` is removed (it coincides with the mount socket), the other sockets
-  get a hand suffix (`socket_grip_off_r`, `socket_fx_tip_l`), with no dots or repeats; identical materials of two kit
-  items are merged (no `mat_medieval_trim.001`). `replace: true` removes the items that a previous run put into the
-  same hand.
-- Checks (BVH): the distance from the handle axis to the hand, the "grasp" (the share of radial rays that hit the hand
-  within 6 cm), item↔hand/body intersections at rest and on frames, points of the blade axis inside the forearm, and
-  for a shield the verticality, the face direction and the hand through the board; `mount_sockets_in_glb`,
-  `socket_names_clean`, `animations_exported`.
-- Outputs: `equipped.glb`, `equipped.blend`, `attach.json` (hand and mount sockets with frames, fit matrices, the
-  selection, per-frame checks), `preview.png` (rest + 3 clip frames), `grip_closeup.png`.
+- Персонаж: `.blend`, `.glb`, `.fbx` с костями `mixamorig:*`. Рост меряется в позе покоя (раньше — в позе клипа:
+  повторное крепление к собственному `equipped.glb` давало 1,45 м вместо 1,70 м).
+- Клипы: путь или `{"file", "name", "loop"}`; имя действия — имя файла (или `name`); зацикленные получают суффикс
+  `-loop` (контракт §7), по умолчанию `loop` = true для имён `idle* / walk* / run*`. Ангел: в GLB `attack` и
+  `idle-loop`.
+- Сокет кисти: если у рига нет `socket_mount_hand_<r|l>`, он создаётся на кости кисти (0,42 длины кисти от запястья,
+  со стороны ладони на толщину ладони + 1,5 см; +Z — сторона большого пальца = «вперёд» персонажа; если в кисть вшит
+  предмет — по его оси, с предупреждением). **Это единственная рамка кисти кузницы**: та же функция
+  `_items_lib.hand_socket_frame` строит сокеты кистей в `rig_humanoid` и `import_mixamo_rig`
+  (`_humanoid_lib.add_human_sockets`), поэтому `attach_prop` берёт их как есть. На зомби HG после `rig_humanoid`
+  сокет совпадает с тем, что `attach_prop` посчитал бы сам, до 1e-4 (и в `.blend`, и после glTF), а меч набора
+  садится без подгонки: хват 0,8 см от кисти, клинок вдоль +Z сокета (косинус > 0,995) — тест
+  `test_humanoid.test_real_zombie_rig_takes_kit_sword_and_shield_without_refit`. Для кисти, держащей найденный
+  предмет, `rig_humanoid` передаёт его направление (`grip_dir`: +Z ровно по предмету) и исключает вершины
+  предмета (`exclude`) — такой сокет точнее того, что `attach_prop` угадал бы по вшитому предмету.
+- **Щиты — отдельный сокет крепления `socket_mount_shield_<r|l>`** (исправление главного замечания ревью). Он дочерний
+  кости кисти, его рамка = рамка `socket_mount_hand_<side>` × подобранный поворот + отступ. Подбор делается один раз на
+  персонажа и руку по каноническому щиту (рамка хвата щита по §6: +Z вверх, −Y лицо; доска 0,54 × 0,80 м, 16 мм, тыл
+  в 3,2 см перед хватом, скоба-рукоять), а не по конкретному щиту: перебор 7 680 поворотов, цель — щит стоит и смотрит
+  наружу в покое (вес 0,35) и на кадрах клипов, 8 лучших проверяются на пересечение с телом; затем отступ вдоль лица,
+  пока раскрытая кисть не перестанет протыкать доску (до 12 см). Любой щит набора или из `item_from_mesh` крепится
+  совмещением своего `socket_grip_main` с этим сокетом — так же, как это сделает Godot. Если сокет у рига уже есть
+  (риг `rig_humanoid`/`import_mixamo_rig` или повторный прогон на `equipped.blend`), он используется как есть и не
+  меняется; заново подбирается только с `refit_shield_mount: true`. `rig_humanoid` строит `socket_mount_shield_l/r`
+  тем же подбором (`_items_lib.rest_shield_mounts` → `fit_shield_mount`, одна реализация) по позе покоя — ровно то,
+  что `attach_prop` делает при `fit: rest`: на зомби мировые матрицы щита из сокета рига и из сокета, построенного
+  `attach_prop` заново, совпадают до 1e-4. С клипами `attach_prop` подобрал бы сокет и по их кадрам, но сокет рига
+  важнее (§6: «один раз на персонажа»). Имя `socket_mount_shield_*` теперь в §6; матрица 4×4 по-прежнему дублируется в
+  extras `shield_mount_matrix` сокета кисти для первых читателей.
+- `bone_child`: предмет — отдельный объект под своим сокетом крепления (в glTF: сустав кисти → сокет → предмет);
+  `skin_rigid`: сетка предмета вливается в сетку персонажа с весом 1.0 на кость кисти. Самопроверка
+  `grip_on_mount`: `socket_grip_main` прикреплённого предмета совпадает с сокетом крепления (ошибка 0,0 мм / 0,0°).
+  `offset` — тонкая подстройка конкретного предмета в рамке сокета крепления; она живёт на узле предмета и при замене
+  по сокетам не воспроизводится (пишется в `attach.json`).
+- **`refit_socket` (10.10, вечер).** `offset` живёт на узле предмета, и замена по сокетам его не
+  воспроизводит. С `refit_socket: true` (в params или у attachment) смещение запекается в сам сокет:
+  `socket_mount_hand_<side>` в позе покоя переносится на `socket_grip_main` предмета (`H_new = H · offset`)
+  и остаётся ребёнком кости кисти. Предмет висит под ним с единичным смещением,
+  `swap_by_socket_matching: true`. Мировая посадка совпадает с прогоном без refit до 1e-4. Перенос
+  записан в `attach.json → socket_refit` (`delta_pos_m`, `delta_angle_deg`, матрицы «до/после») и в extras
+  сокета (`refit_offset_matrix`, `refit_by_item`), поэтому следующие замены ставят предмет так же. Другие
+  предметы той же руки пересчитываются в новую рамку. Для щитов на щитовом сокете refit не применяется.
+  Тест `test_attach_refit_socket_bakes_offset_for_swaps` проверяет совпадение мировых матриц, сокет =
+  старый × offset и замену совмещением.
+- **`grip_dir`.** Это `[x, y, z]` или `up/down/forward/back/out/in` в рамке персонажа (лицом в −Y,
+  `out` — от тела). Работает для сокета, который `attach_prop` создаёт сам, когда у рига его нет:
+  +Z ровно по этому направлению (`_items_lib.grip_dir_vector`, тот же `hand_socket_frame`). У `rig_humanoid`
+  такой же параметр — `params.grip_dirs`.
+- Имена: у прикреплённой копии `socket_grip_main` удаляется (совпадает с сокетом крепления), остальные сокеты
+  получают суффикс руки (`socket_grip_off_r`, `socket_fx_tip_l`) — без точек и повторов; одинаковые материалы двух
+  предметов набора сливаются (нет `mat_medieval_trim.001`). `replace: true` удаляет предметы, которые прошлый прогон
+  положил в ту же руку.
+- Проверки (BVH): расстояние оси рукояти до кисти, «охват» (доля радиальных лучей, попавших в кисть в пределах 6 см),
+  пересечения предмет↔рука/тело в покое и на кадрах, точки оси клинка внутри предплечья, у щита — вертикальность,
+  направление лица и рука сквозь доску; `mount_sockets_in_glb`, `socket_names_clean`, `animations_exported`.
+- Выходы: `equipped.glb`, `equipped.blend`, `attach.json` (сокеты кистей и креплений с рамками, матрицы посадки,
+  подбор, проверки по каждому кадру), `preview.png` (покой + 3 кадра клипа), `grip_closeup.png`.
 
-### Items extracted from a character: `extracted` (2026-10-12)
+### Предметы, вырезанные из персонажа: `extracted` (12.10)
 
-`extract_props` (docs/forge/extract_props.md) cuts a sword, shield, banner, bow and staff out of a generated body into
-separate `item.glb` files and leaves the place sockets `socket_prop_<hand>_<n>` on the body. `attach_prop` with
-`params.extracted: true` (a server flag: the server passes the `props.json` of this run in `inputs.extracted`; the
-character is the `.blend` of the previous step: the rig or `retarget`) puts each item where it was cut from:
+`extract_props` (docs/forge/extract_props.md) вырезает меч, щит, знамя, лук, посох из сгенерированного тела в
+отдельные `item.glb` и оставляет на теле сокеты мест `socket_prop_<рука>_<n>`. `attach_prop` с
+`params.extracted: true` (серверный флаг: сервер передаёт `props.json` этого прогона в `inputs.extracted`,
+персонаж — `.blend` предыдущего шага: рига или `retarget`) ставит каждый предмет туда, откуда он вырезан:
 
-- weapon, staff, bow, banner: `fit: placement`, offset = hand socket⁻¹ × place socket, then `refit_socket`:
-  `socket_mount_hand_<hand>` moves onto the item's `socket_grip_main` (swapping by socket repeats the grip, and a kit
-  item of the same frame sits the same way);
-- shield: by `extracted_shield_fit` (`auto` by default): `placement` puts `socket_mount_shield_<hand>` onto the grip
-  frame of the extracted shield (created if absent); **`clips`** fits the canonical shield socket to the frames of the
-  character's clips (`fit_shield_mount`: death does not take part, loops weigh double, rest 5 %, "outward" is tilted
-  toward the character's front by `shield_front_bias`, 1), and the rig's rest-fitted socket is replaced; `auto` means
-  `clips` if the character already has clips (a pipeline with `attach_prop` after `retarget`), otherwise `placement`.
-  The reason: in place of the concept pose, Mixamo clips put the shield on its edge and press it into the arm (in one
-  test, 0 of 43 frames had the shield "standing and looking outward" and there were 43 intersections; with `clips`,
-  67 % and 3). For fitting, the step takes 8 frames per clip and also with `clips_check: false`; `refit_socket` is not
-  needed for a shield;
-- an item on the belt (`hand: hip`): rigidly on `Hips` at its place;
-- afterwards the place sockets are removed; with no items the character passes through unchanged.
+- оружие, посох, лук, знамя — `fit: placement`, смещение = сокет кисти⁻¹ × сокет места, затем `refit_socket`:
+  `socket_mount_hand_<рука>` переезжает на `socket_grip_main` предмета (замена по сокету повторит хват, предмет
+  набора той же рамки встанет так же);
+- щит — по `extracted_shield_fit` (`auto` по умолчанию): `placement` — `socket_mount_shield_<рука>` ставится на
+  рамку хвата вырезанного щита (создаётся, если его нет); **`clips`** — канонический сокет щита подгоняется по
+  кадрам клипов персонажа (`fit_shield_mount`: смерть не участвует, циклы весят вдвое, покой — 5 %, «наружу»
+  наклонено к переду персонажа на `shield_front_bias`, 1), сокет рига с подгонкой по покою заменяется; `auto` —
+  `clips`, если у персонажа уже есть клипы (пакет «Врат»: `attach_prop` после `retarget`), иначе `placement`.
+  Причина: на месте концепта клипы Mixamo ставят щит ребром и вдавливают в руку (рыцарь №3: 0 из 43 кадров
+  «стоит и смотрит наружу», пересечения в 43; с `clips` — 67 % и 3). Для подгонки шаг берёт 8 кадров на клип и
+  при `clips_check: false`; `refit_socket` для щита не нужен;
+- предмет на поясе (`hand: hip`) — жёстко на `Hips` в своём месте;
+- сокеты мест после этого удаляются; нет предметов — персонаж проходит без изменений.
 
-`extracted_mode`: `bone_child` (default) | **`skin_separate`** | `skin_rigid`. `skin_separate` (also in
-`attachments[].mode`): the item stays a separate mesh, but skinned 100 % to the hand bone: one vertex group, an
-Armature modifier, the armature as parent. The rigidity is the same as `bone_child`, but `motion_style` sees it as an
-item in the hand (by weights ≥ 0.99): a staff stays vertical in a walk, the tip is not under the floor, the item lies
-down in death. Verification in real clips: `_props_lib.clip_props_qa` after `motion_style` (grip shift, extra
-penetration into the body), see extract_props.md.
+`extracted_mode`: `bone_child` (по умолчанию) | **`skin_separate`** | `skin_rigid`. `skin_separate` (и в
+`attachments[].mode`) — предмет остаётся отдельной сеткой, но со скином 100 % на кость кисти: одна группа вершин,
+модификатор Armature, родитель — арматура. Жёсткость та же, что у `bone_child`, но `motion_style` видит его как
+предмет в руке (по весам ≥ 0,99): посох вертикально в шаге, кончик не под полом, предмет ложится в смерти. Пакет
+«Врат» берёт `skin_separate`. Проверка в настоящих клипах — `_props_lib.clip_props_qa` после `motion_style`
+(сдвиг хвата, лишнее проникновение в тело), см. extract_props.md.
 
-### item_kit as a replacement for the extracted item
+### item_kit как замена вырезанного
 
-`extract_props` builds a kit item when the extracted one fails the quality check (`replace: auto`) or always
-(`always`): `_props_lib.kit_params` translates the type and measurements into kit parameters (sword: `blade_length` =
-grip → tip − 3 cm and `blade_width`; staff/spear: `shaft_length`; shield: kite / tower / round / buckler by
-proportions with `width`/`height`/`radius`; bow: `length`), the style by side, `ornament`, and `palette` from the
-dominant colors of the extracted item (k-means of texture colors over the faces). The build is the same
-`item_kit.build_item`.
+`extract_props` строит предмет набора, когда вырезанный не прошёл проверку качества (`replace: auto`) или всегда
+(`always`): `_props_lib.kit_params` переводит тип и замеры в параметры набора (меч — `blade_length` = хват → кончик
+− 3 см и `blade_width`, посох/копьё — `shaft_length`, щит — kite / tower / round / buckler по пропорциям с
+`width`/`height`/`radius`, лук — `length`), стиль по стороне, `ornament`, `palette` — из доминирующих цветов
+вырезанного (k-means цветов текстуры по граням). Сборка — та же `item_kit.build_item`.
 
-### Measurements
+### Замеры
 
-| run | grip → hand (rest) | grasp | intersections at rest | frames with intersection | other |
+| прогон | хват → кисть (покой) | охват | пересечения в покое | кадры с пересечением | прочее |
 |---|---|---|---|---|---|
-| test humanoid (1.70 m), sword R, clip attack | 1.2 cm | 0.39 | 0 | 2 of 15 (body, up to 28 tris) | blade in the forearm: 0 frames |
-| same character, kite shield L → `socket_mount_shield_l` | 1.1 cm | 0.19 | 0, hand behind the board | 4 of 15 (body, up to 175 tris) | offset 10.4 cm; at rest up·Z = 0.86, face·outward = 0.95; stands and looks outward in 47 % of frames |
-| same character, skull staff R, `skin_rigid` | 1.2 cm | 0.39 | 0 | 3 of 15 (up to 38 tris) | one mesh with a skin in the GLB; sockets `socket_fx_tip_r`, `socket_grip_off_r` |
-| second test humanoid (2.0 m), crystal staff L, clips idle-loop + attack | 0.2 cm | 0.61 | 0 | 16 of 27 (up to 51 tris) | see the limitations |
+| зомби (1,70 м), меч R, клип attack | 1,2 см | 0,39 | 0 | 2 из 15 (тело, до 28 треуг.) | клинок в предплечье: 0 кадров |
+| зомби, каплевидный щит L → `socket_mount_shield_l` | 1,1 см | 0,19 | 0, кисть за доской | 4 из 15 (тело, до 175 треуг.) | отступ 10,4 см; в покое верх·Z = 0,86, лицо·наружу = 0,95; стоит и смотрит наружу в 47 % кадров |
+| зомби, посох-череп R, `skin_rigid` | 1,2 см | 0,39 | 0 | 3 из 15 (до 38 треуг.) | одна сетка со скином в GLB; сокеты `socket_fx_tip_r`, `socket_grip_off_r` |
+| ангел (2,0 м), кристальный посох L, клипы idle-loop + attack | 0,2 см | 0,61 | 0 | 16 из 27 (до 51 треуг.) | см. ограничения |
 
-Swapping a shield by socket: in the saved scene the kite shield is removed, and a round shield is placed only by
-aligning its `socket_grip_main` with `socket_mount_shield_l`: up·Z = 0.86, face·outward (+X) = 0.82, the same as the
-fitted one. The test `test_attach_shield_mount_swap_by_socket_matching` checks that such a swap gives the same world
-matrix (to 1e-4) as the step itself, that in glTF the socket is a child of the hand joint and the shield a child of
-the socket, and that a rerun on `equipped.blend` with `replace` reuses the socket.
+Замена щита по сокету (нижний ряд картинки зомби): в сохранённой сцене каплевидный щит удалён, круглый щит поставлен
+только совмещением его `socket_grip_main` с `socket_mount_shield_l` — верх·Z = 0,86, лицо·наружу (+X) = 0,82, как у
+подобранного. Тест `test_attach_shield_mount_swap_by_socket_matching` проверяет, что такая замена даёт ту же мировую
+матрицу (до 1e-4), что и сам шаг, что в glTF сокет — ребёнок сустава кисти, а щит — ребёнок сокета, и что повторный
+прогон на `equipped.blend` с `replace` переиспользует сокет.
 
-The step time with an attack clip is 2.7 s inside Blender; the `equipped.glb` of the first test character is 1.9 MB
-(the character texture), of the second 0.8 MB.
+Время шага с атакой зомби — 2,7 с внутри Blender; `equipped.glb` зомби 1,9 МБ (текстура персонажа), ангела 0,8 МБ.
 
-## How to run
+![Зомби: меч и щит, замена щита](img/items/items_attach_zombie_sword_shield.png)
+
+## Как запускать
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-    --python scripts/blender/af_run.py -- item_kit request.json        (item_from_mesh / attach_prop likewise)
+    --python scripts/blender/af_run.py -- item_kit request.json        (item_from_mesh / attach_prop так же)
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
     --python scripts/blender/tests/run_tests.py -- items
 ```
-The numbers of this document (≈50 s, the OS temp folder; an optional image directory as the second argument):
+Числа и картинки этого документа (≈50 с, временная папка ОС + `docs/forge/img/items/`):
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python-expr ^
-  "import sys;sys.path[:0]=[r'<repo>/scripts/blender',r'<repo>/scripts/blender/tests'];import test_items as t;t.make_evidence(None, r'<image dir>')"
+  "import sys;sys.path[:0]=[r'<repo>/scripts/blender',r'<repo>/scripts/blender/tests'];import test_items as t;t.make_evidence(None, r'<repo>/docs/forge/img/items')"
 ```
-`make_evidence` prints the path to `evidence.json` with all the measurements.
+`make_evidence` печатает путь к `evidence.json` со всеми замерами.
 
-Tests: all kit types build within budget, without non-manifold edges, and export with sockets; axes/frames;
-determinism and seed spread; the batch (list outputs, sanitizing the name `../../escape`), the `size`/`preview_size`
-regression; `materials_principled` catches a disconnected BSDF; `forward: +Y`; outline filling; recovery of a sword,
-greatsword, axe, battle axe, halberd and shield from "generated" copies (second hand ≥ 9 cm lower), grips by
-seed/style, budget cutting; a synthetic rig (`bone_child` / `skin_rigid`), `offset`, shield swap by socket, `-loop` clip
-names / clean sockets / height at rest; real ones: a humanoid with sword+shield and an attack clip, a humanoid with a
-`skin_rigid` staff, a second humanoid with a staff (idle + attack, and the sewn-in sword in the right hand), and a
-staff cut out of a generated character. The real tests return `"skip: …"` if the file is missing.
+Тесты: все типы набора собираются в бюджет, без несвязных рёбер, экспортируются с сокетами; оси/рамки; детерминизм и
+разброс seed; пакет (выходы-списки, очистка имени `../../escape`), регрессия `size`/`preview_size`;
+`materials_principled` ловит отключённый BSDF; `forward: +Y`; заполнение контуров; восстановление меча, двуручного
+меча, топора, секиры, алебарды и щита из «сгенерированных» копий (вторая рука ≥ 9 см ниже), рукояти по seed/стилям,
+урезание бюджета; синтетический риг (`bone_child` / `skin_rigid`), `offset`, замена щита по сокету, имена клипов
+`-loop` / чистые сокеты / рост в покое; реальные: зомби меч+щит с attack, зомби посох `skin_rigid`, ангел посох
+(idle + attack, и вшитый меч правой руки), посох из некроманта. Реальные тесты возвращают `"skip: …"`, если файла нет.
 
-## Honest limitations
+## Честные ограничения
 
-- **Hands do not close.** For Meshy/Tripo characters without finger bones the hand is open (the claw-like hands of
-  one test character), and the handle lies in the palm/fingers (grasp 0.19–0.39 instead of ≥ 0.5 for a fist).
-  Closing a fist is the job of the humanoid module.
-- **A rigid fit does not adapt to a clip.** In an A-pose a sword and staff point horizontally forward; in an attack
-  the sword touches the body in 2 of 15 frames, the shield in 4 of 15, and the shield stands and looks outward in only
-  47 % of frames (the clip swings the "claws" rather than holding a shield). Clips made for the item, or a per-frame
-  hand correction, are needed.
-- **Second test character:** the right hand holds a sewn-in sword and all clips hold it with two hands, so a staff in
-  the left hand passes through the body in 16 of 27 frames. The fit is right; the conflict is in the clip content.
-- **A shield in an open hand** is offset by 10.4 cm (by the canonical shield) so that the fingers do not pierce the
-  board: the shield handle is not in the fist. A fit "on the forearm through the enarme" is not modeled; the fitted
-  socket replaces it. A shield thicker than the canonical one can touch the hand, which the check
-  `hand_through_board_rest` catches.
-- The rig's `socket_mount_shield_<side>` is fitted **only on the rest pose** (`rig_humanoid` has no clips); if the
-  shield must also stand in the frames of a specific clip, `refit_shield_mount: true` with those clips is needed.
-  `offset` is not carried over when swapping by sockets.
-- **The thumb side** is guessed from the character's "forward" (correct for Mixamo A/T-poses) or from a sewn-in
-  item; for other poses `thumb_hint` is needed.
-- **item_from_mesh guesses the grip geometrically.** A staff is placed by a fraction of the length (error 10.8 cm), the
-  halberd's second hand is 4 cm off, a mace 1.6 cm, a shield 3.9 cm, a dark sword with a spike pommel up to 2.9 cm.
-  Firearms, bows and off-axis items require `grip.point` / `edge`. Collapse decimation eats thin spikes. An item cut
-  out of a character carries stubs of the hand and the whole texture atlas (a staff cut from a generated character
-  is a 6.0 MB GLB).
-- **Materials are PBR constants per role**, wear is not baked: there is an unwrap, but no texture. The Workbench
-  preview softens metallic (viewport values only; the GLB values are exact) and does not show the texture of a staff
-  cut from a generated mesh.
-- Small geometry: on a one-handed axe the inner edge of the light rim is slightly jagged (an offset curve); on the
-  battle axe tiny light bevel chips are visible at the eye corners; both are visible only in close-up.
-- Blasters point their muzzle to −Y by default (the item frame); `forward: "+Y"` exists, but which variant a
-  consuming project requires is that project's decision.
-- A torch flame is a static emissive mesh; the potion glass is opaque.
+- **Руки не сжимаются.** У Meshy/Tripo-персонажей без костей пальцев кисть раскрыта (у зомби — «когти»), рукоять лежит
+  в ладони/пальцах (охват 0,19–0,39 вместо ≥ 0,5 у кулака). Сжатие кулака — работа модуля гуманоидов.
+- **Жёсткая посадка не подстраивается под клип.** В A-позе меч и посох смотрят горизонтально вперёд; в атаке зомби меч
+  задевает тело в 2 из 15 кадров, щит — в 4 из 15, щит стоит и смотрит наружу лишь в 47 % кадров (клип машет
+  «когтями», а не держит щит). Нужны клипы под предмет или покадровая поправка кисти.
+- **Ангел:** правая кисть держит вшитый меч, все клипы держат его двумя руками — посох в левой руке проходит сквозь
+  тело в 16 из 27 кадров. Посадка правильная, конфликт в содержании клипов.
+- **Щит в раскрытой кисти** отодвинут на 10,4 см (по каноническому щиту), чтобы пальцы не протыкали доску: ручка щита
+  не в кулаке. Посадка «на предплечье через энарм» не моделируется, её заменяет подобранный сокет. Щит толще
+  канонического может касаться кисти — это ловит проверка `hand_through_board_rest`.
+- `socket_mount_shield_<side>` рига подобран **только по позе покоя** (у `rig_humanoid` клипов нет); если щит должен
+  стоять и в кадрах конкретного клипа, нужен `refit_shield_mount: true` с этими клипами. `offset` при замене по
+  сокетам не переносится.
+- **Сторона большого пальца** угадывается по «вперёд» персонажа (верно для Mixamo A/T-поз) или по вшитому предмету;
+  для иных поз нужен `thumb_hint`.
+- **item_from_mesh угадывает хват геометрически.** Посох — по доле длины (ошибка 10,8 см), вторая рука алебарды —
+  4 см, булава 1,6 см, щит 3,9 см, тёмный меч с навершием-шипом — до 2,9 см. Огнестрел, луки и неосевые предметы
+  требуют `grip.point` / `edge`. Децимация Collapse съедает тонкие шипы. Вырезанный из персонажа предмет несёт обрубки
+  кисти и весь текстурный атлас (посох некроманта — GLB 6,0 МБ).
+- **Материалы — константы PBR на роль**, износ не запекается: развёртка есть, текстуры нет. Превью Workbench смягчает
+  metallic (только viewport-значения; в GLB — точные) и не показывает текстуру посоха некроманта.
+- Мелкая геометрия: у одноручного топора внутренний край светлой кромки слегка зубчатый (смещённая кривая); у секиры у
+  углов проушины видны крошечные светлые сколы фаски — заметны только на крупном плане.
+- Бластеры по умолчанию дулом в −Y (рамка предмета, §6); для Space Quest есть `forward: "+Y"`, но какой вариант
+  обязателен для экипажа — решает владелец контракта.
+- Пламя факела — статичная эмиссионная сетка; стекло флакона непрозрачное.
