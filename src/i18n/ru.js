@@ -2589,4 +2589,7 @@ export default {
   "sculpt.editsSuffix": " · есть правки",
   "sculpt.collapse": "Свернуть",
   "sculpt.expand": "Развернуть на всё окно",
+  "step.sculpt": "Скульптурные операции",
+  "enum.y": "Y-образные",
+  "enum.z": "Z-образные",
 };

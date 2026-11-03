@@ -345,6 +345,22 @@ const STEP_LIST = [
       ...preview(320),
     },
   },
+  {
+    step: 'sculpt', module: 'core', title: 'Sculpture operations',
+    help: 'Windowless sculpting operations on a mesh by a region mask: smoothing (smooth), shrink-free relax (relax), inflate / deflate, flatten, pinch / expand, grab, copying a shape from another mesh (transfer - for example, from the Sculpt tab), remesh, subdivide, decimate and symmetrize. Operations run in the ops order; every one has its own region (whole mesh, sphere, box, vertex group, bone) with a falloff. The armature and the rig are not touched, weights and UV survive (remesh - only with keep_uv: false). Coordinates are metres in the model system (Z up, facing -Y, a rig in rest pose). Takes .blend or the GLB of the previous step.',
+    kinds: ALL_KINDS, inputs: { slots: ['blend', 'mesh'], required: true, formats: [...MESH_FORMATS, 'blend'] },
+    outputs: ['glb', 'mesh', 'blend', 'preview'], timeoutSec: 30 * 60,
+    params: {
+      ops: list([], 'Operations', 'Required, applied in order. Each entry - {op, region, symmetry, ...own parameters}. op: smooth {iterations, factor}, relax {iterations, factor, keep_volume}, inflate / deflate {amount, m}, flatten {strength, iterations, plane: {point, normal}}, pinch / expand {amount 0..1, center, radial}, grab {offset: [x, y, z], m}, transfer {source_asset (UUID of the source asset) | source (a path, CLI only), method: project | nearest, strength, align: auto | none | bbox, seam_smooth}, remesh {mode: voxel | quad, voxel_size, target_faces}, subdivide {cuts, threshold}, decimate {ratio}, symmetrize {axis, direction: + | -}. region: {type: all} | {type: sphere, center, radius, falloff} | {type: box, center, extents (half sizes), feather} | {type: vertex_group, name} | {type: bone, name, children, radius}; falloff: smooth | linear | sharp | constant; invert: true - the opposite mask. Example: [{"op": "inflate", "amount": 0.01, "region": {"type": "sphere", "center": [0, -0.1, 1.6], "radius": 0.15}}].', { items: { type: 'any' } }),
+      symmetry: oneOf(['x', 'y', 'z', 'none'], 'none', 'Symmetry', 'Mirror the mask and the operation across an axis (an operation may carry its own symmetry). World axes, the plane through zero.'),
+      keep_uv: bool(true, 'Keep UV', 'true - UV layers must survive: remesh is then refused when the model has UV (it wipes them); false - allowed, UV and the texture are lost (bring the color back with a cleanup step using voxel_remesh_m).'),
+      preserve_rig: bool(true, 'Keep the rig', 'true - the armature, bones, clips and skin weights stay; after remesh and symmetrize the weights are rebuilt from the originals. false - the rig is dropped, the output is a static mesh.'),
+      objects: list(null, 'Objects', 'Names of the meshes to work on; empty - every mesh of the model.', { items: { type: 'string' } }),
+      shade_auto_smooth_deg: num(40, 0, 180, 'Auto smooth, deg', 'Normals of the touched meshes are cleared and re-derived: the hard-edge angle; 0 - flat, empty - only clear custom normals, keep the face smooth flags.', opt),
+      tolerance_m: num(null, 0, 100, 'Transfer tolerance, m', 'Limit of the transfer_max_dist_m check (the mean gets a quarter); empty - 0.01 of the model size.', opt),
+      ...preview(512),
+    },
+  },
   // ---------------------------------------------------------------- humanoid
   {
     step: 'rig_humanoid', module: 'humanoid', title: 'Humanoid auto-rig',

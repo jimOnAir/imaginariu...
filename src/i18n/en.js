@@ -2591,4 +2591,7 @@ export default {
   "sculpt.editsSuffix": " · there are edits",
   "sculpt.collapse": "Collapse",
   "sculpt.expand": "Expand to the whole window",
+  "step.sculpt": "Sculpture operations",
+  "enum.y": "Y-wing",
+  "enum.z": "Z-wing",
 };
