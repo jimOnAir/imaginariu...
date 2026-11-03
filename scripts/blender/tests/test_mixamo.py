@@ -26,6 +26,13 @@ from steps import clip_library
 from steps import retarget
 
 LIBRARY = lib.DEFAULT_LIBRARY
+# folder of the raw unit folders (model.fbx/glb, anims/, mixamo_rigged.fbx) for the real-asset tests
+RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+
+
+def raw(unit, *parts):
+    p = os.path.join(RAW, unit, *parts)
+    return p if os.path.exists(p) else None
 
 
 def tmpdir(tag):
@@ -484,6 +491,23 @@ def test_map_bone_names_schemes():
     assert "DEF-upper_arm.L.001" not in m and "DEF-spine.005" not in m
 
 
+def test_categories_and_tags():
+    cases = {"militia atk bayonet stab": ("attack", {"spear"}),
+             "angel attack sword and shield power slash": ("attack", {"sword", "shield"}),
+             "archer shoot aim recoil": ("attack", {"bow"}),
+             "militia idle block": ("idle", {"shield"}), "zombie walk": ("walk", {"zombie"}),
+             "knight rider sit": ("idle", {"mounted"}), "necro rider cast": ("cast", {"magic"}),
+             "Standard Run": ("run", set()), "Jump Over": ("jump", set()),
+             "Hip Hop Dancing": ("emote", set()), "Falling Back Death": ("death", set()),
+             "Head Hit": ("hit", set()), "T-Pose": ("other", set())}
+    for text, (cat, tags) in cases.items():
+        assert lib.guess_category(text) == cat, (text, lib.guess_category(text))
+        assert tags <= set(lib.guess_tags(text)), (text, lib.guess_tags(text))
+    assert lib.clip_name_from_path(RAW + "/zombie/anims/candidates/walk_fast.fbx") == \
+        "zombie walk fast"
+    assert lib.clip_name_from_path("/tmp/dl/Sword And Shield Idle.fbx") == "Sword And Shield Idle"
+
+
 def test_retime_action_normalizes():
     rig = build_armature("R", {"A": ((0, 0, 0), (0, 0, 1), None), "B": ((0, 0, 1), (0, 0, 2), "A")})
     keys = {"A": {"loc": [Vector()] * 3, "rot": [Quaternion(), Quaternion((0, 0, 1), 1.0),
@@ -893,6 +917,138 @@ def _real_clipset(idle, walk, attack, hit, death):
 
 
 NAMES5 = ["idle-loop", "walk-loop", "attack", "hit", "death"]
+
+
+def test_real_zombie_mixamo_rig():
+    """(a) Mixamo auto-rig of the zombie (A-pose) + militia clips (other proportions)."""
+    target = raw("zombie", "mixamo_rigged.fbx")
+    clips = _real_clipset(raw("militia", "anims", "idle.fbx"), raw("zombie", "anims", "walk.fbx"),
+                          raw("militia", "anims", "attack.fbx"), raw("militia", "anims", "hit.fbx"),
+                          raw("militia", "anims", "death.fbx"))
+    if not target or not clips:
+        return "skip: raw fixtures missing under " + RAW
+    d = tmpdir("zombie")
+    req = request(d, {"mesh": target}, {"clips": clips})
+    res = finish(req, retarget.run(req))
+    doc, summ = assert_common(res, NAMES5, res["outputs"]["clips"])
+    by = {c["gltf_name"]: c for c in doc["clips"]}
+    # default lock: only the walk is in place, standing clips keep their hips motion
+    assert [c["gltf_name"] for c in doc["clips"] if c["in_place"]] == ["walk-loop"], doc["clips"]
+    assert by["death"]["root_motion"] == "keep" and by["death"]["hips_drift_m"] > 0.5
+    assert by["walk-loop"]["ground_speed_mps"] > 0.1  # the game moves the in-place walk
+    # the zombie walk drags a foot and lurches 0.3 m: in place keeps the lurch, so the feet
+    # skate no more than on the source (assert_common), and the dragged ball stays pinned
+    assert by["walk-loop"]["hips_drift_m"] > 0.1
+    assert sum(by["walk-loop"]["ball_pinned_frames"].values()) > 0
+    assert summ["skins"][0]["joints"] == 22
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def test_real_angel_mixamo_rig():
+    """(b) Mixamo auto-rig of the angel + archer clips (33-bone skeleton with animated
+    wrists and index fingers), root motion extracted to a new root bone."""
+    target = raw("angel", "mixamo_rigged.fbx")
+    clips = _real_clipset(raw("archer", "anims", "idle.fbx"), raw("archer", "anims", "walk.fbx"),
+                          raw("archer", "anims", "shoot.fbx"), raw("archer", "anims", "hit.fbx"),
+                          raw("archer", "anims", "death.fbx"))
+    if not target or not clips:
+        return "skip: raw fixtures missing under " + RAW
+    d = tmpdir("angel")
+    req = request(d, {"mesh": target}, {"clips": clips, "root_motion": "extract"})
+    res = finish(req, retarget.run(req))
+    # archer walk and death on the shorter-legged angel skate a little more than the source
+    # (3.5/1.8 and 3.8/2.2 cm on 10.10): reported as foot_skate warnings, bounded here
+    doc, summ = assert_common(res, NAMES5, res["outputs"]["clips"],
+                              skate_max={"walk-loop": 6.0, "death": 6.0})
+    assert "root" in summ["joint_names"]
+    by = {c["gltf_name"]: c for c in doc["clips"]}
+    assert by["death"]["root_travel_m"] > 0.3, by["death"]       # fall travel on the root bone
+    assert by["walk-loop"]["root_travel_m"] == 0.0
+    for c in doc["clips"]:
+        for side, tw in c["hand_twist_deg"].items():
+            if tw["source"] is not None and tw["target"] is not None:
+                assert abs(tw["target"] - tw["source"]) <= 25.0, (c["gltf_name"], side, tw)
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def test_real_planted_clips_default_lock():
+    """Regression on the clips the review measured: angel hit (source feet still on every
+    frame) and militia idle_lookaround onto the zombie with DEFAULT params; the old behaviour
+    (all hips XY removed, now in_place:'strict') skated 24 and 8 cm and must be reported."""
+    target = raw("zombie", "mixamo_rigged.fbx")
+    hit, look = raw("angel", "anims", "hit.fbx"), raw("militia", "anims", "candidates",
+                                                       "idle_lookaround.fbx")
+    if not (target and hit and look):
+        return "skip: raw fixtures missing under " + RAW
+    d = tmpdir("planted")
+    req = request(d, {"mesh": target}, {"preview": False, "clips": [
+        {"source": hit, "name": "hit"}, {"source": look, "name": "idle"},
+        {"source": hit, "name": "hit_strict", "in_place": "strict"}]})
+    res = finish(req, retarget.run(req))
+    doc, _ = assert_common(res, ["hit", "idle-loop", "hit_strict"], res["outputs"]["clips"],
+                           preview=False, skate_max={"hit_strict": 1e9})
+    by = {c["gltf_name"]: c for c in doc["clips"]}
+    for n in ("hit", "idle-loop"):
+        assert by[n]["root_motion"] == "keep", by[n]
+        assert by[n]["foot_plant_drift_cm"] <= 1.0 and by[n]["foot_skate_cm"] <= 2.0, by[n]
+    assert by["hit"]["hips_drift_m"] > 0.15  # the hit's 0.24 m body sway is kept
+    assert by["hit_strict"]["foot_plant_drift_cm"] > 10.0, by["hit_strict"]
+    assert not next(c for c in res["checks"] if c["name"] == "foot_skate_hit_strict")["ok"]
+    ex = glb_ankle_excursion(res["outputs"]["glb"], "hit", FEET)
+    assert max(ex.values()) <= 0.01, ex
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def test_real_synthetic_arms_down_rig():
+    """(c) real Mixamo T-pose clips onto a synthetic arms-down rig with other proportions."""
+    clips = _real_clipset(raw("militia", "anims", "candidates", "idle_lookaround.fbx"),
+                          raw("zombie", "anims", "walk.fbx"), raw("zombie", "anims", "attack.fbx"),
+                          raw("zombie", "anims", "hit.fbx"), raw("zombie", "anims", "death.fbx"))
+    if not clips:
+        return "skip: raw fixtures missing under " + RAW
+    d = tmpdir("armsdown")
+    blend = save_target_blend(d, ARMS_DOWN, prefix="mixamorig:", roll=-1.1)
+    req = request(os.path.join(d, "out"), {"blend": blend}, {"clips": clips})
+    res = finish(req, retarget.run(req))
+    doc, _ = assert_common(res, NAMES5, res["outputs"]["clips"])
+    for c in doc["clips"]:
+        assert c["arm_dir_err_deg"] < 1.0, c
+    rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
+    _, tmap = lib.map_armature(rig)
+    att = next(c for c in doc["clips"] if c["gltf_name"] == "attack")
+    err = compare_with_source(rig, tmap, "attack", clips[2]["source"], att["trim"][0],
+                              att["frames"])
+    assert err < 3.0, err
+    shutil.rmtree(d, ignore_errors=True)
+
+
+def test_real_astraforge_template_rig():
+    """(d) AstraForge browser template names (Root/Hips/Chest/LeftUpperArm...) via .blend input,
+    root motion extracted onto the template's own Root bone."""
+    clips = _real_clipset(raw("militia", "anims", "idle.fbx"), raw("militia", "anims", "walk.fbx"),
+                          raw("militia", "anims", "attack.fbx"), raw("militia", "anims", "hit.fbx"),
+                          raw("zombie", "anims", "death.fbx"))
+    if not clips:
+        return "skip: raw fixtures missing under " + RAW
+    d = tmpdir("template")
+    blend = save_target_blend(d, astraforge_template(), deform_skip=("Root", "HeadEnd",
+                                                                     "LeftHandEnd", "RightHandEnd",
+                                                                     "LeftToesEnd", "RightToesEnd"))
+    req = request(os.path.join(d, "out"), {"blend": blend}, {"clips": clips,
+                                                             "root_motion": "extract"})
+    res = finish(req, retarget.run(req))
+    doc, summ = assert_common(res, NAMES5, res["outputs"]["clips"])
+    assert doc["scheme"] == "astraforge" and doc["root_bone"] == "Root", (doc["scheme"],
+                                                                         doc["root_bone"])
+    tm = doc["target_mapped"]
+    assert tm["Chest"] == "Spine2" and tm["LeftUpperArm"] == "LeftArm" and \
+        tm["RightLowerLeg"] == "RightLeg" and tm["LeftToes"] == "LeftToeBase"
+    assert {"Root", "LeftHandEnd"} <= set(doc["target_unmapped"])
+    death = next(c for c in doc["clips"] if c["gltf_name"] == "death")
+    assert death["root_travel_m"] > 0.3, death
+    for c in doc["clips"]:
+        assert c["arm_dir_err_deg"] < 1.0, c
+    shutil.rmtree(d, ignore_errors=True)
 
 
 def test_real_library_index():

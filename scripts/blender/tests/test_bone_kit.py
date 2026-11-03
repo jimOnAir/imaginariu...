@@ -22,6 +22,8 @@ import af_common as af
 from steps import _bone_kit_lib as B
 from steps import bone_kit as K
 
+# the owner's reference picture for the comparison sheet (AF_BONE_KIT_REFERENCE overrides)
+REFERENCE = os.environ.get("AF_BONE_KIT_REFERENCE") or r"C:/AstraForge/test-assets/Necromancer/Reference-original.jpg"
 # regions of the reference (x0, y0, x1, y1 in its 2752 x 1536 pixels)
 REF_CROPS = {"hand_open": (1040, 650, 1210, 900), "grip": (1740, 520, 1900, 660), "staff_head": (1790, 30, 1960, 420),
              "clasps": (1380, 370, 1560, 680), "staff_full": (1690, 30, 1990, 1520)}
@@ -401,6 +403,24 @@ def test_bad_params_raise():
 
 # =============================================================================== real asset
 
+def test_real_reference_crops():
+    if not os.path.isfile(REFERENCE):
+        return "skip: reference image missing: %s" % REFERENCE
+    crops = reference_crops()
+    for k, (x0, y0, x1, y1) in REF_CROPS.items():
+        c = crops[k]
+        assert c.shape[:2] == (y1 - y0, x1 - y0), k
+        assert c[..., :3].std() > 0.03, k                                       # not a blank region
+
+
+def reference_crops():
+    im = bpy.data.images.load(REFERENCE, check_existing=True)
+    W, H = im.size
+    px = np.array(im.pixels[:], dtype=np.float32).reshape(H, W, 4)[::-1]
+    out = {k: px[y0:y1, x0:x1].copy() for k, (x0, y0, x1, y1) in REF_CROPS.items()}
+    bpy.data.images.remove(im)
+    return out
+
 
 # =============================================================================== evidence
 
@@ -422,5 +442,126 @@ def _small_png(arr, path, max_kb=400):
         q[..., 3] = 1.0
         B.save_png(q, path)
     return path
+
+
+def make_evidence(out_dir=None, img_dir=None, style="aged"):
+    """Comparison with the reference + numbers. Writes <out_dir>/evidence.json and the PNGs; copies the
+    doc pictures (<= 400 KB) into img_dir when given."""
+    out_dir = out_dir or _tmp()
+    os.makedirs(out_dir, exist_ok=True)
+    ev = {"parts": {}}
+    bg = (0.62, 0.62, 0.64)
+    # --- open right hand with rings (reference: rings on the thumb, index, middle)
+    af.reset_scene()
+    objs, hi = K.build_part({"part": "skeleton_hand", "side": "r", "pose": "open", "style": style,
+                             "rings": ["thumb", "index", "middle"]})
+    B.eevee_shot(os.path.join(out_dir, "our_hand_open.png"), [hi["_main"]], view_dir=(1, 0.25, -0.15), size=(340, 500))
+    ev["parts"]["hand_open_r"] = {k: hi[k] for k in ("tris", "dimensions_m", "chain_length_m", "overlaps")}
+    # --- staff + left hand gripping it (hand socket matched onto socket_grip_main)
+    af.reset_scene()
+    sobjs, si = K.build_part({"part": "bone_staff", "style": style})
+    staff = si["_main"]
+    hobjs, gi = K.build_part({"part": "skeleton_hand", "side": "l", "pose": "grip", "style": style,
+                              "rings": ["index", "middle", "ring"]})
+    arm = [o for o in hobjs if o.type == "ARMATURE"][0]
+    sock = [o for o in hobjs if o.name.startswith("socket_mount_hand")][0]
+    grip = [o for o in sobjs if o.name == "socket_grip_main"][0]
+    bpy.context.view_layer.update()
+    arm.matrix_world = grip.matrix_world @ sock.matrix_world.inverted() @ arm.matrix_world
+    bpy.context.view_layer.update()
+    err = (sock.matrix_world.translation - grip.matrix_world.translation).length
+    hand = gi["_main"]
+    co = _verts_eval(hand)
+    gz = grip.matrix_world.translation
+    # back of the hand toward the camera, like the reference (mirrored: the forearm leaves to the right)
+    B.eevee_shot(os.path.join(out_dir, "our_grip.png"), [hand, staff], view_dir=(-0.6, 0.8, 0), size=(400, 350),
+                 target=gz + Vector((0, 0.02, 0.01)), ortho_scale=0.22)
+    c = Vector(si["crystal"]["centre"])
+    B.eevee_shot(os.path.join(out_dir, "our_staff_head.png"), [staff], view_dir=(0.25, 1, -0.05), size=(300, 520),
+                 target=c - Vector((0, 0, 0.1)), ortho_scale=0.45)
+    B.eevee_shot(os.path.join(out_dir, "our_staff_full.png"), [staff, hand], view_dir=(0.25, 1, -0.02), size=(300, 1100))
+    ev["parts"]["staff"] = {k: si[k] for k in ("tris", "dimensions_m", "joints_z", "grip_shaft_radius_m", "crystal")}
+    ev["parts"]["staff"]["sockets"] = si["sockets"]
+    ev["parts"]["hand_grip_l"] = {k: gi[k] for k in ("tris", "joint_angles_deg", "grip_contact", "overlaps")}
+    ev["parts"]["hand_grip_l"]["socket_match_error_m"] = round(err, 7)
+    # --- clasps (plain gold rings and gold caps, like the 2 + 2 of the reference)
+    af.reset_scene()
+    t1 = K.build_part({"part": "bone_toggle", "gold": "rings", "style": style})[1]
+    t2 = K.build_part({"part": "bone_toggle", "gold": "caps", "style": style, "seed": 3})[1]
+    t2["_main"].location = (0, 0, -0.06)
+    bpy.context.view_layer.update()
+    B.eevee_shot(os.path.join(out_dir, "our_clasps.png"), [t1["_main"], t2["_main"]], view_dir=(0.15, 1, -0.1),
+                 size=(360, 420))
+    ev["parts"]["toggle_rings"] = {k: t1[k] for k in ("tris", "dimensions_m")}
+    ev["parts"]["toggle_caps"] = {k: t2[k] for k in ("tris", "dimensions_m")}
+    # --- comparison sheet: reference crop above, ours below
+    th, tw = 420, 300
+    pairs = [("hand_open", "our_hand_open.png", "OPEN HAND"), ("grip", "our_grip.png", "GRIP ON STAFF"),
+             ("staff_head", "our_staff_head.png", "STAFF HEAD"), ("clasps", "our_clasps.png", "CLASPS")]
+    have_ref = os.path.isfile(REFERENCE)
+    crops = reference_crops() if have_ref else {}
+    cols = []
+    for key, ours, lab in pairs:
+        top = B.fit_tile(crops[key], tw, th, bg) if have_ref else np.ones((th, tw, 4), np.float32)
+        bot = B.fit_tile(B.load_png(os.path.join(out_dir, ours)), tw, th, bg)
+        band = np.zeros((26, tw, 4), np.float32)
+        band[..., :3] = 0.15
+        band[..., 3] = 1
+        B.stamp_text(band, lab, 6, 6, 2, (0.95, 0.85, 0.55, 1))
+        cols.append(np.concatenate([band, top, bot], axis=0))
+    fr = B.fit_tile(crops["staff_full"], 110, th * 2 + 26, bg) if have_ref else np.ones((th * 2 + 26, 110, 4), np.float32)
+    fo = B.fit_tile(B.load_png(os.path.join(out_dir, "our_staff_full.png")), 110, th * 2 + 26, bg)
+    sheet = np.concatenate(cols + [fr, fo], axis=1)
+    lab = np.zeros((24, sheet.shape[1], 4), np.float32)
+    lab[..., :3] = 0.1
+    lab[..., 3] = 1
+    B.stamp_text(lab, "TOP: OWNER REFERENCE   BOTTOM: BONE_KIT (%s, EEVEE)" % style.upper(), 6, 5, 2, (0.9, 0.9, 0.9, 1))
+    sheet = np.concatenate([lab, sheet], axis=0)
+    comp = B.save_png(sheet, os.path.join(out_dir, "comparison.png"))
+    # --- pose sheet (EEVEE shots of the five poses, right hand) + parts contact sheet
+    ims = []
+    for pose in K.POSES:
+        af.reset_scene()
+        objs, pi = K.build_part({"part": "skeleton_hand", "pose": pose, "side": "r", "style": style})
+        show = [pi["_main"]]
+        if pose == "grip":
+            ax = pi["grip_axis"]
+            bpy.ops.mesh.primitive_cylinder_add(radius=ax["radius_m"], depth=0.14, vertices=24)
+            cyl = bpy.context.active_object
+            cyl.matrix_world = (__import__("mathutils").Matrix.Translation(Vector(ax["point"])) @
+                                Vector((0, 0, 1)).rotation_difference(Vector(ax["direction"])).to_matrix().to_4x4())
+            cyl.data.materials.append(B.principled("staff_wood_preview", "#4a3a2a", 0, 0.6))
+            show.append(cyl)
+        p_ = os.path.join(out_dir, "pose_%s.png" % pose)
+        B.eevee_shot(p_, show, view_dir=(1, 0.3, -0.1), size=(260, 330), ortho_scale=0.23)
+        ims.append(B.fit_tile(B.load_png(p_), 260, 330, bg))
+        band = np.zeros((22, 260, 4), np.float32)
+        band[..., :3] = 0.15
+        band[..., 3] = 1
+        B.stamp_text(band, "%s %dT" % (pose, pi["tris"]), 6, 4, 2, (0.95, 0.85, 0.55, 1))
+        ims[-1] = np.concatenate([band, ims[-1]], axis=0)
+        ev["parts"]["pose_" + pose] = {"tris": pi["tris"], "overlaps": pi["overlaps"],
+                                       "joint_angles_deg": pi["joint_angles_deg"]}
+    poses = B.save_png(np.concatenate(ims, axis=1), os.path.join(out_dir, "poses.png"))
+    batch_dir = os.path.join(out_dir, "batch")
+    res = K.run({"params": {"batch": [{"part": "skeleton_hand", "pose": "open"}, {"part": "skeleton_hand", "pose": "claw"},
+                                      {"part": "skeleton_hand", "pose": "fist", "side": "l"},
+                                      {"part": "skeleton_hand", "pose": "grip", "side": "l", "rings": ["index", "middle"]},
+                                      {"part": "bone_staff"}, {"part": "bone_staff", "segments": 4, "talons": 3, "seed": 4},
+                                      {"part": "bone_toggle", "gold": "rings"}, {"part": "bone_toggle", "gold": "caps"}],
+                            "style": style, "preview": False}, "out_dir": batch_dir, "inputs": {}})
+    ev["batch"] = res["stats"]
+    ev["files"] = {"comparison": comp, "poses": poses, "contact_sheet": res["outputs"]["contact_sheet"]}
+    if img_dir:
+        os.makedirs(img_dir, exist_ok=True)
+        ev["doc_images"] = {}
+        for name, src in (("bone_kit_vs_reference.png", comp), ("bone_kit_hand_poses.png", poses),
+                          ("bone_kit_contact_sheet.png", res["outputs"]["contact_sheet"])):
+            dst = _small_png(B.load_png(src), os.path.join(img_dir, name))
+            ev["doc_images"][name] = {"path": dst, "kb": round(os.path.getsize(dst) / 1024, 1)}
+    with open(os.path.join(out_dir, "evidence.json"), "w", encoding="utf-8") as fh:
+        json.dump(af._jsonable(ev), fh, ensure_ascii=False, indent=2)
+    print("EVIDENCE", os.path.join(out_dir, "evidence.json"))
+    return ev
 
 

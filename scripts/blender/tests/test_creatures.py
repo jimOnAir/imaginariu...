@@ -23,6 +23,7 @@ import af_common as af
 from steps import _creature_lib as L
 from steps import anim_creature, rig_creature
 
+ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
 KEEP = os.environ.get("AF_CREATURE_TEST_OUT")       # optional: keep outputs in this folder
 
 
@@ -521,5 +522,63 @@ def test_synth_custom_chain():
 
 
 # ----------------------------------------------------------------------------- real assets
+
+def _real(unit, template, length, anim_clips, legs=4, wings=0, weights_mode=None, **rig_params):
+    path = os.path.join(ART_RAW, unit, "model.glb")
+    if not os.path.isfile(path):
+        return "skip: asset missing: " + path
+    out = _out(unit + ("_" + rig_params["weights"] if "weights" in rig_params else ""))
+    res, meta = _rig(path, os.path.join(out, "rig"), length_m=length, **rig_params)
+    _assert_rig(res, meta, template, legs, wings)
+    if weights_mode:
+        assert meta["weights"]["mode"] == weights_mode, meta["weights"]
+    ares, clips = _anim(res["outputs"]["blend"], os.path.join(out, "anim"), clips=anim_clips)
+    _assert_anim(ares, clips, anim_clips)
+    return meta, clips
+
+
+def test_real_warhorse():
+    r = _real("warhorse", "quadruped", 2.4, ["idle-loop", "walk-loop", "run-loop", "attack", "hit", "death"])
+    if isinstance(r, str):
+        return r
+    meta, clips = r
+    assert any(s["name"] == "socket_mount_back" for s in meta["sockets"])
+    assert meta["facing"]["head_in_input"] == "+Y"
+
+
+def test_real_undead_horse_fallback_weights():
+    """The generated mesh arrives as 547 UV-seam islands; the chain-distance fallback must carry it alone."""
+    r = _real("undead_horse", "quadruped", 2.4, ["idle-loop", "walk-loop", "death"],
+              weights_mode="distance_fallback", weights="distance")
+    if isinstance(r, str):
+        return r
+    meta, clips = r
+    assert meta["weights"]["islands"] >= 1
+    assert meta["weights"]["rigid_foot_verts"] > 0
+
+
+def test_real_griffin_winged():
+    r = _real("griffin", "winged_quadruped", 2.4,
+              ["idle-loop", "walk-loop", "fly-loop", "glide-loop", "attack", "death"], wings=2)
+    if isinstance(r, str):
+        return r
+    meta, clips = r
+    assert meta["facing"]["head_in_input"] == "+X"
+
+
+def test_real_warhorse_native_scale_heat():
+    """Native generated size (~1 m, no length_m/height_m): bone heat used to fail for every bone and auto
+    silently switched to distance weights; it now runs on a scaled copy and must be kept."""
+    path = os.path.join(ART_RAW, "warhorse", "model.glb")
+    if not os.path.isfile(path):
+        return "skip: asset missing: " + path
+    out = _out("warhorse_native")
+    res, meta = _rig(path, os.path.join(out, "rig"), preview=False)
+    assert not _errors(res), _errors(res)
+    assert meta["template"] == "quadruped" and len(meta["legs"]) == 4
+    assert meta["size"]["length_m"] < 1.2, meta["size"]
+    assert meta["weights"]["mode"] == "bone_heat", meta["weights"]
+    assert meta["weights"]["heat"]["unweighted"] == 0, meta["weights"]["heat"]
+    assert meta["weights"]["heat"]["solve_scale"] > 2.0, meta["weights"]["heat"]
 
 
