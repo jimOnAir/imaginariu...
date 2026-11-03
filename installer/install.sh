@@ -219,7 +219,20 @@ Scan() {
   S_P3_DIR="$(CfgGet pixal3dDir)"; [ -z "$S_P3_DIR" ] && S_P3_DIR="${ASTRA_PIXAL3D_DIR:-}"
   [ -z "$S_P3_DIR" ] && S_P3_DIR="$RT/ComfyUI-Pixal3D"
   S_P3_ENGINE=''; if [ -x "$S_P3_DIR/.venv/bin/python" ] && [ -f "$S_P3_DIR/ComfyUI/main.py" ]; then S_P3_ENGINE=yes; fi
-  S_P3_WEIGHTS=''
+  # weights and nodes: the same requirements list the studio server checks (server/pixal3d.mjs), minus the python entry
+  S_P3_WEIGHTS=''; S_P3_MISSING=''
+  if [ -n "$S_P3_ENGINE" ]; then
+    n2="$(NodeBin)"
+    if [ -n "$n2" ]; then
+      S_P3_MISSING="$("$n2" --input-type=module -e "
+        import { existsSync } from 'node:fs'; import path from 'node:path';
+        const { PIXAL3D_REQUIREMENTS, PIXAL3D_PYTHON_REL } = await import('file://$ROOT/server/pixal3d.mjs');
+        const need = PIXAL3D_REQUIREMENTS.map(([r]) => r).filter(r => r !== PIXAL3D_PYTHON_REL && r !== 'ComfyUI/main.py');
+        process.stdout.write(need.filter(r => !existsSync(path.join(process.argv[1], r))).join('; '))
+        " "$S_P3_DIR" 2>/dev/null || echo unknown)"
+      [ "$S_P3_MISSING" = '' ] && S_P3_WEIGHTS=yes
+    fi
+  fi
   # MV-Adapter: node (bundled in data/runtime/custom_nodes, already patched) + weights + SDXL config
   S_MV_NODE=''; grep -q local_sdxl_config "$ROOT/data/runtime/custom_nodes/ComfyUI-MVAdapter/utils.py" 2>/dev/null && S_MV_NODE=yes
   S_MV_WEIGHTS=''; [ -f "$ROOT/data/models/mvadapter/mvadapter_i2mv_sdxl.safetensors" ] && S_MV_WEIGHTS=yes

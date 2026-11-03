@@ -214,7 +214,8 @@ Weights() { # <dir>
   done
   mkdir -p "$md/microsoft/TRELLIS.2-4B"
   Title 'NAF (feature upsampler): code at the pinned commit + the release weights'
-  local hub="$dir/cache/torch/hub" naf="$hub/valeoai_NAF_main"
+  local hub="$dir/cache/torch/hub"
+  local naf="$hub/valeoai_NAF_main"
   [ -f "$naf/hubconf.py" ] || { mkdir -p "$hub"; Repo "$(Mv naf.url)" "NAF-$(Mv naf.commit | cut -c1-8)" "$naf" || return 1; }
   DownloadChecked "$(Mv naf.checkpoint.url)" "$hub/checkpoints/naf_release.pth" "$(Mv naf.checkpoint.size)" "$(Mv naf.checkpoint.sha256)" || return 1
   Title 'DINOv3 ViT-L/16: official timm copy -> transformers format, parity check'
@@ -228,7 +229,12 @@ Weights() { # <dir>
     done < <("$nbin" -e '
       const m=require(process.argv[1]);
       for(const f of m.dinov3.files) console.log([f.path,"https://huggingface.co/"+m.dinov3.repo+"/resolve/main/"+f.path,f.size,f.sha256||""].join("\t"))' "$MAN")
-    "$py" "$SRC/dinov3_timm_to_hf.py" --timm-dir "$td" --out-dir "$fb" --report "$dir/logs/dinov3_parity.json" || return 1
+    # 1024 px parity needs ~9 GB of activations: on a 12 GB card with the eager attention path it can OOM
+    # (found on an RTX 5070). Retry at 512 px — the same conversion, a still-real parity row; noted in docs/linux.md.
+    if ! "$py" "$SRC/dinov3_timm_to_hf.py" --timm-dir "$td" --out-dir "$fb" --report "$dir/logs/dinov3_parity.json"; then
+      say '  parity at the default sizes did not fit in video memory - retrying at 512 px'
+      "$py" "$SRC/dinov3_timm_to_hf.py" --timm-dir "$td" --out-dir "$fb" --report "$dir/logs/dinov3_parity.json" --sizes 512 || return 1
+    fi
     [ -f "$fb/model.safetensors" ] || { say '  The DINOv3 conversion did not create model.safetensors.'; return 1; }
     rm -f "$td/model.safetensors"
   fi

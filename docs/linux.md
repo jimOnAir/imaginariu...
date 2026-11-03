@@ -54,6 +54,10 @@ the installer downloads it, ~20–40 GB free disk (about 52 GB more with Pixal3D
 - **Godot 4.7 from distro packages validates fine**, but the forge targets 4.5 semantics;
   the installer's `godot` component unpacks the official 4.5.1 Linux binary into
   `runtime/Godot` (scanned before PATH).
+- **DINOv3 parity needs two passes on a 12 GB card**: the converter's default parity sizes (512+1024 px)
+  allocate ~9 GB on the eager attention path and OOM on an RTX 5070 before saving. `install-pixal3d.sh`
+  retries with `--sizes 512` automatically; the parity report then records a 512 px row
+  (measured worst diff 1.9e-05, target < 1e-3).
 - Ollama keeps its model resident; on a 12 GB card do not run generation while the assistant
   holds a big model (the studio already refuses `/api/chat` while jobs run; the reverse is on you).
 
