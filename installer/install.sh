@@ -10,7 +10,7 @@
 # Everything installs into this application folder (runtime/, data/models/), needs no root, and an
 # interrupted download resumes on the next run. Ids: node, npm, blender, comfy, comfydeps, hy2,
 # hymv, hy21, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
-# pixal3dtest, vfx.  Log: installer/install.log
+# pixal3dtest, vfx, gguf, flux2, qwenimg.  Log: installer/install.log
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -27,6 +27,21 @@ GodotBin='Godot_v4.5.1-stable_linux.x86_64'
 UvTar='https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz'
 VlmName='qwen3-vl:8b'
 VlmBytes=6100000000
+# 2D engines (the same pins as installer/manifest.json; the Windows frontends stay frozen, ADR-0003)
+GgufNodeCommit='b6016439f135342819461256ec5f03fbb4003a8b'
+GgufNodeUrl="https://github.com/molbal/ComfyUI-GGUF/archive/$GgufNodeCommit.zip"
+Flux2UnetUrl='https://huggingface.co/unsloth/FLUX.2-klein-base-9B-GGUF/resolve/main/flux-2-klein-base-9b-Q5_K_M.gguf'
+Flux2UnetSha='6194deb13cfeb2584f7fcf36e85b1713cc30af6551dab74cbe18a4b8c96527ef'
+Flux2TeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors'
+Flux2TeSha='abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6'
+Flux2VaeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/vae/flux2-vae.safetensors'
+Flux2VaeSha='868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3'
+QwenUnetUrl='https://huggingface.co/city96/Qwen-Image-gguf/resolve/main/qwen-image-Q4_K_M.gguf'
+QwenUnetSha='c6f49103603b9a4927502549fb615c910386cfc675b1466325930ba10d2a11f4'
+QwenTeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors'
+QwenTeSha='cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4'
+QwenVaeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/vae/qwen_image_vae.safetensors'
+QwenVaeSha='a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f'
 
 # ---------------------------------------------------------------- arguments
 ScanOnly=0 DryRun=0 Yes=0 Only=''
@@ -190,6 +205,17 @@ Scan() {
   done
   S_U2NET=''
   if find "$ROOT/data/models/background" -name u2net.onnx -type f 2>/dev/null | grep -q .; then S_U2NET=yes; fi
+  # the 2D tab engines: the GGUF node and the FLUX.2 / Qwen-Image weight sets (docs/art2d.md)
+  S_GGUF=''
+  if [ -n "$S_COMFY" ] && [ -f "$S_COMFY/custom_nodes/ComfyUI-GGUF/nodes.py" ]; then S_GGUF=yes; fi
+  S_FLUX2=''
+  if [ -n "$S_COMFY" ] && FileOk "$S_COMFY/models/unet/flux-2-klein-base-9b-Q5_K_M.gguf" 7017126176 \
+     && FileOk "$S_COMFY/models/text_encoders/qwen_3_8b_fp8mixed.safetensors" 8664848742 \
+     && FileOk "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292; then S_FLUX2=yes; fi
+  S_QWEN=''
+  if [ -n "$S_COMFY" ] && FileOk "$S_COMFY/models/unet/qwen-image-Q4_K_M.gguf" 13065746976 \
+     && FileOk "$S_COMFY/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors" 9384670680 \
+     && FileOk "$S_COMFY/models/vae/qwen_image_vae.safetensors" 253806246; then S_QWEN=yes; fi
   # Ollama and its models (the server may be stopped: the disk manifests count too)
   S_OLLAMA="$(command -v ollama || true)"
   n="$(CfgGet ollama)"; [ -n "$n" ] && [ -x "$n" ] && S_OLLAMA="$n"
@@ -250,6 +276,11 @@ Show() {
   else Miss 'ComfyUI (3D generation)'; fi
   if [ -n "$S_HY2" ]; then Ok 'Hunyuan3D-2 model'; else Miss 'Hunyuan3D-2 model (required, 4.9 GB)'; fi
   if [ -n "$S_U2NET" ]; then Ok 'u2net background-removal model'; else Miss 'u2net background-removal model (176 MB)'; fi
+  if [ -n "$S_COMFY" ]; then
+    if [ -n "$S_GGUF" ]; then Ok 'ComfyUI-GGUF node (loads GGUF weights for the 2D tab)'; else Miss 'ComfyUI-GGUF node (needed by FLUX.2 and Qwen-Image)'; fi
+    if [ -n "$S_FLUX2" ]; then Ok 'FLUX.2 klein 9B - GGUF, encoder, VAE (2D tab)'; else Miss 'FLUX.2 klein 9B - GGUF + encoder + VAE (16 GB, noncommercial weights)'; fi
+    if [ -n "$S_QWEN" ]; then Ok 'Qwen-Image - GGUF, encoder, VAE (2D tab)'; else Miss 'Qwen-Image - GGUF + encoder + VAE (23 GB)'; fi
+  fi
   if [ -n "$S_HYMV" ]; then Ok 'Hunyuan3D-2mv model (from two views)'; else Opt 'Hunyuan3D-2mv model (from two views, 4.9 GB)'; fi
   if [ -n "$S_HY21" ]; then Ok 'Hunyuan3D-2.1 model'; else Opt 'Hunyuan3D-2.1 model (7.4 GB)'; fi
   if [ -n "$S_SDXL" ]; then Ok 'SDXL (images)'; else Opt 'SDXL for image generation (6.9 GB)'; fi
@@ -345,6 +376,42 @@ InstallComfy() {
 Model() { # <url> <name>
   Download "$1" "$ROOT/data/models/checkpoints/$2"
 }
+InstallGgufNode() {
+  [ -n "$S_COMFY" ] || { say '  ComfyUI must be installed first'; return 1; }
+  local d="$S_COMFY/custom_nodes/ComfyUI-GGUF"
+  if [ ! -f "$d/nodes.py" ]; then
+    local t='ComfyUI-GGUF.zip'
+    Download "$GgufNodeUrl" "$DL/$t" || return 1
+    rm -rf "$DL/gguf-x"; mkdir -p "$DL/gguf-x"
+    unzip -q "$DL/$t" -d "$DL/gguf-x" || return 1
+    local src; src="$(find "$DL/gguf-x" -maxdepth 1 -type d -name 'ComfyUI-GGUF-*' | head -1)"
+    mkdir -p "$S_COMFY/custom_nodes"
+    mv "$src" "$d" || return 1
+    rm -rf "$DL/gguf-x"
+  fi
+  # node dependencies even when the node was already copied: an interrupted first run left gguf uninstalled
+  if [ -f "$d/requirements.txt" ] && ! "$S_COMFY/.venv/bin/python" -c 'import gguf' >/dev/null 2>&1; then
+    Uv || return 1
+    Run "$UV_BIN" 'installing ComfyUI-GGUF dependencies' pip install --python "$S_COMFY/.venv/bin/python" -r "$d/requirements.txt" || return 1
+  fi
+  S_GGUF=yes
+  say '  ComfyUI-GGUF is installed; the engine attaches it at startup (restart the studio after the install).'
+}
+InstallFlux2() {
+  InstallGgufNode || return 1
+  DownloadChecked "$Flux2UnetUrl" "$S_COMFY/models/unet/flux-2-klein-base-9b-Q5_K_M.gguf" 7017126176 "$Flux2UnetSha" || return 1
+  DownloadChecked "$Flux2TeUrl" "$S_COMFY/models/text_encoders/qwen_3_8b_fp8mixed.safetensors" 8664848742 "$Flux2TeSha" || return 1
+  DownloadChecked "$Flux2VaeUrl" "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292 "$Flux2VaeSha" || return 1
+  S_FLUX2=yes
+}
+InstallQwen() {
+  InstallGgufNode || return 1
+  DownloadChecked "$QwenUnetUrl" "$S_COMFY/models/unet/qwen-image-Q4_K_M.gguf" 13065746976 "$QwenUnetSha" || return 1
+  DownloadChecked "$QwenTeUrl" "$S_COMFY/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors" 9384670680 "$QwenTeSha" || return 1
+  DownloadChecked "$QwenVaeUrl" "$S_COMFY/models/vae/qwen_image_vae.safetensors" 253806246 "$QwenVaeSha" || return 1
+  S_QWEN=yes
+}
+
 EnsureOllama() {
   local started=''
   for _ in $(seq 30); do
@@ -481,6 +548,14 @@ Title 'Optional'
 if [ -z "$S_HYMV" ]; then Ask 'Hunyuan3D-2mv model - 3D from a front and a back view, 4.9 GB. Download?' y && plan_add hymv 'Hunyuan3D-2mv model' 4928151562 'Tencent Hunyuan Community License'; fi
 if [ -z "$S_HY21" ]; then Ask 'Hunyuan3D-2.1 model - a second shape model, 7.4 GB. Download?' n && plan_add hy21 'Hunyuan3D-2.1 model' 7365943290 'Tencent Hunyuan Community License'; fi
 if [ -z "$S_SDXL" ]; then Ask 'SDXL - generate concept images right in the application, 6.9 GB. Download?' n && plan_add sdxl 'SDXL model' 6938078334 'CreativeML Open RAIL++-M'; fi
+if [ -n "$S_COMFY" ] && [ -z "$S_FLUX2" ]; then
+  say '  FLUX.2 klein 9B (the 2D tab draws the character from a reference picture): 16 GB.'
+  say '  Weights licence: FLUX Non-Commercial - a commercial game re-draws the final art with a commercial model.'
+  Ask 'Download FLUX.2 klein (with the ComfyUI-GGUF node)?' n && plan_add flux2 'FLUX.2 klein 9B GGUF + text encoder + VAE' 16018186210 'FLUX Non-Commercial License'
+fi
+if [ -n "$S_COMFY" ] && [ -z "$S_QWEN" ]; then
+  Ask 'Qwen-Image (the 2D tab: text to image, best at readable text in pictures) - 23 GB, Apache-2.0. Download?' n && plan_add qwenimg 'Qwen-Image GGUF + text encoder + VAE' 22704223902 'Apache-2.0'
+fi
 if [ -z "$S_GODOT" ]; then Ask 'Godot 4.5.1 - validation of finished game packages, 77 MB. Download?' y && plan_add godot 'Godot 4.5.1' 76685794 'MIT'; fi
 if [ "${S_CLIPS:-0}" = 0 ] 2>/dev/null; then Ask 'Quaternius animations (ActionForge): 86 clips - running, swords, shields, magic, 10 MB. Download?' y && plan_add clips 'Quaternius / ActionForge animations (CC0)' 10000000 'CC0'; fi
 RecommendLlm
@@ -504,7 +579,7 @@ if [ -n "$Only" ]; then
   newplan=()
   IFS=',' read -r -a ids <<<"$Only"
   for id in "${ids[@]}"; do
-    case " node npm blender comfy comfydeps hy2 hymv hy21 sdxl u2net godot clips ollama llm vlm mvadapter pixal3d pixal3dw pixal3dtest vfx " in
+    case " node npm blender comfy comfydeps hy2 hymv hy21 sdxl u2net godot clips ollama llm vlm mvadapter pixal3d pixal3dw pixal3dtest vfx gguf flux2 qwenimg " in
       *" $id "*) ;; *) say "Unknown component id: $id"; exit 1 ;;
     esac
     hit="$(plan_get "$id" || true)"
@@ -570,6 +645,9 @@ for e in "${plan[@]}"; do
     pixal3d) { Pixal3dComponent engine && Pixal3dComponent test; } || err=$? ;;
     pixal3dw) Pixal3dComponent weights || err=$? ;;
     pixal3dtest) Pixal3dComponent test || err=$? ;;
+    gguf) InstallGgufNode || err=$? ;;
+    flux2) InstallFlux2 || err=$? ;;
+    qwenimg) InstallQwen || err=$? ;;
     *) say "  not implemented yet: $id"; err=1 ;;
   esac
   if [ -z "$err" ]; then

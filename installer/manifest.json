@@ -1,0 +1,44 @@
+{
+  "_comment": "AstraForge installer manifest: every download of installer/Install.ps1 in one place (URL, size in bytes, sha256 where the publisher gives one). Pixal3D and MV-Adapter have their own manifests next to this one. Sizes of Hugging Face files come from the file listing (lfs.oid = sha256), checked 27.10.2026. Licences: THIRD_PARTY_NOTICES.md and docs/product/licenses-audit.md.",
+  "generated": "2026-10-27",
+  "profiles": {
+    "_comment": "What the automatic installer (Install.ps1 -Auto -Profile <name>) installs without asking. Components already present are skipped. 'quick' = everything needed to work, with local views; 'full' adds the second shape engine, the local assistant, the VFX generators and the 2D engines FLUX.2 klein and Qwen-Image (tab 2D); 'lite' = for a PC without an NVIDIA card: no ComfyUI, no shape and image models (they need CUDA), only Blender, rig, animations, sprites, VFX and Godot.",
+    "quick": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "sdxl", "mvadapter", "godot", "clips"],
+    "lite": ["node", "npm", "blender", "godot", "clips", "vfx"],
+    "full": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "hy21", "sdxl", "mvadapter", "godot", "clips", "ollama", "llm", "vlm", "vfx", "pixal3d", "pixal3dw", "flux2", "qwenimg"]
+  },
+  "programs": {
+    "node": { "version": "v22.23.3", "url": "https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip", "mirrors": ["https://cdn.npmmirror.com/binaries/node/v22.23.3/node-v22.23.3-win-x64.zip", "https://mirrors.huaweicloud.com/nodejs/v22.23.3/node-v22.23.3-win-x64.zip", "https://mirrors.tencent.com/nodejs-release/v22.23.3/node-v22.23.3-win-x64.zip", "https://mirrors.aliyun.com/nodejs-release/v22.23.3/node-v22.23.3-win-x64.zip"], "size": 35574076, "sha256": "2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71", "license": "MIT", "name": "Node.js" },
+    "blender": { "version": "5.0.1", "url": "https://download.blender.org/release/Blender5.0/blender-5.0.1-windows-x64.zip", "mirrors": ["https://ftp.halifax.rwth-aachen.de/blender/release/Blender5.0/blender-5.0.1-windows-x64.zip", "https://ftp.nluug.nl/pub/graphics/blender/release/Blender5.0/blender-5.0.1-windows-x64.zip", "https://mirrors.dotsrc.org/blender/blender-release/Blender5.0/blender-5.0.1-windows-x64.zip", "https://mirrors.ocf.berkeley.edu/blender/release/Blender5.0/blender-5.0.1-windows-x64.zip", "https://mirror.clarkson.edu/blender/release/Blender5.0/blender-5.0.1-windows-x64.zip", "https://mirror.freedif.org/blender/release/Blender5.0/blender-5.0.1-windows-x64.zip", "https://mirrors.aliyun.com/blender/release/Blender5.0/blender-5.0.1-windows-x64.zip"], "size": 401385182, "sha256": "921d77f6c505a35b2c2f6e67d4ad1c10b72418338ba0e0d3ea7f582a5e5fe46e", "license": "GPL-3.0-or-later", "name": "Blender", "sourceUrl": "https://download.blender.org/source/blender-5.0.1.tar.xz" },
+    "comfy": { "version": "v0.33.2", "url": "https://github.com/comfyanonymous/ComfyUI/archive/refs/tags/v0.33.2.zip", "size": 6000000000, "sha256": null, "license": "GPL-3.0", "name": "ComfyUI (with Python 3.12 and PyTorch)" },
+    "gguf": { "version": "b6016439", "url": "https://github.com/molbal/ComfyUI-GGUF/archive/b6016439f135342819461256ec5f03fbb4003a8b.zip", "size": 100000, "sha256": null, "license": "Apache-2.0", "name": "ComfyUI-GGUF (fork molbal of city96, same commit as the owner's working studio; loads GGUF weights of FLUX.2 and Qwen-Image)", "pip": ["gguf>=0.13.0", "sentencepiece", "protobuf"] },
+    "uv": { "version": "latest", "url": "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip", "size": 20000000, "sha256": null, "license": "MIT / Apache-2.0", "name": "uv" },
+    "godot": { "version": "4.5.1-stable", "url": "https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_win64.exe.zip", "size": 76685794, "sha256": null, "license": "MIT", "name": "Godot" },
+    "ollama": { "version": "current", "url": "https://ollama.com/download/OllamaSetup.exe", "size": 1578217944, "sha256": null, "license": "MIT", "name": "Ollama" },
+    "torchIndexCuda": "https://download.pytorch.org/whl/cu128",
+    "torchIndexCpu": "https://download.pytorch.org/whl/cpu"
+  },
+  "models": {
+    "hy2": { "url": "https://huggingface.co/tencent/Hunyuan3D-2/resolve/main/hunyuan3d-dit-v2-0/model.fp16.safetensors", "file": "hunyuan3d-dit-v2.safetensors", "size": 4928151562, "sha256": "360bc281fc956d4acac0c3d36d5ec0ebf8cdddbf4b8892e894d12419388d479b", "license": "Tencent Hunyuan 3D 2.0 Community License", "name": "Hunyuan3D-2" },
+    "hymv": { "url": "https://huggingface.co/tencent/Hunyuan3D-2mv/resolve/main/hunyuan3d-dit-v2-mv/model.fp16.safetensors", "file": "hunyuan3d-dit-v2-mv.safetensors", "size": 4928151562, "sha256": "d36f5881bcdc56726b73e517cd444c13c60732431622da7268145355c8d38e9c", "license": "Tencent Hunyuan 3D 2.0 Community License", "name": "Hunyuan3D-2mv" },
+    "hy21": { "url": "https://huggingface.co/Comfy-Org/hunyuan3D_2.1_repackaged/resolve/main/hunyuan_3d_v2.1.safetensors", "file": "hunyuan_3d_v2.1.safetensors", "size": 7365943290, "sha256": "5f21e98a6cb99b13b5e224abaee33929570fff7af2b6a0060001559a04ba9d72", "license": "Tencent Hunyuan 3D 2.0 Community License", "name": "Hunyuan3D-2.1" },
+    "sdxl": { "url": "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors", "file": "sd_xl_base_1.0.safetensors", "size": 6938078334, "sha256": "31e35c80fc4829d14f90153f4c74cd59c90b779f6afe05a74cd6120b893f7e5b", "license": "CreativeML Open RAIL++-M", "name": "SDXL base 1.0" },
+    "flux2": { "url": "https://huggingface.co/unsloth/FLUX.2-klein-base-9B-GGUF/resolve/main/flux-2-klein-base-9b-Q5_K_M.gguf", "file": "flux-2-klein-base-9b-Q5_K_M.gguf", "dir": "unet", "size": 7017126176, "sha256": "6194deb13cfeb2584f7fcf36e85b1713cc30af6551dab74cbe18a4b8c96527ef", "license": "FLUX Non-Commercial License", "name": "FLUX.2 [klein] 9B base, GGUF Q5_K_M (tab 2D)" },
+    "flux2te": { "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors", "file": "qwen_3_8b_fp8mixed.safetensors", "dir": "text_encoders", "size": 8664848742, "sha256": "abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6", "license": "FLUX Non-Commercial License (Qwen3-8B: Apache-2.0)", "name": "FLUX.2 klein text encoder Qwen3-8B fp8" },
+    "flux2vae": { "url": "https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/vae/flux2-vae.safetensors", "file": "flux2-vae.safetensors", "dir": "vae", "size": 336211292, "sha256": "868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3", "license": "FLUX Non-Commercial License", "name": "FLUX.2 VAE" },
+    "qwenimg": { "url": "https://huggingface.co/city96/Qwen-Image-gguf/resolve/main/qwen-image-Q4_K_M.gguf", "file": "qwen-image-Q4_K_M.gguf", "dir": "unet", "size": 13065746976, "sha256": "c6f49103603b9a4927502549fb615c910386cfc675b1466325930ba10d2a11f4", "license": "Apache-2.0", "name": "Qwen-Image, GGUF Q4_K_M (tab 2D)" },
+    "qwente": { "url": "https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors", "file": "qwen_2.5_vl_7b_fp8_scaled.safetensors", "dir": "text_encoders", "size": 9384670680, "sha256": "cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4", "license": "Apache-2.0", "name": "Qwen-Image text encoder Qwen2.5-VL-7B fp8" },
+    "qwenvae": { "url": "https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/vae/qwen_image_vae.safetensors", "file": "qwen_image_vae.safetensors", "dir": "vae", "size": 253806246, "sha256": "a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f", "license": "Apache-2.0", "name": "Qwen-Image VAE" },
+    "u2net": { "url": "https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx", "file": "u2net.onnx", "size": 175997641, "sha256": "8d10d2f3bb75ae3b6d527c77944fc5e7dcd94b29809d47a739a7a728a912b491", "license": "Apache-2.0", "name": "u2net (background removal)" }
+  },
+  "llm": {
+    "vlm": { "model": "qwen3-vl:8b", "size": 6100000000, "license": "Apache-2.0" },
+    "byVram": [
+      { "minVramMiB": 16000, "model": "qwen3:14b", "size": 9300000000 },
+      { "minVramMiB": 8000, "model": "qwen3:8b", "size": 5200000000 },
+      { "minVramMiB": 0, "model": "qwen3:4b", "size": 2500000000 }
+    ]
+  },
+  "clips": { "base": "https://actionforge.app/assets/animation-library", "manifest": "manifests/library.json", "size": 10000000, "license": "CC0-1.0", "name": "Quaternius animation library (ActionForge)" },
+  "vfx": { "size": 330000000, "disk": 500000000, "license": "MIT / BSD-3-Clause / GPL-3.0 / freeware" }
+}
