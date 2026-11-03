@@ -1264,6 +1264,20 @@ export class ForgeEngine {
       }
       out.points = points;
     }
+    if (stepName === 'sculpt' && Array.isArray(out.ops)) {
+      // transfer {source_asset: <UUID>} -> source: <its latest model> (HTTP clients cannot pass paths); the recipe keeps the UUID
+      const cache = new Map();
+      const ops = [];
+      for (const [i, o] of out.ops.entries()) {
+        if (o && typeof o === 'object' && o.op === 'transfer' && o.source_asset && !o.source) {
+          if (!cache.has(o.source_asset)) cache.set(o.source_asset, await this._assetMesh(o.source_asset, `transfer source (operation #${i + 1})`));
+          ops.push({ ...o, source: cache.get(o.source_asset) });
+        } else {
+          ops.push(o);
+        }
+      }
+      out.ops = ops;
+    }
     if (stepName === 'ship_from_mesh' && out.paint && typeof out.paint === 'object' && out.paint.asset) {
       // concept painting from a studio image asset (HTTP clients cannot pass paths): {asset: UUID} -> image path
       out.paint = { ...out.paint, image: await this._studioImage(out.paint.asset) };
@@ -1413,6 +1427,14 @@ export class ForgeEngine {
         }
         if (!s.params.part_file && s.params.part_asset) await this._assetMesh(s.params.part_asset, 'part');
         for (const [i, pt] of points.entries()) if (pt && typeof pt === 'object' && pt.asset) await this._assetMesh(pt.asset, `part of point #${i + 1}`);
+      }
+      if (s.step === 'sculpt') {
+        // fail before Blender starts: a transfer source must exist (the asset, or the file on the CLI)
+        for (const [i, o] of (Array.isArray(s.params.ops) ? s.params.ops : []).entries()) {
+          if (!o || typeof o !== 'object' || o.op !== 'transfer') continue;
+          if (o.source) { if (!existsSync(o.source)) throw forgeError(`Step sculpt, operation #${i + 1}: source file not found: ${o.source}`, 400, 'no_part'); continue; }
+          await this._assetMesh(o.source_asset, `transfer source (operation #${i + 1})`);
+        }
       }
       if (s.step === 'retarget') resolveClipSources(s.params.clips || [], await this._clipIndex(), this.animationsDir);
       if (s.step === 'attach_prop' && s.params.extracted) {

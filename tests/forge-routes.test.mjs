@@ -116,8 +116,9 @@ function runCli(args, env = {}) {
 test('registries and status are served', async () => {
   const steps = await api('GET', '/api/forge/steps');
   assert.equal(steps.status, 200);
-  assert.equal(steps.json.length, 29, '19 + bone_kit + replace_part + kitbash + place_parts + motion_style + paint_from_concept + extract_props + assemble_parts + sculpt');
+  assert.equal(steps.json.length, 31, '19 + bone_kit + replace_part + kitbash + place_parts + motion_style + paint_from_concept + extract_props + assemble_parts + sculpt + face_match + face_fix_loop');
   assert.ok(['bone_kit', 'replace_part', 'kitbash', 'place_parts', 'motion_style', 'extract_props'].every((n) => steps.json.some((s) => s.step === n)));
+  assert.ok(steps.json.some((s) => s.step === 'face_match' && s.module === 'qa'), 'the face gate is served in the qa module');
   const ms = steps.json.find((s) => s.step === 'motion_style');
   assert.deepEqual(ms.inputs.slots, ['blend'], 'motion_style reads the animated .blend of retarget');
   assert.deepEqual(ms.outputs, ['glb', 'blend', 'clips', 'preview']);

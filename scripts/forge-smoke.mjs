@@ -10,7 +10,7 @@
 // --only   run only these cases (plus the cases they need); the other rows of the existing JSON are kept.
 // --inputs folder with your own test models (or env ASTRA_SMOKE_INPUTS); every file is optional and a case
 //          whose input is missing is skipped (generator cases need no input):
-//            humanoid.glb   a character for humanoid_from_mesh / humanoid_sprites / rig_humanoid
+//            humanoid.glb   a character for humanoid_from_mesh / humanoid_hg_sprites / rig_humanoid
 //            creature.glb   a quadruped for creature_auto (profile.height_m from creature.json {"height_m": n})
 //            ship.glb       a generated ship mesh for ship_from_mesh
 //            clips/         a folder of Mixamo FBX clips for the clip library
@@ -53,10 +53,19 @@ const CASES = [
   { id: 'ship_procedural-1', preset: 'ship_procedural', kind: 'ship', name: 'smoke ship 1', input: 'params {seed: 1}', source: { type: 'params', params: { seed: 1 } } },
   { id: 'ship_procedural-2', preset: 'ship_procedural', kind: 'ship', name: 'smoke ship 2', input: 'params {seed: 2}', source: { type: 'params', params: { seed: 2 } } },
   { id: 'ship_from_mesh', preset: 'ship_from_mesh', kind: 'ship', name: 'smoke ship mesh', file: IN.ship },
+  // diagnostic: the same chain with the class the ships module verified SQ-03 with (gunship, ship_m budgets)
+  {
+    id: 'ship_from_mesh-gunship', preset: 'ship_from_mesh', kind: 'ship', name: 'smoke ship gunship', file: IN.ship,
+    steps: [
+      { step: 'ship_from_mesh', params: { class: 'gunship', nose: 'auto' } },
+      { step: 'godot_package', params: { profile: 'space_quest', fx: [{ preset: 'engine_trail', socket: 'socket_thruster_*', params: {} }] } },
+    ],
+    label: 'steps of the ship_from_mesh preset, class gunship',
+  },
   { id: 'turret', preset: 'turret', kind: 'ship', name: 'smoke turret', input: 'preset params (M, 2 barrels)', source: { type: 'params', params: {} } },
   { id: 'creature_auto', preset: 'creature_auto', kind: 'creature', name: 'smoke creature', file: IN.creature, ...(CREATURE.height_m ? { profile: { height_m: CREATURE.height_m }, label: `profile.height_m ${CREATURE.height_m}` } : {}) },
   { id: 'humanoid_from_mesh', preset: 'humanoid_from_mesh', kind: 'humanoid', name: 'smoke humanoid', file: IN.humanoid, needs: ['clips'] },
-  { id: 'humanoid_sprites', preset: 'humanoid_sprites', kind: 'humanoid', name: 'smoke humanoid sprites', file: IN.humanoid, needs: ['clips'] },
+  { id: 'humanoid_hg_sprites', preset: 'humanoid_hg_sprites', kind: 'humanoid', name: 'smoke humanoid hg', file: IN.humanoid, needs: ['clips'] },
   // diagnostic: rig_humanoid alone on the raw input (no cleanup)
   {
     id: 'rig_humanoid-raw', preset: 'rig_humanoid', kind: 'humanoid', name: 'smoke humanoid raw', file: IN.humanoid,

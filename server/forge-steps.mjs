@@ -41,6 +41,11 @@ const SHIP_STYLES = ['industrial', 'military', 'sleek', 'alien'];
 const WING_STYLES = ['auto', 'none', 'delta', 'swept', 'forward', 'straight', 'x', 'stub', 'crescent'];
 const THRUSTER_FRAMES = ['thrust', 'exhaust'];
 const SOURCES = ['procedural', 'geometry_nodes', 'hunyuan3d', 'trellis', 'instantmesh', 'triposr', 'manual', 'mixed', 'external'];
+// godot_package sq_class: Space Quest roles and budget classes (godot_package.py SQ_ROLE_OF) for the
+// fit_units / min_units defaults in render units
+export const SQ_UNIT_CLASSES = ['ship', 'turret', 'module', 'station', 'drone', 'bank',
+  'ship_s', 'ship_m', 'ship_l', 'hull_module', 'station_core', 'station_module',
+  'structure_kit', 'drone_kit', 'asteroid_kit', 'debris_kit'];
 const SHIP_LAYOUTS = 'fighter/interceptor: arrow, twin_boom, dart; gunship: brick, hammer, catamaran; corvette: destroyer, spear, ' +
   'arrowhead; freighter: truss, flatbed, bulk; miner: pods, crane, scoop; frigate: wedge, hammer, fork; carrier: flattop, ' +
   'hangar_pods, stepdeck; transport: pods, drums, barge';
@@ -238,6 +243,7 @@ const STEP_LIST = [
       uv_pack: oneOf(['aabb', 'concave', 'none'], 'aabb', 'Island packing', 'After Smart UV: aabb - fast (~37 % of the square), concave - denser (~45 %), but ~10 s.'),
       uv_angle_deg: num(66, 1, 89, 'Smart UV angle, deg', ''),
       uv_margin: num(0.003, 0, 0.05, 'Island margin', 'Fraction of the texture side.'),
+      keep_normal: bool(true, 'Keep the normal map', 'Carry the input\'s normal map (cleanup bake_normal) into the painted material; possible only while the unwrap stays the same.'),
       camera: { type: 'any', default: 'fit', title: 'Concept camera', help: '"fit" - fit to the silhouette; or {yaw_deg, pitch_deg, px_per_m, offset_px: [x, y]} in concept pixels (from paint_camera.json).', alt: [{ type: 'object' }] },
       yaw_range_deg: num(null, 0, 180, 'Rotation search, +/- deg', 'Around the model front (-Y); empty - 60, 180 for creatures.', opt),
       yaw_step_deg: num(5, 1, 30, 'Rotation search step, deg', ''),
@@ -284,6 +290,42 @@ const STEP_LIST = [
       qa_size: int(384, 128, 1024, 'Sheet tiles, px', ''),
       qa_timeout_s: num(300, 10, 3600, 'Check timeout, s', ''),
       ...preview(384),
+    },
+  },
+  // ---------------------------------------------------------------- qa (face): scripts/qa, a separate Python
+  {
+    step: 'face_match', module: 'qa', title: 'Face check against a reference',
+    help: 'The head-paint gate: the model is rendered from the reference angles (front, 3/4 left and right, back of the head), aligned by silhouette and compared with them - SSIM, IoU of the skin / hair / bandage / dark feature masks, shifts of the eyes, nose, mouth and chin, the share of the area with a noticeable colour difference, with Ollama present - answers of a local vision model. The result is face_report.json: a score of 0-100, pass / fail by the thresholds and machine-executable instructions (reproject, transfer a fragment, shift, repaint, fill a seam) plus the face_report.jpg sheet. Computed by scripts/qa/face_match.py with a separate Python (numpy, cv2, scikit-image, scipy).',
+    kinds: ['humanoid'], inputs: { slots: ['blend', 'mesh'], required: true, formats: ['glb', 'blend'] },
+    outputs: ['face_report', 'face_report_jpg', 'face_match_dir'], timeoutSec: 30 * 60,
+    params: {
+      refs_dir: str(null, 'Face reference folder', 'face_front_rgba.png (front), face34_rgba.png (3/4 left), face34_flip_rgba.png (3/4 right), head_back_rgba.png (back of the head) - head close-ups on a transparent background (CLI --direct / request.json only). Empty - the face_refs/ folder next to the asset or next to the model.', { path: true }),
+      gate: bool(true, 'Gate', 'true - a face that misses the thresholds fails the step (ok=false, the pipeline stops); false - a warning only, the report is written either way.'),
+      min_score: num(null, 0, 100, 'Enough score', 'Empty - only a pass on every threshold passes; otherwise the step also passes at a score at least this (the GPT references are not consistent in 3D, a pass on all of them at once is unreachable - docs/forge/face_match.md).', opt),
+      vlm: oneOf(['auto', 'off', 'strict'], 'auto', 'Local vision model', 'auto - qwen3-vl in Ollama when available (the ComfyUI models are unloaded before it); off - geometry and colour only; strict - "no" answers become major and block pass.'),
+      vlm_model: str(null, 'Ollama model', 'Empty - qwen3-vl:8b.'),
+      thresholds: obj(null, 'Pass thresholds', '{ssim_gray: 0.85, feature_mask_iou_min: 0.80, landmark_max_px_share: 0.02, diff_area_share_max: 0.01, silhouette_iou: 0.93} - any of them, the rest by default.'),
+      iteration: int(0, 0, 999, 'Iteration number', 'A signature in the report and the key of the model fix history.'),
+      frame_from: str(null, 'Frame from the report', 'face_report.json of the previous check: the camera and the alignment are taken from it, not searched again (CLI --direct / request.json only).', { path: true }),
+      python: str(null, 'Check Python', 'An interpreter with numpy, cv2, scikit-image, scipy, Pillow; empty - ASTRA_QA_PYTHON or the studio QA python (CLI --direct / request.json only).', { path: true }),
+    },
+  },
+  {
+    step: 'face_fix_loop', module: 'qa', title: 'Face fix loop against a reference',
+    help: 'A "check -> fix" cycle until the face matches the reference: face_match (the frame is fixed at the first iteration) - if not pass, face_fix applies the report instructions (fit the mesh to the silhouette, joint reprojection of the references with the front view first, transferring fragments by masks, repainting, a palette lock, seams) - a new check. Stops: pass, the iteration limit, or the score not growing for plateau iterations in a row. The best model (best/painted.blend) continues through the pipeline; the report, the face_report.jpg sheet and the shared texture_check.jpg sheet are the step outputs. The head is found by the "Head" material (as with archer v4/v5); with a single material it works over the whole mesh.',
+    kinds: ['humanoid'], inputs: { slots: ['blend', 'mesh'], required: true, formats: ['glb', 'blend'] },
+    outputs: ['blend', 'glb', 'face_report', 'face_report_jpg', 'texture_check', 'loop_state', 'loop_log', 'loop_dir'], timeoutSec: 6 * 60 * 60,
+    params: {
+      refs_dir: str(null, 'Face reference folder', 'face_front_rgba.png (front), face34_rgba.png (3/4 left), face34_flip_rgba.png (3/4 right), head_back_rgba.png (back of the head) - head close-ups on a transparent background (CLI --direct / request.json only). Empty - the face_refs/ folder next to the asset or next to the model.', { path: true }),
+      max_iter: int(6, 1, 30, 'Iterations at most', 'A check + a fix; ~1 min without the vision model and ~4 min with it per iteration.'),
+      plateau: int(2, 1, 10, 'Plateau', 'Stop if the score does not grow for this many iterations in a row.'),
+      require_pass: bool(false, 'Require pass', 'true - without pass the step is ok=false and the pipeline stops; false - the best model goes on, the mismatch stays a warning.'),
+      min_score: num(null, 0, 100, 'Enough score', 'With require_pass: a score at least this also counts as success (a pass on all thresholds of the GPT references is unreachable: they are not consistent in 3D).', opt),
+      vlm: oneOf(['auto', 'off', 'strict'], 'auto', 'Local vision model', 'auto - qwen3-vl in Ollama when available; off - geometry and colour only; strict - "no" answers block pass.'),
+      vlm_model: str(null, 'Ollama model', 'Empty - qwen3-vl:8b.'),
+      thresholds: obj(null, 'Pass thresholds', '{ssim_gray: 0.85, feature_mask_iou_min: 0.80, landmark_max_px_share: 0.02, diff_area_share_max: 0.01, silhouette_iou: 0.93} - any of them, the rest by default.'),
+      body_refs_dir: str(null, 'Body reference folder', 'ref_front.png and ref_back.png for the shared texture_check.jpg sheet; empty - the mv/ folder next to the face reference folder (CLI --direct / request.json only).', { path: true }),
+      python: str(null, 'Check Python', 'An interpreter with numpy, cv2, scikit-image, scipy, Pillow; empty - ASTRA_QA_PYTHON or the studio QA python (CLI --direct / request.json only).', { path: true }),
     },
   },
   {
@@ -814,13 +856,13 @@ const STEP_LIST = [
   // ---------------------------------------------------------------- export
   {
     step: 'render_sprites', module: 'export', title: 'Sprites',
-    help: "Sprite sheets by direction and clip (isometric iso8, custom directions or pixel art). Wrong model units are an error before rendering, with a hint (params.height_m).",
+    help: "Sprite sheets by direction and clip (isometric iso8, the fixed heroes_gates cell, custom directions or pixel art). Wrong model units are an error before rendering, with a hint (params.height_m).",
     kinds: ALL_KINDS, inputs: { slots: ['blend', 'mesh'], required: true, formats: MESH_FORMATS, manifest: true },
-    outputs: ['sheets', 'sprites_json', 'spriteframes', 'preview', 'preview_frames', 'godot_check'],
+    outputs: ['sheets', 'sprites_json', 'spriteframes', 'preview', 'preview_frames', 'heroes_gates_entry', 'godot_check'],
     gpu: true, timeoutSec: 60 * 60, export: true,
     params: {
       asset_id: str(null, 'ID for files', 'snake_case; filled in by the server.', { auto: 'asset_slug' }),
-      profile: oneOf(['iso8', 'custom', 'pixel'], 'iso8', 'Profile', 'pixel - pixel art: no antialiasing and no shadows, colour only from the palette, 24 px/m, 8 directions, 8 frames.'),
+      profile: oneOf(['iso8', 'heroes_gates', 'custom', 'pixel'], 'iso8', 'Profile', 'pixel - pixel art: no antialiasing and no shadows, colour only from the palette, 24 px/m, 8 directions, 8 frames.'),
       // pixel: post-processing after the render (scripts/pixel/pixelize.py), see the docstring of render_sprites.py
       supersample: int(null, 1, 4, 'Supersampling', 'pixel: render k times larger and average each block; not together with downscale.', opt),
       downscale: int(null, 1, 8, 'Nearest downscale', 'pixel: render k times larger and take the centre of each block.', opt),
@@ -840,26 +882,29 @@ const STEP_LIST = [
       clip_names: obj(null, 'Clip names', '{action: clip name}.'),
       loop: obj(null, 'Loops', '{clip: yes/no}; default -loop/idle/walk/run.'),
       frames: { type: 'any', default: null, nullable: true, title: 'Frames per clip', help: 'A number or {clip: number}; empty - by profile.' },
-      fps: int(null, 1, 60, 'Frames per second', 'Empty - 12.', opt),
+      fps: int(null, 1, 60, 'Frames per second', 'Empty - 12; heroes_gates always 12.', opt),
       ranges: obj(null, 'Ranges', '{clip: [start, end]} in scene frames.'),
       in_place: oneOf(['auto', 'lock', 'drift', 'none'], 'auto', 'In place', 'auto - loops without root drift, one-shots as is; lock - hips XY from the first frame.'),
       pixels_per_meter: num(null, 8, 1024, 'Pixels per meter', 'Empty - 100 (the profile\'s single scale).', opt),
-      elevation_deg: num(null, 0, 90, 'Camera tilt, deg', 'Empty - 30 deg (isometric 2:1).', opt),
+      elevation_deg: num(null, 0, 90, 'Camera tilt, deg', 'Empty - iso8 30 deg (isometric 2:1), heroes_gates 25.', opt),
       directions: list(null, 'Directions', 'iso8: a subset of S, SW, W, NW, N, NE, E, SE; custom: [[name, model angle deg], ...].', { items: { type: 'any' } }),
       padding_px: int(6, 0, 256, 'Cell padding, px', ''),
       cell: list(null, 'Cell, px', '[width, height] - a fixed cell (needs anchor).', { items: { type: 'integer' }, minItems: 2, maxItems: 2 }),
       anchor: list(null, 'Anchor point, px', '[x, y] in the cell.', { items: { type: 'number' }, minItems: 2, maxItems: 2 }),
       center: oneOf(['feet', 'none'], 'feet', 'Centering', ''),
-      normalize_pose: oneOf(['rest', 'first_frame', null], null, 'Pose for scale', 'Empty - rest.'),
-      grade_materials: bool(null, 'Tweak materials', 'Empty - none.'),
-      engine: oneOf(['EEVEE', 'CYCLES', 'WORKBENCH', null], null, 'Render engine', 'Empty - EEVEE.'),
+      normalize_pose: oneOf(['rest', 'first_frame', null], null, 'Pose for scale', 'Empty - iso8 rest, heroes_gates first_frame.'),
+      grade_materials: bool(null, 'Tweak materials', 'Empty - yes for heroes_gates.'),
+      engine: oneOf(['EEVEE', 'CYCLES', 'WORKBENCH', null], null, 'Render engine', 'Empty - by profile: iso8 - EEVEE, heroes_gates - CYCLES.'),
       samples: int(null, 1, 4096, 'Samples', 'Empty - by profile.', opt),
-      shadow: bool(null, 'Shadow', 'Cycles shadow catcher; empty - none.'),
-      grade: bool(null, 'Color correction', 'Empty - none.'),
-      cols: int(null, 1, 64, 'Frames per sheet row', 'Empty - by directions.', opt),
+      shadow: bool(null, 'Shadow', 'Cycles shadow catcher; empty - yes for heroes_gates with Cycles.'),
+      grade: bool(null, 'Color correction', 'Empty - yes for heroes_gates.'),
+      cols: int(null, 1, 64, 'Frames per sheet row', 'Empty - heroes_gates 4, iso8 by directions.', opt),
       max_sheet_px: int(8192, 512, 16384, 'Sheet up to, px', 'Soft limit of the sheet side.'),
       max_cell_px: int(2048, 64, 8192, 'Cell up to, px', 'More - an error before rendering (wrong units?).'),
       min_body_px: num(24, 1, 1024, 'Model from, px', 'Less - an error before rendering (wrong units?).'),
+      kind: oneOf(['unit', 'hero'], 'unit', 'Type', 'A squad unit or a hero (the heroes_gates frame size).'),
+      adaptive_cell: bool(null, 'Cell by size', 'heroes_gates unit (empty - yes): a model that overflows 320 px gets 384 (anchor 192, 328), then 448 (224, 384) instead of a cell_fit error; the 100 px/m scale is checked over the frames, the cell and the anchor go into the sprites.json record.'),
+      event_frames: obj(null, 'Event frames', '{clip: frame}; heroes_gates: attack 6, cast 6, shoot 8.'),
       validate_godot: bool(null, 'Check in Godot', 'SpriteFrames in Godot 4.5.1 headless; empty - yes if Godot is found.'),
       keep_frames: bool(false, 'Keep frames', 'Keep the individual render frames.'),
     },
@@ -868,16 +913,21 @@ const STEP_LIST = [
     step: 'godot_package', module: 'export', title: 'Godot package',
     help: 'GLB + a .tscn scene + a script + effects at sockets + a passport; checked in Godot 4.5.1 headless.',
     kinds: ALL_KINDS, inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
-    outputs: ['package', 'glb', 'tscn', 'script', 'readme', 'manifest', 'godot_check', 'godot_log', 'fx_preview'], export: true,
+    outputs: ['package', 'glb', 'tscn', 'script', 'readme', 'manifest', 'registry', 'godot_check', 'godot_log', 'fx_preview'], export: true,
     params: {
       asset_id: str(null, 'Asset ID', 'snake_case ASCII; filled in by the server from the passport name.', { auto: 'asset_slug' }),
-      profile: oneOf(['godot'], 'godot', 'Profile', ''),
+      profile: oneOf(['godot', 'space_quest', 'heroes_gates'], 'godot', 'Profile', ''),
       forward_axis: oneOf(['+Z', '-Z', null], null, 'Forward', '+Z - as in the GLB, -Z - for Godot look_at; empty - as in the GLB.'),
       source_forward: oneOf(['+Z', '-Z', null], null, 'Forward in GLB', 'Empty - by asset kind (ships, props -Z; characters, creatures, items +Z).'),
       kind: str(null, 'Asset kind', 'Needed only if the passport has no kind: ship, prop, turret, station... - forward -Z, other kinds - +Z.'),
       fx: list([], 'Effects', 'A list of {preset, socket, params}; socket may be a mask (* and ?, for example socket_thruster_*): the server expands it over the sockets of the input GLB, a mask with no matches is an error. Empty - the passport\'s fx.', { items: { type: 'object' } }),
       fx_auto_scale: bool(true, 'Effect scale', 'Fit the effects to the socket or asset size (if fx has no scale).'),
       autoplay: str(null, 'Autoplay clip', 'The clip the scene plays at start; empty - none.'),
+      sq_type: str(null, 'Space Quest folder', 'For the models.json path; empty - ships.'),
+      sq_class: oneOf([...SQ_UNIT_CLASSES, null], null, 'Space Quest role', 'For the fit_units / min_units defaults: ship, turret, module, station, drone, bank or a budget class (ship_m, station_core, structure_kit...). Empty - by the asset kind.'),
+      fit_units: num(null, 0.01, 10000, 'fit_units (SQ)', 'Render units in models.json, not metres. Empty - by role: ship 3.4, turret 1.5, module 0.3, station 20, drone 2, bank 1, the rest 1.', opt),
+      min_units: num(null, 0, 10000, 'min_units (SQ)', 'Render units: below this the game draws a primitive. Empty - by role: ship 0.6, turret 0.12, module 0.05, drone 0.15, station, bank and the rest 0 (no more than fit_units). Views ask for 10 (hangar), 14 (flight, combat), 20 (stations): over 10 - a warning, over 20 - an error.', opt),
+      comment: str(null, 'Comment (SQ)', ''),
       validate: bool(true, 'Check in Godot', 'Godot 4.5.1 headless.'),
       fx_preview: bool(false, 'Effect frames', 'Three Godot Movie Maker frames (opens a Godot window for ~3 s).'),
       fx_preview_speed: num(null, 0, 100, 'Preview speed', 'Asset sizes per second along -Z.', opt),
@@ -909,14 +959,27 @@ const PRESET_LIST = [
     ],
   },
   {
-    id: 'humanoid_sprites', kind: 'humanoid', title: 'Humanoid -> Godot + iso8 sprites',
-    help: 'Like "Humanoid from a model", but the clips are in lock mode (step in place, standing clips with hip travel, no root bone), plus in-place iso8 sprite sheets (in_place: drift - root drift removed from all clips). The sprites are rendered before the Godot package so that it includes them (the sprites/ folder).',
+    id: 'humanoid_hg_sprites', kind: 'humanoid', title: 'Humanoid -> Godot + Heroes Gates sprites',
+    help: 'Like "Humanoid from a model", but the clips are in lock mode (step in place, standing clips with hip travel, no root bone), plus heroes_gates sprite sheets. The sprites stay in place (in_place: drift - root drift removed from every clip): the Heroes Gates cell is fixed (320 px), a death with 1.2 m of travel walks out of it. The sprites are rendered before the Godot package so that it includes them (the sprites/ folder).',
     steps: [
       { step: 'cleanup', params: { target_tris: 40000, height_m: 1.8 } },
       { step: 'rig_humanoid', params: { height_m: 1.8 } },
       { step: 'retarget', params: { clips: humanoidClips, root_motion: 'lock' } },
       // render_sprites before godot_package: the package takes inputs.sprites only from an earlier render
-      { step: 'render_sprites', params: { profile: 'iso8', in_place: 'drift' } },
+      { step: 'render_sprites', params: { profile: 'heroes_gates', in_place: 'drift' } },
+      { step: 'godot_package', params: { profile: 'godot' } },
+    ],
+  },
+  {
+    id: 'humanoid_face_checked', kind: 'humanoid', title: 'Humanoid from a reference: paint with a face check',
+    help: 'Like "Humanoid from a model", but with colour: cleanup -> paint from the concept -> the "check the face -> fix it" cycle over the head close-ups (a face_refs/ folder next to the asset or refs_dir in the CLI; the loop\'s best model goes on) -> auto-rig -> library clips -> a Godot package.',
+    steps: [
+      { step: 'cleanup', params: { target_tris: 40000, height_m: 1.8 } },
+      { step: 'paint_from_concept', params: {} },
+      // the loop paints the head before the rig: the fixed .blend is what rig_humanoid takes (inputs.blend)
+      { step: 'face_fix_loop', params: { max_iter: 6 } },
+      { step: 'rig_humanoid', params: { height_m: 1.8 } },
+      { step: 'retarget', params: { clips: humanoidClips, root_motion: 'extract' } },
       { step: 'godot_package', params: { profile: 'godot' } },
     ],
   },
@@ -928,6 +991,13 @@ const PRESET_LIST = [
       { step: 'rig_creature', params: { template: 'auto' } },
       { step: 'anim_creature', params: { clips: ['idle-loop', 'walk-loop', 'run-loop', 'attack', 'hit', 'death'] } },
       { step: 'godot_package', params: { profile: 'godot' } },
+    ],
+  },
+  {
+    id: 'sculpt_refine', kind: 'humanoid', title: 'Shape smoothing (sculpt)',
+    help: 'The sculpt step only: smoothing (3 passes) and shrink-free relax (3 passes) over the whole mesh, symmetric in X. The rig, weights and UV survive. For a targeted fix call the sculpt step with your own list of operations.',
+    steps: [
+      { step: 'sculpt', params: { ops: [{ op: 'smooth', iterations: 3, factor: 0.4 }, { op: 'relax', iterations: 3 }], symmetry: 'x' } },
     ],
   },
   {
@@ -947,27 +1017,27 @@ const PRESET_LIST = [
     ],
   },
   {
-    id: 'ship_procedural', kind: 'ship', title: 'Procedural fighter -> Godot',
-    help: 'ship_gen of class fighter and a Godot package with engine trails at the thruster sockets.',
+    id: 'ship_procedural', kind: 'ship', title: 'Procedural fighter -> Space Quest',
+    help: 'ship_gen of class fighter and a Space Quest package with engine trails at the thruster sockets.',
     steps: [
       { step: 'ship_gen', params: { class: 'fighter', seed: 1 } },
-      { step: 'godot_package', params: { profile: 'godot', fx: engineTrails } },
+      { step: 'godot_package', params: { profile: 'space_quest', fx: engineTrails } },
     ],
   },
   {
-    id: 'ship_from_mesh', kind: 'ship', title: 'Ship from a model -> Godot',
-    help: 'A generated mesh -> a ship with sockets and a Godot package with engine trails.',
+    id: 'ship_from_mesh', kind: 'ship', title: 'Ship from a model -> Space Quest',
+    help: 'A generated mesh -> a ship with sockets and a Space Quest package with engine trails.',
     steps: [
       { step: 'ship_from_mesh', params: { class: 'fighter', nose: 'auto' } },
-      { step: 'godot_package', params: { profile: 'godot', fx: engineTrails } },
+      { step: 'godot_package', params: { profile: 'space_quest', fx: engineTrails } },
     ],
   },
   {
-    id: 'turret', kind: 'ship', title: 'Turret -> Godot',
-    help: 'A medium procedural turret with two barrels and a Godot package.',
+    id: 'turret', kind: 'ship', title: 'Turret -> Space Quest',
+    help: 'A medium procedural turret with two barrels and a Space Quest package.',
     steps: [
       { step: 'turret_gen', params: { size: 'M', barrels: 2 } },
-      { step: 'godot_package', params: { profile: 'godot' } },
+      { step: 'godot_package', params: { profile: 'space_quest' } },
     ],
   },
 ];
@@ -977,6 +1047,9 @@ const PRESETS = new Map(PRESET_LIST.map((p) => [p.id, p]));
 // Export profiles for POST /assets/:id/export.
 export const EXPORT_PROFILES = {
   godot: { step: 'godot_package', params: { profile: 'godot' } },
+  space_quest: { step: 'godot_package', params: { profile: 'space_quest' } },
+  // the Heroes Gates cell is fixed: travelling one-shots (lunges, deaths) must be rendered in place
+  heroes_gates: { step: 'render_sprites', params: { profile: 'heroes_gates', in_place: 'drift' } },
   iso8: { step: 'render_sprites', params: { profile: 'iso8' } },
 };
 
@@ -1119,7 +1192,97 @@ const isRegion = (r) => isPlainObject(r) && (
   || (isPlainObject(r.sphere) && isVec(r.sphere.center, 3) && typeof r.sphere.radius === 'number')
   || (isPlainObject(r.box) && isVec(r.box.min, 3) && isVec(r.box.max, 3)));
 
+// face_match / face_fix_loop: thresholds of scripts/qa/face_match.py THRESHOLDS (fractions 0..1)
+const FACE_THRESHOLDS = ['ssim_gray', 'feature_mask_iou_min', 'landmark_max_px_share', 'diff_area_share_max', 'silhouette_iou'];
+function checkFaceThresholds(p, where) {
+  if (p.thresholds === undefined || p.thresholds === null) return;
+  if (!isPlainObject(p.thresholds)) throw paramError(`${where}: thresholds must be an object {threshold: a number from 0 to 1}.`);
+  for (const [k, v] of Object.entries(p.thresholds)) {
+    if (!FACE_THRESHOLDS.includes(k)) throw paramError(`${where}: unknown threshold "${k}"; allowed - ${FACE_THRESHOLDS.join(', ')}.`);
+    if (!(isNum(v) && v >= 0 && v <= 1)) throw paramError(`${where}: threshold "${k}" must be a number from 0 to 1.`);
+  }
+}
+
+const SCULPT_OPS = ['smooth', 'relax', 'inflate', 'deflate', 'flatten', 'pinch', 'expand', 'grab', 'transfer', 'remesh', 'subdivide', 'decimate', 'symmetrize'];
+const SCULPT_REGIONS = ['all', 'sphere', 'box', 'vertex_group', 'bone'];
+
+/** region of a sculpt operation: {type, center, radius | extents, name, falloff, invert}. */
+function checkSculptRegion(r, at) {
+  const where = `${at}, region`;
+  if (!isPlainObject(r)) throw paramError(`${where}: expected an object {type: all | sphere | box | vertex_group | bone, ...}.`);
+  const type = lower(r.type === undefined ? 'all' : r.type);
+  if (!SCULPT_REGIONS.includes(type)) throw paramError(`${where}: type - ${SCULPT_REGIONS.join(', ')}.`);
+  if (r.falloff !== undefined && !['smooth', 'linear', 'sharp', 'constant'].includes(lower(r.falloff))) throw paramError(`${where}: falloff - smooth, linear, sharp or constant.`);
+  if (type === 'sphere') {
+    if (!isVec(r.center, 3)) throw paramError(`${where}: a sphere needs center - [x, y, z] in metres.`);
+    if (!(isNum(r.radius) && r.radius > 0)) throw paramError(`${where}: a sphere needs radius - a positive number (m).`);
+  } else if (type === 'box') {
+    if (!isVec(r.center, 3)) throw paramError(`${where}: a box needs center - [x, y, z] in metres.`);
+    const ext = r.extents ?? r.h;
+    if (!((isNum(ext) && ext > 0) || (isVec(ext, 3) && ext.every((x) => x > 0)))) throw paramError(`${where}: a box needs extents - [hx, hy, hz] (half sides, m) or one number.`);
+    if (r.feather !== undefined && !(isNum(r.feather) && r.feather >= 0 && r.feather <= 1)) throw paramError(`${where}: feather - a number from 0 to 1.`);
+  } else if ((type === 'vertex_group' || type === 'bone') && !(typeof r.name === 'string' && r.name.trim())) {
+    throw paramError(`${where}: a name is required - the ${type === 'bone' ? 'bone' : 'vertex group'} name.`);
+  }
+}
+
 const STEP_CHECKS = {
+  sculpt(p) {
+    const where = 'Step "sculpt"';
+    if (!Array.isArray(p.ops) || !p.ops.length) {
+      throw paramError(`${where}: ops must be a non-empty list - [{op, region, ...}], for example [{"op": "smooth", "iterations": 5}].`);
+    }
+    p.ops.forEach((o, i) => {
+      const at = `${where}, operation #${i + 1}`;
+      if (!isPlainObject(o)) throw paramError(`${at}: expected an object {op, region, ...}.`);
+      const name = String(o.op || '').toLowerCase();
+      if (!SCULPT_OPS.includes(name)) throw paramError(`${at}: op - one of ${SCULPT_OPS.join(', ')}.`);
+      const sym = o.symmetry === undefined || o.symmetry === null ? 'none' : lower(o.symmetry);
+      if (!['x', 'y', 'z', 'none'].includes(sym)) throw paramError(`${at}: symmetry - x, y, z or none.`);
+      if (o.region !== undefined && o.region !== null) checkSculptRegion(o.region, at);
+      const range = (k, lo, hi, req = false) => {
+        if (o[k] === undefined || o[k] === null) {
+          if (req) throw paramError(`${at}: ${k} is required.`);
+          return;
+        }
+        if (!isNum(o[k]) || o[k] < lo || o[k] > hi) throw paramError(`${at}: ${k} must be a number from ${lo} to ${hi}.`);
+      };
+      if (name === 'smooth' || name === 'relax') { range('iterations', 1, 200); range('factor', 0, 1); }
+      if (name === 'inflate' || name === 'deflate') range('amount', -10, 10, true);
+      if (name === 'flatten') {
+        range('strength', 0, 1); range('iterations', 1, 50);
+        if (o.plane !== undefined && o.plane !== null && !(isPlainObject(o.plane) && isVec(o.plane.point, 3) && isVec(o.plane.normal, 3) && o.plane.normal.some((x) => x !== 0))) {
+          throw paramError(`${at}: plane - {point: [x, y, z], normal: [x, y, z]} (the normal is not zero).`);
+        }
+      }
+      if (name === 'pinch' || name === 'expand') {
+        range('amount', 0, 1);
+        if (o.center !== undefined && o.center !== null && !isVec(o.center, 3)) throw paramError(`${at}: center - [x, y, z] in metres.`);
+      }
+      if (name === 'grab' && !isVec(o.offset, 3)) throw paramError(`${at}: offset - [x, y, z] in metres.`);
+      if (name === 'transfer') {
+        if (!o.source && !o.source_asset) throw paramError(`${at}: needs source_asset (the UUID of a source asset, for example an export from the Sculpt tab) or source (a path to an OBJ/GLB, CLI --direct only).`);
+        if (o.source_asset !== undefined && o.source_asset !== null && !(typeof o.source_asset === 'string' && UUID_LIKE.test(o.source_asset))) {
+          throw paramError(`${at}: source_asset - the UUID of an asset with the source.`);
+        }
+        if (o.method !== undefined && !['project', 'nearest', 'nearest_project'].includes(lower(o.method))) throw paramError(`${at}: method - project or nearest.`);
+        if (o.align !== undefined && !['auto', 'none', 'bbox'].includes(lower(o.align))) throw paramError(`${at}: align - auto, none or bbox.`);
+        range('strength', 0, 1); range('seam_smooth', 0, 50);
+      }
+      if (name === 'remesh') {
+        if (o.mode !== undefined && !['voxel', 'quad'].includes(lower(o.mode))) throw paramError(`${at}: mode - voxel or quad.`);
+        range('voxel_size', 0.00001, 10); range('target_faces', 100, 2000000); range('adaptivity', 0, 1);
+      }
+      if (name === 'subdivide') { range('cuts', 1, 3); range('threshold', 0, 1); }
+      if (name === 'decimate') range('ratio', 0.01, 1, true);
+      if (name === 'symmetrize') {
+        if (o.axis !== undefined && !['x', 'y', 'z'].includes(lower(o.axis))) throw paramError(`${at}: axis - x, y or z.`);
+        if (o.direction !== undefined && !['+', '-'].includes(o.direction)) throw paramError(`${at}: direction - "+" (copy + to -) or "-".`);
+      }
+    });
+  },
+  face_match(p) { checkFaceThresholds(p, 'Step "face_match"'); },
+  face_fix_loop(p) { checkFaceThresholds(p, 'Step "face_fix_loop"'); },
   kitbash(p) {
     if (p.parts === undefined) return;
     if (!Array.isArray(p.parts)) throw paramError('Step "kitbash": parts must be a list of parts {kind, at, ...}.');

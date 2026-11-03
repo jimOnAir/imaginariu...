@@ -1068,6 +1068,34 @@ test('place_parts: the target from the chain, inputs.part from part_asset, point
   assert.deepEqual(cli.calls[0].request.params.points, cliPoints);
 });
 
+test('sculpt: transfer source_asset resolves to the source model, the recipe keeps the UUID; paths only via the CLI', async () => {
+  const { engine, calls } = await makeEngine();
+  const body = await engine.createAsset({ kind: 'humanoid', name: 'Hero', source: { type: 'upload' } }, { buffer: GLB, originalName: 'hero.glb' });
+  const sculpted = await engine.createAsset({ kind: 'prop', name: 'From the sculpt', source: { type: 'upload' } }, { buffer: OBJ, originalName: 'sculpt.obj' });
+  const ops = [{ op: 'transfer', source_asset: sculpted.id, align: 'bbox' }, { op: 'smooth', iterations: 2 }];
+  const r = await engine.startRun(body.id, { steps: [{ step: 'sculpt', params: { ops, symmetry: 'x' } }] });
+  assert.equal((await engine.waitJob(r.jobId)).status, 'completed');
+  const req = calls.find((c) => c.step === 'sculpt').request;
+  assert.equal(req.inputs.mesh, path.join(engine.assetDir(body.id), 'source', 'source.glb'), 'the model is the chain model');
+  assert.equal(req.params.ops[0].source, path.join(engine.assetDir(sculpted.id), 'source', 'source.obj'), 'the source: the latest model of the other asset');
+  assert.equal(req.params.ops[0].source_asset, sculpted.id, 'the UUID stays next to the resolved file');
+  assert.equal(req.params.ops[1].source, undefined);
+  assert.equal(req.params.symmetry, 'x');
+  // preflight: a transfer needs a source, the asset must exist; HTTP clients cannot pass a path
+  await assert.rejects(engine.startRun(body.id, { steps: [{ step: 'sculpt', params: { ops: [{ op: 'transfer' }] } }] }), /source_asset/);
+  await assert.rejects(engine.startRun(body.id, { steps: [{ step: 'sculpt', params: { ops: [{ op: 'transfer', source_asset: randomUUID() }] } }] }), (e) => e.status === 404);
+  await assert.rejects(engine.startRun(body.id, { steps: [{ step: 'sculpt', params: { ops: [{ op: 'transfer', source: '/sculpt/head.obj' }] } }] }), (e) => e.code === 'no_local_paths');
+  // the CLI (--direct) may point at a file that exists
+  const cli = await makeEngine({}, { engine: { allowLocalPaths: true } });
+  const b2 = await cli.engine.createAsset({ kind: 'humanoid', name: 'Hero 2', source: { type: 'upload' } }, { buffer: GLB, originalName: 'b.glb' });
+  const file = path.join(tempDir('af-sculpt-src-'), 'head.obj');
+  await fs.writeFile(file, OBJ);
+  await cli.engine.waitJob((await cli.engine.startRun(b2.id, { steps: [{ step: 'sculpt', params: { ops: [{ op: 'transfer', source: file }] } }] })).jobId);
+  assert.equal(cli.calls[0].request.params.ops[0].source, file);
+  await assert.rejects(cli.engine.startRun(b2.id, { steps: [{ step: 'sculpt', params: { ops: [{ op: 'transfer', source: path.join(path.dirname(file), 'nope.obj') }] } }] }),
+    (e) => e.code === 'no_part' && /source file not found/.test(e.message));
+});
+
 test('bone_kit is a generator: no inputs, its batch outputs feed the chain', async () => {
   const { engine, calls } = await makeEngine();
   const staff = await engine.createAsset({ kind: 'item', name: 'Bone staff', source: { type: 'params', params: { part: 'bone_staff', seed: 2 } } });

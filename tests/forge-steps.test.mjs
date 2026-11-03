@@ -9,11 +9,11 @@ import {
 const PLANNED = ['inspect', 'cleanup', 'convert', 'separate', 'rig_humanoid', 'prepare_mixamo', 'import_mixamo_rig', 'retarget',
   'clip_library', 'rig_creature', 'anim_creature', 'item_kit', 'item_from_mesh', 'attach_prop', 'ship_gen', 'turret_gen',
   'ship_from_mesh', 'render_sprites', 'godot_package', 'bone_kit', 'replace_part', 'kitbash', 'place_parts', 'motion_style', 'cloth_sim',
-  'paint_from_concept', 'extract_props', 'assemble_parts', 'sculpt'];
+  'paint_from_concept', 'extract_props', 'assemble_parts', 'sculpt', 'face_match', 'face_fix_loop'];
 const cyrillic = /[Ѐ-ӿ]/;
 const TYPES = ['number', 'integer', 'boolean', 'string', 'array', 'object', 'any'];
 // params a step cannot run without and that have no sensible default (STEP_CHECKS require them)
-const REQUIRED_SAMPLE = { place_parts: { points: [[0, 1.2]] } };
+const REQUIRED_SAMPLE = { place_parts: { points: [[0, 1.2]] }, sculpt: { ops: [{ op: 'smooth', iterations: 3 }] } };
 
 test('the registry lists every planned step with API-shaped entries', () => {
   assert.deepEqual([...stepNames()].sort(), [...PLANNED].sort());
@@ -69,16 +69,20 @@ test('params: defaults, ranges, enums and pass-through of unknown keys', () => {
   assert.equal('prop_asset' in blenderParams('attach_prop', normalizeParams('attach_prop', { prop_asset: null }).params), false);
 });
 
-test('godot_package: godot is the only profile; game registry params are gone', () => {
+test('godot_package: godot / space_quest / heroes_gates profiles, Space Quest registry params; unity comes with the Unity line', () => {
   assert.throws(() => normalizeParams('godot_package', { profile: 'unity' }), /allowed values/);
-  const params = listSteps().find((s) => s.step === 'godot_package').params;
-  assert.deepEqual(params.profile.enum, ['godot']);
-  for (const k of ['fit_units', 'min_units', 'comment']) assert.equal(k in params, false, k);
+  assert.equal(normalizeParams('godot_package', { profile: 'space_quest' }).params.profile, 'space_quest');
+  const step = listSteps().find((s) => s.step === 'godot_package');
+  assert.deepEqual(step.params.profile.enum, ['godot', 'space_quest', 'heroes_gates']);
+  for (const k of ['sq_type', 'sq_class', 'fit_units', 'min_units', 'comment']) assert.ok(k in step.params, k);
+  assert.ok(step.params.sq_class.enum.includes('ship_m'), 'budget classes are allowed roles too');
+  assert.ok(step.outputs.includes('registry'), 'models.json registry is a step output');
+  assert.equal(defaultParams('godot_package').profile, 'godot');
 });
 
 test('presets reference real steps with valid params', () => {
   const ids = listPresets().map((p) => p.id);
-  for (const id of ['humanoid_from_mesh', 'humanoid_sprites', 'creature_auto', 'item_kit_sword', 'item_from_mesh', 'ship_procedural', 'ship_from_mesh', 'turret']) {
+  for (const id of ['humanoid_from_mesh', 'humanoid_hg_sprites', 'humanoid_face_checked', 'creature_auto', 'sculpt_refine', 'item_kit_sword', 'item_from_mesh', 'ship_procedural', 'ship_from_mesh', 'turret']) {
     assert.ok(ids.includes(id), id);
   }
   for (const p of listPresets()) {
@@ -95,15 +99,21 @@ test('presets reference real steps with valid params', () => {
   assert.deepEqual(clips.map((c) => c.source), ['category:idle', 'category:walk', 'category:attack', 'category:hit', 'category:death']);
   assert.equal(clips[1].loop, true);
   assert.equal(clips[1].in_place, true);
-  const spr = getPreset('humanoid_sprites').steps;
+  const spr = getPreset('humanoid_hg_sprites').steps;
   assert.deepEqual(spr.map((s) => s.step), ['cleanup', 'rig_humanoid', 'retarget', 'render_sprites', 'godot_package'],
     'sprites are rendered before the Godot package so it includes them (inputs.sprites)');
-  assert.deepEqual(spr.find((s) => s.step === 'render_sprites'), { step: 'render_sprites', params: { profile: 'iso8', in_place: 'drift' } }, 'sprites in place');
+  assert.deepEqual(spr.find((s) => s.step === 'render_sprites'), { step: 'render_sprites', params: { profile: 'heroes_gates', in_place: 'drift' } },
+    'the fixed heroes_gates cell, the sprites in place');
   assert.deepEqual(getPreset('creature_auto').steps[2].params.clips, ['idle-loop', 'walk-loop', 'run-loop', 'attack', 'hit', 'death']);
   const ship = getPreset('ship_procedural');
   assert.equal(ship.steps[0].params.class, 'fighter');
-  assert.equal(ship.steps[1].params.profile, 'godot');
+  assert.equal(ship.steps[1].params.profile, 'space_quest');
   assert.deepEqual(ship.steps[1].params.fx[0], { preset: 'engine_trail', socket: 'socket_thruster_*', params: {} });
+  assert.equal(getPreset('ship_from_mesh').steps[1].params.profile, 'space_quest');
+  assert.equal(getPreset('turret').steps[1].params.profile, 'space_quest');
+  assert.deepEqual(getPreset('sculpt_refine').steps, [
+    { step: 'sculpt', params: { ops: [{ op: 'smooth', iterations: 3, factor: 0.4 }, { op: 'relax', iterations: 3 }], symmetry: 'x' } },
+  ]);
   // presets are returned as copies
   human.steps.length = 0;
   assert.equal(getPreset('humanoid_from_mesh').steps.length, 4);
@@ -111,8 +121,10 @@ test('presets reference real steps with valid params', () => {
 
 test('export profiles map to export steps', () => {
   assert.equal(EXPORT_PROFILES.godot.step, 'godot_package');
-  assert.deepEqual(Object.keys(EXPORT_PROFILES).sort(), ['godot', 'iso8']);
+  assert.deepEqual(Object.keys(EXPORT_PROFILES).sort(), ['godot', 'heroes_gates', 'iso8', 'space_quest']);
   assert.equal(EXPORT_PROFILES.iso8.params.profile, 'iso8');
+  assert.equal(EXPORT_PROFILES.space_quest.params.profile, 'space_quest');
+  assert.deepEqual(EXPORT_PROFILES.heroes_gates.params, { profile: 'heroes_gates', in_place: 'drift' }, 'travelling one-shots render in place');
   assert.throws(() => normalizeSteps([]), /non-empty/);
   assert.throws(() => normalizeSteps([{ params: {} }]), /name is not specified/);
 });
@@ -240,8 +252,8 @@ test('ships and export: thruster frames, layouts, lod_strip, profile-dependent s
   assert.equal(s.inputs.manifest, true, 'manifest kind decides the forward axis');
   assert.equal(s.params.pixels_per_meter.default, null);
   assert.equal(s.params.elevation_deg.default, null, 'module default 30°');
-  assert.deepEqual(s.params.profile.enum, ['iso8', 'custom', 'pixel']);
-  for (const k of ['kind', 'adaptive_cell', 'event_frames']) assert.equal(k in s.params, false, k);
+  assert.deepEqual(s.params.profile.enum, ['iso8', 'heroes_gates', 'custom', 'pixel']);
+  for (const k of ['kind', 'adaptive_cell', 'event_frames']) assert.ok(k in s.params, `heroes_gates parameter ${k}`);
   for (const k of ['supersample', 'downscale', 'palette', 'colors', 'dither', 'dither_strength', 'outline',
                    'levels', 'saturation', 'alpha_threshold', 'self_shadow', 'preview_zoom'])
     assert.ok(k in s.params, `pixel profile parameter ${k}`);
@@ -257,7 +269,7 @@ test('ships and export: thruster frames, layouts, lod_strip, profile-dependent s
 test('presets: Godot humanoids extract root motion, sprites keep lock, creatures do not force speed', () => {
   const retargetOf = (id) => getPreset(id).steps.find((s) => s.step === 'retarget').params;
   assert.equal(retargetOf('humanoid_from_mesh').root_motion, 'extract');
-  assert.equal(retargetOf('humanoid_sprites').root_motion, 'lock');
+  assert.equal(retargetOf('humanoid_hg_sprites').root_motion, 'lock');
   const anim = getPreset('creature_auto').steps.find((s) => s.step === 'anim_creature').params;
   assert.equal('speed' in anim, false);
   assert.equal('tempo' in anim, false);
