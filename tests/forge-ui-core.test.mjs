@@ -341,9 +341,11 @@ test('forge: sockets and effects', () => {
   assert.equal(suggestSocket('magic_cast', socketsFor('humanoid', {})), 'socket_mount_hand_r');
   assert.equal(suggestSocket('unknown', ['socket_a']), 'socket_a');
   assert.deepEqual(fxForPassport([{ preset: 'aura', socket: 'socket_fx_chest' }, { preset: 'fire', socket: '' }]), [{ preset: 'aura', socket: 'socket_fx_chest', params: {} }]);
-  assert.deepEqual(exportProfilesFor('ship').map((p) => p.id), ['godot', 'iso8']);
-  assert.deepEqual(exportProfilesFor('humanoid').map((p) => p.id), ['godot', 'iso8']);
-  assert.equal(exportProfilesFor('turret')[1].title, 'iso8 sprites');
+  assert.deepEqual(exportProfilesFor('ship').map((p) => p.id), ['godot', 'space_quest', 'iso8']);
+  assert.deepEqual(exportProfilesFor('humanoid').map((p) => p.id), ['godot', 'heroes_gates', 'iso8']);
+  assert.deepEqual(exportProfilesFor('turret').map((p) => p.id), ['godot', 'space_quest', 'iso8']);
+  assert.equal(exportProfilesFor('turret')[2].title, 'iso8 sprites');
+  assert.equal(exportProfilesFor('creature').map((p) => p.id)[1], 'heroes_gates');
 });
 
 test('forge: job progress, current step and plain-language errors', () => {

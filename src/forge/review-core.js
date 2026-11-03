@@ -18,8 +18,11 @@ export const ROLE_TITLES = {
   get skip() { return t('forge.review.role.skip'); },
 };
 
-/** Faction labels: none built in (factions belong to the game), so the raw id is shown. */
-export const FACTION_TITLES = {};
+/** Titles of the built-in factions; roles.json may bring more, raw ids are shown for them. */
+export const FACTION_TITLES = {
+  get order() { return t('forge.review.faction.order'); },
+  get undead() { return t('forge.review.faction.undead'); },
+};
 
 /** Stable id of a row: the asset id, or the concept file for rows without an asset (skipped). */
 export const rowKey = (item) => item.assetId || 'file:' + (item.file || item.name || '');

@@ -573,7 +573,7 @@ const ENUM_KEYS = [
   'aged', 'wrist', 'ground', 'open', 'relaxed', 'claw', 'fist', 'grip', 'rings', 'caps', 'icp', 'footprint',
   'center', 'hit', 'rest', 'feet', 'mesh', 'world', 'bottom', 'head', 'ball', 'ankle', 'frame', 'clips', 'lock',
   'keep', 'extract', 'unit', 'hero', 'random', 'bbox', 'axis', 'ship_s', 'ship_m', 'ship_l', 'front', 'back', 'left',
-  'right', 'top', 'three_quarter', 'godot', 'iso8', 'true', 'false', 'null', 'CPU', 'GPU', 'glb', 'fbx', 'obj',
+  'right', 'top', 'three_quarter', 'godot', 'space_quest', 'heroes_gates', 'iso8', 'true', 'false', 'null', 'CPU', 'GPU', 'glb', 'fbx', 'obj',
   'aabb', 'concave', 'through', 'warp', 'on', 'off', 'silhouette', 'base', 'part', 'never', 'always', 'error',
   'warning', 'heavy', 'armored', 'robed', 'light', 'skeleton', 'zombie', 'trunk', 'image', 'idle', 'walk', 'run',
   'attack', 'cast', 'other', 'library', 'fall_back', 'fall_forward', 'fall_left', 'fall_right', 'kneel_collapse',
@@ -1498,6 +1498,8 @@ const ALL = ['humanoid', 'creature', 'item', 'ship', 'turret'];
 
 export const EXPORT_PROFILES = [
   { id: 'godot', kinds: ALL },
+  { id: 'space_quest', kinds: ['ship', 'turret', 'item'] },
+  { id: 'heroes_gates', kinds: ['humanoid', 'creature', 'item'] },
   { id: 'iso8', kinds: ALL },
 ].map((p) => withLabels(p, `core.export.${p.id}`));
 

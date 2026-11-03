@@ -13,8 +13,9 @@ import { ForgeReview, explainFailure, tearSummary } from '../server/forge-review
 import { listSteps } from '../server/forge-steps.mjs';
 import {
   suggestUnit, toggleReason, hasReason, splitReasons, moveSelection, neighbourId, filterItems, reviewCounts, chipCounts,
-  decisionPatch, withDecision, reviewKeyAction, percent, rowKey, matchesBuild, distinct, REWORK_PRESETS,
+  decisionPatch, withDecision, reviewKeyAction, percent, rowKey, matchesBuild, distinct, REWORK_PRESETS, roleTitle, factionTitle,
 } from '../src/forge/review-core.js';
+import { getLang, setLang } from '../src/i18n/index.js';
 
 const dir = mkdtempSync(path.join(tmpdir(), 'af-review-'));
 const libraryDir = path.join(dir, 'library');
@@ -406,6 +407,24 @@ test('tearSummary: fractions become percent, the worst clip is picked, no data g
 });
 
 // ------------------------------------------------------------------------------------ view helpers
+
+test('view: role and faction titles are localized in both languages; unknown ids and empty show as they are', () => {
+  const before = getLang();
+  try {
+    setLang('en');
+    assert.equal(roleTitle('melee_shield'), 'Melee with shield');
+    assert.equal(factionTitle('order'), 'Order');
+    assert.equal(factionTitle('undead'), 'Undead');
+    setLang('ru');
+    assert.equal(roleTitle('melee_shield'), 'Воин со щитом');
+    assert.equal(factionTitle('order'), 'Орден');
+    assert.equal(factionTitle('undead'), 'Нежить');
+    setLang('en');
+    assert.equal(factionTitle('chaos'), 'chaos', 'a faction from roles.json without a dictionary entry stays raw');
+    assert.equal(roleTitle(''), '—');
+    assert.equal(factionTitle(null), '—');
+  } finally { setLang(before); }
+});
 
 const sample = (over) => ({ assetId: randomUUID(), name: 'Knight', role: 'melee_shield', faction: 'order', status: 'built', reviewable: true, decision: null, ...over });
 

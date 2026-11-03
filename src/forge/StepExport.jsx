@@ -105,7 +105,7 @@ export default function StepExport() {
     setBusy(true);
     try {
       // godot_package takes the passport effects as params.fx (render_sprites has no fx).
-      const withFx = profile === 'godot' && asset?.fx?.length;
+      const withFx = (profile === 'godot' || profile === 'space_quest') && asset?.fx?.length;
       const r = await exportAsset(assetId, profile, withFx ? { fx: asset.fx } : {});
       track(r.jobId, { assetId, export: true, profile, steps: [] });
       notify(t('export.started'));
