@@ -61,6 +61,9 @@ params (all optional):
   uv "auto"               auto (keep usable UVs, else Smart UV) | keep | smart
   uv_pack "aabb"          repack after Smart UV: aabb (~37 % of the square, ms) | concave (~45 %, ~10 s) | none
   uv_angle_deg 66, uv_margin 0.003
+  keep_normal true        carry a tangent-space normal map of the input materials (cleanup bake_normal) into the
+                          painted material; possible only when the UVs are kept (uv auto/keep), else it is dropped
+                          with a warning
   camera "fit"            "fit" or {yaw_deg, pitch_deg, px_per_m, offset_px: [x, y]} in concept pixels
                           (paint_camera.json of an earlier run)
   yaw_range_deg null      +- search around the model front (-Y); null: 60, creatures (asset kind) 180
@@ -750,8 +753,27 @@ def run(req):
                 outputs["emission" + suffix] = emi_png
                 emi_texels += int((es.max(axis=1) > 0.05).sum())
         old = [m for m in o.data.materials if m is not None]
+        # a tangent-space normal map (cleanup bake_normal) lives on the UVs: it survives only when they were kept
+        nrm_imgs = []
+        for m in old:
+            n = ml.image_into(m, "Normal")
+            if n is not None and n.image not in nrm_imgs:
+                nrm_imgs.append(n.image)
+        nrm_img = None
+        if nrm_imgs and p.get("keep_normal", True):
+            if uinfo["unwrapped"] != "kept":
+                uinfo["normal_map"] = "dropped"
+                warnings.append("%s: normal map dropped - its UVs were re-unwrapped (%s); keep them with "
+                                "uv: keep or re-bake in cleanup" % (o.name, uinfo.get("reason", uv_mode)))
+            else:
+                nrm_img = nrm_imgs[0]
+                uinfo["normal_map"] = "kept: %s" % nrm_img.name
+                if len(nrm_imgs) > 1:
+                    warnings.append("%s: %d normal maps on its materials, only %s kept" % (
+                        o.name, len(nrm_imgs), nrm_img.name))
         mat = pl.painted_material(p.get("material_name") or (o.name + "_painted"), base_img, emi_tex_img,
-                                  emi_strength, float(p.get("roughness", 0.75)), float(p.get("metallic", 0.0)))
+                                  emi_strength, float(p.get("roughness", 0.75)), float(p.get("metallic", 0.0)),
+                                  normal_img=nrm_img)
         o.data.materials.clear()
         o.data.materials.append(mat)
         if len(o.data.polygons):

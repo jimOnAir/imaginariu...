@@ -1050,8 +1050,9 @@ def image_from_array(name, tex, colorspace="sRGB", path=None, pack=True):
 
 
 def painted_material(name, base_img, emi_img=None, emi_strength=1.0, roughness=0.75, metallic=0.0,
-                     metal_img=None):
-    """glTF-exportable Principled material: Base Color (and Emission) from images."""
+                     metal_img=None, normal_img=None, normal_strength=1.0):
+    """glTF-exportable Principled material: Base Color (and Emission) from images; normal_img
+    (tangent space on the same UVs, e.g. cleanup's bake_normal) through a Normal Map node."""
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nt = mat.node_tree
@@ -1082,6 +1083,17 @@ def painted_material(name, base_img, emi_img=None, emi_strength=1.0, roughness=0
         et.location = (-420, -340)
         nt.links.new(et.outputs["Color"], bsdf.inputs["Emission Color"])
         bsdf.inputs["Emission Strength"].default_value = float(emi_strength)
+    if normal_img is not None:
+        nrm = nt.nodes.new("ShaderNodeTexImage")
+        nrm.name = "paint_normal"
+        nrm.image = normal_img
+        nrm.location = (-640, -640)
+        nm = nt.nodes.new("ShaderNodeNormalMap")
+        nm.name = "paint_normal_map"
+        nm.location = (-260, -640)
+        nm.inputs["Strength"].default_value = float(normal_strength)
+        nt.links.new(nrm.outputs["Color"], nm.inputs["Color"])
+        nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
     nt.nodes.active = tex
     mat.diffuse_color = (0.8, 0.8, 0.8, 1.0)
     return mat

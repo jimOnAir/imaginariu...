@@ -34,6 +34,10 @@ GOLD = (0.8, 0.65, 0.2)
 CYAN = (0.0, 1.0, 1.0)
 REAL = {"knight": ("clean_knight/clean.blend", "e4aef2bf-2ef5-4e73-a838-06de3ca3cdaa.png"),
         "bone": ("clean_bone/clean.blend", "dce6bd27-f7aa-4e82-b705-0ce94735ff30.png")}
+# pilot blends and the studio asset store for the two real cases ("skip: ..." when missing)
+REAL_DIR = os.environ.get("AF_PILOT3_DEV") or r"C:/AstraForge/incoming/pilot3/_dev"
+ASSETS = os.environ.get("ASTRA_FORGE_ASSETS") or os.path.join(
+    os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "assets")
 
 
 # --------------------------------------------------------------------------- helpers
@@ -883,6 +887,70 @@ def test_qa_vlm_never_fails_the_step():
     assert f7.calls == [] and r7["ok"] and all("qa_vlm" not in w for w in r7["warnings"])
 
 
+def _glb_materials(path):
+    import json
+    import struct
+    with open(path, "rb") as fh:
+        fh.read(12)
+        clen, _ = struct.unpack("<II", fh.read(8))
+        return json.loads(fh.read(clen).decode("utf-8")).get("materials", [])
+
+
+def test_paint_keeps_cleanup_normal_map():
+    """cleanup bake_normal -> paint: the normal map lives on the cleanup UVs, paint keeps them (uv auto) and
+    carries the map into the painted material and the GLB (normalTexture); uv: smart drops it with a warning."""
+    tmp = _tmp()
+    concept = _render_concept(os.path.join(tmp, "concept.png"), eye=False)
+    glb = _plain_glb(os.path.join(tmp, "plain.glb"))
+    clean = importlib.import_module("steps.cleanup")
+    req = {"step": "cleanup", "inputs": {"mesh": glb}, "out_dir": os.path.join(tmp, "clean"),
+           "params": {"target_tris": 1500, "bake_normal": True, "bake_size": 256, "bake_samples": 1,
+                      "preview": False}}
+    os.makedirs(req["out_dir"], exist_ok=True)
+    cres = af.finish(req, clean.run(req))
+    assert cres["ok"], (cres.get("error"), cres["checks"])
+    blend = cres["outputs"]["blend"]
+    af.reset_scene()
+    res = _run({"blend": blend, "concept": concept}, {"size": 256, "preview": False, "emission": "none",
+                                                      "concept_max_px": 384}, out_dir=os.path.join(tmp, "out"))
+    assert res["ok"], res.get("error")
+    uv = res["stats"]["uv"]["Body"]
+    assert uv["unwrapped"] == "kept" and uv.get("normal_map", "").startswith("kept"), uv
+    mats = _glb_materials(res["outputs"]["glb"])
+    assert any("normalTexture" in m and "baseColorTexture" in m["pbrMetallicRoughness"] for m in mats), mats
+    af.reset_scene()
+    res = _run({"blend": blend, "concept": concept}, {"size": 256, "preview": False, "emission": "none", "uv": "smart",
+                                                      "concept_max_px": 384}, out_dir=os.path.join(tmp, "smart"))
+    assert res["ok"], res.get("error")
+    assert res["stats"]["uv"]["Body"].get("normal_map") == "dropped", res["stats"]["uv"]
+    assert any("normal map dropped" in w for w in res["warnings"]), res["warnings"]
+    assert not any("normalTexture" in m for m in _glb_materials(res["outputs"]["glb"]))
+
+
 # --------------------------------------------------------------------------- real assets
+
+def _real(name, iou_min):
+    blend, concept = REAL[name]
+    blend = os.path.join(REAL_DIR, blend)
+    concept = os.path.join(ASSETS, concept)
+    if not (os.path.isfile(blend) and os.path.isfile(concept)):
+        return "skip: pilot asset missing (%s)" % blend
+    af.reset_scene()
+    res = _run({"blend": blend, "concept": concept}, {"size": 1024, "preview_size": 256}, asset={"kind": "humanoid"})
+    assert res["ok"], res.get("error")
+    s = res["stats"]
+    assert s["iou"] >= iou_min, s["iou"]
+    assert s["color_mae"] <= 0.08, s["color_mae"]
+    assert s["texels"]["projected_share"] > 0.08, s["texels"]
+    assert s["timings_s"]["total"] < 60, s["timings_s"]
+    return None
+
+
+def test_real_knight():
+    return _real("knight", 0.72)
+
+
+def test_real_bone_swordsman():
+    return _real("bone", 0.78)
 
 
