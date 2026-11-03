@@ -13,3 +13,17 @@
 .about-text{white-space:pre-wrap;font:10px/1.6 Studio,'Segoe UI',sans-serif;background:#1c2a21;border:1px solid #3e553b;border-radius:6px;padding:14px;margin:0 0 10px;max-height:320px;overflow-y:auto;color:#a8bd93;scrollbar-width:thin}
 .about-text.small{font-size:9px;color:#8fa87d}
 .about-actions{display:flex;gap:10px;align-items:center;margin-top:14px}
+.comp-panel{display:flex;flex-direction:column;gap:10px}
+.comp-list{max-height:52vh;overflow:auto;border:1px solid var(--line,#2a3140);border-radius:8px;padding:4px 0}
+.comp-group{font-size:11px;letter-spacing:.06em;text-transform:uppercase;opacity:.6;padding:8px 12px 4px}
+.comp-row{display:grid;grid-template-columns:20px minmax(0,1.3fr) minmax(0,1.2fr) 70px;gap:8px;align-items:center;padding:4px 12px;cursor:pointer;font-size:13px}
+.comp-row:hover{background:rgba(255,255,255,.04)}
+.comp-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp-row.installed,.comp-row.unavailable{opacity:.55}
+.comp-row.outdated .comp-state{color:#e8964a}
+.comp-size{text-align:right;opacity:.8}
+.comp-presets{display:flex;gap:16px;flex-wrap:wrap;font-size:13px}
+.comp-presets label{display:flex;gap:6px;align-items:center;cursor:pointer}
+.comp-job{display:grid;grid-template-columns:16px 1fr;gap:6px 8px;align-items:center;font-size:13px}
+.comp-bar{grid-column:1/-1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
+.comp-bar i{display:block;height:100%;background:var(--accent,#4d86ff)}

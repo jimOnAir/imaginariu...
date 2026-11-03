@@ -5,6 +5,7 @@ import {registerViews} from './views.mjs';
 import {registerVfxTools} from './vfx-tools.mjs';
 import {registerSculpt} from './sculpt.mjs';
 import {registerArt2d} from './art2d.mjs';
+import {createComponents,registerComponents} from './components.mjs';
 import {unwrapUV} from './uv.mjs';
 import {saveProjectData,readProjectData,projectList,decodeProject} from './projects.mjs';
 import multer from 'multer';
@@ -43,6 +44,7 @@ registerForge(app,asyncRoute,{getGenerationJob:getJob});
 const viewSets=registerViews(app,asyncRoute,{getConfig:()=>config});
 sculpt=registerSculpt(app,asyncRoute,{vfx:registerVfxTools(app,asyncRoute)});
 registerArt2d(app,asyncRoute,{getConfig:()=>config});
+registerComponents(app,asyncRoute,{components:createComponents({appRoot:root,dataDir:data,appVersion})});
 app.get('/api/status',asyncRoute(async(req,res)=>{
  const probe=async(url)=>{try{const r=await fetch(url,{signal:AbortSignal.timeout(3500)});if(!r.ok)return null;return await r.json();}catch{return null;}};
  const [ollama,stats,nodes,pixal3d]=await Promise.all([probe(config.ollamaUrl+'/api/tags'),probe(config.comfyUrl+'/system_stats'),probe(config.comfyUrl+'/object_info/ImageOnlyCheckpointLoader'),pixal3dStatus().catch(e=>({installed:false,running:false,missing:[],message:e.message}))]);

@@ -696,11 +696,14 @@ fi
 if [ "${#plan[@]}" = 0 ]; then
   if [ -z "$(CfgGet library)" ] && [ -n "${S_LIBRARY:-}" ]; then CfgSet library "$S_LIBRARY"; fi
   if [ "$DryRun" != 1 ] && { [ "$Yes" = 1 ] || [ "$Lite" = 1 ] || [ -z "$(CfgGet profile)" ]; }; then CfgSet profile "$Profile"; fi
+  [ "${ASTRA_UNATTENDED:-}" = 1 ] && printf '##DONE\n'
   say 'Done - launch with scripts/start.sh.'
   exit 0
 fi
 if [ "$DryRun" != 1 ] && { [ "$Yes" = 1 ] || [ "$Lite" = 1 ] || [ -z "$(CfgGet profile)" ]; }; then CfgSet profile "$Profile"; fi
 
+failed_ids=''
+dl_join_failed() { printf '%s' "$failed_ids" | tr -s ' ' '\n' | sed '/^$/d' | paste -sd, -; }
 for e in "${plan[@]}"; do
   id="$(printf '%s' "$e" | cut -d'|' -f1)"; what="$(printf '%s' "$e" | cut -d'|' -f2)"
   Title "$what"
@@ -738,10 +741,19 @@ for e in "${plan[@]}"; do
     say '  done'
   else
     say "  ERROR: $id failed (reinstall it with: installer/install.sh -Only $id)"
+    failed_ids="$failed_ids $id"
     if [ "$Yes" != 1 ]; then Ask 'Continue with the remaining components?' y || exit 1; fi
   fi
 done
-if [ "$DryRun" = 1 ]; then exit 0; fi
+if [ "$DryRun" = 1 ]; then
+  if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then [ -n "$failed_ids" ] && printf '##FAILED %s\n' "$(dl_join_failed)" && exit 1; printf '##DONE\n'; fi
+  exit 0
+fi
+# the machine contract for the calling frontend (server/components.mjs): what failed and where it ended
+if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
+  if [ -n "$failed_ids" ]; then printf '##FAILED %s\n' "$(dl_join_failed)"; exit 1; fi
+  printf '##DONE\n'
+fi
 
 if [ -z "$(CfgGet library)" ]; then CfgSet library "$S_LIBRARY"; fi
 if [ -z "$(CfgGet forgeRuntime)" ] && [ -z "${ASTRA_FORGE_RUNTIME:-}" ]; then CfgSet forgeRuntime "$ROOT/data/runtime/forge"; fi
