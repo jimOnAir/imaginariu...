@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
 # AstraForge installer for Linux (the counterpart of installer/Install.ps1).
 #
-#   installer/install.sh                 scan, ask about optional components, install
-#   installer/install.sh -ScanOnly       only inspect the computer, download nothing
-#   installer/install.sh -DryRun         walk through the wizard without downloading
-#   installer/install.sh -Only hy2,u2net install only these components (list them in install order)
-#   installer/install.sh -Yes            no questions: required components and the wizard's defaults
+#   installer/install.sh                 check the computer, the "What to install" checklist, install
+#   installer/install.sh -ScanOnly       only inspect the computer, download nothing (verdict table)
+#   installer/install.sh -ScanList       the machine scan as "##ITEM" lines (frontend contract)
+#   installer/install.sh -Profile quick|full|lite   the checklist's preset (default quick)
+#   installer/install.sh -DryRun         walk through the checklist without downloading
+#   installer/install.sh -Only hy2,u2net install only these components (list them in install order;
+#                                        -Only none installs nothing)
+#   installer/install.sh -Yes            no questions: the preset of -Profile ticks as a whole
 #
+# The checklist ticks every missing/outdated row of the preset, Node.js, npm and Blender are
+# untickable, ticking a row pulls in its dependencies, a computer without an NVIDIA card is offered
+# the Lite set, and the footer shows the download size against the free disk. A failed computer
+# check falls back to installing the chosen preset as a whole. Scan logic: installer/af_scan.mjs.
 # Everything installs into this application folder (runtime/, data/models/), needs no root, and an
 # interrupted download resumes on the next run. Ids: node, npm, blender, comfy, comfydeps, hy2,
 # hymv, hy21, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
@@ -44,19 +51,23 @@ QwenVaeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files
 QwenVaeSha='a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f'
 
 # ---------------------------------------------------------------- arguments
-ScanOnly=0 DryRun=0 Yes=0 Only=''
+ScanOnly=0 ScanList=0 DryRun=0 Yes=0 Only='' Profile='quick' Lite=0
 prev=''
 for arg in "$@"; do
   case "$arg" in
     -ScanOnly|--scan-only) ScanOnly=1 ;;
+    -ScanList|--scan-list) ScanList=1 ;;
     -DryRun|--dry-run) DryRun=1 ;;
     -Yes|--yes) Yes=1 ;;
+    -Profile=*|--profile=*) Profile="${arg#*=}" ;;
     -Only=*|--only=*) Only="${arg#*=}" ;;
-    -h|--help) sed -n '2,14p' "$0"; exit 0 ;;
-    *) [ "$prev" = '-Only' ] || [ "$prev" = '--only' ] && { Only="$arg"; } ;;
+    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    *) if [ "$prev" = '-Only' ] || [ "$prev" = '--only' ]; then Only="$arg"
+       elif [ "$prev" = '-Profile' ] || [ "$prev" = '--profile' ]; then Profile="$arg"; fi ;;
   esac
   prev="$arg"
 done
+case "$Profile" in quick|full|lite) ;; *) printf 'Unknown profile: %s (quick, full, lite)\n' "$Profile" >&2; exit 2 ;; esac
 
 # ---------------------------------------------------------------- helpers
 say() { printf '%s\n' "$1"; printf '%s\n' "$1" >>"$LOG"; }
@@ -140,161 +151,40 @@ CfgSet() { local n; n="$(NodeBin)"; if [ -z "$n" ]; then say '  node is needed t
 
 FreeOn() { df -B1 --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '; }
 
-# ---------------------------------------------------------------- scan
-Scan() {
-  S_GPU=''; S_VRAM=0; S_CC=''
-  if command -v nvidia-smi >/dev/null; then
-    local line
-    line="$(nvidia-smi --query-gpu=name,memory.total --format=csv,noheader,nounits 2>/dev/null | head -1)"
-    if [ -n "$line" ]; then S_GPU="$(printf '%s' "$line" | cut -d, -f1 | sed 's/^ *//;s/ *$//')"; S_VRAM="$(printf '%s' "$line" | cut -d, -f2 | tr -d ' ')"; fi
-    local cc; cc="$(nvidia-smi --query-gpu=compute_cap --format=csv,noheader 2>/dev/null | head -1 | tr -d ' ')"
-    if printf '%s' "$cc" | grep -Eq '^[0-9]+\.[0-9]+$'; then S_CC="$cc"; fi
+# ---------------------------------------------------------------- scan (installer/af_scan.mjs is the scan core)
+ITEMS_FILE="$DL/scan-items.tsv"
+
+ScanCore() {   # af_scan.mjs --sh -> the S_* scan state + the ##ITEM checklist rows; SCAN_OK=0 on any failure
+  SCAN_OK=0
+  local n; n="$(NodeBin)"
+  if [ -z "$n" ]; then
+    say '  Node.js is needed for the computer check - the chosen preset will be installed as a whole.'
+    return 1
   fi
-  # Node.js >= 22.12
-  S_NODE=''; S_NODEVER=''
-  local cands=() n v maj min
-  n="$(CfgGet node)"; [ -n "$n" ] && cands+=("$n")
-  cands+=("$RT/node/bin/node")
-  n="$(command -v node || true)"; [ -n "$n" ] && cands+=("$n")
-  for n in "${cands[@]}"; do
-    [ -x "$n" ] || continue
-    v="$("$n" -v 2>/dev/null | tr -d 'v')"; maj="${v%%.*}"; min="${v#*.}"; min="${min%%.*}"
-    if [ "${maj:-0}" -gt 22 ] 2>/dev/null || { [ "${maj:-0}" = 22 ] && [ "${min:-0}" -ge 12 ] 2>/dev/null; }; then S_NODE="$n"; S_NODEVER="$v"; break; fi
-  done
-  if [ -d "$ROOT/node_modules/express" ]; then S_NPM=yes; else S_NPM=''; fi
-  if [ -f "$ROOT/dist/index.html" ]; then S_UI=yes; else S_UI=''; fi
-  # Blender 5.x: config, env, app-local, system
-  S_BLENDER=''
-  local bls=() b
-  n="$(CfgGet blender)"; [ -n "$n" ] && bls+=("$n")
-  [ -n "${ASTRA_BLENDER:-}" ] && bls+=("$ASTRA_BLENDER")
-  bls+=("$RT/blender/blender-5.0.1-linux-x64/blender")
-  n="$(command -v blender || true)"; [ -n "$n" ] && bls+=("$n")
-  for b in "${bls[@]}"; do if [ -x "$b" ]; then S_BLENDER="$b"; break; fi; done
-  # ComfyUI: the app's own copy (.venv + main.py + the Hunyuan3D nodes)
-  S_COMFY=''
-  local comfys=() c
-  n="$(CfgGet comfyDir)"; [ -n "$n" ] && comfys+=("$n")
-  [ -n "${ASTRA_COMFY_DIR:-}" ] && comfys+=("$ASTRA_COMFY_DIR")
-  comfys+=("$RT/ComfyUI")
-  for c in "${comfys[@]}"; do
-    if [ -x "$c/.venv/bin/python" ] && [ -f "$c/main.py" ] && [ -f "$c/comfy_extras/nodes_hunyuan3d.py" ]; then S_COMFY="$c"; break; fi
-  done
-  S_COMFYDEPS=''
-  if [ -n "$S_COMFY" ]; then
-    if "$S_COMFY/.venv/bin/python" -c "import sys; sys.path.insert(0, '$ROOT/data/python'); import torch, rembg, skimage, numba, onnxruntime, xatlas" >/dev/null 2>&1; then S_COMFYDEPS=yes; fi
+  local out="$DL/scan-sh.txt"
+  mkdir -p "$DL"
+  if ! "$n" "$ROOT/installer/af_scan.mjs" --sh >"$out" 2>"$DL/scan-err.txt"; then
+    say "  The computer check failed: $(head -1 "$DL/scan-err.txt" 2>/dev/null)"
+    say '  The chosen preset will be installed as a whole.'
+    return 1
   fi
-  # Godot 4.5
-  S_GODOT=''
-  local gds=()
-  n="$(CfgGet godot)"; [ -n "$n" ] && gds+=("$n")
-  [ -n "${ASTRA_GODOT:-}" ] && gds+=("$ASTRA_GODOT")
-  gds+=("$RT/Godot/$GodotBin")
-  n="$(command -v godot || true)"; [ -n "$n" ] && gds+=("$n")
-  n="$(command -v godot4 || true)"; [ -n "$n" ] && gds+=("$n")
-  for n in "${gds[@]}"; do if [ -x "$n" ]; then S_GODOT="$n"; break; fi; done
-  # models - in the application folder or in an existing ComfyUI's checkpoints (the studio reads both)
-  S_HY2=''; S_HYMV=''; S_HY21=''; S_SDXL=''
-  local ckdirs=("$ROOT/data/models/checkpoints") d
-  [ -n "$S_COMFY" ] && ckdirs+=("$S_COMFY/models/checkpoints")
-  for d in "${ckdirs[@]}"; do
-    [ -f "$d/hunyuan3d-dit-v2.safetensors" ] && S_HY2=yes
-    [ -f "$d/hunyuan3d-dit-v2-mv.safetensors" ] && S_HYMV=yes
-    [ -f "$d/hunyuan_3d_v2.1.safetensors" ] && S_HY21=yes
-    [ -f "$d/sd_xl_base_1.0.safetensors" ] && S_SDXL=yes
-  done
-  S_U2NET=''
-  if find "$ROOT/data/models/background" -name u2net.onnx -type f 2>/dev/null | grep -q .; then S_U2NET=yes; fi
-  # the 2D tab engines: the GGUF node and the FLUX.2 / Qwen-Image weight sets (docs/art2d.md)
-  S_GGUF=''
-  if [ -n "$S_COMFY" ] && [ -f "$S_COMFY/custom_nodes/ComfyUI-GGUF/nodes.py" ]; then S_GGUF=yes; fi
-  S_FLUX2=''
-  if [ -n "$S_COMFY" ] && FileOk "$S_COMFY/models/unet/flux-2-klein-base-9b-Q5_K_M.gguf" 7017126176 \
-     && FileOk "$S_COMFY/models/text_encoders/qwen_3_8b_fp8mixed.safetensors" 8664848742 \
-     && FileOk "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292; then S_FLUX2=yes; fi
-  S_QWEN=''
-  if [ -n "$S_COMFY" ] && FileOk "$S_COMFY/models/unet/qwen-image-Q4_K_M.gguf" 13065746976 \
-     && FileOk "$S_COMFY/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors" 9384670680 \
-     && FileOk "$S_COMFY/models/vae/qwen_image_vae.safetensors" 253806246; then S_QWEN=yes; fi
-  # Ollama and its models (the server may be stopped: the disk manifests count too)
-  S_OLLAMA="$(command -v ollama || true)"
-  n="$(CfgGet ollama)"; [ -n "$n" ] && [ -x "$n" ] && S_OLLAMA="$n"
-  S_LLMS=()
-  if [ -n "$S_OLLAMA" ]; then
-    local m
-    while read -r m; do [ -n "$m" ] && S_LLMS+=("$m"); done < <("$S_OLLAMA" list 2>/dev/null | tail -n +2 | awk '{print $1}')
-    local mroot="${OLLAMA_MODELS:-$HOME/.ollama/models}/manifests/registry.ollama.ai" rel ns nm tg
-    if [ -d "$mroot" ]; then
-      while read -r f; do
-        rel="${f#"$mroot"/}"; ns="$(dirname "$(dirname "$rel")")"; nm="$(basename "$(dirname "$rel")")"; tg="$(basename "$rel")"
-        printf '%s' "$tg" | grep -Eq '^[0-9a-f]{64}$' && continue
-        if [ "$ns" = library ]; then m="$nm:$tg"; else m="$ns/$nm:$tg"; fi
-        local seen=''
-        for v in "${S_LLMS[@]:-}"; do [ "$v" = "$m" ] && seen=yes; done
-        [ -z "$seen" ] && S_LLMS+=("$m")
-      done < <(find "$mroot" -mindepth 3 -maxdepth 3 -type f)
-    fi
-  fi
-  S_VLM=''
-  for m in "${S_LLMS[@]:-}"; do [ "$m" = "$VlmName" ] && S_VLM=yes; done
-  # clip library (Quaternius / ActionForge animations, CC0)
-  S_LIBRARY="$(CfgGet library)"; [ -z "$S_LIBRARY" ] && S_LIBRARY="${ASTRA_FORGE_LIBRARY:-}"
-  [ -z "$S_LIBRARY" ] && S_LIBRARY="$ROOT/library"
-  S_CLIPS="$(find "$S_LIBRARY/animations/quaternius" -name '*.fbx' 2>/dev/null | wc -l | tr -d ' ')"
-  # Pixal3D (a separate portable ComfyUI on 8191): state report; the Linux recipe lands with its phase
-  S_P3_DIR="$(CfgGet pixal3dDir)"; [ -z "$S_P3_DIR" ] && S_P3_DIR="${ASTRA_PIXAL3D_DIR:-}"
-  [ -z "$S_P3_DIR" ] && S_P3_DIR="$RT/ComfyUI-Pixal3D"
-  S_P3_ENGINE=''; if [ -x "$S_P3_DIR/.venv/bin/python" ] && [ -f "$S_P3_DIR/ComfyUI/main.py" ]; then S_P3_ENGINE=yes; fi
-  # weights and nodes: the same requirements list the studio server checks (server/pixal3d.mjs), minus the python entry
-  S_P3_WEIGHTS=''; S_P3_MISSING=''
-  if [ -n "$S_P3_ENGINE" ]; then
-    n2="$(NodeBin)"
-    if [ -n "$n2" ]; then
-      S_P3_MISSING="$("$n2" --input-type=module -e "
-        import { existsSync } from 'node:fs'; import path from 'node:path';
-        const { PIXAL3D_REQUIREMENTS, PIXAL3D_PYTHON_REL } = await import('file://$ROOT/server/pixal3d.mjs');
-        const need = PIXAL3D_REQUIREMENTS.map(([r]) => r).filter(r => r !== PIXAL3D_PYTHON_REL && r !== 'ComfyUI/main.py');
-        process.stdout.write(need.filter(r => !existsSync(path.join(process.argv[1], r))).join('; '))
-        " "$S_P3_DIR" 2>/dev/null || echo unknown)"
-      [ "$S_P3_MISSING" = '' ] && S_P3_WEIGHTS=yes
-    fi
-  fi
-  # MV-Adapter: node (bundled in data/runtime/custom_nodes, already patched) + weights + SDXL config
-  S_MV_NODE=''; grep -q local_sdxl_config "$ROOT/data/runtime/custom_nodes/ComfyUI-MVAdapter/utils.py" 2>/dev/null && S_MV_NODE=yes
-  S_MV_WEIGHTS=''; [ -f "$ROOT/data/models/mvadapter/mvadapter_i2mv_sdxl.safetensors" ] && S_MV_WEIGHTS=yes
-  S_MV_CONFIG=''; [ -f "$ROOT/data/models/mvadapter/sdxl-config/model_index.json" ] && S_MV_CONFIG=yes
+  grep '^##ITEM' "$out" >"$ITEMS_FILE" || : >"$ITEMS_FILE"
+  grep -v '^##ITEM' "$out" >"$DL/scan-state.sh"
+  # shellcheck source=/dev/null
+  . "$DL/scan-state.sh"
+  SCAN_OK=1
 }
 
-Show() {
-  Title 'What is already on this computer'
-  if [ -n "$S_GPU" ]; then Ok "GPU: $S_GPU ($(awk -v v="$S_VRAM" 'BEGIN{printf "%d GB", v/1024+0.5}'))"; else Miss 'NVIDIA GPU not found - 3D generation from an image will be unavailable (the interface and Blender still work)'; fi
-  if [ -n "$S_NODE" ]; then Ok "Node.js $S_NODEVER"; else Miss 'Node.js 22.12+'; fi
-  if [ -n "$S_NPM" ] && [ -n "$S_UI" ]; then Ok 'Application dependencies and interface'; else Miss 'Dependencies / interface build (npm)'; fi
-  if [ -n "$S_BLENDER" ]; then Ok "Blender 5: $S_BLENDER"; else Miss 'Blender 5.0'; fi
-  if [ -n "$S_COMFY" ]; then
-    if [ -n "$S_COMFYDEPS" ]; then Ok "ComfyUI: $S_COMFY"; else Miss "ComfyUI is present ($S_COMFY), but Python libraries are missing"; fi
-  else Miss 'ComfyUI (3D generation)'; fi
-  if [ -n "$S_HY2" ]; then Ok 'Hunyuan3D-2 model'; else Miss 'Hunyuan3D-2 model (required, 4.9 GB)'; fi
-  if [ -n "$S_U2NET" ]; then Ok 'u2net background-removal model'; else Miss 'u2net background-removal model (176 MB)'; fi
-  if [ -n "$S_COMFY" ]; then
-    if [ -n "$S_GGUF" ]; then Ok 'ComfyUI-GGUF node (loads GGUF weights for the 2D tab)'; else Miss 'ComfyUI-GGUF node (needed by FLUX.2 and Qwen-Image)'; fi
-    if [ -n "$S_FLUX2" ]; then Ok 'FLUX.2 klein 9B - GGUF, encoder, VAE (2D tab)'; else Miss 'FLUX.2 klein 9B - GGUF + encoder + VAE (16 GB, noncommercial weights)'; fi
-    if [ -n "$S_QWEN" ]; then Ok 'Qwen-Image - GGUF, encoder, VAE (2D tab)'; else Miss 'Qwen-Image - GGUF + encoder + VAE (23 GB)'; fi
-  fi
-  if [ -n "$S_HYMV" ]; then Ok 'Hunyuan3D-2mv model (from two views)'; else Opt 'Hunyuan3D-2mv model (from two views, 4.9 GB)'; fi
-  if [ -n "$S_HY21" ]; then Ok 'Hunyuan3D-2.1 model'; else Opt 'Hunyuan3D-2.1 model (7.4 GB)'; fi
-  if [ -n "$S_SDXL" ]; then Ok 'SDXL (images)'; else Opt 'SDXL for image generation (6.9 GB)'; fi
-  if [ -n "$S_GODOT" ]; then Ok "Godot 4.5: $S_GODOT"; else Opt 'Godot 4.5 (validation of game packages, 77 MB)'; fi
-  if [ -n "$S_OLLAMA" ]; then Ok "Ollama, models: $(if [ "${#S_LLMS[@]}" -gt 0 ]; then printf '%s' "${S_LLMS[*]}"; else echo none; fi)"; else Opt 'Ollama - local AI assistant (optional)'; fi
-  if [ "${S_CLIPS:-0}" -gt 0 ] 2>/dev/null; then Ok "Quaternius animations: $S_CLIPS clips"; else Opt 'Quaternius / ActionForge animations, 86 clips (CC0)'; fi
-  if [ -n "$S_MV_NODE" ] && [ -n "$S_MV_WEIGHTS" ] && [ -n "$S_MV_CONFIG" ]; then Ok 'MV-Adapter: views locally (node, weights, SDXL configs)'
-  elif [ -n "$S_MV_NODE$S_MV_WEIGHTS$S_MV_CONFIG" ]; then Miss 'MV-Adapter is not fully installed'
-  else Opt 'MV-Adapter - views from a single image, locally (3.6 GB of weights; needs SDXL)'; fi
-  if [ -n "$S_VLM" ]; then Ok "Check model $VlmName (textures and animation)"; else Opt "Check model $VlmName via Ollama ($(Gb "$VlmBytes"), textures and animation)"; fi
-  if [ -n "$S_P3_ENGINE" ]; then
-    if [ -n "$S_P3_WEIGHTS" ]; then Ok "Pixal3D (3D from 1-4 views, shape only): $S_P3_DIR"
-    else Miss "Pixal3D is not fully installed ($S_P3_DIR), missing: weights"; fi
-  else Opt 'Pixal3D - 3D from 1-4 views, shape only (ComfyUI on port 8191), about 48.5 GB on disk'; fi
+ScanTable() {  # -ScanOnly: the per-component verdict table of the scan core
+  local n; n="$(NodeBin)"
+  if [ -z "$n" ]; then say '  Node.js is needed for the computer check (installer/install.sh -Only node first).'; return 2; fi
+  "$n" "$ROOT/installer/af_scan.mjs" --table
+}
+
+ScanList() {   # -ScanList: the ##ITEM frontend contract (the same lines Setup.cs parses on Windows)
+  local n; n="$(NodeBin)"
+  if [ -z "$n" ]; then say '  Node.js is needed for the computer check (installer/install.sh -Only node first).'; return 2; fi
+  "$n" "$ROOT/installer/af_scan.mjs" --items
 }
 
 RecommendLlm() {
@@ -449,7 +339,7 @@ InstallClips() {
    const files=require(process.argv[1]);
    require("fs").writeFileSync(process.argv[2],JSON.stringify({step:"clip_library",inputs:{},params:{action:"import",files,library:process.argv[3]},out_dir:process.argv[4]},null,2))' \
     "$fbx/files.json" "$fbx/_import/request.json" "$S_LIBRARY/animations" "$fbx/_import" || return 1
-  Run "$S_BLENDER" 'importing clips into the AstraForge library' -b --factory-startup --python "$ROOT/scripts/blender/af_run.py" -- clip_library "$fbx/_import/request.json"
+  Run "$S_BLENDER" 'importing clips into the AstraForge library' -b --factory-startup --python "$ROOT/scripts/blender/af_run.py" -- clip_library "$fbx/_import/request.json" || return 1
 }
 InstallOllama() {
   local got; got="$(command -v ollama || true)"
@@ -526,84 +416,240 @@ InstallMvadapter() {
 # ---------------------------------------------------------------- plan
 plan=()   # entries: id|what|size|lic
 plan_add() { plan+=("$1|$2|$3|$4"); }
-plan_get() { local e; for e in "${plan[@]:-}"; do if [ "${e%%|*}" = "$1" ]; then printf '%s' "$e"; return 0; fi; done; return 1; }
 
-Scan
-if [ "$ScanOnly" = 1 ]; then Show; exit 0; fi
-free="$(FreeOn "$ROOT")"
+comp_what() { case "$1" in
+  node) printf 'Node.js %s (into the application folder)' "$NodeVersion" ;;
+  npm) printf 'Studio interface and libraries' ;;
+  blender) printf 'Blender 5.0.1 (into the application folder)' ;;
+  comfy) printf 'ComfyUI %s + Python 3.12 + PyTorch' "$ComfyTag" ;;
+  comfydeps) printf 'Missing Python libraries for ComfyUI' ;;
+  hy2) printf 'Hunyuan3D-2 model (3D from an image)' ;;
+  hymv) printf 'Hunyuan3D-2mv model' ;;
+  hy21) printf 'Hunyuan3D-2.1 model' ;;
+  sdxl) printf 'SDXL model' ;;
+  u2net) printf 'u2net background-removal model' ;;
+  mvadapter) printf 'MV-Adapter: node, weights, Python packages' ;;
+  godot) printf 'Godot 4.5.1' ;;
+  clips) printf 'Quaternius / ActionForge animations (CC0)' ;;
+  vfx) printf 'VFX texture generators' ;;
+  ollama) printf 'Ollama' ;;
+  llm) printf 'model %s' "${WantLlmSet:-${WantLlm:-qwen3:8b}}" ;;
+  vlm) printf 'model %s (texture and animation check)' "$VlmName" ;;
+  pixal3d) printf 'Pixal3D: engine (Python, PyTorch, ComfyUI, Trellis2 nodes)' ;;
+  pixal3dw) printf 'Pixal3D: weights (shape, MoGe-2, NAF, DINOv3)' ;;
+  pixal3dtest) printf 'Pixal3D: smoke test' ;;
+  gguf) printf 'ComfyUI-GGUF node' ;;
+  flux2) printf 'FLUX.2 klein 9B GGUF + text encoder + VAE' ;;
+  qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;
+  *) printf '%s' "$1" ;;
+esac; }
 
-Title 'Required'
-if [ -z "$S_NODE" ]; then plan_add node "Node.js $NodeVersion (into the application folder)" 32000000 'MIT'; fi
-if [ -z "$S_NPM" ] || [ -z "$S_UI" ]; then plan_add npm 'dependencies and interface build' 250000000 'open-source licenses of npm packages'; fi
-if [ -z "$S_BLENDER" ]; then plan_add blender 'Blender 5.0.1 (into the application folder)' 401000000 'GPL'; fi
-if [ -z "$S_COMFY" ]; then plan_add comfy "ComfyUI $ComfyTag + Python 3.12 + PyTorch" 6000000000 'GPL / BSD'
-elif [ -z "$S_COMFYDEPS" ]; then plan_add comfydeps 'missing Python libraries for ComfyUI' 1000000000 'open-source licenses'; fi
-if [ -z "$S_HY2" ]; then plan_add hy2 'Hunyuan3D-2 model (3D from an image)' 4928151562 'Tencent Hunyuan Community License'; fi
-if [ -z "$S_U2NET" ]; then plan_add u2net 'u2net background-removal model' 175997641 'Apache-2.0'; fi
-for e in "${plan[@]:-}"; do [ -n "$e" ] && say "  • $(printf '%s' "$e" | cut -d'|' -f2)  — $(Human "$(printf '%s' "$e" | cut -d'|' -f3)")"; done
-if [ "${#plan[@]}" = 0 ]; then say '  everything required is already installed'; fi
-mandatory="${#plan[@]}"
+# the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
+ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg'
 
-Title 'Optional'
-if [ -z "$S_HYMV" ]; then Ask 'Hunyuan3D-2mv model - 3D from a front and a back view, 4.9 GB. Download?' y && plan_add hymv 'Hunyuan3D-2mv model' 4928151562 'Tencent Hunyuan Community License'; fi
-if [ -z "$S_HY21" ]; then Ask 'Hunyuan3D-2.1 model - a second shape model, 7.4 GB. Download?' n && plan_add hy21 'Hunyuan3D-2.1 model' 7365943290 'Tencent Hunyuan Community License'; fi
-if [ -z "$S_SDXL" ]; then Ask 'SDXL - generate concept images right in the application, 6.9 GB. Download?' n && plan_add sdxl 'SDXL model' 6938078334 'CreativeML Open RAIL++-M'; fi
-if [ -n "$S_COMFY" ] && [ -z "$S_FLUX2" ]; then
-  say '  FLUX.2 klein 9B (the 2D tab draws the character from a reference picture): 16 GB.'
-  say '  Weights licence: FLUX Non-Commercial - a commercial game re-draws the final art with a commercial model.'
-  Ask 'Download FLUX.2 klein (with the ComfyUI-GGUF node)?' n && plan_add flux2 'FLUX.2 klein 9B GGUF + text encoder + VAE' 16018186210 'FLUX Non-Commercial License'
-fi
-if [ -n "$S_COMFY" ] && [ -z "$S_QWEN" ]; then
-  Ask 'Qwen-Image (the 2D tab: text to image, best at readable text in pictures) - 23 GB, Apache-2.0. Download?' n && plan_add qwenimg 'Qwen-Image GGUF + text encoder + VAE' 22704223902 'Apache-2.0'
-fi
-if [ -z "$S_GODOT" ]; then Ask 'Godot 4.5.1 - validation of finished game packages, 77 MB. Download?' y && plan_add godot 'Godot 4.5.1' 76685794 'MIT'; fi
-if [ "${S_CLIPS:-0}" = 0 ] 2>/dev/null; then Ask 'Quaternius animations (ActionForge): 86 clips - running, swords, shields, magic, 10 MB. Download?' y && plan_add clips 'Quaternius / ActionForge animations (CC0)' 10000000 'CC0'; fi
-RecommendLlm
+# ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
+declare -a IT_ID IT_GRP IT_ST IT_HAVE IT_NEED IT_SIZE IT_NAME IT_LIC IT_PRE IT_DEPS IT_ONLY IT_NOTE IT_TICK
+declare -A SEL_WHAT SEL_LIC SEL_SIZE
 WantLlmSet=''
-if ! printf '%s\n' "${S_LLMS[@]:-}" | grep -qxF "$WantLlm"; then
-  say '  Local AI assistant (descriptions, prompts, task breakdown) - free, works offline.'
-  say "  The best model for your GPU is $WantLlm ($(Gb "$LlmBytes")) via Ollama."
-  if [ "${#S_LLMS[@]}" -gt 0 ]; then say "  You already have: ${S_LLMS[*]}"; fi
-  if Ask "Install model $WantLlm?" "$(if [ "${#S_LLMS[@]}" -eq 0 ]; then echo y; else echo n; fi)"; then
-    if [ -z "$S_OLLAMA" ]; then plan_add ollama 'Ollama' 1578217944 'MIT'; fi
-    plan_add llm "model $WantLlm" "$LlmBytes" 'Apache 2.0 (Qwen3)'; WantLlmSet="$WantLlm"
+
+ParseItems() {   # the ##ITEM rows into the checklist arrays
+  IT_ID=(); IT_GRP=(); IT_ST=(); IT_HAVE=(); IT_NEED=(); IT_SIZE=(); IT_NAME=(); IT_LIC=(); IT_PRE=(); IT_DEPS=(); IT_ONLY=(); IT_NOTE=(); IT_TICK=()
+  local line m id grp st have need size name lic pre deps only note
+  # tab is IFS whitespace: read would collapse empty fields, so split on a non-whitespace separator
+  while IFS= read -r line; do
+    line="${line//$'\t'/$'\036'}"
+    IFS=$'\036' read -r m id grp st have need size name lic pre deps only note <<<"$line"
+    [ "$m" = '##ITEM' ] || continue
+    IT_ID+=("$id"); IT_GRP+=("$grp"); IT_ST+=("$st"); IT_HAVE+=("$have"); IT_NEED+=("$need"); IT_SIZE+=("$size")
+    IT_NAME+=("$name"); IT_LIC+=("$lic"); IT_PRE+=("$pre"); IT_DEPS+=("$deps"); IT_ONLY+=("$only"); IT_NOTE+=("$note"); IT_TICK+=(0)
+  done <"$ITEMS_FILE"
+}
+
+IsMandatory() { case " node npm blender " in *" $1 "*) return 0 ;; *) return 1 ;; esac; }
+
+ApplyPreset() {  # tick = (missing|outdated) && (the row is in the preset || mandatory) - the Setup.cs rule
+  local letter="$1" i
+  for i in "${!IT_ID[@]}"; do
+    IT_TICK[i]=0
+    if [ "${IT_ST[i]}" = missing ] || [ "${IT_ST[i]}" = outdated ]; then
+      case "${IT_PRE[i]}" in *"$letter"*) IT_TICK[i]=1 ;; *) IsMandatory "${IT_ID[i]}" && IT_TICK[i]=1 ;; esac
+    fi
+  done
+}
+
+TickDeps() {     # ticking a row pulls in its dependencies that are not installed (the Setup.cs rule)
+  local row="$1" d j
+  [ "${IT_TICK[row]}" = 1 ] || return 0
+  for d in ${IT_DEPS[row]//,/ }; do
+    for j in "${!IT_ID[@]}"; do
+      [ "${IT_ID[j]}" = "$d" ] || continue
+      case "${IT_ST[j]}" in missing|outdated) IT_TICK[j]=1 ;; esac
+    done
+  done
+}
+
+CheckedSum() { printf '%s %s' "$(CheckedCount)" "$(CheckedBytesSum)"; }
+CheckedCount() { local i n=0; for i in "${!IT_ID[@]}"; do [ "${IT_TICK[i]}" = 1 ] && n=$((n+1)); done; printf '%s' "$n"; }
+CheckedBytesSum() { local i s=0; for i in "${!IT_ID[@]}"; do [ "${IT_TICK[i]}" = 1 ] && s=$((s + ${IT_SIZE[i]:-0})); done; printf '%s' "$s"; }
+
+ShowChecklist() {
+  local i last='' verdict note mark
+  say ''
+  say '== What to install =='
+  for i in "${!IT_ID[@]}"; do
+    [ "${IT_GRP[i]}" = "$last" ] || { last="${IT_GRP[i]}"; say "  -- $last"; }
+    case "${IT_ST[i]}" in
+      installed) verdict="installed${IT_HAVE[i]:+ · ${IT_HAVE[i]}}" ;;
+      outdated)  verdict="update: $(Human "${IT_SIZE[i]}")${IT_HAVE[i]:+ · ${IT_HAVE[i]}}" ;;
+      missing)   verdict="download: $(Human "${IT_SIZE[i]}")${IT_NEED[i]:+ (${IT_NEED[i]})}" ;;
+      *)         verdict="unavailable: ${IT_NOTE[i]}" ;;
+    esac
+    mark=' '; [ "${IT_TICK[i]}" = 1 ] && mark='x'
+    note=''
+    if { [ "${IT_ST[i]}" = missing ] || [ "${IT_ST[i]}" = outdated ]; } && [ -n "${IT_NOTE[i]}" ]; then note=" (${IT_NOTE[i]})"; fi
+    say "   $(printf '%2d' "$((i+1))")) [$mark] ${IT_NAME[i]}$(IsMandatory "${IT_ID[i]}" && printf ' (required)') [${IT_ID[i]}] - $verdict$note"
+  done
+}
+
+SumFooter() {   # the footer of the checklist: download vs free disk (the UpdateSum of Setup.cs)
+  local n="$1" cs="$2" free="${S_FREE:-}"; free="${free:-$(FreeOn "$ROOT")}"; free="${free:-0}"
+  if [ "$n" = 0 ]; then say "  Nothing ticked: everything needed is installed. Free on $ROOT: $(Gb "$free")."
+  else say "  Download: $(Gb "$cs") ($n items). Free on $ROOT: $(Gb "$free")."; fi
+}
+
+BeginInstallPlan() {   # the ticked rows -> $plan; 1 = the user refused a confirmation (back to the checklist)
+  local i o n cs free needx id gpuOnly=''
+  SEL_WHAT=(); SEL_LIC=(); SEL_SIZE=()
+  for i in "${!IT_ID[@]}"; do
+    [ "${IT_TICK[i]}" = 1 ] || continue
+    if [ -z "$gpuOnly" ] && [ "$S_NOGPU" = 1 ]; then
+      case "${IT_NOTE[i]}" in *NVIDIA*) gpuOnly=yes ;; *) case "${IT_GRP[i]}" in 3D*) gpuOnly=yes ;; esac ;; esac
+    fi
+    for o in ${IT_ONLY[i]//,/ }; do
+      [ -n "${SEL_WHAT[$o]:-}" ] || { SEL_WHAT[$o]="${IT_NAME[i]}"; SEL_LIC[$o]="${IT_LIC[i]}"; SEL_SIZE[$o]="${IT_SIZE[i]}"; }
+      [ "$o" != llm ] || WantLlmSet="${IT_NEED[i]}"
+    done
+  done
+  if [ "$S_NOGPU" = 1 ] && [ -n "$gpuOnly" ]; then
+    say ''
+    say '  No NVIDIA graphics card found: the ticked shape and image models will be downloaded but will not work without it.'
+    if [ "$Yes" = 1 ]; then say '  Autonomous mode: installing anyway.'
+    else Ask 'Install anyway?' n || return 1; fi
   fi
-fi
-if [ -z "$S_VLM" ] && [ -n "$S_OLLAMA" ]; then
-  say "  Local check model $VlmName (understands images): checks textures and animation, works offline."
-  if [ "${S_VRAM:-0}" -gt 0 ] 2>/dev/null && [ "${S_VRAM:-0}" -lt 8000 ] 2>/dev/null; then say '  Warning: less than 8 GB of video memory, the model will run slowly.'; fi
-  if Ask "Install model $VlmName ($(Gb "$VlmBytes"))?" "$(if [ "${S_VRAM:-0}" -ge 8000 ] 2>/dev/null; then echo y; else echo n; fi)"; then plan_add vlm "model $VlmName (texture and animation check)" "$VlmBytes" 'Apache 2.0 (Qwen3-VL)'; fi
+  n="$(CheckedCount)"; cs="$(CheckedBytesSum)"
+  free="${S_FREE:-$(FreeOn "$ROOT")}"; free="${free:-0}"
+  needx="$(awk -v c="$cs" 'BEGIN{printf "%d", c + c/10}')"
+  if [ "$n" != 0 ] && [ "$(awk -v f="$free" -v d="$needx" 'BEGIN{print (f<d)?1:0}')" = 1 ]; then
+    say ''
+    say "  $ROOT has $(Gb "$free") free, the ticked items need about $(Gb "$needx")."
+    if [ "$Yes" = 1 ]; then say '  Autonomous mode: installing anyway (interrupted downloads resume on the next run).'
+    else Ask 'Continue anyway?' n || return 1; fi
+  fi
+  plan=()
+  for id in $ORDER_IDS; do
+    [ -n "${SEL_WHAT[$id]:-}" ] && plan_add "$id" "${SEL_WHAT[$id]}" "${SEL_SIZE[$id]}" "${SEL_LIC[$id]}"
+  done
+  return 0
+}
+
+ChecklistFlow() {   # the interactive checklist; returns with a confirmed plan
+  local letter ans i idx
+  case "$Profile" in full) letter=f ;; lite) letter=l ;; *) letter=q ;; esac
+  ApplyPreset "$letter"
+  while :; do
+    ShowChecklist
+    SumFooter "$(CheckedCount)" "$(CheckedBytesSum)"
+    if [ "$Yes" = 1 ]; then BeginInstallPlan && return 0; continue; fi
+    printf '  Number - tick or untick, q/f/l - presets, a - all, r - only required, done - install: '
+    # stdin closed mid-flow: the answers would only repeat defaults - close the checklist instead of looping
+    read -r ans || { say ''; say '  The input ended - the installation is cancelled.'; exit 1; }
+    case "${ans,,}" in
+      done|'') BeginInstallPlan || continue; return 0 ;;
+      q|f|l) ApplyPreset "${ans,,}" ;;
+      a) for i in "${!IT_ID[@]}"; do [ "${IT_ST[i]}" != unavailable ] && IT_TICK[i]=1; done ;;
+      r) ApplyPreset '-' ;;
+      [0-9]*) idx=$((ans-1))
+        if [ "$idx" -lt 0 ] || [ "$idx" -ge "${#IT_ID[@]}" ]; then say '  No such row.'; continue; fi
+        if [ "${IT_ST[idx]}" = unavailable ]; then say "  Cannot tick: ${IT_NOTE[idx]}"; continue; fi
+        if [ "${IT_TICK[idx]}" = 1 ]; then
+          if IsMandatory "${IT_ID[idx]}"; then say '  A required component cannot be unticked: Node.js, the studio interface and Blender.'; continue; fi
+          IT_TICK[idx]=0
+        else
+          IT_TICK[idx]=1; TickDeps "$idx"
+        fi ;;
+      *) say '  Enter a number, q, f, l, a, r or done.' ;;
+    esac
+  done
+}
+
+OnlyPlan() {   # -Only <ids>: exactly these components, unattended (none = nothing ticked)
+  local ids=" ${Only//,/ } " id
+  for id in ${ids//,/ }; do
+    case " $ORDER_IDS pixal3dtest gguf " in *" $id "*) ;; *) say "Unknown component id: $id"; exit 1 ;; esac
+  done
+  plan=()
+  for id in $ORDER_IDS pixal3dtest gguf; do
+    case "$ids" in *" $id "*) plan_add "$id" "$(comp_what "$id")" 0 '' ;; esac
+  done
+  [ "$Profile" = lite ] && Lite=1
+}
+
+PresetPlan() {   # the failed-check fallback: install the chosen preset as a whole (the Setup.cs rule)
+  local ids='' n id
+  n="$(NodeBin)"
+  if [ -n "$n" ]; then ids="$("$n" -e 'try{const m=require(process.argv[1]);process.stdout.write(m.profiles[process.argv[2]].join(" "))}catch(e){}' "$ROOT/installer/manifest.json" "$Profile" 2>/dev/null)"; fi
+  [ -n "$ids" ] || case "$Profile" in   # without node the manifest is unreadable: the 0.5.0 lists mirrored
+    lite) ids='node npm blender godot clips vfx' ;;
+    full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;
+    *)    ids='node npm blender comfy hy2 u2net hymv sdxl mvadapter godot clips' ;;
+  esac
+  plan=()
+  for id in $ORDER_IDS; do
+    case " $ids " in *" $id "*) plan_add "$id" "$(comp_what "$id")" 0 '' ;; esac
+  done
+  Lite=$( [ "$Profile" = lite ] && echo 1 || echo "$Lite" )
+}
+
+# ---------------------------------------------------------------- start
+if [ "$ScanList" = 1 ]; then ScanList; exit $?; fi
+if [ "$ScanOnly" = 1 ]; then ScanTable; exit $?; fi
+ScanCore
+RecommendLlm
+
+if [ -z "$Only" ] && [ "$SCAN_OK" = 1 ] && [ "$S_NOGPU" = 1 ] && [ "$Profile" != lite ]; then
+  # the 0.4.7 Lite setup: no NVIDIA card means the shape and image models will not run
+  say ''
+  say '  NVIDIA graphics card not found: the shape and image models will be downloaded but will not work without it.'
+  if [ "$Yes" = 1 ]; then
+    say "  Profile $Profile selected: installing it as it is."
+  elif Ask 'Install the Lite set instead (about 3 GB: Blender, rig, animations, sprites, VFX, Godot; no 3D-from-image and no image generation)?' y; then
+    Profile=lite; Lite=1
+  fi
 fi
 
 if [ -n "$Only" ]; then
-  newplan=()
-  IFS=',' read -r -a ids <<<"$Only"
-  for id in "${ids[@]}"; do
-    case " node npm blender comfy comfydeps hy2 hymv hy21 sdxl u2net godot clips ollama llm vlm mvadapter pixal3d pixal3dw pixal3dtest vfx gguf flux2 qwenimg " in
-      *" $id "*) ;; *) say "Unknown component id: $id"; exit 1 ;;
-    esac
-    hit="$(plan_get "$id" || true)"
-    if [ -n "$hit" ]; then newplan+=("$hit"); else plan_add "$id" "$id" 0 ''; newplan+=("$(plan_get "$id")"); fi
-    [ "$id" = llm ] && [ -z "$WantLlmSet" ] && WantLlmSet="$WantLlm"
-  done
-  plan=("${newplan[@]}")
-fi
-
-if [ "${#plan[@]}" -gt "$mandatory" ] && [ -z "$Only" ]; then
-  Title 'Selected optional components'
-  i=0
-  for e in "${plan[@]}"; do
-    if [ "$i" -ge "$mandatory" ]; then say "  • $(printf '%s' "$e" | cut -d'|' -f2)  — $(Human "$(printf '%s' "$e" | cut -d'|' -f3)")  [$(printf '%s' "$e" | cut -d'|' -f4)]"; fi
-    i=$((i+1))
-  done
+  if [ "$Only" = none ]; then
+    say 'Nothing ticked: everything needed is installed. (-Only none)'
+    if [ "$DryRun" != 1 ] && [ -n "${S_LIBRARY:-}" ] && [ -z "$(CfgGet library)" ]; then CfgSet library "$S_LIBRARY"; fi
+    exit 0
+  fi
+  OnlyPlan
+elif [ "$SCAN_OK" = 1 ]; then
+  ParseItems
+  ChecklistFlow
+else
+  PresetPlan
 fi
 
 Title 'Total'
 dl=0
 for e in "${plan[@]:-}"; do [ -n "$e" ] || continue; s="$(printf '%s' "$e" | cut -d'|' -f3)"; dl=$((dl+s)); done
-say "  components: ${#plan[@]}, download about $(Gb "$dl")"
-say "  disk: about $(Gb "$dl") needed, $(Gb "${free:-0}") free"
-if [ "$(awk -v d="$dl" -v f="${free:-0}" 'BEGIN{print (d>f)?1:0}')" = 1 ]; then say '  Not enough disk space - free some space and run again.'; exit 1; fi
+say "  components: ${#plan[@]}, download about $(Human "$dl")"
+free="$(FreeOn "$ROOT")"
+if [ "${#plan[@]}" != 0 ]; then
+  say "  disk: about $(Human "$dl") needed, $(Gb "${free:-0}") free"
+  if [ "$SCAN_OK" != 1 ] && [ "$(awk -v d="$dl" -v f="${free:-0}" 'BEGIN{print (d>f)?1:0}')" = 1 ]; then say '  Not enough disk space - free some space and run again.'; exit 1; fi
+fi
 lics="$(for e in "${plan[@]:-}"; do [ -n "$e" ] && printf '%s\n' "$(printf '%s' "$e" | cut -d'|' -f4)"; done | grep -v '^$' | sort -u | awk '{printf "%s%s", (NR>1?"; ":""), $0}')"
 [ -n "$lics" ] && say "  licenses: $lics"
 if printf '%s\n' "${plan[@]:-}" | grep -q '^hy'; then
@@ -611,11 +657,12 @@ if printf '%s\n' "${plan[@]:-}" | grep -q '^hy'; then
   say '  the European Union, the United Kingdom and South Korea. Text: https://github.com/Tencent-Hunyuan/Hunyuan3D-2/blob/main/LICENSE'
 fi
 if [ "${#plan[@]}" = 0 ]; then
-  if [ -z "$(CfgGet library)" ]; then CfgSet library "$S_LIBRARY"; fi
+  if [ -z "$(CfgGet library)" ] && [ -n "${S_LIBRARY:-}" ]; then CfgSet library "$S_LIBRARY"; fi
+  if [ "$DryRun" != 1 ] && { [ "$Yes" = 1 ] || [ "$Lite" = 1 ] || [ -z "$(CfgGet profile)" ]; }; then CfgSet profile "$Profile"; fi
   say 'Done - launch with scripts/start.sh.'
   exit 0
 fi
-if [ -z "$Only" ] && [ "$Yes" != 1 ]; then Ask 'Start the installation?' y || { say 'Cancelled.'; exit 0; } fi
+if [ "$DryRun" != 1 ] && { [ "$Yes" = 1 ] || [ "$Lite" = 1 ] || [ -z "$(CfgGet profile)" ]; }; then CfgSet profile "$Profile"; fi
 
 for e in "${plan[@]}"; do
   id="$(printf '%s' "$e" | cut -d'|' -f1)"; what="$(printf '%s' "$e" | cut -d'|' -f2)"
@@ -666,6 +713,6 @@ if [ -n "$S_BLENDER" ] && [ -z "$(CfgGet blender)" ]; then CfgSet blender "$S_BL
 if [ -n "$S_GODOT" ] && [ -z "$(CfgGet godot)" ]; then CfgSet godot "$S_GODOT"; fi
 if [ -n "$S_NODE" ] && [ -z "$(CfgGet node)" ]; then CfgSet node "$S_NODE"; fi
 Title 'Post-install check'
-Scan
-Show
+ScanCore && ScanTable
+if [ "${S_P3:-}" = yes ] && [ -z "$(CfgGet pixal3dDir)" ]; then CfgSet pixal3dDir "$S_P3_DIR"; fi
 say 'Done - launch with scripts/start.sh.'
