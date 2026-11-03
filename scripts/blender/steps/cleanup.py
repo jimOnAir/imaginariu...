@@ -29,10 +29,20 @@ params (all optional):
                          this is a re-bake of the existing colour, not PBR material recovery
   bake_size              baked map size in px (default 2048)
   bake_device            'CPU' (default) | 'GPU'
-  bake_normal            also bake a tangent-space normal map from the original (default false);
-                         the remeshed mesh is then shaded fully smooth (the map carries the
-                         creases) and shade_auto_smooth_deg is not applied to it
-  bake_emission          also bake emission (default false)
+  bake_normal            bake a tangent-space normal map from the original (default false), with
+                         voxel_remesh_m OR with target_tris alone. The simplified mesh is then
+                         shaded fully smooth (the map carries the creases), shade_auto_smooth_deg
+                         is not applied to it, and the map goes into the material through a
+                         Normal Map node (glTF normalTexture). Meshes without colour (Pixal3D,
+                         one flat material or none) keep their material and get the normal map
+                         only. Without a remesh the welded original is copied before decimation
+                         and baked from; UVs are kept when a material maps images through them
+                         and they suit a unique bake (one layer in 0..1, no overlapping islands),
+                         else a Smart UV (repacked) is made and a colour map is re-baked with
+                         the normal. The bake source is made two-sided first (ml.two_sided):
+                         an open AI mesh has no common outside, its winding must not matter
+  bake_emission          also bake emission (default false; without a remesh only when the
+                         colour is re-baked - kept materials keep their own emission)
   bake_samples           Cycles samples per texel (default 4)
   bake_extrusion_m       cage extrusion (default max(2 * voxel, 0.005 * height))
   bake_ray_m             max ray distance (default 2 * extrusion)
@@ -44,10 +54,12 @@ params (all optional):
                          exactly like the mesh the maps were baked on
   preview                before|after sheet (default true), preview_size (px per view, 512)
 
-outputs: glb (clean.glb), blend (clean.blend), preview (preview.png), baked_* PNGs when remeshing.
-stats: before / welded / after mesh metrics, timings, decimation stages, textures, render_compare.
+outputs: glb (clean.glb), blend (clean.blend), preview (preview.png), baked_* PNGs when baking.
+stats: before / welded / after mesh metrics, timings, decimation stages, textures, render_compare,
+  bake (maps, uv kept / smart_uv, material_kept, timings).
 checks (error): tris_within_target, no_nan_verts, height_matches, grounded,
-  base_color_texture_kept / uv_kept (no remesh), silhouette_iou_min (IoU >= 0.85);
+  base_color_texture_kept / uv_kept (no remesh, colour not re-baked), normal_map_baked (bake_normal),
+  silhouette_iou_min (IoU >= 0.85);
   (warning): centered, bake_coverage, silhouette_iou (>= 0.97), render_color_mae (<= 0.08).
 """
 import os
@@ -198,20 +210,33 @@ def run(req):
             lap("smart_uv_%d" % i, t0)
             reason = ml.color_source(src)
             prefix = "baked" if len(objs) == 1 else "baked_%d" % i
-            if reason:
+            # no colour to carry (one flat material, e.g. Pixal3D): the material is kept and
+            # only the normal / emission maps are baked into it
+            run_maps = maps if reason else [k for k in maps if k != "base_color"]
+            if run_maps:
                 if reason == "attribute":
                     ml.attribute_color_material(src)
+                if not reason:  # the kept material stays the original one on the remeshed mesh
+                    ml.own_materials(src)
+                two = None
+                if "normal" in run_maps:  # an open source may be wound against the remeshed mesh
+                    t0 = time.time()
+                    two = ml.two_sided(src, min(0.0005 * h, extrusion / 4))
+                    lap("two_sided_%d" % i, t0)
                 t0 = time.time()
                 imgs, info = ml.bake_maps(
-                    [src], low, size=bake_size, device=p.get("bake_device", "CPU"), maps=maps,
+                    [src], low, size=bake_size, device=p.get("bake_device", "CPU"), maps=run_maps,
                     extrusion=extrusion, ray_distance=ray, samples=int(p.get("bake_samples", 4)),
-                    out_dir=req["out_dir"], prefix=prefix)
+                    out_dir=req["out_dir"], prefix=prefix, keep_material=not reason)
                 lap("bake_%d" % i, t0)
-                info["miss_fraction"] = round(ml.image_coverage(imgs["base_color"], low) or 0.0, 4)
+                if "base_color" in imgs:
+                    info["miss_fraction"] = round(ml.image_coverage(imgs["base_color"], low) or 0.0, 4)
                 info.update(object=src.name, colour_source=reason, size=bake_size,
-                            extrusion_m=round(extrusion, 5), ray_m=round(ray, 5), maps=maps)
+                            extrusion_m=round(extrusion, 5), ray_m=round(ray, 5), maps=run_maps)
+                if two:
+                    info["source_two_sided_tris"] = two
                 bake_runs.append(info)
-                for k in maps:
+                for k in run_maps:
                     outputs[prefix + "_" + k] = os.path.join(req["out_dir"],
                                                              "%s_%s.png" % (prefix, k))
             else:
@@ -225,13 +250,11 @@ def run(req):
             low.data.name = src_name
             new_objs.append(low)
         objs = new_objs
-        baked = [b for b in bake_runs if b.get("colour_source")]
-        if baked:
-            bake_info = dict(baked[0])
-            bake_info["miss_fraction"] = max(b["miss_fraction"] for b in baked)
-            if len(bake_runs) > 1:
-                bake_info["objects"] = bake_runs
+        bake_info = _summarise_bakes(bake_runs)
     elif target:
+        highs = []
+        if p.get("bake_normal"):  # the welded original is the bake source
+            highs = [_bake_source(ob, smooth) for ob in objs]
         t0 = time.time()
         budgets = ml.allocate_budget([ml.tris_of(o) for o in objs], target, MIN_PART_TRIS)
         for ob, share in zip(objs, budgets):
@@ -239,10 +262,19 @@ def run(req):
                                      planar_deg=float(p.get("planar_angle_deg", 0.5)),
                                      seam_weight=p.get("seam_weight"), stage_ratio=stage_ratio)
         lap("decimate", t0)
+        if highs:
+            shading = "smooth (bake_normal)"
+            flipped = _bake_normal_decimated(req, p, objs, highs, h, recalc, outputs, bake_runs,
+                                             lap)
+            bake_info = _summarise_bakes(bake_runs)
+    elif p.get("bake_normal"):
+        warnings.append("bake_normal needs target_tris or voxel_remesh_m: without a simpler mesh "
+                        "there is no detail to carry, nothing was baked")
+    normal_baked = any("normal" in b.get("maps", ()) for b in bake_runs)
 
     # ---------------------------------------------------------------- normals & shading
     t0 = time.time()
-    if voxel <= 0:  # remeshed objects got theirs before the bake
+    if voxel <= 0 and not normal_baked:  # remeshed / normal-baked objects got theirs before the bake
         shading = smooth
         for ob in objs:
             if recalc:
@@ -307,7 +339,8 @@ def run(req):
                                [round(cx, 6), round(cy, 6)], 0.0, severity="warning"))
     in_colour = {k: v["base_color"] for k, v in tex_before.items() if "base_color" in v}
     out_colour = [v["base_color"] for v in tex_after.values() if "base_color" in v]
-    if voxel <= 0:
+    colour_rebaked = any("base_color" in b.get("maps", ()) for b in bake_runs)
+    if voxel <= 0 and not colour_rebaked:
         if in_colour:
             biggest = max(max(s) for s in in_colour.values())
             kept = bool(out_colour) and max(max(s) for s in out_colour) >= biggest
@@ -315,10 +348,15 @@ def run(req):
                                    out_colour[0] if out_colour else None, biggest))
         if before["uv_layers"]:
             checks.append(af.check("uv_kept", after["uv_layers"] >= 1, after["uv_layers"], 1))
-    elif bake_info:
+    if bake_info and bake_info.get("miss_fraction") is not None:
         checks.append(af.check("bake_coverage", bake_info["miss_fraction"] <= 0.02,
                                bake_info["miss_fraction"], 0.02, severity="warning",
                                note="share of sampled texels left black (ray missed)"))
+    if p.get("bake_normal") and (voxel > 0 or target):
+        mats = [m for o in objs for m in o.data.materials if m is not None]
+        have = sum(1 for m in mats if "normal" in tex_after.get(m.name, {}))
+        checks.append(af.check("normal_map_baked", bool(mats) and have == len(mats), have,
+                               len(mats), note="materials with a baked tangent-space normal map"))
     if compare and compare["silhouette_iou"] is not None:
         checks.append(af.check("silhouette_iou", compare["silhouette_iou"] >= SILHOUETTE_WARN,
                                compare["silhouette_iou"], SILHOUETTE_WARN, severity="warning",
@@ -357,3 +395,105 @@ def run(req):
             warnings.append("only %.0f%% of vertices have a mirror twin: symmetric decimation "
                             "had little to pair" % (100 * symmetry_pairs))
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}
+
+
+# --------------------------------------------------------------------------- bake_normal, no remesh
+
+def _bake_source(ob, smooth):
+    """Copy of the welded high-poly object to bake the decimated one from, with its own shading
+    (smooth by angle: real hard edges stay hard in the map) and copies of the materials (the
+    bake image nodes go only into the shipped mesh, which keeps the original materials and
+    names). Its winding does not matter: it is made two-sided (ml.two_sided) right before the
+    bake."""
+    hi = ml.duplicate(ob, ob.name + "_bake_src")
+    ml.own_materials(hi)
+    ml.apply_shading(hi, smooth)
+    return hi
+
+
+def _uses_images(mat):
+    nt = mat.node_tree if mat is not None else None
+    return nt is not None and any(n.type == "TEX_IMAGE" and n.image is not None and
+                                  any(o.is_linked for o in n.outputs) for n in nt.nodes)
+
+
+def _bake_normal_decimated(req, p, objs, highs, h, recalc, outputs, bake_runs, lap):
+    """bake_normal without a remesh. Final topology, normals and fully smooth shading come first
+    (the shipped mesh shades exactly like the one the map was baked on), then the UVs: kept when
+    a material maps images through them and they suit a unique bake (one layer inside 0..1, no
+    overlapping islands), else a fresh Smart UV. The tangent-space normal map is baked from the
+    high-poly copy (Cycles selected-to-active) into the mesh's OWN materials, so a flat colour
+    (Pixal3D), colour attributes or a colour map on the kept UVs stay as they were. Only when a
+    colour map's UVs cannot carry a bake is the colour re-baked with the normal onto the Smart UV
+    (material rebuilt, as after a remesh). The high-poly copies are removed at the end.
+    Returns the number of flipped faces; one entry per object goes into bake_runs."""
+    from steps import _paint_lib as pl
+    bake_size = int(p.get("bake_size", 2048))
+    extrusion = float(p.get("bake_extrusion_m") or 0.005 * h)
+    ray = float(p.get("bake_ray_m") or 2 * extrusion)
+    flipped = 0
+    for i, (low, hi) in enumerate(zip(objs, highs)):
+        ml.triangulate_object(low)
+        if recalc:
+            flipped += ml.recalc_normals(low)
+        ml.shade_smooth(low)
+        keep = True
+        uv_note = "smart_uv"
+        if any(_uses_images(m) for m in low.data.materials):
+            usable, uinfo = (pl.uv_report(pl.mesh_data(low)) if low.data.uv_layers
+                             else (False, {"reason": "no UV layer"}))
+            if usable and len(low.data.uv_layers) == 1:
+                uv_note = "kept"
+            else:
+                keep = False
+                uv_note = "smart_uv (%s)" % uinfo.get("reason", "several UV layers")
+        if uv_note != "kept":
+            t0 = time.time()
+            ml.smart_uv(low, angle_deg=float(p.get("smart_uv_angle_deg", 66.0)), margin=0.003)
+            # Smart UV leaves most of the square empty on a noisy AI mesh: repack like
+            # paint_from_concept does (it then keeps these UVs and the normal map with them; its
+            # uv_report wants a UV area >= 0.05). A wider margin does not pay: on the thousands
+            # of small islands of a decimated AI mesh 8 px left only 0.045 of the square used
+            pl.pack_uv(low, margin=0.002, shape="aabb")
+            uv_note += "+pack_aabb"
+            lap("smart_uv_%d" % i, t0)
+        maps = ["normal"] if keep else ["base_color", "normal"]
+        if p.get("bake_emission") and not keep:
+            maps.append("emission")  # kept materials keep their own emission
+        prefix = "baked" if len(objs) == 1 else "baked_%d" % i
+        t0 = time.time()
+        two = ml.two_sided(hi, min(0.0005 * h, extrusion / 4))
+        lap("two_sided_%d" % i, t0)
+        t0 = time.time()
+        imgs, info = ml.bake_maps(
+            [hi], low, size=bake_size, device=p.get("bake_device", "CPU"), maps=maps,
+            extrusion=extrusion, ray_distance=ray, samples=int(p.get("bake_samples", 4)),
+            out_dir=req["out_dir"], prefix=prefix, keep_material=keep)
+        lap("bake_%d" % i, t0)
+        if "base_color" in imgs:
+            info["miss_fraction"] = round(ml.image_coverage(imgs["base_color"], low) or 0.0, 4)
+        info.update(object=low.name, source="decimate", uv=uv_note, material_kept=keep,
+                    source_two_sided_tris=two,
+                    colour_source=None if keep else ml.color_source(hi), size=bake_size,
+                    extrusion_m=round(extrusion, 5), ray_m=round(ray, 5), maps=maps)
+        bake_runs.append(info)
+        for k in maps:
+            outputs[prefix + "_" + k] = os.path.join(req["out_dir"],
+                                                     "%s_%s.png" % (prefix, k))
+    for hi in highs:
+        ml.remove_object(hi)
+    return flipped
+
+
+def _summarise_bakes(bake_runs):
+    """stats.bake: the first bake run, the worst colour coverage over all of them and, with
+    several objects, every run."""
+    baked = [b for b in bake_runs if b.get("maps")]
+    if not baked:
+        return None
+    info = dict(baked[0])
+    misses = [b["miss_fraction"] for b in baked if b.get("miss_fraction") is not None]
+    info["miss_fraction"] = max(misses) if misses else None
+    if len(bake_runs) > 1:
+        info["objects"] = bake_runs
+    return info

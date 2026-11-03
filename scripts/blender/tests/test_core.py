@@ -19,6 +19,24 @@ import numpy as np
 import af_common as af
 from steps import _mesh_lib as ml
 
+# On-disk fixtures for the test_real_* cases (every one returns a "skip: ..." string when its file
+# is missing). Environment overrides: AF_NECRO_GLB, AF_NECRO_HIGH_GLB, AF_ART_RAW.
+NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+NECRO_HIGH = os.environ.get("AF_NECRO_HIGH_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-MC-high.glb"
+ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+GRIFFIN = os.path.join(ART_RAW, "griffin", "model.glb")
+ZOMBIE_RIG = os.path.join(ART_RAW, "zombie", "mixamo_rigged.fbx")
+
+# Staff of the necromancer after normalisation to 1.8 m (feet on z=0, X/Y centred). Found by
+# slicing the mesh in 5 cm bands (docs/forge/core.md): the shaft runs x 0.29..0.50,
+# y -0.31..-0.18 from the ground to the fist (z 0.99..1.22), the head sits at x 0.42..0.62,
+# z 1.45..1.80. The fist itself is left with the body.
+STAFF_REGIONS = [
+    {"name": "staff", "min": [0.285, -0.37, -0.01], "max": [0.52, -0.17, 0.70]},
+    {"name": "staff", "min": [0.285, -0.37, 0.70], "max": [0.52, -0.21, 0.99]},
+    {"name": "staff", "min": [0.38, -0.38, 1.22], "max": [0.66, -0.16, 1.81]},
+]
+
 
 # --------------------------------------------------------------------------- helpers
 
@@ -608,6 +626,158 @@ def test_rigged_glb_helper_purged():
     _assert_rigged_inputs_clean(glb, 1.7, d)
 
 
+def _ridged_sphere_glb(path, flat_rgba=None, segments=160, rings=80, flip_top=False):
+    """Dense sphere (~25k tris) with 16 sharp meridian ridges and no UVs: geometry-only detail
+    like a Pixal3D mesh. flat_rgba: one flat Principled material, else no material at all.
+    flip_top: the upper half faces inward (an AI mesh wound two ways)."""
+    af.reset_scene()
+    me = bpy.data.meshes.new("ridged")
+    bm = bmesh.new()
+    bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
+    for v in bm.verts:
+        a = math.atan2(v.co.y, v.co.x)
+        v.co *= 1.0 + 0.04 * abs(math.sin(8 * a)) ** 0.5
+    if flip_top:
+        bmesh.ops.reverse_faces(bm, faces=[f for f in bm.faces if f.calc_center_median().z > 0.0])
+    bm.to_mesh(me)
+    bm.free()
+    while me.uv_layers:
+        me.uv_layers.remove(me.uv_layers[0])
+    ob = bpy.data.objects.new("ridged", me)
+    bpy.context.scene.collection.objects.link(ob)
+    for poly in me.polygons:
+        poly.use_smooth = True
+    if flat_rgba is not None:
+        mat = bpy.data.materials.new("bone")
+        mat.use_nodes = True
+        ml.principled_of(mat).inputs["Base Color"].default_value = flat_rgba
+        me.materials.append(mat)
+    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    return path
+
+
+def _glb_json(path):
+    import json
+    import struct
+    with open(path, "rb") as fh:
+        fh.read(12)
+        clen, _ = struct.unpack("<II", fh.read(8))
+        return json.loads(fh.read(clen).decode("utf-8"))
+
+
+def _normal_map_detail(glb, inverted=False):
+    """(GLB materials with a normalTexture, share of normal-map texels tilted > ~6 deg from flat
+    [, share of texels pointing INTO the surface: a source read inside out])."""
+    g = _glb_json(glb)
+    with_nrm = sum(1 for m in g.get("materials", []) if "normalTexture" in m)
+    af.reset_scene()
+    objs = af.import_any(glb)
+    imgs = [ml.image_into(m, "Normal").image for o in af.meshes(objs) for m in o.data.materials
+            if m is not None and ml.image_into(m, "Normal") is not None]
+    if not imgs:
+        return (with_nrm, 0.0, 1.0) if inverted else (with_nrm, 0.0)
+    w, h = imgs[0].size
+    px = np.empty(w * h * 4, dtype=np.float32)
+    imgs[0].pixels.foreach_get(px)
+    n = px.reshape(-1, 4)[:, :3] * 2.0 - 1.0
+    tilted = float((n[:, 2] < 0.995).mean())
+    return (with_nrm, tilted, float((n[:, 2] < 0.0).mean())) if inverted else (with_nrm, tilted)
+
+
+def test_cleanup_bake_normal_source_wound_both_ways():
+    """An open AI mesh can be wound two ways (one dense generated mesh: recalc turned 355k of 675k
+    source faces against the decimated mesh, the map came out inside out in black patches). The
+    bake source is two-sided (ml.two_sided), so its winding does not matter: half of
+    the sphere faces inward and the map still has no texel pointing into the surface."""
+    d = _tmp()
+    src = _ridged_sphere_glb(os.path.join(d, "mixed.glb"), flip_top=True)
+    res = _run("cleanup", {"mesh": src},
+               {"height_m": 2.0, "target_tris": 1200, "bake_normal": True, "bake_size": 256,
+                "bake_samples": 1, "preview": False}, os.path.join(d, "out"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    with_nrm, tilted, inside = _normal_map_detail(res["outputs"]["glb"], inverted=True)
+    # inside out it was 0.25..0.31; ~1 % is left where 256 px islands touch
+    assert with_nrm == 1 and tilted > 0.05 and inside < 0.03, (with_nrm, tilted, inside)
+    # the same through a voxel remesh (the source there is the welded original itself)
+    res = _run("cleanup", {"mesh": src},
+               {"height_m": 2.0, "voxel_remesh_m": 0.02, "target_tris": 2000, "bake_normal": True,
+                "bake_size": 256, "bake_samples": 1, "preview": False}, os.path.join(d, "vox"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    with_nrm, tilted, inside = _normal_map_detail(res["outputs"]["glb"], inverted=True)
+    assert with_nrm == 1 and inside < 0.03, (with_nrm, tilted, inside)
+
+
+def test_cleanup_decimate_bake_normal_keeps_texture_uv():
+    """A colour map on usable UVs: they are kept, the colour map stays the original 64 px one and
+    the normal map is baked into the same material (no re-bake of the colour)."""
+    d = _tmp()
+    src = _sphere_glb(os.path.join(d, "sphere.glb"), with_island=False)
+    res = _run("cleanup", {"mesh": src},
+               {"height_m": 2.0, "target_tris": 1000, "bake_normal": True, "bake_size": 128,
+                "bake_samples": 1, "preview": False}, os.path.join(d, "out"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    b = res["stats"]["bake"]
+    assert b["uv"] == "kept" and b["maps"] == ["normal"] and b["material_kept"], b
+    assert _check(res, "base_color_texture_kept")["ok"] and _check(res, "normal_map_baked")["ok"]
+    objs, sizes = _imported_base_color(res["outputs"]["glb"])
+    assert sizes == [[64, 64]], sizes
+    assert "normalTexture" in _glb_json(res["outputs"]["glb"])["materials"][0]
+
+
+def test_cleanup_decimate_bake_normal_without_colour():
+    """bake_normal without a remesh on a geometry-only mesh (the Pixal3D case): the welded original
+    is copied, the mesh decimated, Smart UV'd, shaded fully smooth and the ridges baked into a
+    tangent-space normal map that reaches the GLB as normalTexture. No material in = one plain
+    material out; a flat material keeps its colour."""
+    d = _tmp()
+    src = _ridged_sphere_glb(os.path.join(d, "ridged.glb"))
+    res = _run("cleanup", {"mesh": src},
+               {"height_m": 2.0, "target_tris": 1200, "bake_normal": True, "bake_size": 256,
+                "bake_samples": 1, "preview_size": 160}, os.path.join(d, "bare"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    s = res["stats"]
+    assert _check(res, "normal_map_baked")["ok"], res["checks"]
+    assert s["after"]["tris"] <= 1200 and s["shading"] == "smooth (bake_normal)", s["shading"]
+    assert s["sharp_edges"] == 0, s["sharp_edges"]
+    b = s["bake"]
+    assert b["maps"] == ["normal"] and b["uv"] == "smart_uv+pack_aabb" and b["material_kept"], b
+    assert os.path.isfile(res["outputs"]["baked_normal"]), res["outputs"]
+    assert s["render_compare"]["silhouette_iou"] >= 0.97, s["render_compare"]
+    with_nrm, tilted = _normal_map_detail(res["outputs"]["glb"])
+    assert with_nrm == 1 and tilted > 0.05, (with_nrm, tilted)
+    # the high-poly copy is gone: one mesh in the blend
+    af.reset_scene()
+    assert len(af.meshes(af.import_any(res["outputs"]["blend"]))) == 1
+    # one flat material: kept (same colour, same name), normal map added
+    src2 = _ridged_sphere_glb(os.path.join(d, "flat.glb"), flat_rgba=(0.2, 0.6, 0.3, 1.0))
+    res = _run("cleanup", {"mesh": src2},
+               {"height_m": 2.0, "target_tris": 1200, "bake_normal": True, "bake_size": 256,
+                "bake_samples": 1, "preview": False}, os.path.join(d, "flat"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    g = _glb_json(res["outputs"]["glb"])
+    assert [m["name"] for m in g["materials"]] == ["bone"], g["materials"]
+    m = g["materials"][0]
+    col = m["pbrMetallicRoughness"].get("baseColorFactor")
+    assert "normalTexture" in m and col and abs(col[1] - 0.6) < 0.01, m
+    assert "baseColorTexture" not in m["pbrMetallicRoughness"], m
+
+
+def test_cleanup_remesh_bake_normal_without_colour():
+    """voxel remesh + bake_normal on a mesh without colour used to bake nothing (the bake ran only
+    for a colour source): now the flat material is kept and gets the normal map."""
+    d = _tmp()
+    src = _ridged_sphere_glb(os.path.join(d, "ridged.glb"), flat_rgba=(0.5, 0.5, 0.45, 1.0))
+    res = _run("cleanup", {"mesh": src},
+               {"height_m": 2.0, "voxel_remesh_m": 0.02, "target_tris": 2000, "bake_normal": True,
+                "bake_size": 128, "bake_samples": 1, "preview": False}, os.path.join(d, "vox"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    b = res["stats"]["bake"]
+    assert b["maps"] == ["normal"] and b["colour_source"] is None, b
+    assert _check(res, "normal_map_baked")["ok"]
+    with_nrm, tilted = _normal_map_detail(res["outputs"]["glb"])
+    assert with_nrm == 1 and tilted > 0.05, (with_nrm, tilted)
+
+
 # --------------------------------------------------------------------------- convert
 
 def test_convert_formats_roundtrip():
@@ -690,8 +860,131 @@ def test_runner_argument_parsing():
 
 # --------------------------------------------------------------------------- real assets
 
+def test_real_griffin_cleanup():
+    if not os.path.isfile(GRIFFIN):
+        return "skip: " + GRIFFIN
+    res = _run("cleanup", {"mesh": GRIFFIN},
+               {"height_m": 1.6, "rotate_z_deg": -90, "target_tris": 8000,
+                "remove_islands_below": 0.001})
+    assert res["ok"], (res.get("error"), res["checks"])
+    s = res["stats"]
+    assert s["before"]["loose_parts"] == 220 and s["after"]["loose_parts"] == 1, s["after"]
+    assert s["after"]["tris"] <= 8000
+    # the griffin faces +X as stored; after -90 deg the body length runs along Y
+    assert s["after"]["size"][1] > s["after"]["size"][0] * 0.9, s["after"]["size"]
+    assert _check(res, "base_color_texture_kept")["ok"] and _check(res, "uv_kept")["ok"]
+    assert s["render_compare"]["silhouette_iou"] >= 0.97, s["render_compare"]
+
+
+def test_real_million_tris_decimate():
+    if not os.path.isfile(NECRO_HIGH):
+        return "skip: " + NECRO_HIGH
+    t0 = time.time()
+    res = _run("cleanup", {"mesh": NECRO_HIGH},
+               {"height_m": 1.8, "target_tris": 30000, "remove_islands_below": 0.001})
+    dt = time.time() - t0
+    assert res["ok"], (res.get("error"), res["checks"])
+    s = res["stats"]
+    assert s["before"]["tris"] > 1_000_000 and s["after"]["tris"] <= 30000
+    assert len([x for x in s["decimation"] if x["stage"].startswith("collapse")]) >= 3
+    assert dt < 120, s["timings_s"]
+
+
+def test_real_necromancer_decimate_30k():
+    if not os.path.isfile(NECRO):
+        return "skip: " + NECRO
+    res = _run("cleanup", {"mesh": NECRO}, {"height_m": 1.8, "target_tris": 30000})
+    assert res["ok"], (res.get("error"), res["checks"])
+    s = res["stats"]
+    assert s["before"]["tris"] == 119997 and s["after"]["tris"] <= 30000, s["after"]
+    assert s["welded"]["loose_parts"] <= 4, s["welded"]
+    assert s["render_compare"]["silhouette_iou"] >= 0.98, s["render_compare"]
+    assert s["render_compare"]["color_mae"] <= 0.05, s["render_compare"]
+    assert s["timings_s"]["total"] < 60, s["timings_s"]
+    _, sizes = _imported_base_color(res["outputs"]["glb"])
+    assert [4096, 4096] in sizes, sizes
+
+
+def test_real_necromancer_mixamo_fbx():
+    if not os.path.isfile(NECRO):
+        return "skip: " + NECRO
+    res = _run("convert", {"mesh": NECRO}, {"mixamo": True, "mixamo_center": "head"})
+    assert res["ok"], (res.get("error"), res["checks"])
+    s = res["stats"]
+    assert s["bytes"] <= 10_000_000 and s["roundtrip"]["tris"] <= 50000, s
+    assert abs(s["roundtrip"]["size"][2] - 1.8) < 2e-3, s["roundtrip"]
+    assert abs(s["center_shift_m"]) < 0.1
+
+
+def test_real_necromancer_remesh_bake():
+    if not os.path.isfile(NECRO):
+        return "skip: " + NECRO
+    t0 = time.time()
+    res = _run("cleanup", {"mesh": NECRO},
+               {"height_m": 1.8, "voxel_remesh_m": 0.006, "target_tris": 12000,
+                "bake_size": 1024, "bake_normal": True})
+    assert res["ok"], (res.get("error"), res["checks"])
+    assert time.time() - t0 < 180
+    s = res["stats"]
+    assert s["after"]["tris"] <= 12000 and s["after"]["boundary_edges"] == 0, s["after"]
+    assert s["bake"]["miss_fraction"] <= 0.02, s["bake"]
+    assert s["render_compare"]["silhouette_iou"] >= 0.98, s["render_compare"]
+    assert s["textures_after"] and all("normal" in v for v in s["textures_after"].values())
+    # 6 mm voxel is under the tearing threshold, so no voxel-size warning
+    assert not [w for w in res["warnings"] if "voxel_remesh_m" in w], res["warnings"]
+
+
+def test_real_necromancer_staff_regions():
+    if not os.path.isfile(NECRO):
+        return "skip: " + NECRO
+    res = _run("separate", {"mesh": NECRO}, {"mode": "regions", "height_m": 1.8,
+                                             "regions": STAFF_REGIONS})
+    assert res["ok"], (res.get("error"), res["checks"])
+    parts = {p["name"]: p for p in res["stats"]["parts"]}
+    staff, body = parts["staff"], parts["body"]
+    assert res["stats"]["regions"]["staff"]["open_seam_edges"] == 0
+    assert res["stats"]["regions"]["staff"]["rest_open_seam_edges"] == 0
+    assert staff["loose_parts"] == 2, staff        # shaft below the fist + shaft/head above
+    assert staff["bbox_min"][2] < 0.02 and staff["bbox_max"][2] > 1.79, staff
+    assert staff["size"][0] < 0.4 and staff["size"][1] < 0.22, staff
+    assert 8000 < staff["tris"] < 20000 and body["tris"] > 90000, (staff["tris"], body["tris"])
+
+
+def test_real_rigged_fbx_to_glb():
+    if not os.path.isfile(ZOMBIE_RIG):
+        return "skip: " + ZOMBIE_RIG
+    res = _run("convert", {"mesh": ZOMBIE_RIG}, {"format": "glb"})
+    assert res["ok"], (res.get("error"), res["checks"])
+    assert res["stats"]["roundtrip"]["armatures"] == 1
+    assert _check(res, "roundtrip_height")["ok"]
+
+
+def test_real_rigged_glb_inputs():
+    """The review's repro: the Mixamo-rigged zombie as a GLB through convert / cleanup /
+    separate (the glTF importer's bone-shape Icosphere used to be 2.7 m tall in every bbox)."""
+    if not os.path.isfile(ZOMBIE_RIG):
+        return "skip: " + ZOMBIE_RIG
+    d = _tmp()
+    res = _run("convert", {"mesh": ZOMBIE_RIG}, {"format": "glb"}, os.path.join(d, "src"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    _assert_rigged_inputs_clean(res["outputs"]["glb"], 1.7, d)
+
 
 # --------------------------------------------------------------------------- slits, delete, sockets (10.10, v2)
+
+def test_two_sided_open_sheet():
+    """An open sheet has no inside for recalc_normals to find; two_sided gives every face a reversed
+    twin behind it, so a ray from either side first meets a face that looks at it."""
+    from mathutils.bvhtree import BVHTree
+    af.reset_scene()
+    bpy.ops.mesh.primitive_grid_add(x_subdivisions=8, y_subdivisions=8, size=2.0)
+    sheet = bpy.context.active_object
+    tris = ml.tris_of(sheet)
+    assert ml.two_sided(sheet, 0.001) == 2 * tris
+    bvh = BVHTree.FromObject(sheet, bpy.context.evaluated_depsgraph_get())
+    for z, d in ((0.5, (0, 0, -1)), (-0.5, (0, 0, 1))):
+        loc, nrm, _i, _d = bvh.ray_cast((0.13, 0.27, z), d)
+        assert loc is not None and nrm.dot(mathutils.Vector(d)) < -0.99, (z, nrm)
 
 def _dumbbell_glb(path, neck=0.02):
     """Two cubes joined by a thin neck (one watertight mesh by a voxel remesh): a sleeve fused to a

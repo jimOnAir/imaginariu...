@@ -437,6 +437,41 @@ def recalc_normals(ob):
     return int((dots < 0).sum())
 
 
+def own_materials(ob, prefix="af_bake_src"):
+    """Give every material slot of ob its own copy (a plain Principled material when the slot or
+    the whole mesh has none), so a bake source never shares a material with the mesh it is baked
+    onto: the bake image nodes go only there and it keeps the original materials and names."""
+    me = ob.data
+    if not len(me.materials):
+        me.materials.append(None)
+    copies = {}
+    for i, m in enumerate(me.materials):
+        if m not in copies:
+            if m is None:
+                copies[m] = bpy.data.materials.new(prefix + "_" + safe_name(ob.name, "mesh"))
+            else:
+                copies[m] = m.copy()
+            copies[m].use_nodes = True
+        me.materials[i] = copies[m]
+    return list(copies.values())
+
+
+def two_sided(ob, thickness):
+    """Give every face of ob a reversed twin `thickness` behind it (Solidify without rims), so a
+    ray from either side first meets a face that looks at it. Makes a bake source's winding
+    irrelevant: Cycles reads a selected-to-active source's normal as it is (no face-forward), and
+    an OPEN AI mesh has no common outside for recalc_normals to find - on one dense generated
+    mesh recalc turned 355k of the 675k source faces against the decimated mesh, and thin single
+    sheets (coat tails, the hat brim) are seen by the simplified mesh from both sides anyway."""
+    mod = ob.modifiers.new("af_two_sided", "SOLIDIFY")
+    mod.thickness = float(thickness)
+    mod.offset = -1.0
+    mod.use_rim = False
+    mod.use_even_offset = False
+    _apply_modifier(ob, mod)
+    return tris_of(ob)
+
+
 def smooth_by_angle(ob, angle_deg):
     me = ob.data
     if hasattr(me, "set_sharp_from_angle"):
@@ -915,13 +950,54 @@ def setup_cycles(device="CPU", samples=4):
     return used
 
 
+def _keep_bake_materials(dst, src_objs, maps, prefix):
+    """dst's own materials as bake targets. Empty slots (or no slot at all) get one plain
+    Principled material so every face has an image node to bake into; a material that a
+    source object also uses (a duplicate shares them), or that an earlier bake already gave
+    these maps (join:false parts sharing one material), is replaced by a copy on dst."""
+    me = dst.data
+    if not len(me.materials) or any(m is None for m in me.materials):
+        fill = bpy.data.materials.new(prefix + "_" + safe_name(dst.name, "mesh"))
+        fill.use_nodes = True
+        principled_of(fill).inputs["Roughness"].default_value = 0.8
+        if not len(me.materials):
+            me.materials.append(fill)
+        for i, m in enumerate(me.materials):
+            if m is None:
+                me.materials[i] = fill
+    shared = {m for o in src_objs if o.type == "MESH" for m in o.data.materials if m is not None}
+    copies = {}
+    for i, m in enumerate(me.materials):
+        baked = m.node_tree is not None and any(("bake_" + k) in m.node_tree.nodes for k in maps)
+        if m in shared or baked:
+            if m not in copies:
+                copies[m] = m.copy()
+                for k in maps:  # the copy must not carry the earlier part's maps
+                    for n in [n for n in copies[m].node_tree.nodes
+                              if n.name in ("bake_" + k, "bake_%s_map" % k)]:
+                        copies[m].node_tree.nodes.remove(n)
+            me.materials[i] = copies[m]
+    mats = []
+    for m in me.materials:
+        if m not in mats:
+            m.use_nodes = True
+            mats.append(m)
+    return mats
+
+
 def bake_maps(src_objs, dst, size=2048, device="CPU", maps=("base_color",), extrusion=0.01,
-              ray_distance=0.03, samples=4, margin=None, out_dir=None, prefix="baked"):
+              ray_distance=0.03, samples=4, margin=None, out_dir=None, prefix="baked",
+              keep_material=False):
     """Cycles selected-to-active bake from src_objs onto dst (needs UVs). Returns {map: image}.
 
     The bake target material on dst is rebuilt: Principled + baked base colour (and optional
     tangent-space normal / emission). Images are saved as PNG into out_dir when given.
+    keep_material=True (normal / emission only) adds the maps to dst's OWN materials instead
+    (one image shared by all of them; a plain Principled one when dst has none), so flat
+    colours, colour attributes and base colour maps on kept UVs stay as they were.
     """
+    if keep_material and "base_color" in maps:
+        raise ValueError("bake_maps: keep_material bakes normal / emission only")
     used = setup_cycles(device, samples)
     scene = bpy.context.scene
     bk = scene.render.bake
@@ -932,13 +1008,15 @@ def bake_maps(src_objs, dst, size=2048, device="CPU", maps=("base_color",), extr
     bk.margin_type = "EXTEND"
     bk.use_clear = True
     bk.target = "IMAGE_TEXTURES"
-    mat = bpy.data.materials.new(prefix + "_" + safe_name(dst.name, "mesh"))
-    mat.use_nodes = True
-    nt = mat.node_tree
-    bsdf = principled_of(mat)
+    if keep_material:
+        mats = _keep_bake_materials(dst, src_objs, maps, prefix)
+    else:
+        mat = bpy.data.materials.new(prefix + "_" + safe_name(dst.name, "mesh"))
+        mat.use_nodes = True
+        dst.data.materials.clear()
+        dst.data.materials.append(mat)
+        mats = [mat]
     out_imgs = {}
-    dst.data.materials.clear()
-    dst.data.materials.append(mat)
     specs = {"base_color": ("DIFFUSE", {"COLOR"}, "sRGB", (0, 0, 0, 1)),
              "normal": ("NORMAL", None, "Non-Color", (0.5, 0.5, 1, 1)),
              "emission": ("EMIT", None, "sRGB", (0, 0, 0, 1))}
@@ -949,10 +1027,13 @@ def bake_maps(src_objs, dst, size=2048, device="CPU", maps=("base_color",), extr
                                   alpha=False, float_buffer=False)
         img.colorspace_settings.name = cs
         img.generated_color = fill
-        node = nt.nodes.new("ShaderNodeTexImage")
-        node.image = img
-        node.name = "bake_" + key
-        nt.nodes.active = node
+        nodes = []
+        for m in mats:  # Cycles bakes into the active image node of every material of dst
+            node = m.node_tree.nodes.new("ShaderNodeTexImage")
+            node.image = img
+            node.name = "bake_" + key
+            m.node_tree.nodes.active = node
+            nodes.append(node)
         for o in bpy.context.view_layer.objects:
             o.select_set(False)
         for o in src_objs:
@@ -977,18 +1058,28 @@ def bake_maps(src_objs, dst, size=2048, device="CPU", maps=("base_color",), extr
             img.save()
         img.pack()
         out_imgs[key] = img
-        if key == "base_color":
-            nt.links.new(node.outputs["Color"], bsdf.inputs["Base Color"])
-        elif key == "normal":
-            nm = nt.nodes.new("ShaderNodeNormalMap")
-            nt.links.new(node.outputs["Color"], nm.inputs["Color"])
-            nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
-        elif key == "emission":
-            nt.links.new(node.outputs["Color"], bsdf.inputs["Emission Color"])
-            bsdf.inputs["Emission Strength"].default_value = 1.0
-    if "base_color" in out_imgs:
-        nt.nodes.active = nt.nodes["bake_base_color"]
-    bsdf.inputs["Roughness"].default_value = 0.8
+        for m, node in zip(mats, nodes):
+            nt = m.node_tree
+            bsdf = principled_of(m)
+            if bsdf is None:  # e.g. an unlit material: the map stays in it, unconnected
+                continue
+            if key == "base_color":
+                nt.links.new(node.outputs["Color"], bsdf.inputs["Base Color"])
+            elif key == "normal":
+                nm = nt.nodes.new("ShaderNodeNormalMap")
+                nm.name = "bake_normal_map"
+                nt.links.new(node.outputs["Color"], nm.inputs["Color"])
+                nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
+            elif key == "emission":
+                nt.links.new(node.outputs["Color"], bsdf.inputs["Emission Color"])
+                bsdf.inputs["Emission Strength"].default_value = 1.0
+    for m in mats:  # Workbench TEXTURE previews show the active node: the colour map, if any
+        nt = m.node_tree
+        colour = image_into(m, "Base Color")
+        if colour is not None:
+            nt.nodes.active = colour
+    if not keep_material:
+        principled_of(mats[0]).inputs["Roughness"].default_value = 0.8
     return out_imgs, {"device": used, "seconds": timings, "margin_px": bk.margin}
 
 
