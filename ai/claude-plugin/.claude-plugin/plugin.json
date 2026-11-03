@@ -1,0 +1,1 @@
+{ "name": "astraforge", "version": "0.1.0", "description": "Панель AstraForge в окне Claude Code: состояние студии, очередь заданий, запуск движков, команда /astraforge", "types": "./types/index.d.ts" }
