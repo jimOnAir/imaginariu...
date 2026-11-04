@@ -1,4 +1,7 @@
 import { z } from 'zod';
+import path from 'node:path';
+import { promises as fs } from 'node:fs';
+import { parseJson } from './storage.mjs';
 export const localUrl=z.string().url().refine(v=>{try {const u=new URL(v);return u.protocol==='http:'&&['127.0.0.1','localhost','[::1]'].includes(u.hostname)&&!u.username&&!u.password&&!u.search&&!u.hash;}catch{return false;}},'Use a local HTTP address (127.0.0.1 or localhost).');
 export const configSchema=z.object({ollamaUrl:localUrl,ollamaModel:z.string().max(150),comfyUrl:localUrl,shapeCheckpoint:z.string().max(200),imageCheckpoint:z.string().max(200),provider:z.enum(['ollama','openai','anthropic']),openaiModel:z.string().max(100),anthropicModel:z.string().max(100)}).strict();
 export const generationSchema=z.object({imageId:z.string().uuid().optional(),prompt:z.string().max(4000).default(''),quality:z.enum(['draft','standard','high']).default('standard'),shapeModel:z.enum(['default','hunyuan21']).default('default'),meshLevel:z.number().finite().min(-1).max(1).default(0),backgroundMode:z.enum(['auto','alpha','keep']).default('auto'),hazeFilter:z.enum(['auto','on','off']).default('auto'),seed:z.number().int().min(0).max(2147483647).default(42),
@@ -11,6 +14,28 @@ export const generationSchema=z.object({imageId:z.string().uuid().optional(),pro
  .transform(x=>x.hazeFilter==='auto'?x:{...x,backgroundMode:`${x.backgroundMode}:haze=${x.hazeFilter}`});
 export const chatSchema=z.object({message:z.string().min(1).max(6000),context:z.string().max(15000).default(''),history:z.array(z.object({role:z.enum(['user','assistant']),content:z.string().max(6000)})).max(12).default([])});
 export const defaults={ollamaUrl:'http://127.0.0.1:11434',ollamaModel:'qwen3:8b',comfyUrl:'http://127.0.0.1:8190',shapeCheckpoint:'hunyuan3d-dit-v2.safetensors',imageCheckpoint:'sd_xl_base_1.0.safetensors',provider:'ollama',openaiModel:'',anthropicModel:''};
+// Startup settings load (behavior per ADR-0004, ticket 02): a data/config.json that is not valid
+// JSON, not an object, or does not match the settings shape must not stop the studio. The bad
+// file is moved aside untouched as config.json.broken-<timestamp> and this run starts on
+// defaults; a missing file is the normal first-run case. The rename keeps the evidence for
+// diagnosis - nothing is ever deleted.
+export async function loadConfig(file,warn=(m)=>console.warn(m)){
+ let raw;
+ try{raw=await fs.readFile(file,'utf8');}
+ catch(e){if(e.code==='ENOENT')return {...defaults};throw e;}
+ try{
+  const stored=parseJson(raw);
+  if(!stored||typeof stored!=='object'||Array.isArray(stored))throw new SyntaxError('not a JSON object');
+  return configSchema.parse({...defaults,...stored});
+ }catch(e){
+  if(!(e instanceof SyntaxError||e instanceof z.ZodError))throw e;
+  const reason=e instanceof z.ZodError?'does not match the settings shape':'is not readable as settings';
+  const aside=path.basename(file)+'.broken-'+new Date().toISOString().replace(/[:.]/g,'-');
+  try{await fs.rename(file,path.join(path.dirname(file),aside));warn('config.json '+reason+' - moved aside to '+aside+', starting with defaults');}
+  catch(ren){warn('config.json '+reason+' and could not be moved aside ('+(ren.code||ren.message)+'), starting with defaults');}
+  return {...defaults};
+ }
+}
 export function hunyuanWorkflow(image,checkpoint,quality,seed,prefix,meshLevel=0){
  const cfg={draft:{steps:15,res:128},standard:{steps:25,res:256},high:{steps:45,res:512}}[quality];
  return {

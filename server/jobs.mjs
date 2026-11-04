@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
-import { data,readJson,writeJson,assetInfo,saveAsset } from './storage.mjs';
+import { data,readJson,writeJson,assetInfo,saveAsset,isId } from './storage.mjs';
 import { hunyuanWorkflow,hunyuanMultiViewWorkflow,MV_CHECKPOINT,sdxlWorkflow } from './schema.mjs';
 import {getViewsService} from './views.mjs';
 import WebSocket from 'ws';
@@ -12,7 +12,27 @@ import {acquireEngineGpu} from './gpu-handover.mjs';
 import {pixal3dConfig,pixal3dStatus} from './pixal3d.mjs';
 import {generatePixal3d} from './pixal3d-run.mjs';
 const jobs=new Map();const controllers=new Map();let active=null;let pumping=false;
-export async function loadJobs(){for(const file of await fs.readdir(path.join(data,'jobs'))){if(!file.endsWith('.json'))continue;const j=await readJson(path.join(data,'jobs',file),null);if(!j)continue;if(['queued','running'].includes(j.status)){j.status='failed';j.message='The job was interrupted by a restart. Start the generation again.';await persist(j);}jobs.set(j.id,j);}}
+// Startup job load (behavior per ADR-0004, ticket 02): a job file that is empty, truncated,
+// BOM-garbled or otherwise unparseable is moved to jobs/broken/ and skipped instead of taking
+// the whole studio down; a file that parses but is not a job record (no uuid id, not an object)
+// is quarantined the same way. The recovered-queue flip writes back to the file it was read
+// from, never through persist() - loading a foreign folder must not write into live data.
+export async function loadJobs(dir=path.join(data,'jobs'),warn=(m)=>console.warn(m)){
+ let quarantined=0;
+ const broken=()=>path.join(dir,'broken');
+ for(const file of await fs.readdir(dir)){
+  if(!file.endsWith('.json')||file==='broken')continue;
+  const full=path.join(dir,file);
+  let j=null;
+  try{j=await readJson(full,null);}
+  catch(e){await fs.mkdir(broken(),{recursive:true});try{await fs.rename(full,path.join(broken(),file));quarantined++;warn('jobs: '+file+' is not readable ('+e.name+'), moved to jobs/broken/');}catch(re){warn('jobs: '+file+' is not readable and could not be moved: '+(re.code||re.message));}continue;}
+  if(j===null)continue; // the file vanished between readdir and read
+  if(typeof j!=='object'||Array.isArray(j)||!isId(j.id)){await fs.mkdir(broken(),{recursive:true});try{await fs.rename(full,path.join(broken(),file));quarantined++;warn('jobs: '+file+' is not a job record, moved to jobs/broken/');}catch(re){warn('jobs: '+file+' is not a job record and could not be moved: '+(re.code||re.message));}continue;}
+  if(['queued','running'].includes(j.status)){j.status='failed';j.message='The job was interrupted by a restart. Start the generation again.';await writeJson(full,j);}
+  jobs.set(j.id,j);
+ }
+ return quarantined;
+}
 const writes=new Map();
 const persist=j=>{const next=(writes.get(j.id)||Promise.resolve()).catch(()=>{}).then(()=>writeJson(path.join(data,'jobs',j.id+'.json'),j));writes.set(j.id,next);return next;};
 async function update(j,values){Object.assign(j,values,{updatedAt:new Date().toISOString()});await persist(j);}

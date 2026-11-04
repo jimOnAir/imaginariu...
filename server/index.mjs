@@ -14,7 +14,7 @@ import { promises as fs,existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { init,root,data,readJson,writeJson,isId,assetInfo,saveAsset } from './storage.mjs';
-import { configSchema,generationSchema,chatSchema,defaults } from './schema.mjs';
+import { configSchema,generationSchema,chatSchema,loadConfig } from './schema.mjs';
 import { keyStatus,setKey } from './vault.mjs';
 import { llmChat } from './llm.mjs';
 import { loadJobs,allJobs,getJob,createJob,cancelJob,validateJobMesh } from './jobs.mjs';
@@ -25,7 +25,7 @@ import {optimizeMeshes} from './optimize.mjs';
 await init();await loadJobs();
 const pkg=await readJson(path.join(root,'package.json'),{});const appVersion=pkg.version||'0.0.0';
 const readText=async f=>{try{return await fs.readFile(path.join(root,f),'utf8');}catch{return '';}};
-let config=configSchema.parse({...defaults,...await readJson(path.join(data,'config.json'),{})});
+let config=await loadConfig(path.join(data,'config.json'));
 const app=express();const port=Number(process.env.PORT)||3210;
 app.disable('x-powered-by');
 let sculpt=null;   // the Sculpt tab: the SculptGL page on the web port may read studio assets (server/sculpt.mjs)

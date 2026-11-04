@@ -8,7 +8,7 @@ export const data=path.join(root,'data');
 export const comfyDir=()=>process.env.ASTRA_COMFY_DIR||path.join(root,'runtime','ComfyUI');
 // Python of the ComfyUI venv: Windows layout Scripts/python.exe, POSIX layout bin/python.
 export const venvPython=(comfy=comfyDir())=>path.join(comfy,'.venv',process.platform==='win32'?path.join('Scripts','python.exe'):path.join('bin','python'));
-export async function init(){for(const folder of ['assets','exports','projects','jobs','runtime','runtime/input','runtime/output','runtime/temp','runtime/user'])await fs.mkdir(path.join(data,folder),{recursive:true});}
+export async function init(){for(const folder of ['assets','exports','projects','jobs','jobs/broken','runtime','runtime/input','runtime/output','runtime/temp','runtime/user'])await fs.mkdir(path.join(data,folder),{recursive:true});}
 // A leading UTF-8 BOM is cut: config files written by Windows PowerShell 5.1 (Set-Content -Encoding UTF8)
 // carry one, and before 0.4.11 the studio refused to start over such data/config.json (user report 01.11.2026).
 export const parseJson=text=>JSON.parse(String(text).replace(/^\uFEFF/,''));
