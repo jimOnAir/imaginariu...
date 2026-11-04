@@ -58,6 +58,7 @@ if (mode === 'always35') {
   if (a.includes('--ssl-no-revoke')) { say('fake: Linux curl must not get --ssl-no-revoke'); process.exit(98); }
   say('curl: (35) SSL connect error'); process.exit(35);
 }
+if (mode === 'vanished') { process.exit(0); } // "success" - but the antivirus ate the file before the move
 if (mode === 'progress') {
   fs.writeFileSync(out, 'x'.repeat(5e6));
   const t0 = Date.now(); while (Date.now() - t0 < 3000) { /* slow link */ }
@@ -297,4 +298,68 @@ test('Ollama gate: the verified archive installs into runtime/ollama and the con
   assert.match(run.log, /checksum of the official release matched/);
   assert.doesNotMatch(run.r.stdout + run.log, /ollama-stub/, 'the binary is installed, not executed');
   assert.match(readFileSync(run.cfg, 'utf8'), /runtime\/ollama\/bin\/ollama/);
+});
+
+test('a downloaded file eaten before it lands gets exclusion advice, never a raw mv error', () => {
+  const dst = path.join(tmp, 'vanished', 'tool.zip');
+  const r = inCore('vanished', `Download ${JSON.stringify('https://files.test/tool.zip')} ${JSON.stringify(dst)}; echo RC=$?`);
+  assert.match(r.stdout, /RC=1/);
+  assert.match(r.log, /The downloaded file vanished between the connection and the folder/);
+  assert.match(r.log, /exclusions and run the installer again; downloading the same file once more without an exclusion changes nothing/);
+  assert.doesNotMatch(r.stderr, /mv:.*No such file/, 'no raw mv failure surfaces');
+  assert.ok(!existsSync(dst));
+});
+
+// - - - - - the Ollama version gate (ticket 03) - - - - - -
+
+function stubOllama(version) {
+  const dir = path.join(tmp, `olstub-${version}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(dir, { recursive: true });
+  const f = path.join(dir, 'ollama');
+  writeFileSync(f, `#!/bin/sh\ncase "$1" in --version) echo 'ollama version is ${version}' ;; *) exit 0 ;; esac\n`);
+  chmodSync(f, 0o755);
+  return dir;
+}
+
+function runOllamaGate(version) {
+  const stateDir = path.join(tmp, `olgate-${Math.random().toString(36).slice(2)}`);
+  const base = path.join(stateDir, 'app');
+  const rt = path.join(base, 'runtime'); const dl = path.join(base, 'downloads'); const cfg = path.join(base, 'config', 'paths.json');
+  mkdirSync(dl, { recursive: true }); mkdirSync(path.dirname(cfg), { recursive: true });
+  const logFile = path.join(base, 'install.log');
+  const r = spawnSync('bash', ['-c', `
+    say() { printf '%s\\n' "$1"; printf '%s\\n' "$1" >>"$LOG"; }
+    source ${JSON.stringify(INSTALL_SH)}
+    RT=${JSON.stringify(rt)} DL=${JSON.stringify(dl)} CFGF=${JSON.stringify(cfg)} LOG=${JSON.stringify(logFile)}
+    InstallOllama; echo "RC=$?"
+    echo "USED=$S_OLLAMA"
+    PullModel qwen3:8b; echo "PULL=$?"
+  `], {
+    encoding: 'utf8', timeout: 120000,
+    env: { ...process.env, PATH: stubOllama(version) + ':' + process.env.PATH, ASTRA_INSTALL_CURL: fakeCurl('fail6', stateDir) },
+  });
+  return { r, cfg, log: existsSync(logFile) ? readFileSync(logFile, 'utf8') : '' };
+}
+
+test('Ollama gate: an older-than-minimum Ollama is refused and the model step says what to do, no crash', () => {
+  const run = runOllamaGate('0.11.2');
+  assert.match(run.log, /is older than 0\.12\.7 - not used/);
+  assert.match(run.r.stdout, /RC=1/);
+  assert.match(run.r.stdout, /USED=/);
+  assert.match(run.log, /No usable Ollama - the model step was skipped\. Install Ollama from https:\/\/ollama\.com, then run this installer again: it will retry the model\./);
+  assert.match(run.r.stdout, /PULL=1/);
+  assert.doesNotMatch(run.r.stderr, /unbound variable|serve: command not found/, 'the guard answers before any command runs');
+});
+
+test('Ollama gate: exactly the minimum version is accepted and used', () => {
+  const run = runOllamaGate('0.12.7');
+  assert.match(run.r.stdout, /RC=0/);
+  assert.match(run.r.stdout, /USED=.*ollama/);
+  assert.doesNotMatch(run.log, /is older than/);
+});
+
+test('Ollama gate: a newer Ollama is accepted too', () => {
+  const run = runOllamaGate('99.9.9');
+  assert.match(run.r.stdout, /RC=0/);
+  assert.doesNotMatch(run.log, /is older than/);
 });

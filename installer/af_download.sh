@@ -88,7 +88,14 @@ Download() {
     rm -f "$err"
     return 1
   done
-  mv -f "$part" "$dst"
+  if [ ! -f "$part" ]; then
+    say "  The downloaded file vanished between the connection and the folder - an antivirus or a folder-sync tool deletes downloads from here. Add $(dirname "$dst") to its exclusions and run the installer again; downloading the same file once more without an exclusion changes nothing."
+    return 1
+  fi
+  mv -f "$part" "$dst" || {
+    say "  The downloaded file cannot be put in place - an antivirus or a folder-sync tool interferes with $(dirname "$dst"). Add the folder to its exclusions and run the installer again; retrying the download without an exclusion is pointless."
+    return 1
+  }
 }
 
 # FileOk <path> [size] [sha256] and the checked downloads - a wrong-size or wrong-hash file is

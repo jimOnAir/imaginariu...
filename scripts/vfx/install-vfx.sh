@@ -71,7 +71,9 @@ GitHub() { # <git-url> <branch> <dir>
   local repo branch zip
   repo="$(printf '%s' "$1" | sed -E 's#^https://github\.com/##; s#/$##')"; branch="$2"
   zip="$(Inside "downloads/$(printf '%s' "$repo" | tr '/' '_').zip")"
-  Download "https://github.com/$repo/archive/refs/heads/$branch.zip" "$zip" || return 1
+  # two delivery channels for the same branch archive (ticket 03 VFX mirror): github.com answers via
+  # a redirect to codeload; if that layer does not answer, the codeload endpoint itself is tried
+  DownloadMirrors "$zip" 0 '' "https://github.com/$repo/archive/refs/heads/$branch.zip" "https://codeload.github.com/$repo/zip/refs/heads/$branch" || return 1
   Unpack "$zip" "$dst" "${repo##*/}-$branch" || return 1
   rm -f "$zip"
 }

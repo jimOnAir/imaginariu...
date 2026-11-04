@@ -9,6 +9,11 @@
 #   installer/install.sh -Only hy2,u2net install only these components (list them in install order;
 #                                        -Only none installs nothing)
 #   installer/install.sh -Yes            no questions: the preset of -Profile ticks as a whole
+#   installer/install.sh -v              print the installer version - always the app version in package.json
+#
+# Isolated check mode: ASTRA_INSTALL_ISOLATED=1 runs the installer as a check that leaves no trace on
+# this computer beyond the application folder (models pulled by the studio land in runtime/models/ollama
+# instead of the shared user library; a serve process started by this run is stopped on exit).
 #
 # The checklist ticks every missing/outdated row of the preset, Node.js, npm and Blender are
 # untickable, ticking a row pulls in its dependencies, a computer without an NVIDIA card is offered
@@ -53,6 +58,14 @@ QwenTeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/
 QwenTeSha='cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4'
 QwenVaeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/vae/qwen_image_vae.safetensors'
 QwenVaeSha='a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f'
+# The version this installer sets up is read from package.json - the installer never stamps its own
+# literal, so the announced version cannot drift from the app (behavior per ADR-0004, ticket 03)
+InstallerVersion="$(sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "$ROOT/package.json" 2>/dev/null | head -1)"
+[ -n "$InstallerVersion" ] || InstallerVersion='dev'
+# Models need at least this Ollama (the minVersion gate, Linux form per ADR-0004, ticket 03: the
+# shipped manifest.json keeps its Windows text, the pin lives here like the other Linux constants)
+OllamaMinVersion='0.12.7'
+S_OLLAMA=''
 
 # ---------------------------------------------------------------- arguments
 ScanOnly=0 ScanList=0 DryRun=0 Yes=0 Only='' Profile='quick' Lite=0
@@ -65,7 +78,8 @@ for arg in "$@"; do
     -Yes|--yes) Yes=1 ;;
     -Profile=*|--profile=*) Profile="${arg#*=}" ;;
     -Only=*|--only=*) Only="${arg#*=}" ;;
-    -h|--help) sed -n '2,20p' "$0"; exit 0 ;;
+    -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
+    -v|--version) printf 'AstraForge installer %s\n' "$InstallerVersion"; exit 0 ;;
     *) if [ "$prev" = '-Only' ] || [ "$prev" = '--only' ]; then Only="$arg"
        elif [ "$prev" = '-Profile' ] || [ "$prev" = '--profile' ]; then Profile="$arg"; fi ;;
   esac
@@ -294,12 +308,17 @@ InstallQwen() {
 }
 
 EnsureOllama() {
+  if [ -z "$S_OLLAMA" ]; then
+    say '  No usable Ollama - the model step was skipped. Install Ollama from https://ollama.com, then run this installer again: it will retry the model.'
+    return 1
+  fi
   local started=''
   for _ in $(seq 30); do
     curl -sf -m 2 http://127.0.0.1:11434/api/version >/dev/null 2>&1 && return 0
-    if [ "$started" != 1 ]; then "$S_OLLAMA" serve >/dev/null 2>&1 & disown; started=1; fi
+    if [ "$started" != 1 ]; then "$S_OLLAMA" serve >/dev/null 2>&1 & disown; started=1; ASTRA_SERVE_PID=$!; ASTRA_SERVE_OWNED=1; fi
     sleep 2
   done
+  say '  Ollama did not answer on http://127.0.0.1:11434 - the model step was skipped; check this Ollama can serve (ollama --version, ollama serve), then run the installer again.'
   return 1
 }
 PullModel() { EnsureOllama && Run "$S_OLLAMA" "downloading model $1" pull "$1"; }
@@ -347,16 +366,26 @@ OllamaReleaseSha() { # <asset file name> - sets OLLAMA_SHA from the release's sh
   [ -n "$OLLAMA_SHA" ]
 }
 
+# True when the binary reports at least OllamaMinVersion: an older Ollama is never used for the
+# model steps, the checksum-verified copy goes into runtime/ollama instead (like a missing one).
+OllamaVersionOk() { # <binary>
+  local v
+  v="$("$1" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+  [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$OllamaMinVersion" "$v" | sort -V | head -1)" = "$OllamaMinVersion" ]
+}
+
 InstallOllama() {
   local got cfgn arch asset
   # ASTRA_INSTALL_NO_OLLAMA=1 forces the download path for tests, like ASTRA_INSTALL_NO_GPU for the scan
   got=""; [ "${ASTRA_INSTALL_NO_OLLAMA:-}" = 1 ] || got="$(command -v ollama || true)"
-  if [ -n "$got" ]; then S_OLLAMA="$got"; CfgSet ollama "$got"; return 0; fi
-  cfgn="$(CfgGet ollama)"; if [ -n "$cfgn" ] && [ -x "$cfgn" ]; then S_OLLAMA="$cfgn"; return 0; fi
+  if [ -n "$got" ] && OllamaVersionOk "$got"; then S_OLLAMA="$got"; CfgSet ollama "$got"; return 0; fi
+  [ -n "$got" ] && say "  Ollama at $got is older than $OllamaMinVersion - not used; the checksum-verified copy goes into runtime/ollama instead."
+  cfgn="$(CfgGet ollama)"; if [ -n "$cfgn" ] && [ -x "$cfgn" ] && OllamaVersionOk "$cfgn"; then S_OLLAMA="$cfgn"; return 0; fi
+  [ -n "$cfgn" ] && [ -x "$cfgn" ] && say "  The Ollama saved in config/paths.json is older than $OllamaMinVersion - not used; installing a current copy into runtime/ollama."
   arch="$(uname -m)"; asset=''
   case "$arch" in x86_64) asset='ollama-linux-amd64.tar.zst' ;; aarch64) asset='ollama-linux-arm64.tar.zst' ;; esac
   if [ -z "$asset" ] || ! command -v zstd >/dev/null; then
-    say '  Ollama is not installed: install it from https://ollama.com (Linux: curl -fsSL https://ollama.com/install.sh | sh) and run the installer again.'
+    say "  Ollama $OllamaMinVersion or newer is needed: install or update it from https://ollama.com (Linux: curl -fsSL https://ollama.com/install.sh | sh) and run the installer again."
     return 1
   fi
   if ! OllamaReleaseSha "$asset"; then
@@ -649,6 +678,18 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
 if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
 
 if [ "$ScanList" = 1 ]; then ScanList; exit $?; fi
+
+# The installer reports the true version of the app it sets up (never its own literal), and the
+# isolated check mode keeps this computer as it found it (behavior per ADR-0004, ticket 03): the
+# Windows check mode also silences telemetry and the journal - this branch has neither, so
+# isolation here means the shared user model library and leftover processes.
+say "AstraForge installer $InstallerVersion (Linux)"
+if [ "${ASTRA_INSTALL_ISOLATED:-}" = 1 ]; then
+  export OLLAMA_MODELS="${OLLAMA_MODELS:-$RT/models/ollama}"
+  trap '[ "${ASTRA_SERVE_OWNED:-}" = 1 ] && kill "${ASTRA_SERVE_PID:-}" 2>/dev/null || true' EXIT
+  say '  isolated check mode: pulled models go to runtime/models/ollama, a serve this run starts is stopped on exit, shared user folders stay untouched'
+fi
+
 if [ "$ScanOnly" = 1 ]; then ScanTable; exit $?; fi
 ScanCore
 RecommendLlm
