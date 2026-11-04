@@ -1,6 +1,17 @@
+Provenance and attribution
+--------------------------
+AstraForge is a 3D asset studio created by Artem Doronin (Dops Media). This `linux-support`
+branch is an independent, clean-room re-implementation by Dmitry Belozerov (jimOnAir) of the
+*behavior documented in* AstraForge Windows releases, produced under the protocol in
+`docs/adr/0004-protocol-v2-clean-room-and-attribution.md`. It is not affiliated with, endorsed
+by, or a work of Dops Media; no rights in the AstraForge name or product are granted here.
+This branch distributes no source code that is under the PolyForm Noncommercial 1.0.0 or the
+AstraForge Subscription license; the Windows releases remain distributed under those licenses.
+The code below is original to this re-implementation and carries the MIT license that follows.
+
 MIT License
 
-Copyright (c) 2026 Snodrod
+Copyright (c) 2026 Dmitry Belozerov
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
