@@ -1,7 +1,8 @@
 # Сторонние компоненты
 
-AstraForge — бесплатная программа по лицензии MIT (файл `LICENSE`). Её можно использовать в том числе
-в коммерческих целях. Модели, созданные в студии, принадлежат пользователю.
+Код этой ветки (`linux-support`) распространяется под лицензией MIT (файл `LICENSE`) — это независимая
+ре-реализация для Linux, см. атрибуцию и провенанс там же и в `docs/adr/0004-*`. Модели, созданные
+в студии, принадлежат пользователю.
 
 Студия собрана на открытых программах и моделях, и их авторы сделали огромную работу — спасибо им. Перечисленное ниже
 в установочный файл **не входит**: установщик сам скачивает эти компоненты с сайтов авторов (адреса, размеры и
@@ -64,6 +65,7 @@ AstraForge — бесплатная программа по лицензии MIT
 | SculptGL (вкладка «Скульпт»), собирается из исходников; мост `scripts/sculpt/bridge.js` — часть AstraForge | github.com/stephomi/sculptgl | MIT (© Stéphane Ginier; текст лицензии лежит в сборке, `web/sculptgl/LICENSE.txt`) |
 | Neon Flames | github.com/jwagner/Neonflames | лицензия не указана: только личное использование; установщик его **не скачивает**, во вкладке «VFX» — только ссылка на сайт автора |
 | PixaFlux, Slate, FlowMap Painter, Pseudo Volume Generator | pixaflux.com, facedownfx.com, teckartist.com, acetix.itch.io | бесплатные программы на условиях авторов |
+| Шрифты Inter, Oswald, JetBrains Mono — вложены в студию (`assets/fonts`, без обращений к сети во время работы) | Google Fonts (fonts.gstatic.com), github.com/google/fonts | SIL Open Font License 1.1; тексты лицензий рядом с файлами (`assets/fonts/OFL-*.txt`) |
 | Заготовка Impact Decal (Material Maker) | materialmaker.org | CC0 |
 
 Скрипты Blender и узел ComfyUI из этого архива работают внутри программ под лицензией GPL. Лицензия MIT

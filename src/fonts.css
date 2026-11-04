@@ -1,0 +1,14 @@
+/* Bundled text faces of the Hybrid UI (ticket 04): Inter carries the studio text, Oswald the
+   brand mark, JetBrains Mono the keyboard and readouts. All three families are SIL OFL 1.1; the
+   license texts ship beside the files (assets/fonts/OFL-*.txt). Provenance (vendor channel +
+   sha256 of each file as stored):
+     Inter  variable 100..900, latin subset - Google Fonts (fonts.gstatic.com, api css2)
+       sha256 3100e775e8616cd2611beecfa23a4263d7037586789b43f035236a2e6fbd4c62
+     Oswald variable 200..700, latin subset - Google Fonts (fonts.gstatic.com, api css2)
+       sha256 bd73278ee0c50041b91b4c03d1229e35b501637f46b6409e7da2d3a758446ea5
+     JetBrains Mono variable 400..700 - the google/fonts repository (raw.githubusercontent.com)
+       sha256 48715a42ec242c21e9f02692891e147d022299a52e48d5e413e1a942193ffeda
+   No font is fetched at run time. */
+@font-face{font-family:'Inter';src:url('../assets/fonts/inter-var-latin.woff2') format('woff2-variations');font-weight:100 900;font-style:normal;font-display:swap}
+@font-face{font-family:'Oswald';src:url('../assets/fonts/oswald-var-latin.woff2') format('woff2-variations');font-weight:200 700;font-style:normal;font-display:swap}
+@font-face{font-family:'JetBrains Mono';src:url('../assets/fonts/jetbrains-mono-var.ttf') format('truetype-variations');font-weight:400 700;font-style:normal;font-display:swap}

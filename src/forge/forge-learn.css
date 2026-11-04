@@ -14,13 +14,13 @@
   font-size: 10px;
   border: 1px solid var(--line);
   border-radius: 5px;
-  background: #1c2325;
+  background: var(--c1c2325);
   color: var(--dim);
 }
 .rv-modes button.active {
-  background: #2a352f;
-  border-color: #8b9a62;
-  color: #dfe8d4;
+  background: var(--c2a352f);
+  border-color: var(--c8b9a62);
+  color: var(--cdfe8d4);
 }
 
 .lr-top .rv-tools select { flex: 1 1 160px; }
@@ -38,9 +38,9 @@
 .lr-recipes {
   margin-bottom: 10px;
   padding: 8px 10px;
-  border: 1px solid #3a4a3d;
+  border: 1px solid var(--c3a4a3d);
   border-radius: 6px;
-  background: #1b2321;
+  background: var(--c1b2321);
 }
 .lr-recipes summary {
   display: flex;
@@ -48,18 +48,18 @@
   gap: 6px;
   cursor: pointer;
   font-size: 11px;
-  color: #cfdcc4;
+  color: var(--ccfdcc4);
 }
 .lr-group {
   margin-top: 8px;
   padding-top: 7px;
-  border-top: 1px solid #2c3634;
+  border-top: 1px solid var(--c2c3634);
 }
 .lr-group h5 {
   margin: 0 0 5px;
   font-size: 10.5px;
   font-weight: 500;
-  color: #d5ddd8;
+  color: var(--cd5ddd8);
 }
 .lr-group h5 small,
 .lr-group > small,
@@ -84,24 +84,24 @@
   font-size: 9px;
   padding: 1px 4px;
   border-radius: 3px;
-  background: #263033;
-  color: #c9d4cf;
+  background: var(--c263033);
+  color: var(--cc9d4cf);
   overflow-wrap: anywhere;
 }
 .lr-params code.diff {
-  background: #3b2b26;
-  color: #f0ccac;
+  background: var(--c3b2b26);
+  color: var(--cf0ccac);
 }
 .lr-none { font-size: 9px; color: var(--dim); }
 .lr-note {
   margin: 6px 0 0;
   font-size: 10px;
   line-height: 1.4;
-  color: #c8d2cc;
+  color: var(--cc8d2cc);
 }
-.lr-note.route b { color: #cae595; }
-.lr-note.pitfall b { color: #f0ccac; }
-.lr-note.tip b { color: #ecd59a; }
+.lr-note.route b { color: var(--ccae595); }
+.lr-note.pitfall b { color: var(--cf0ccac); }
+.lr-note.tip b { color: var(--cecd59a); }
 
 /* version cards */
 .lr-preview {
@@ -110,7 +110,7 @@
   justify-content: center;
   height: 150px;
   border-radius: 4px;
-  background: repeating-conic-gradient(#20282a 0% 25%, #1a2123 0% 50%) 50% / 16px 16px;
+  background: repeating-conic-gradient(var(--c20282a) 0% 25%, var(--c1a2123) 0% 50%) 50% / 16px 16px;
   overflow: hidden;
 }
 .lr-preview img {
@@ -132,11 +132,11 @@
   flex-direction: column;
   gap: 2px;
   font-size: 10px;
-  color: #c8d2cc;
+  color: var(--cc8d2cc);
 }
 .lr-steps li b { display: inline-block; width: 12px; }
-.lr-steps li.completed b { color: #cae595; }
-.lr-steps li.failed b { color: #f0a58a; }
+.lr-steps li.completed b { color: var(--ccae595); }
+.lr-steps li.failed b { color: var(--cf0a58a); }
 .lr-steps small { color: var(--dim); }
 .lr-steps em {
   margin-left: 6px;
@@ -144,8 +144,8 @@
   border-radius: 3px;
   font-style: normal;
   font-size: 8.5px;
-  background: #2a352f;
-  color: #cae595;
+  background: var(--c2a352f);
+  color: var(--ccae595);
   cursor: help;
 }
 .lr-pending {
@@ -161,7 +161,7 @@
   flex-direction: column;
   gap: 6px;
   padding-top: 6px;
-  border-top: 1px dashed #36403f;
+  border-top: 1px dashed var(--c36403f);
 }
 .lr-stars {
   display: flex;
@@ -175,9 +175,9 @@
   padding: 2px;
   border: 0;
   background: transparent;
-  color: #4d5856;
+  color: var(--c4d5856);
 }
-.lr-stars button.on { color: #ecd59a; }
+.lr-stars button.on { color: var(--cecd59a); }
 .lr-tags { margin-top: 0; }
 .lr-step {
   display: flex;

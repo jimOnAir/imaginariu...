@@ -1,0 +1,8 @@
+/* The Hybrid UI switches (ticket 04). Colors are palette tokens, so both themes dress them. */
+.shell-switch{display:inline-flex;flex-shrink:0;padding:2px;gap:2px;background:var(--panel);border:1px solid var(--line);border-radius:5px}
+.shell-switch button{min-width:28px;height:24px;padding:0 6px;border-radius:3px;font-size:10px;font-weight:600;letter-spacing:.05em;color:var(--dim);gap:5px}
+.shell-switch button:hover{color:var(--text)}
+.shell-switch button.active{background:var(--c3b4937);color:var(--accent)}
+html[data-theme=light] .shell-switch button.active{background:color-mix(in srgb,var(--accent) 24%,var(--panel))}
+.shell-switch .mode-label{font-size:9px}
+@media(max-width:1250px){.shell-switch .mode-label{display:none}.shell-switch button{min-width:26px;padding:0 5px}}

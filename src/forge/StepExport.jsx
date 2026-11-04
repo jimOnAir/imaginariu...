@@ -8,6 +8,7 @@ import {
 import { exportAsset, outputUrl, fetchJsonFile, getJob } from './forge-api.js';
 import { Section, Notice, ChecksList, JobInline, ResultImages, useForge } from './ForgeUi.jsx';
 import { t, useT } from '../i18n/index.js';
+import { useMode } from '../shell/hooks.js';
 
 const EXPORT_STEPS = ['godot_package', 'render_sprites'];
 
@@ -64,8 +65,13 @@ function RecipeBlock({ plan, registry, onGo }) {
 export default function StepExport() {
   const t = useT();
   const { offline, kind, asset, assetId, notify, track, sortedJobs, mergeJobs, registry, setStepId } = useForge();
-  const profiles = exportProfilesFor(kind);
+  const profilesAll = exportProfilesFor(kind);
+  // view mode (ticket 04): the game presets are a Detailed surface; Simple keeps the general
+  // Godot package and the sprite-sheet profile (src/shell/mode.js)
+  const detailed = useMode().mode === 'detailed';
+  const profiles = detailed ? profilesAll : profilesAll.filter((p) => p.id === 'godot' || p.id === 'iso8');
   const [profile, setProfile] = useState(profiles[0]?.id || 'godot');
+  useEffect(() => { if (!profiles.some((p) => p.id === profile)) setProfile(profiles[0]?.id || 'godot'); }, [profiles, profile]);
   const [busy, setBusy] = useState(false);
   const [validation, setValidation] = useState(null);
 

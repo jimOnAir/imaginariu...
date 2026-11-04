@@ -3,6 +3,8 @@
 // A value may be a plural object {one, other} (en) / {one, few, many, other} (ru), picked by vars.n.
 
 export default {
+  "shell.theme.title": "Theme", "shell.theme.dark": "Dark", "shell.theme.light": "Light", "shell.theme.system": "Follow the system",
+  "shell.mode.title": "View", "shell.mode.simple": "Simple", "shell.mode.detailed": "Detailed",
 
   // Common: language switch
   "lang.switch": "Interface language",

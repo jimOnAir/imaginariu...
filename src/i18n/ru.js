@@ -1,6 +1,8 @@
 // Russian dictionary of the studio UI. Same keys as en.js (tests/i18n.test.mjs).
 
 export default {
+  "shell.theme.title": "Тема", "shell.theme.dark": "Тёмная", "shell.theme.light": "Светлая", "shell.theme.system": "Как в системе",
+  "shell.mode.title": "Вид", "shell.mode.simple": "Просто", "shell.mode.detailed": "Подробно",
 
   // Common: language switch
   "lang.switch": "Язык интерфейса",
