@@ -2,7 +2,8 @@
 
 AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
-Linux (see the section below and `docs/product/acceptance-0.5.0.md`). This page documents the
+Linux, and since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line as well (see the
+two sections below and `docs/product/acceptance-0.5.0.md` / `docs/product/acceptance-0.5.1.md`). This page documents the
 Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
 ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
 `process.platform` check or lives in Linux-only files, and the Windows frontends
@@ -32,6 +33,38 @@ AMD build. Flagged unverified on Linux hardware: the Unity editor round-trip of 
 
 The bullet-by-bullet map of release notes 0.4.7–0.4.16 to this tree, with the proof command for
 each row, is the [0.5.0 acceptance report](product/acceptance-0.5.0.md).
+
+## 0.5.1 — the Windows 0.5.x wave, re-derived under Protocol v2
+
+Version 0.5.1 adds the behavior of the shipped `AstraForge-Setup-0.5.0.exe` … `0.5.3.exe`
+(parity artifact: **0.5.3**, the union; Windows builds stamp FileVersion 0.4.17 internally),
+re-derived under the strict clean-room protocol of
+[ADR-0004](adr/0004-protocol-v2-clean-room-and-attribution.md): paraphrased intent, observed
+behavior and interface facts as the only spec channels; implementing contexts never read the
+extracted payload; every commit gated by an independent similarity audit:
+
+- **startup resilience** — corrupt job files move to `data/jobs/broken/`, a corrupt
+  `config.json` moves aside as `config.json.broken-<timestamp>`, defaults boot the run (ticket 02);
+- **installer honesty** — Ollama below 0.12.7 refused with a recovery sentence, vanished downloads
+  name the antivirus/folder-sync cause, `ASTRA_INSTALL_ISOLATED=1` keeps a check run out of the
+  user's model library, `-v` and every banner print the real `package.json` version (ticket 03);
+- **Hybrid UI** — dark/light/follow-system theme applied before first paint, Simple/Detailed view
+  modes, top-bar switches, the whole palette tokenized so light theme works everywhere, Inter +
+  Oswald + JetBrains Mono bundled under OFL (ticket 04);
+- **Unreal Engine 5 export** — `unreal_package` builds `af_unreal.json` (SM_/SK_, UCX hulls, LODs,
+  BaseColor/DirectX-Normal/ORM, MI_ instances), the Python-only `unreal/AstraForge` plugin
+  materializes it, the engine bridge gained create/send/test/mcp-register for `.uproject`
+  projects — verified at the data level, in-editor run flagged unverified here (ticket 05);
+- **MCP `generator_*`** — status/nodes/graphs/run/restart for the ComfyUI backend through the
+  studio job layer; the engine-management, graph-edit and learn verbs are documented as absent
+  with the reason, not silently missing (ticket 06);
+- **Unity collision hulls** — `*-colonly` / `*-convcolonly` / `COL_*` meshes never render: they
+  become UCX convex hulls in the FBX, wired into the passport and double-checked by the importer
+  (ticket 07).
+
+Deferred or excluded by decision (Engine + self-learning LoRA, provenance/licensing machinery,
+updater/telemetry/keys-server, AMD/ROCm, frozen Windows frontends) — the full list with reasons is
+the deviations section of the [0.5.1 acceptance report](product/acceptance-0.5.1.md).
 
 ## Quick start (Linux)
 

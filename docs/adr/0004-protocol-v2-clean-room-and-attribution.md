@@ -83,3 +83,29 @@ expression. This ADR raises the bar for all work from 0.5.1 onward and fixes att
 - Keeping ADR-0003's read-as-spec method while asserting MIT authorship we cannot confer.
 - Staying private "until blessed" — with tiers/quarantine/audits, public development at the
   defensible floor is possible now, and the blessing lever remains open in parallel.
+
+## Amendment at the 0.5.1 release (deviations actually taken while implementing)
+
+Recorded here because they refine how the protocol was applied; the per-cluster evidence and the
+full deviations table live in `docs/product/acceptance-0.5.1.md`.
+
+- **Engine-management scope.** The Windows `generator_*` family drives the proprietary AstraForge
+  Engine; this branch maps the family onto the ComfyUI backend and exposes only
+  status/nodes/graphs/run/restart. The other verbs are documented absent by name (MCP README,
+  integrator skill) — absence as a contract, per decision 6.
+- **Unity hull handling mechanism.** The accepted behavior is "hull names never render, hulls are
+  the collider source"; the implementation re-derives it through Unity's public UCX FBX convention
+  (synthesize convex hulls ≤64 tris, drop the sources) rather than any upstream mechanism — an
+  independently chosen shape, audited as such.
+- **Isolated check mode.** Windows silences telemetry and the journal in check mode; this branch
+  has neither by design, so isolation means model-library and process containment only.
+- **Unverified-by-design lines.** The Unreal in-editor pass and the Unity C# importer cannot run on
+  the verification machine; they ship flagged, with data-level tests as the tested scope and
+  guarded engine-side reports where the contract allows (plugin step reports, batch checks).
+- **Graph catalog.** `GET /api/runtime/graphs` derives its rows by invoking this branch's own
+  workflow builders, so the agent-facing catalog cannot drift from the code.
+- **Audit outcome discipline.** Three of seven feature tickets were rejected by the audit gate at
+  first pass (a release-note sentence, one transcribed hex constant, one copied helper) and
+  re-landed only after original rework; the FAIL→fix→PASS trail is part of the release record.
+  Pre-existing ADR-0.3-era strings flagged by the auditors were carried to the retroactive audit
+  (ticket 09) rather than silently kept.
