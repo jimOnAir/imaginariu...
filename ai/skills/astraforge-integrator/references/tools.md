@@ -12,11 +12,11 @@ Claude Code в scope user — их видит любая сессия. Пров�
 | Генерация 3D | `asset_upload`, `generate_3d`, `jobs_list`, `job_get`, `job_cancel` | картинка или текст → GLB (Pixal3D / Hunyuan, локально) |
 | Ракурсы | `views_status`, `views_create`, `views_generate`, `views_get`, `views_cancel` | виды сзади и сбоку по одной картинке, затем 3D по четырём видам |
 | Кузница | `forge_steps`, `forge_presets`, `forge_assets`, `forge_asset_show`, `forge_create`, `forge_run`, `forge_job(s)`, `forge_job_cancel`, `forge_batch`, `clips_list`, `clips_import`, `sculpt`, `sculpt_transfer` | чистка, риг, клипы, предметы, ткань, корабли — скилл **astraforge** |
-| Экспорт | `forge_export` (`godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`), `forge_export_fetch` | пакет под движок; `out` — ждать и скачать |
+| Экспорт | `forge_export` (`godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`, `unreal`), `forge_export_fetch` | пакет под движок; `out` — ждать и скачать |
 | Спрайты | `sprites_render` (`iso8`, `heroes_gates`, `custom`, `pixel`) | 2D и изометрия |
 | Эффекты | `fx_presets`, `fx_texture_types`, `fx_texture_generate`, `vfx_tools`, `vfx_textures`, `vfx_tool_launch` | скилл **astraforge-vfx** |
 | Проекты студии | `projects_list`, `project_get` | сцены редактора студии — это не проекты движков |
-| **Движки** | `engine_status`, `engine_project_create`, `engine_project_link`, `engine_send`, `engine_scaffold`, `engine_test`, `engine_mcp_register` | проекты Unity и Godot в фоне: создать, привязать, положить пакеты, логика по шаблону, тесты без окон |
+| **Движки** | `engine_status`, `engine_project_create`, `engine_project_link`, `engine_send`, `engine_scaffold`, `engine_test`, `engine_mcp_register` | проекты Unity, Godot и Unreal в фоне: создать, привязать, положить пакеты, логика по шаблону, тесты без окон |
 | Unity-пакеты | `unity_status`, `unity_send`, `unity_check` | точечная работа с пакетами Unity и проверочным проектом студии |
 
 ## 2. `UnityMCP` — живой редактор Unity (MCP for Unity 10.3.0, CoplayDev, MIT)

@@ -71,12 +71,12 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | | `views_create` | набор ракурсов из концепта |
 | | `views_generate` | достроить ракурсы (codex / mvadapter, slots, seed…) |
 | | `views_get`, `views_cancel` | набор и задача (с `wait`), отмена |
-| Кузница | `forge_steps`, `forge_presets` | реестр шагов (31) и готовые конвейеры; с `step` / `id` — полные описания |
+| Кузница | `forge_steps`, `forge_presets` | реестр шагов (33) и готовые конвейеры; с `step` / `id` — полные описания |
 | | `forge_assets`, `forge_asset_show` | паспорта ассетов, версии, экспорты |
 | | `forge_create` | паспорт из `fromGlb` / `fromJob` / `fromAsset` / `params`, опционально сразу `preset` или `steps` |
 | | `forge_run` | конвейер на ассете: `preset` или `steps`, `from` source / latest / v003 |
 | | `forge_job`, `forge_jobs`, `forge_job_cancel` | задача (с `wait`), последние задачи, отмена |
-| | `forge_export` | профиль godot / space_quest / heroes_gates / iso8 / unity; с `out` ждёт и скачивает архив |
+| | `forge_export` | профиль godot / space_quest / heroes_gates / iso8 / unity / unreal; с `out` ждёт и скачивает архив |
 | | `forge_export_fetch` | скачать и распаковать готовые архивы экспорта |
 | | `forge_batch` | пакет по `items.json` |
 | | `forge_recipes` | рецепт и грабли класса ассета (Markdown или JSON) — читать перед заданием |
