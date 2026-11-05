@@ -3,6 +3,8 @@
 export default {
   "shell.theme.title": "Тема", "shell.theme.dark": "Тёмная", "shell.theme.light": "Светлая", "shell.theme.system": "Как в системе",
   "shell.mode.title": "Вид", "shell.mode.simple": "Просто", "shell.mode.detailed": "Подробно",
+  "core.export.unreal.title": "Unreal Engine 5",
+  "core.export.unreal.hint": "FBX, текстуры и af_unreal.json для Python-плагина импорта",
 
   // Common: language switch
   "lang.switch": "Язык интерфейса",
@@ -73,8 +75,10 @@ export default {
   "step.render_sprites": "Рендер спрайтов",
   "step.godot_package": "Пакет Godot",
   "step.unity_package": "Пакет для Unity",
+  "step.unreal_package": "Пакет для Unreal Engine 5",
   "enum.auto": "Авто",
   "enum.strict": "Строгий",
+  "enum.unreal": "Unreal Engine 5",
   "enum.space_quest": "Space Quest",
   "enum.heroes_gates": "Врата Героев",
   "enum.unity": "Unity",

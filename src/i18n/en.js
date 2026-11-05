@@ -5,6 +5,8 @@
 export default {
   "shell.theme.title": "Theme", "shell.theme.dark": "Dark", "shell.theme.light": "Light", "shell.theme.system": "Follow the system",
   "shell.mode.title": "View", "shell.mode.simple": "Simple", "shell.mode.detailed": "Detailed",
+  "core.export.unreal.title": "Unreal Engine 5",
+  "core.export.unreal.hint": "FBX + textures + af_unreal.json for the Python importer plugin",
 
   // Common: language switch
   "lang.switch": "Interface language",
@@ -75,8 +77,10 @@ export default {
   "step.render_sprites": "Sprite render",
   "step.godot_package": "Godot package",
   "step.unity_package": "Unity package",
+  "step.unreal_package": "Unreal Engine 5 package",
   "enum.auto": "Auto",
   "enum.strict": "Strict",
+  "enum.unreal": "Unreal Engine 5",
   "enum.space_quest": "Space Quest",
   "enum.heroes_gates": "Heroes Gates",
   "enum.unity": "Unity",

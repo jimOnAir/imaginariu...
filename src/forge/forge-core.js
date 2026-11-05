@@ -1501,6 +1501,7 @@ export const EXPORT_PROFILES = [
   { id: 'space_quest', kinds: ['ship', 'turret', 'item'] },
   { id: 'heroes_gates', kinds: ['humanoid', 'creature', 'item'] },
   { id: 'iso8', kinds: ALL },
+  { id: 'unreal', kinds: ALL },
 ].map((p) => withLabels(p, `core.export.${p.id}`));
 
 export function exportProfilesFor(kind) {

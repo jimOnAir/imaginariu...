@@ -9,7 +9,7 @@ import {
 const PLANNED = ['inspect', 'cleanup', 'convert', 'separate', 'rig_humanoid', 'prepare_mixamo', 'import_mixamo_rig', 'retarget',
   'clip_library', 'rig_creature', 'anim_creature', 'item_kit', 'item_from_mesh', 'attach_prop', 'ship_gen', 'turret_gen',
   'ship_from_mesh', 'render_sprites', 'godot_package', 'bone_kit', 'replace_part', 'kitbash', 'place_parts', 'motion_style', 'cloth_sim',
-  'paint_from_concept', 'extract_props', 'assemble_parts', 'sculpt', 'face_match', 'face_fix_loop', 'unity_package'];
+  'paint_from_concept', 'extract_props', 'assemble_parts', 'sculpt', 'face_match', 'face_fix_loop', 'unity_package', 'unreal_package'];
 const cyrillic = /[Ѐ-ӿ]/;
 const TYPES = ['number', 'integer', 'boolean', 'string', 'array', 'object', 'any'];
 // params a step cannot run without and that have no sensible default (STEP_CHECKS require them)
@@ -121,7 +121,8 @@ test('presets reference real steps with valid params', () => {
 
 test('export profiles map to export steps', () => {
   assert.equal(EXPORT_PROFILES.godot.step, 'godot_package');
-  assert.deepEqual(Object.keys(EXPORT_PROFILES).sort(), ['godot', 'heroes_gates', 'iso8', 'space_quest', 'unity']);
+  assert.deepEqual(Object.keys(EXPORT_PROFILES).sort(), ['godot', 'heroes_gates', 'iso8', 'space_quest', 'unity', 'unreal']);
+  assert.equal(EXPORT_PROFILES.unreal.step, 'unreal_package');
   assert.equal(EXPORT_PROFILES.unity.step, 'unity_package');
   assert.equal(EXPORT_PROFILES.iso8.params.profile, 'iso8');
   assert.equal(EXPORT_PROFILES.space_quest.params.profile, 'space_quest');

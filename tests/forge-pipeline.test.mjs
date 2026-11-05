@@ -286,11 +286,17 @@ test('a run creates v001 with numbered step folders and resolves inputs along th
   assert.equal(calls[0].request.inputs.glb, path.join(v1, '03_rig_humanoid', 'rig_humanoid.glb'));
   const m4 = await engine.getAsset(a.id);
   assert.ok(m4.exports.some((e) => e.profile === 'godot' && e.version === 'v004' && existsSync(e.path)));
-  await assert.rejects(engine.startExport(a.id, { profile: 'unreal' }), /Export profile/);
+  // the Unreal line (ticket 05, docs/product/unreal.md): its own export step
+  calls.length = 0;
+  const exUn = await engine.startExport(a.id, { profile: 'unreal' });
+  assert.equal(exUn.version, 'v005');
+  assert.equal((await engine.waitJob(exUn.jobId)).status, 'completed');
+  assert.equal(calls[0].step, 'unreal_package');
+  assert.equal(calls[0].request.params.profile, 'unreal');
   // the unity profile is its own export step since the Unity line (docs/forge/unity.md)
   calls.length = 0;
   const exU = await engine.startExport(a.id, { profile: 'unity' });
-  assert.equal(exU.version, 'v005');
+  assert.equal(exU.version, 'v006');
   assert.equal((await engine.waitJob(exU.jobId)).status, 'completed');
   assert.equal(calls[0].step, 'unity_package');
   assert.equal(calls[0].request.params.profile, 'unity');

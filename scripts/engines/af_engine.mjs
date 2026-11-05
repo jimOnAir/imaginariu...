@@ -1,22 +1,28 @@
 #!/usr/bin/env node
-// AstraForge <-> game engines (Unity, Godot): projects, asset delivery and background tests - no editor windows.
+// AstraForge <-> game engines (Unity, Godot, Unreal Engine 5): projects, asset delivery and background tests - no editor windows.
 //
 //   node scripts/engines/af_engine.mjs status
 //   node scripts/engines/af_engine.mjs projects
-//   node scripts/engines/af_engine.mjs create --engine unity|godot --name <Name> [--path <folder>] [--pipeline urp|builtin]
+//   node scripts/engines/af_engine.mjs create --engine unity|godot|unreal --name <Name> [--path <folder>] [--pipeline urp|builtin]
 //                                             [--renderer forward_plus|mobile|gl_compatibility] [--with-mcp]
 //   node scripts/engines/af_engine.mjs link   --path <project folder> [--name <Name>]
-//   node scripts/engines/af_engine.mjs send   --project <name|folder> [--engine unity|godot] <package | export.zip> [...] [--build]
-//   node scripts/engines/af_engine.mjs test   --project <name|folder> [--engine unity|godot] [--shots] [--playmode] [--scene res://...]
+//   node scripts/engines/af_engine.mjs send   --project <name|folder> [--engine unity|godot|unreal] <package | export.zip> [...] [--build]
+//   node scripts/engines/af_engine.mjs test   --project <name|folder> [--engine unity|godot|unreal] [--shots] [--playmode] [--scene res://...]
 //   node scripts/engines/af_engine.mjs scaffold --project <name|folder> [--engine ...] --kind player --asset <asset_id> [--force]
-//   node scripts/engines/af_engine.mjs mcp-register        # UnityMCP + godot in Claude Code (user scope), idempotent
+//   node scripts/engines/af_engine.mjs mcp-register        # UnityMCP + godot + unreal-mcp in Claude Code (user scope), idempotent
 //
 // Projects are remembered in <engines home>/projects.json (name, engine, path, versions); the home is
 // ASTRA_ENGINES_HOME, C:\AstraForge\engines on Windows and <app>/data/engines elsewhere. Unity runs only in
 // -batchmode, Godot only --headless; Godot screenshots come from a window placed off-screen. When the project
 // is open in the Unity editor, batchmode is impossible: the result says so and points at the UnityMCP tools.
 // Godot is found via ASTRA_GODOT (paths-env idiom), then the Windows default, then PATH (godot, godot4).
-import { promises as fs, existsSync, readFileSync, rmSync } from 'node:fs';
+// Unreal: sources unreal/AstraForge; create makes a minimal .uproject with the plugin and PythonScriptPlugin
+// enabled; send puts af_unreal.json packages into <project>/AstraForgePackages/<asset_id>; test runs
+// UnrealEditor-Cmd -run=pythonscript over the importer with a per-project lock (.af_unreal.lock) so a second
+// background run refuses instead of fighting an open editor. Found via ASTRA_UNREAL (UnrealEditor-Cmd), then
+// ~/UnrealEngine / /opt/UnrealEngine / Epic Games, then PATH. The in-editor pass is unverified where no Unreal
+// Editor exists (docs/product/unreal.md) - the package contract is what this machine proves.
+import { promises as fs, existsSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,6 +38,8 @@ const UNITY_EDITORS = 'C:/Program Files/Unity/Hub/Editor';
 const UNITY_DEFAULT = '6000.0.64f1';
 export const GODOT_EXE = godotExe();
 const GODOT_MCP = process.env.ASTRA_GODOT_MCP || 'C:/Dorn/Dops media/tools/godot-mcp/build/index.js';
+const UNREAL_MCP = process.env.ASTRA_UNREAL_MCP || '';
+const UNREAL_DIRS = [process.env.ASTRA_UNREAL_ROOTS, path.join(os.homedir(), 'UnrealEngine'), '/opt/UnrealEngine', 'C:/Program Files/Epic Games'].filter(Boolean);
 const UVX = process.env.ASTRA_UVX || (IS_WIN ? 'C:/Users/doron/AppData/Local/hermes/bin/uvx.exe' : 'uvx');
 const CHECK_GD = path.join(HERE, 'godot', 'af_engine_check.gd');
 
@@ -77,7 +85,35 @@ function run(exe, args, { timeoutMs = 30 * 60 * 1000, cwd } = {}) {
 export function detectEngine(dir) {
   if (existsSync(path.join(dir, 'project.godot'))) return 'godot';
   if (existsSync(path.join(dir, 'ProjectSettings', 'ProjectVersion.txt')) && existsSync(path.join(dir, 'Assets'))) return 'unity';
+  if (findUproject(dir)) return 'unreal';
   return null;
+}
+
+/** The .uproject file name of an Unreal project folder (or null when the folder is not one). */
+const UPROJECT_RE = /\.uproject$/i;
+export function findUproject(dir) {
+  let names = [];
+  try { names = readdirSync(dir); } catch { /* unreadable folder */ }
+  return names.find((n) => UPROJECT_RE.test(n)) ?? null;
+}
+
+/** ASTRA_UNREAL wins (point at UnrealEditor-Cmd); then the usual engine folders; then PATH. */
+export function unrealExe() {
+  const env = process.env.ASTRA_UNREAL;
+  if (env && existsSync(env)) return env;
+  for (const base of UNREAL_DIRS) {
+    let versions = [];
+    try { versions = readdirSync(base, { withFileTypes: true }).filter((d) => d.isDirectory()).map((d) => d.name); } catch { continue; }
+    for (const v of versions.sort().reverse()) {
+      for (const rel of [['Engine', 'Binaries', 'Linux', 'UnrealEditor-Cmd'], ['Engine', 'Binaries', 'Win64', 'UnrealEditor-Cmd.exe']]) {
+        const p = path.join(base, v, ...rel);
+        if (existsSync(p)) return p;
+      }
+    }
+  }
+  const found = spawnSync(IS_WIN ? 'where' : 'which', ['UnrealEditor-Cmd'], { encoding: 'utf8' });
+  const p = found.status === 0 && found.stdout.split(/\r?\n/)[0];
+  return p && existsSync(p.trim()) ? p.trim() : null;
 }
 
 function unityVersionOf(dir) {
@@ -124,22 +160,36 @@ export async function resolveProject(ref, engine = null) {
   const byName = reg.projects.find((p) => p.name.toLowerCase() === String(ref).toLowerCase() && (!engine || p.engine === engine));
   const dir = byName ? byName.path : path.resolve(ref);
   const found = detectEngine(dir);
-  if (!found) throw new Error(`Not a Unity or Godot project: ${dir}`);
+  if (!found) throw new Error(`Not a Unity, Godot or Unreal project: ${dir}`);
   return { name: byName?.name || path.basename(dir), engine: found, path: dir };
 }
 
 // ------------------------------------------------------------------ create / link
 
 export async function createProject({ engine, name, dir, pipeline = 'urp', renderer = 'forward_plus', withMcp = false, log = () => {} }) {
-  if (!['unity', 'godot'].includes(engine)) throw new Error('engine: unity or godot.');
+  if (!['unity', 'godot', 'unreal'].includes(engine)) throw new Error('engine: unity, godot or unreal.');
   const projName = slug(name);
-  const target = path.resolve(dir || path.join(DEFAULT_PROJECTS_DIR, `${projName}_${engine === 'unity' ? 'Unity' : 'Godot'}`));
+  const target = path.resolve(dir || path.join(DEFAULT_PROJECTS_DIR, `${projName}_${({ unity: 'Unity', unreal: 'Unreal' })[engine] || 'Godot'}`));
   if (existsSync(target) && (await fs.readdir(target)).length) {
     const existing = detectEngine(target);
     if (existing) throw new Error(`The folder already holds a ${existing} project: ${target}. Bind it with link.`);
     throw new Error(`The folder is not empty: ${target}`);
   }
   await fs.mkdir(path.dirname(target), { recursive: true });
+  if (engine === 'unreal') {
+    // A minimal Unreal project needs no editor: .uproject + the AstraForge importer plugin + Python.
+    if (!existsSync(path.join(APP_DIR, 'unreal', 'AstraForge'))) throw new Error(`AstraForge importer plugin not found: ${path.join(APP_DIR, 'unreal', 'AstraForge')}`);
+    await fs.mkdir(path.join(target, 'Content'), { recursive: true });
+    await fs.mkdir(path.join(target, 'Config'), { recursive: true });
+    await copyTree(path.join(APP_DIR, 'unreal', 'AstraForge'), path.join(target, 'Plugins', 'AstraForge'));
+    await writeJson(path.join(target, `${projName}.uproject`), { FileVersion: 3, EngineAssociation: process.env.ASTRA_UNREAL_ENGINE || '',
+      Plugins: [{ Name: 'PythonScriptPlugin', Enabled: true }, { Name: 'AstraForge', Enabled: true }] });
+    await fs.writeFile(path.join(target, 'Config', 'DefaultEngine.ini'), '[/Script/EngineSettings.GameMapsSettings]\n');
+    await fs.writeFile(path.join(target, '.gitignore'), 'Binaries/\nDerivedDataCache/\nIntermediate/\nSaved/\nDerivedDataMetadata/\n.af_unreal.lock\n');
+    const entry = await saveProject({ name: name || projName, engine, path: target, unreal: { uproject: `${projName}.uproject`, plugin: '0.1.0' } });
+    log(`Unreal: created ${target} (AstraForge plugin enabled; no editor was run)`);
+    return { ...entry, editor: unrealExe(), note: unrealExe() ? null : 'Unreal Editor not found: create and send still work; test needs ASTRA_UNREAL (docs/product/unreal.md).' };
+  }
   if (engine === 'unity') {
     const exe = unityExe(UNITY_DEFAULT);
     if (!exe) throw new Error('Unity not found (Unity Hub/Editor or ASTRA_UNITY).');
@@ -181,7 +231,7 @@ export async function createProject({ engine, name, dir, pipeline = 'urp', rende
 export async function linkProject({ dir, name }) {
   const target = path.resolve(dir);
   const engine = detectEngine(target);
-  if (!engine) throw new Error(`Not a Unity or Godot project: ${target}`);
+  if (!engine) throw new Error(`Not a Unity, Godot or Unreal project: ${target}`);
   return saveProject({ name: name || path.basename(target), engine, path: target, linked: true,
     ...(engine === 'unity' ? { unity: unityVersionOf(target) } : { godot: '4.5' }) });
 }
@@ -211,6 +261,14 @@ async function findWith(root, marker, depth = 0, out = []) {
   return out;
 }
 
+async function copyTree(src, dst) {
+  await fs.mkdir(dst, { recursive: true });
+  for (const e of await fs.readdir(src, { withFileTypes: true })) {
+    const s = path.join(src, e.name); const d = path.join(dst, e.name);
+    if (e.isDirectory()) await copyTree(s, d); else if (!e.name.endsWith('.pyc')) await fs.copyFile(s, d);
+  }
+}
+
 async function copyOver(src, dst) {
   let n = 0;
   await fs.mkdir(dst, { recursive: true });
@@ -229,6 +287,31 @@ export async function sendPackages({ project, engine = null, sources, build = fa
     const { sendToUnity } = await unitySender();
     const res = await sendToUnity({ project: p.path, sources, build, withMcp, log });
     return { engine: 'unity', project: p, ...res };
+  }
+  if (p.engine === 'unreal') {
+    // source packages ride into the project; the importer turns them into assets during test
+    const packages = []; const tmp = [];
+    try {
+      for (const src of sources) {
+        let root = path.resolve(src);
+        if (root.toLowerCase().endsWith('.zip')) {
+          const t = await fs.mkdtemp(path.join(os.tmpdir(), 'af_unreal_send_'));
+          tmp.push(t);
+          root = await unzipTo(root, t);
+        }
+        const found = await findWith(root, 'af_unreal.json');
+        if (!found.length) throw new Error(`${src} has no af_unreal.json - not a studio Unreal package (profile unreal).`);
+        for (const dir of found) {
+          const man = await readJson(path.join(dir, 'af_unreal.json'), {});
+          const id = man?.asset?.id || path.basename(dir);
+          const dest = path.join(p.path, 'AstraForgePackages', id);
+          const files = await copyOver(dir, dest);
+          packages.push({ asset_id: id, dest, manifest: path.join(dest, 'af_unreal.json'), files });
+          log(`Package ${id}: ${files} files -> ${dest}`);
+        }
+      }
+    } finally { for (const t of tmp) await fs.rm(t, { recursive: true, force: true }); }
+    return { engine: 'unreal', project: p, packages, note: 'assets materialize on the next test run (UnrealEditor-Cmd -run=pythonscript)' };
   }
   if (!GODOT_EXE) throw new Error('Godot not found (ASTRA_GODOT or godot on PATH).');
   const packages = [];
@@ -281,6 +364,46 @@ export async function testProject({ project, engine = null, shots = false, scene
   const p = await resolveProject(project, engine);
   const outDir = path.join(ENGINES_HOME, 'reports', `${slug(p.name)}_${new Date().toISOString().replace(/[:.]/g, '-')}`);
   await fs.mkdir(outDir, { recursive: true });
+  if (p.engine === 'unreal') {
+    const exe = unrealExe();
+    if (!exe) return { ok: false, engine: 'unreal', project: p, report_dir: outDir,
+      error: 'Unreal Editor not found: install UE 5.x or set ASTRA_UNREAL to UnrealEditor-Cmd. The package contract itself is proven by tests/unreal.test.mjs at the data level (docs/product/unreal.md).' };
+    const lock = path.join(p.path, '.af_unreal.lock');
+    if (existsSync(lock)) return { ok: false, engine: 'unreal', project: p, report_dir: outDir,
+      error: `Another background Unreal run holds ${lock}; if none is running, delete the file and retry.` };
+    const pkgsRoot = path.join(p.path, 'AstraForgePackages');
+    const pkgDirs = existsSync(pkgsRoot) ? (await fs.readdir(pkgsRoot, { withFileTypes: true })).filter((d) => d.isDirectory()).map((d) => path.join(pkgsRoot, d.name)) : [];
+    const results = [];
+    await writeJson(lock, { pid: process.pid, started: now() });
+    try {
+      for (const dir of pkgDirs) {
+        const man = path.join(dir, 'af_unreal.json');
+        if (!existsSync(man)) continue;
+        const script = path.join(outDir, `import_${path.basename(dir)}.py`);
+        await fs.writeFile(script, [
+          'import sys',
+          `sys.path.insert(0, ${JSON.stringify(path.join(p.path, 'Plugins', 'AstraForge', 'Content', 'Python'))})`,
+          'import astraforge_unreal as au',
+          `report = au.import_package(${JSON.stringify(man)})`,
+          'from astraforge_unreal import check as ck',
+          `ck.check_package(${JSON.stringify(man)})`,
+          'print("AFUNREAL " + __import__("json").dumps(report))',
+        ].join('\n'));
+        log(`Unreal: importing ${path.basename(dir)} (UnrealEditor-Cmd -run=pythonscript)...`);
+        const r = run(exe, [path.join(p.path, findUproject(p.path)), '-run=pythonscript', `-script=${script}`,
+          '-nullrhi', '-unattended', '-nosplash', `-log-file=${path.join(outDir, `${path.basename(dir)}.log`)}`], { timeoutMs: 40 * 60 * 1000 });
+        const check = await readJson(path.join(dir, 'unreal_check.json'), null);
+        results.push({ asset: path.basename(dir), exit: r.code, seconds: r.seconds, check,
+          log: path.join(outDir, `${path.basename(dir)}.log`),
+          note: /already open|being used by another process|Failed to mount/i.test(r.out || '')
+            ? 'The project may be open in the editor: close it and retry - the log-lock guard refuses a second background run.' : null });
+      }
+    } finally {
+      rmSync(lock, { force: true });
+    }
+    return { ok: results.length > 0 && results.every((x) => x.check && x.check.ok), engine: 'unreal', project: p,
+      report_dir: outDir, results, ...(results.length ? {} : { note: 'no sent packages to test: run send first' }) };
+  }
   if (p.engine === 'unity') {
     if (unityOpen(p.path)) {
       return { ok: null, engine: 'unity', project: p, open_in_editor: true,
@@ -398,7 +521,10 @@ export async function status() {
     unity: { editors, default: editors.includes(UNITY_DEFAULT) ? UNITY_DEFAULT : editors.sort().at(-1) || null,
       license_modified: existsSync(lic) ? (await fs.stat(lic)).mtime.toISOString() : null },
     godot: { exe: GODOT_EXE, found: !!GODOT_EXE },
+    unreal: { exe: unrealExe(), found: !!unrealExe(), plugin: path.join(APP_DIR, 'unreal', 'AstraForge'),
+      note: unrealExe() ? null : 'Unreal Editor not found; packages build and travel anyway (docs/product/unreal.md).' },
     mcp: { astraforge: servers.includes('astraforge'), UnityMCP: servers.includes('UnityMCP'), godot: servers.includes('godot'),
+      'unreal-mcp': servers.includes('unreal-mcp'),
       note: servers.includes('UnityMCP') && servers.includes('godot') ? null : 'Engine MCP servers are missing: node scripts/engines/af_engine.mjs mcp-register' },
     projects: await listProjects(),
     registry: REGISTRY,
@@ -421,9 +547,17 @@ export async function registerMcp({ log = () => {} } = {}) {
     const r = cli(['mcp', 'add', '--scope', 'user', '--transport', 'stdio', 'godot', '-e', `GODOT_PATH=${GODOT_EXE}`, '--', 'node', GODOT_MCP]);
     done.push({ server: 'godot', ok: r.status === 0, out: (r.stdout || r.stderr || r.error?.message || '').trim().split('\n')[0] });
   }
+  if (!have.includes('unreal-mcp')) {
+    if (UNREAL_MCP && existsSync(UNREAL_MCP)) {
+      const r = cli(['mcp', 'add', '--scope', 'user', '--transport', 'stdio', 'unreal-mcp', '--', 'node', UNREAL_MCP]);
+      done.push({ server: 'unreal-mcp', ok: r.status === 0, out: (r.stdout || r.stderr || r.error?.message || '').trim().split('\n')[0] });
+    } else {
+      log('unreal-mcp: skipped - set ASTRA_UNREAL_MCP to the server entry point to register it (create/send/test work without MCP).');
+    }
+  }
   for (const d of done) log(`${d.server}: ${d.ok ? 'registered' : 'failed'} - ${d.out}`);
   if (!done.length) log('UnityMCP and godot are already registered.');
-  return { registered: done, servers: Object.keys(claudeConfig().mcpServers || {}).filter((s) => ['astraforge', 'UnityMCP', 'godot'].includes(s)) };
+  return { registered: done, servers: Object.keys(claudeConfig().mcpServers || {}).filter((s) => ['astraforge', 'UnityMCP', 'godot', 'unreal-mcp'].includes(s)) };
 }
 
 // ------------------------------------------------------------------ CLI
@@ -456,7 +590,7 @@ async function main(argv) {
     case 'scaffold': res = await scaffold({ project: flags.project, engine: flags.engine || null, kind: flags.kind || 'player', assetId: flags.asset, force: !!flags.force, log }); break;
     case 'mcp-register': res = await registerMcp({ log }); break;
     default:
-      console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 17).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
+      console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 13).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
       return cmd ? 2 : 0;
   }
   console.log(flags.json ? JSON.stringify(res, null, 2) : JSON.stringify(res, null, 1).slice(0, 6000));

@@ -935,6 +935,21 @@ const STEP_LIST = [
     },
   },
   {
+    step: 'unreal_package', module: 'export', title: 'Unreal Engine 5 package',
+    help: 'FBX + BaseColor/Normal(DirectX)/ORM textures + the af_unreal.json passport: the Python-only unreal/AstraForge plugin builds SM_/SK_, MI_ instances of M_AstraForge, UCX collision, sockets, LODs, animations and the A_ blueprint. Built on Linux; the in-editor pass runs wherever an Unreal Editor does (af_engine.mjs test).',
+    kinds: ALL_KINDS, inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
+    outputs: ['package', 'fbx', 'manifest', 'readme'], export: true,
+    params: {
+      asset_id: str(null, 'Asset ID', 'snake_case ASCII; filled in by the server from the passport name.', { auto: 'asset_slug' }),
+      profile: oneOf(['unreal'], 'unreal', 'Profile', ''),
+      source_forward: oneOf(['+Z', '-Z', null], null, 'Nose in GLB', 'Empty - by kind: ships, props, turrets -Z; characters, creatures +Z. The package turns the nose into UE +X.'),
+      lod: bool(true, 'LOD', 'Decimated _LOD1/_LOD2 for static meshes from lod_min_tris triangles.'),
+      lod_min_tris: int(3000, 0, 10000000, 'LOD from, triangles', ''),
+      lod_ratios: list(null, 'LOD ratios', 'Empty - [0.5, 0.2].', { items: { type: 'number' } }),
+      collision: oneOf(['auto', 'none'], 'auto', 'Collision', 'auto - *-colonly / *-convcolonly / COL_* meshes become UCX_ convex hulls and never render.'),
+    },
+  },
+  {
     step: 'unity_package', module: 'export', title: 'Unity package',
     help: 'FBX + textures + the af_unity.json passport: the com.astraforge.unity importer builds the prefab itself (URP/Built-in/HDRP materials, Humanoid or Generic, an Animator, a collider, LOD, sockets with effects, leaf wind, 8-direction sprites); checked in Unity without a window.',
     kinds: ALL_KINDS, inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
@@ -1080,6 +1095,7 @@ export const EXPORT_PROFILES = {
   heroes_gates: { step: 'render_sprites', params: { profile: 'heroes_gates', in_place: 'drift' } },
   iso8: { step: 'render_sprites', params: { profile: 'iso8' } },
   unity: { step: 'unity_package', params: { profile: 'unity' } },
+  unreal: { step: 'unreal_package', params: { profile: 'unreal' } },
 };
 
 // Structured params the per-param schema cannot describe: checked before the run, so a typo fails
