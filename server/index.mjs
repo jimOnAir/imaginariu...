@@ -14,11 +14,11 @@ import { promises as fs,existsSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { init,root,data,readJson,writeJson,isId,assetInfo,saveAsset } from './storage.mjs';
-import { configSchema,generationSchema,chatSchema,loadConfig } from './schema.mjs';
+import { configSchema,generationSchema,chatSchema,loadConfig,generationGraphs } from './schema.mjs';
 import { keyStatus,setKey } from './vault.mjs';
 import { llmChat } from './llm.mjs';
 import { loadJobs,allJobs,getJob,createJob,cancelJob,validateJobMesh } from './jobs.mjs';
-import { startRuntime,stopOwnedRuntime } from './runtime.mjs';
+import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import {prepareConcept} from './preprocess.mjs';
 import {optimizeMeshes} from './optimize.mjs';
@@ -53,6 +53,20 @@ app.get('/api/status',asyncRoute(async(req,res)=>{
 }));
 app.post('/api/runtime/start',asyncRoute(async(req,res)=>res.json(await startRuntime())));
 app.post('/api/runtime/pixal3d/start',asyncRoute(async(req,res)=>res.json(await startPixal3dRuntime())));
+// generator surface (behavior per ADR-0004, ticket 06): the graphs this studio runs, the node
+// classes the connected ComfyUI offers, and a restart of the owned generation service.
+app.get('/api/runtime/graphs',asyncRoute(async(req,res)=>res.json({graphs:generationGraphs()})));
+app.get('/api/runtime/nodes',asyncRoute(async(req,res)=>{
+ const want=String(req.query.contains||'').toLowerCase();
+ try{
+  const r=await fetch(config.comfyUrl+'/object_info',{signal:AbortSignal.timeout(8000)});
+  if(!r.ok)return res.json({online:false,count:0,classes:[]});
+  const info=await r.json();
+  const classes=Object.keys(info).filter((c)=>!want||c.toLowerCase().includes(want)).sort();
+  res.json({online:true,count:classes.length,classes});
+ }catch{res.json({online:false,count:0,classes:[]});}
+}));
+app.post('/api/runtime/restart',asyncRoute(async(req,res)=>res.json(await restartRuntime())));
 app.post('/api/assets',upload.single('file'),asyncRoute(async(req,res)=>{
  const file=req.file;if(!file)throw new Error('No file selected.');const ext=path.extname(file.originalname).toLowerCase();
  if(!['.png','.jpg','.jpeg','.webp','.glb','.obj','.stl'].includes(ext))throw new Error('Supported formats: PNG, JPG, WEBP, GLB, OBJ and STL.');

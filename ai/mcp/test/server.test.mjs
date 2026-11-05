@@ -68,6 +68,17 @@ before(async () => {
     if (p === '/api/views' && req.method === 'POST') return send(res, 201, { id: UUID, frontAssetId: JSON.parse(raw.toString()).imageId, slots: {} });
     if (p === `/api/views/${UUID}/generate`) return send(res, 202, { id: UUID, task: { status: 'running', provider: JSON.parse(raw.toString()).provider } });
     if (p === `/api/views/${UUID}`) return send(res, 200, { id: UUID, canBuild: true, task: { status: 'completed' } });
+    if (p === '/api/runtime/graphs') return send(res, 200, { graphs: [
+      { id: 'hunyuan-single-view', title: 'Shape from one concept picture (Hunyuan3D-2)', usedWhen: 'generate_3d with an imageId, shapeModel default', checkpointSetting: 'shapeCheckpoint', classTypes: ['AstraMarchingCubes', 'Hunyuan3Dv2Conditioning', 'ImageOnlyCheckpointLoader', 'SaveGLB'] },
+      { id: 'pixal3d-single-view', title: 'Shape from the front cut-out (Pixal3D, separate ComfyUI on :8191)', usedWhen: 'generate_3d with engine=pixal3d and one view', checkpointSetting: 'TencentARC/Pixal3D', classTypes: ['SaveGLB'] },
+    ] });
+    if (p === '/api/runtime/nodes') {
+      const q = (u.searchParams.get('contains') || '').toLowerCase();
+      const all = ['CLIPTextEncode', 'CheckpointLoaderSimple', 'Hunyuan3Dv2Conditioning', 'ImageOnlyCheckpointLoader', 'KSampler', 'SaveGLB', 'SaveImage', 'VAEDecodeHunyuan3D'];
+      const classes = q ? all.filter((c) => c.toLowerCase().includes(q)) : all;
+      return send(res, 200, { online: true, count: classes.length, classes });
+    }
+    if (p === '/api/runtime/restart' && req.method === 'POST') return send(res, 200, { running: true, restarted: true, pid: 4242 });
     if (p === '/api/forge/assets/a3/export') return send(res, 202, { jobId: 'fj2', version: 'v002' });
     if (p === '/api/forge/jobs/fj2') return send(res, 200, { id: 'fj2', status: 'completed', steps: [] });
     if (p === '/api/forge/assets/a3') return send(res, 200, { id: 'a3', name: 'Новый', kind: 'humanoid', versions: [{ version: 'v002', status: 'completed', steps: ['godot_package'] }], exports: [{ profile: 'godot', version: 'v002', jobId: 'fj2', path: 'C:/lib/pack_godot.zip', url: '/api/forge/assets/a3/files/v002/x/pack_godot.zip', bytes: 7 }] });
@@ -388,3 +399,66 @@ test('studio_start refuses to start a non-local studio', async () => {
     assert.match(text(r), /не отвечает|только локальную/);
   }, { ASTRA_URL: 'http://192.0.2.1:3210' });
 });
+
+// - - - - - the generator_* family (ticket 06) - - - - -
+
+test('generator_* scope: exactly the Linux subset is exposed, the deferred/excluded verbs are absent', () => withClient(async (c) => {
+  const { tools } = await c.listTools();
+  const names = tools.map((t) => t.name);
+  assert.deepEqual(names.filter((n) => n.startsWith('generator_')).sort(),
+    ['generator_graphs', 'generator_nodes', 'generator_restart', 'generator_run', 'generator_status']);
+  // the engine-management verbs deferred with the AstraForge Engine and the owner-gated graph edit:
+  for (const absent of ['generator_plugins', 'generator_plugin_new', 'generator_plugin_install', 'generator_plugin_toggle',
+    'generator_graph_edit', 'generator_learn_status', 'generator_learn_run', 'generator_learn_activate']) {
+    assert.ok(!names.includes(absent), `must not exist on this branch: ${absent}`);
+  }
+}));
+
+test('generator_status: backend focus - ComfyUI readiness, Pixal3D, GPU, queue counts', () => withClient(async (c) => {
+  const s = json(await c.callTool({ name: 'generator_status', arguments: {} }));
+  assert.equal(s.comfy.online, false);
+  assert.equal(s.comfy.ready, false);
+  assert.equal(s.gpu.name, 'RTX 4070');
+  assert.deepEqual(s.queue, { running: 0, queued: 0 }); // fake jobs: one completed, one failed
+  assert.equal(typeof s.modelDownload, 'boolean');
+  assert.equal(s.pixal3d.running, false);
+}));
+
+test('generator_nodes: online flag, contains filter reaches the studio, limit/offset page', () => withClient(async (c) => {
+  seen.length = 0;
+  const all = json(await c.callTool({ name: 'generator_nodes', arguments: {} }));
+  assert.equal(all.online, true);
+  assert.equal(all.total, 8);
+  assert.ok(seen.some((s) => s.method === 'GET' && s.url === '/api/runtime/nodes'));
+  const filtered = json(await c.callTool({ name: 'generator_nodes', arguments: { contains: 'hunyuan' } }));
+  assert.ok(seen.some((s) => s.url.startsWith('/api/runtime/nodes?contains=hunyuan')), 'the filter is a studio-side probe');
+  assert.ok(filtered.total >= 1 && filtered.items.every((n) => n.toLowerCase().includes('hunyuan')), JSON.stringify(filtered.items));
+  const paged = json(await c.callTool({ name: 'generator_nodes', arguments: { limit: 2, offset: 1 } }));
+  assert.deepEqual(paged.items, ['CheckpointLoaderSimple', 'Hunyuan3Dv2Conditioning']);
+}));
+
+test('generator_graphs: the graphs this backend runs, with their node classes', () => withClient(async (c) => {
+  const g = json(await c.callTool({ name: 'generator_graphs', arguments: {} }));
+  assert.deepEqual(g.map((x) => x.id), ['hunyuan-single-view', 'pixal3d-single-view']);
+  assert.ok(g[0].classTypes.includes('SaveGLB') && g[0].usedWhen, 'each graph says when it runs and what it runs');
+}));
+
+test('generator_run: starts through the job layer, appears in jobs_list, wait follows it to completion', () => withClient(async (c) => {
+  seen.length = 0;
+  const r = json(await c.callTool({ name: 'generator_run', arguments: { prompt: 'рыцарь в синих доспехах', wait: true, timeoutSec: 5 } }));
+  const posted = JSON.parse(seen.find((s) => s.method === 'POST' && s.url === '/api/jobs').body);
+  assert.equal(posted.prompt, 'рыцарь в синих доспехах');
+  assert.equal(r.status, 'completed', 'wait resolved through the job layer');
+  assert.ok(r.asset, 'the finished model rides the job record');
+  const inList = json(await c.callTool({ name: 'jobs_list', arguments: { status: 'completed' } }));
+  assert.ok(inList.items.some((j) => j.id === r.id), 'the run is visible in the shared job list');
+  const bad = await c.callTool({ name: 'generator_run', arguments: {} });
+  assert.equal(bad.isError, true); assert.match(text(bad), /imageId|prompt/);
+}));
+
+test('generator_restart: drives POST /api/runtime/restart and relays the service answer', () => withClient(async (c) => {
+  seen.length = 0;
+  const r = json(await c.callTool({ name: 'generator_restart', arguments: {} }));
+  assert.equal(r.restarted, true); assert.equal(r.pid, 4242);
+  assert.ok(seen.some((s) => s.method === 'POST' && s.url === '/api/runtime/restart'));
+}));

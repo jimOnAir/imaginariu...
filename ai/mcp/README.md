@@ -67,6 +67,11 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | | `asset_download` | скачать `/api/assets/:id`, `/api/exports/:id` или любой `/api/...` в папку |
 | Генерация 3D | `generate_3d` | `POST /api/jobs`: imageId / prompt / viewSetId, движок pixal3d / hunyuan / auto, quality, seed |
 | | `jobs_list`, `job_get`, `job_cancel` | список заданий, одно задание (с `wait`), отмена |
+| Генеративный сервис | `generator_status` | бэкенд генерации: ComfyUI (готовность чекпойнта, чекпойнты), Pixal3D, GPU/RAM, докачка, счётчики очереди |
+| | `generator_nodes` | классы узлов отвечающего ComfyUI (`contains`, `limit`/`offset`) |
+| | `generator_graphs` | графы этого бэкенда: концепт SDXL, Hunyuan (по картинке / 2.1 / по ракурсам), Pixal3D — с классами узлов |
+| | `generator_run` | генерация через `POST /api/jobs` с `wait`; задание видно в `jobs_list`, итог с `asset` и `validation` |
+| | `generator_restart` | перезапуск ComfyUI, поднятого студией; чужой на порту не трогает — ответ это говорит |
 | Ракурсы | `views_status` | готовность провайдеров codex и mvadapter |
 | | `views_create` | набор ракурсов из концепта |
 | | `views_generate` | достроить ракурсы (codex / mvadapter, slots, seed…) |
@@ -101,6 +106,17 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | VFX | `vfx_tools` | каталог 31 генератора с доступностью |
 | | `vfx_textures` | готовые текстуры; `importName` копирует в ассеты студии |
 | | `vfx_tool_launch` | запустить инструмент на компьютере владельца |
+
+### Границы семейства `generator_*`
+
+Генеративным сервисом этой ветки управляет ComfyUI (плюс отдельный ComfyUI Pixal3D на :8191), и семья
+перечисляет именно его. Эти глаголы здесь сознательно не реализованы и не появятся:
+
+| Глагол | Причина |
+|---|---|
+| `generator_plugins`, `generator_plugin_new`, `generator_plugin_install`, `generator_plugin_toggle` | управление самим генеративным движком относится к отложенной линии AstraForge Engine (ADR-0004); ComfyUI студии работает с зафиксированным набором узлов (`--disable-all-custom-nodes`), узлы и модели ставит `installer/install.sh`, не MCP |
+| `generator_graph_edit` | правка сохраняемых графов завязана на owner-режим, а механизм лицензий и owner-режим в этой ветке исключены |
+| `generator_learn_status`, `generator_learn_run`, `generator_learn_activate` | самообучение и LoRA отложены вместе с линией движка |
 
 Ресурсы MCP: `astraforge://status` (health + status студии, JSON) и `astraforge://skill` (текст `ai/skills/astraforge/SKILL.md`).
 

@@ -286,6 +286,73 @@ tool('job_get',
 
 tool('job_cancel', 'Отменяет задание генерации 3D (POST /api/jobs/:id/cancel).', { id: z.string().uuid() }, ({ id }) => post(`/api/jobs/${enc(id)}/cancel`));
 
+// ------------------------------------------------------------------ generator: управление генеративным сервисом
+// Scope boundary (ADR-0004, ticket 06). This branch runs ComfyUI (plus the separate Pixal3D
+// ComfyUI on :8191) as the generation backend, so the family covers observing and driving THAT
+// service: status, nodes, graphs, run, restart. The engine-management verbs of the deferred
+// AstraForge Engine line (generator_plugins, generator_plugin_new, generator_plugin_install,
+// generator_plugin_toggle, generator_learn_status, generator_learn_run, generator_learn_activate)
+// and the owner-gated generator_graph_edit are deliberately absent here - the MCP README and the
+// astraforge-integrator skill list them by name with the reason, so an agent discovers the
+// boundary from docs instead of trial and error.
+
+tool('generator_status',
+  'Состояние генеративного сервиса за студией: ComfyUI (порт из настроек) - отвечает ли, готов ли чекпойнт формы, какие чекпойнты загружены; отдельно Pixal3D; видеокарта и RAM; идёт ли докачка модели; сколько заданий в работе и в очереди. От studio_status отличается фокусом на бэкенде генерации, а не на студии целиком.',
+  {}, async () => {
+    const st = await get('/api/status', { timeout: 15000 });
+    const jobs = await get('/api/jobs').catch(() => []);
+    return clean({
+      comfy: st.comfy ? { online: !!st.comfy.online, ready: !!st.comfy.ready, checkpoints: st.comfy.checkpoints } : undefined,
+      pixal3d: st.pixal3d ? pick(st.pixal3d, ['installed', 'running', 'url', 'missing', 'message']) : undefined,
+      gpu: st.gpu ? pick(st.gpu, ['name', 'vram_total', 'vram_free']) : null,
+      ram: st.ram, modelDownload: !!st.modelDownload,
+      queue: { running: jobs.filter((j) => j.status === 'running').length, queued: jobs.filter((j) => j.status === 'queued').length },
+    });
+  });
+
+tool('generator_nodes',
+  'Классы узлов ComfyUI, отвечающего на адресе из настроек (GET /api/runtime/nodes, проба /object_info): имена отсортированы, есть число. contains фильтрует по подстроке (например Hunyuan или SaveGLB). Когда ComfyUI молчит - online=false и пустой список, это не ошибка: сервис поднимет generator_restart или первая же генерация.',
+  { contains: z.string().max(60).optional().describe('Фильтр по подстроке имени узла.'), limit: LIMIT, offset: OFFSET },
+  async ({ contains, limit, offset }) => {
+    const r = await get('/api/runtime/nodes' + (contains ? `?contains=${enc(contains)}` : ''));
+    const out = page(r.classes || [], { limit, offset });
+    return { online: !!r.online, total: r.count ?? out.total, ...out };
+  });
+
+tool('generator_graphs',
+  'Графы генерации, которые этот бэкенд умеет запускать (GET /api/runtime/graphs): концепт по описанию (SDXL), форма Hunyuan3D по одной картинке, вариант 2.1, форма по набору ракурсов (2mv), форма Pixal3D в один и несколько видов. Для каждого - когда применяется и классы узлов. Каталог построен из самих билдеров графа; запуск - через generator_run / generate_3d, не по имени графа.',
+  {}, async () => (await get('/api/runtime/graphs')).graphs);
+
+tool('generator_run',
+  'Запуск генерации через слой заданий студии (POST /api/jobs) - тот же путь, что кнопка «Генерировать»: по imageId, prompt или viewSetId; движок pixal3d / hunyuan / auto; quality, seed и прочее как в generate_3d. Задание сразу видно в jobs_list; с wait=true дожидается completed / failed / cancelled и возвращает job с asset и validation (предупреждения проверки сетки не теряются).',
+  {
+    imageId: z.string().uuid().optional().describe('Концепт-картинка (id из asset_upload).'),
+    prompt: z.string().max(4000).optional().describe('Описание, если нет картинки: сначала строится концепт (SDXL).'),
+    viewSetId: z.string().uuid().optional().describe('Набор ракурсов: геометрия по нескольким видам.'),
+    engine: z.enum(['pixal3d', 'hunyuan', 'auto']).default('hunyuan').describe('Бэкенд формы; auto выбирает по готовности.'),
+    quality: z.enum(['draft', 'standard', 'high']).optional(),
+    shapeModel: z.enum(['default', 'hunyuan21']).optional(),
+    meshLevel: z.number().min(-1).max(1).optional(),
+    backgroundMode: z.enum(['auto', 'alpha', 'keep']).optional(),
+    hazeFilter: z.enum(['auto', 'on', 'off']).optional(),
+    seed: z.number().int().min(0).max(2147483647).optional(),
+    wait: WAIT, timeoutSec: TIMEOUT,
+  },
+  async ({ wait, timeoutSec, ...body }) => {
+    if (!body.imageId && !body.viewSetId && !(body.prompt || '').trim()) throw new StudioError('Нужен imageId, viewSetId или prompt.');
+    let job = await post('/api/jobs', clean(body));
+    let timedOut = false;
+    if (wait) {
+      const r = await poll(() => findJob(job.id), jobDone, { timeoutSec });
+      job = r.value; timedOut = r.timedOut;
+    }
+    return { ...slimJob(job), ...(timedOut ? { waitTimedOut: true, note: 'Ожидание закончилось, генерация продолжается на сервере.' } : {}) };
+  });
+
+tool('generator_restart',
+  'Перезапуск генеративного сервиса (POST /api/runtime/restart): ComfyUI, который подняла сама студия, останавливается и запускается заново на тех же папках; идёт до 60 с. Если на порту чужой ComfyUI (запущен вне студии) - его не трогают, ответ это говорит. Если сервис был выключен - он просто стартует. Помогает при заевшей очереди, OOM или после установки чекпойнта вручную.',
+  {}, async () => post('/api/runtime/restart', null, { timeout: 90000 }));
+
 // ------------------------------------------------------------------ views (/api/views)
 
 tool('views_status', 'Какие провайдеры ракурсов готовы: codex (картинки через ChatGPT Codex) и mvadapter (ComfyUI) (GET /api/views/status).', {}, () => get('/api/views/status'));

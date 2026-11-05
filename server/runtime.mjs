@@ -22,3 +22,23 @@ export async function startRuntime(){
  return {running:true,pid:child.pid};
 }
 export function stopOwnedRuntime(){stopOwnedPixal3d();if(child){if(process.platform==='win32')spawn('taskkill',['/PID',String(child.pid),'/T','/F'],{windowsHide:true});else child.kill();}}
+// Restart of the generation service (behavior per ADR-0004, ticket 06). The child this studio
+// spawned is killed and the service comes back on the same folders; an instance that was only
+// reused (started by its owner elsewhere) is never killed - the answer says so; nothing running
+// is simply started. The port is polled until it goes quiet before the spawn, so the new
+// ComfyUI never fights the dying one, and the kill waits for 'exit' (or 10 s) to keep the pid file honest.
+export async function restartRuntime(){
+ if(child){
+  const old=child;
+  await new Promise((done)=>{const t=setTimeout(done,10000);old.once('exit',()=>{clearTimeout(t);done();});try{old.kill();}catch{clearTimeout(t);done();}});
+ }
+ for(let i=0;i<20;i++){
+  let awake=false;
+  try{const r=await fetch('http://127.0.0.1:8190/system_stats',{signal:AbortSignal.timeout(600)});awake=r.ok;}catch{/* refused: port free */}
+  if(!awake)break;
+  await new Promise((r)=>setTimeout(r,500));
+ }
+ const res=await startRuntime();
+ if(res.reused)return {running:true,restarted:false,external:true,note:'The ComfyUI on port 8190 was started outside this studio; it is left running untouched - restart it the way it was started.'};
+ return {running:true,restarted:true,pid:res.pid};
+}

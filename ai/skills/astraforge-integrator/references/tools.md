@@ -10,6 +10,7 @@ Claude Code в scope user — их видит любая сессия. Пров�
 |---|---|---|
 | Студия | `studio_status`, `studio_start`, `studio_open` | начало работы; запуск сервера 3210 (ComfyUI 8188 владельца не трогается) |
 | Генерация 3D | `asset_upload`, `generate_3d`, `jobs_list`, `job_get`, `job_cancel` | картинка или текст → GLB (Pixal3D / Hunyuan, локально) |
+| Генеративный сервис | `generator_status`, `generator_nodes`, `generator_graphs`, `generator_run`, `generator_restart` | бэкенд-диагностика (ComfyUI, GPU, очередь), классы узлов, список графов, запуск с ожиданием, перезапуск сервиса; границы семьи — раздел «Границы семейства generator_*» в `ai/mcp/README.md` |
 | Ракурсы | `views_status`, `views_create`, `views_generate`, `views_get`, `views_cancel` | виды сзади и сбоку по одной картинке, затем 3D по четырём видам |
 | Кузница | `forge_steps`, `forge_presets`, `forge_assets`, `forge_asset_show`, `forge_create`, `forge_run`, `forge_job(s)`, `forge_job_cancel`, `forge_batch`, `clips_list`, `clips_import`, `sculpt`, `sculpt_transfer` | чистка, риг, клипы, предметы, ткань, корабли — скилл **astraforge** |
 | Экспорт | `forge_export` (`godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`, `unreal`), `forge_export_fetch` | пакет под движок; `out` — ждать и скачать |

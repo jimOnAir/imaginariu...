@@ -119,3 +119,19 @@ export function sdxlWorkflow(prompt,checkpoint,seed,prefix){return {
  '5':{class_type:'KSampler',inputs:{model:['1',0],positive:['2',0],negative:['3',0],latent_image:['4',0],seed,steps:25,cfg:6,sampler_name:'dpmpp_2m',scheduler:'karras',denoise:1}},
  '6':{class_type:'VAEDecode',inputs:{samples:['5',0],vae:['1',2]}},
  '7':{class_type:'SaveImage',inputs:{images:['6',0],filename_prefix:prefix}}};}
+// The generation graphs of this studio as data (behavior per ADR-0004, ticket 06): what the
+// generation service can actually run, enumerated by calling the builders themselves, so the
+// catalog cannot drift from the code. Agents read it through GET /api/runtime/graphs (the MCP
+// generator_graphs tool); generations are started through /api/jobs, never by graph name.
+const classTypesOf=(wf)=>[...new Set(Object.values(wf).map((n)=>n.class_type))].sort();
+export function generationGraphs(){
+ const probe={checkpoint:'probe.safetensors',seed:1,prefix:'probe/'};
+ return [
+  {id:'sdxl-concept',title:'Concept picture from a prompt (SDXL)',usedWhen:'generate_3d with only a prompt',checkpointSetting:'imageCheckpoint',classTypes:classTypesOf(sdxlWorkflow('probe',probe.checkpoint,probe.seed,probe.prefix))},
+  {id:'hunyuan-single-view',title:'Shape from one concept picture (Hunyuan3D-2)',usedWhen:'generate_3d with an imageId, shapeModel default',checkpointSetting:'shapeCheckpoint',classTypes:classTypesOf(hunyuanWorkflow('probe.png',probe.checkpoint,'standard',probe.seed,probe.prefix))},
+  {id:'hunyuan-2.1',title:'Shape from one concept picture (Hunyuan3D-2.1: bigger latent, chunked decode)',usedWhen:'generate_3d with shapeModel=hunyuan21',checkpointSetting:'hunyuan_3d_v2.1.safetensors',classTypes:classTypesOf(hunyuanWorkflow('probe.png','hunyuan_3d_v2.1.safetensors','high',probe.seed,probe.prefix))},
+  {id:'hunyuan-multiview',title:'Shape from a view set (front required, 2mv checkpoint)',usedWhen:'generate_3d with a viewSetId from views_create',checkpointSetting:MV_CHECKPOINT,classTypes:classTypesOf(hunyuanMultiViewWorkflow({front:'f.png',left:'l.png'},probe.checkpoint,'standard',probe.seed,probe.prefix))},
+  {id:'pixal3d-single-view',title:'Shape from the front cut-out (Pixal3D, separate ComfyUI on :8191)',usedWhen:'generate_3d with engine=pixal3d and one view',checkpointSetting:PIXAL3D_MODEL,classTypes:classTypesOf(pixal3dWorkflow({front:'f.png'}))},
+  {id:'pixal3d-multiview',title:'Shape from cut-out views (Pixal3D, azimuths 0/90/180/270)',usedWhen:'generate_3d with engine=pixal3d and side views',checkpointSetting:PIXAL3D_MODEL,classTypes:classTypesOf(pixal3dWorkflow({front:'f.png',left:'l.png',back:'b.png',right:'r.png'}))},
+ ];
+}
