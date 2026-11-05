@@ -107,5 +107,5 @@ full deviations table live in `docs/product/acceptance-0.5.1.md`.
 - **Audit outcome discipline.** Three of seven feature tickets were rejected by the audit gate at
   first pass (a release-note sentence, one transcribed hex constant, one copied helper) and
   re-landed only after original rework; the FAIL→fix→PASS trail is part of the release record.
-  Pre-existing ADR-0.3-era strings flagged by the auditors were carried to the retroactive audit
+  Pre-existing ADR-0003-era strings flagged by the auditors were carried to the retroactive audit
   (ticket 09) rather than silently kept.
