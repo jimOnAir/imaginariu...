@@ -961,7 +961,7 @@ const STEP_LIST = [
       pipeline: oneOf(['urp', 'builtin', 'hdrp'], 'urp', 'Render pipeline', 'A hint for the README: the importer takes the shaders of the project\'s active pipeline itself (URP Lit, Standard, HDRP/Lit).'),
       unity_forward: oneOf(['+Z', 'keep'], '+Z', 'Forward', '+Z - the prefab looks along transform.forward (the -Z nose of a GLB turns 180 degrees); keep - as in the GLB.'),
       rig: oneOf(['auto', 'humanoid', 'generic'], 'auto', 'Skeleton', 'auto - Mixamo bones go to Humanoid, the rest to Generic.'),
-      collider: oneOf(['auto', 'box', 'capsule', 'convex', 'mesh', 'none'], 'auto', 'Collider', 'auto - a capsule when rigged, a tree gets a trunk capsule, the rest a box.'),
+      collider: oneOf(['auto', 'box', 'capsule', 'convex', 'mesh', 'none'], 'auto', 'Collider', 'auto - meshes named *-colonly / *-convcolonly / COL_* become UCX_ convex hulls on the FBX (Unity builds colliders from them, the hulls never render); without hulls: a capsule when rigged, a tree gets a trunk capsule, the rest a box.'),
       lod: bool(true, 'LOD', 'Decimated LOD1/LOD2 for static models from lod_min_tris triangles; the leaves are shared by all levels.'),
       lod_min_tris: int(3000, 0, 10000000, 'LOD from, triangles', ''),
       lod_ratios: list(null, 'LOD ratios', 'Empty - [0.5, 0.2].', { items: { type: 'number' } }),

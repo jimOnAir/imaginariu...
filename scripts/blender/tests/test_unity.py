@@ -196,3 +196,81 @@ def test_unity_batchmode_check():
     for k in ("unity_materials_no_pink", "unity_size_matches_godot", "unity_placement_axes", "unity_lod_group",
               "unity_fx_attached", "unity_sockets_found"):
         assert names[k]["ok"], (k, names[k])
+
+
+def _hull_glb(folder):
+    """A cube 'Hull' plus three collision sources by name: 'Hull-colonly' (a bigger box),
+    'Hull-convcolonly' (a dense icosphere), 'COL_SIMPLE' (a loose plane). The fix under test:
+    the sources are collider input only - UCX hulls replace them in the FBX and they never
+    render, add material rows, or inflate the package bounds."""
+    af.reset_scene()
+    bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.5))
+    body = bpy.context.active_object
+    body.name = "Hull"
+    body.data.materials.append(_material("BodyMat"))
+    bpy.ops.mesh.primitive_cube_add(size=1.6, location=(0, 0, 0.5))
+    c1 = bpy.context.active_object
+    c1.name = "Hull-colonly"
+    c1.data.materials.append(_material("HullMat"))
+    bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=3, radius=0.6, location=(0, 0, 0.5))
+    c2 = bpy.context.active_object
+    c2.name = "Hull-convcolonly.001"   # the Blender copy-suffix variant must still read as a hull
+    c2.data.materials.append(_material("HullMat"))
+    bpy.ops.mesh.primitive_plane_add(size=2.0, location=(2.0, 0, 0.5))
+    c3 = bpy.context.active_object
+    c3.name = "COL_SIMPLE"
+    c3.data.materials.append(_material("HullMat"))
+    path = os.path.join(folder, "hulls.glb")
+    af.export_glb(path, animations=False)
+    return path
+
+
+def _hull_run(d, glb, **params):
+    p = {"asset_id": "test_hulls", "kind": "item", "validate": False, "lod": False}
+    p.update(params)
+    return _run({"step": "unity_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out-%s" % p.get("collider", "auto")), "params": p})
+
+
+def test_unity_colonly_hulls_never_render():
+    d = _tmp("af_unity_hulls_")
+    glb = _hull_glb(d)
+    res = _hull_run(d, glb)
+    failed = [c["name"] for c in res["checks"] if not c["ok"] and c.get("severity") == "error"]
+    assert not failed, failed
+    with open(res["outputs"]["manifest"], encoding="utf-8") as fh:
+        pkg = json.load(fh)
+    col = pkg["collider"]
+    assert col["type"] == "ucx", col
+    assert {h["source"] for h in col["hulls"]} == {"Hull-colonly", "Hull-convcolonly.001", "COL_SIMPLE"}
+    for h in col["hulls"]:
+        assert h["mesh"] == "Hull" and h["ucx"].startswith("UCX_Hull_") and h["convex"]
+        assert 0 < h["triangles"] <= 64, h          # Unity's convex budget for UCX meshes
+        assert len({h["ucx"] for h in col["hulls"]}) == 3
+    assert next(h for h in col["hulls"] if h["source"] == "Hull-convcolonly.001")["kind"] == "convex"
+    assert next(h for h in col["hulls"] if h["source"] == "Hull-colonly")["kind"] == "simple"
+    assert [m["name"] for m in pkg["materials"]] == ["BodyMat"]      # the hull material never packages
+    assert abs(pkg["size_m"][0] - 1.0) < 0.01 and abs(pkg["size_m"][2] - 1.0) < 0.01  # body bounds only
+    with open(res["outputs"]["fbx"], "rb") as fh:
+        fbx = fh.read()
+    for gone in (b"Hull-colonly", b"Hull-convcolonly.001", b"COL_SIMPLE"):
+        assert gone not in fbx, gone                                # the sources never travel
+    assert b"UCX_Hull_" in fbx                                      # the hulls do, as Unity expects
+
+
+def test_unity_hull_collider_param_variants():
+    d = _tmp("af_unity_hulls2_")
+    glb = _hull_glb(d)
+    res_box = _hull_run(d, glb, collider="box")
+    with open(res_box["outputs"]["manifest"], encoding="utf-8") as fh:
+        pkg = json.load(fh)
+    assert pkg["collider"]["type"] == "box"                         # explicit primitive respected
+    assert any("collision hulls" in w for w in res_box["warnings"]) # ... and the override is said
+    with open(res_box["outputs"]["fbx"], "rb") as fh:
+        assert b"UCX_" not in fh.read()                             # no hulls when asked for a box
+    res_none = _hull_run(d, glb, collider="none")
+    with open(res_none["outputs"]["manifest"], encoding="utf-8") as fh:
+        pkg = json.load(fh)
+    assert pkg["collider"]["type"] == "none"
+    with open(res_none["outputs"]["fbx"], "rb") as fh:
+        fbx = fh.read()
+    assert b"UCX_" not in fbx and b"Hull-colonly" not in fbx        # 'none': nothing of the hulls travels

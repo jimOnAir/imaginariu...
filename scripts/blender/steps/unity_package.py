@@ -15,7 +15,9 @@ params:
                  | 'keep' (as in the GLB)
   rig            'auto' (Mixamo / Unity humanoid bone names -> humanoid, other skeletons -> generic) |
                  'humanoid' | 'generic'
-  collider       'auto' (rigged: capsule; a tree: trunk capsule; the rest: box) | box | capsule |
+  collider       'auto' (collision hulls by name win: *-colonly / *-convcolonly / COL_* meshes
+                 become UCX_<mesh>_## convex hulls in the FBX and never render; without hulls:
+                 rigged - capsule, a tree - trunk capsule, the rest - box) | box | capsule |
                  convex | mesh | none
   lod            true (default): static meshes of at least lod_min_tris triangles get decimated
                  LOD1/LOD2 copies (lod_ratios); wind meshes are shared by all levels; lod_screen =
@@ -333,6 +335,70 @@ def _make_lods(meshes, wind_mats, ratios, min_tris):
     return levels, tris
 
 
+# - - - collision hulls (behavior per ADR-0004, ticket 07) - - - - - - - - - - - - - - - - - -
+# Meshes named by the studio's authoring convention are collider input, never content:
+# "*-colonly" and "*-convcolonly" (the Godot-side names the branch already accepts) and hulls
+# under the "COL_" prefix; a Blender ".001"-style copy suffix after the convention is still a
+# hull. Unity's own FBX collision naming is UCX_<render mesh>_## - convex and
+# within 64 triangles - and the importer consumes such meshes as colliders without rendering them.
+# So each accepted hull becomes a UCX convex hull beside its render target: it rides the same FBX
+# with the same world matrix (orientation matches the parent, as in the other export steps), and
+# the source name never reaches the package as geometry. The importer post-build pass re-checks
+# the rule (AFPrefabBuilder "ucx"), so hulls stay invisible even on import settings that do not
+# consume the UCX convention.
+COL_HULL_RE = re.compile(r"-(?:conv)?colonly(?:\.\d+)?$|^COL_", re.I)
+UCX_MAX_TRIS = 64
+
+
+def is_hull_name(name):
+    return bool(COL_HULL_RE.search(name or ""))
+
+
+def _hull_target(src_name, meshes):
+    """The render mesh a hull belongs to: the name with the convention stripped, else the biggest."""
+    base = re.sub(r"-(?:conv)?colonly(?:\.\d+)?$", "", src_name, flags=re.I)
+    base = re.sub(r"^COL_", "", base, flags=re.I).strip("_- ")
+    low = base.lower()
+    hit = next((o for o in meshes if low and low in o.name.lower()), None)
+    return hit or max(meshes, key=lambda o: len(o.data.polygons))
+
+
+def _ucx_hulls(sources, meshes, warnings):
+    """UCX convex hulls for the FBX; one per source, bound to its render target by name."""
+    hulls, taken = [], {}
+    for src in sources:
+        target = _hull_target(src.name, meshes)
+        idx = taken.get(target.name, 0)
+        taken[target.name] = idx + 1
+        hull = bpy.data.objects.new("UCX_%s_%02d" % (target.name, idx), src.data.copy())
+        bpy.context.collection.objects.link(hull)
+        hull.matrix_world = src.matrix_world.copy()         # the parent's orientation, unchanged
+        bpy.context.view_layer.update()
+        for o in bpy.context.view_layer.objects:
+            o.select_set(False)
+        hull.select_set(True)
+        bpy.context.view_layer.objects.active = hull
+        bpy.ops.object.mode_set(mode="EDIT")
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.mesh.convex_hull()
+        bpy.ops.object.mode_set(mode="OBJECT")
+        tris, guard = sum(len(p.vertices) - 2 for p in hull.data.polygons), 0
+        while tris > UCX_MAX_TRIS and guard < 5:            # Unity's convex budget for UCX
+            m = hull.modifiers.new("dec", "DECIMATE")
+            m.ratio = max(0.05, UCX_MAX_TRIS / max(tris, 1))
+            bpy.context.view_layer.objects.active = hull
+            bpy.ops.object.modifier_apply(modifier=m.name)
+            tris = sum(len(p.vertices) - 2 for p in hull.data.polygons)
+            guard += 1
+        if tris > UCX_MAX_TRIS:
+            warnings.append("%s stays over %d triangles after decimation (%d)" % (hull.name, UCX_MAX_TRIS, tris))
+        hull.data.name = hull.name
+        hulls.append({"mesh": target.name, "ucx": hull.name, "source": src.name,
+                      "kind": "convex" if re.search(r"convcolonly(?:\.\d+)?$", src.name, re.I) else "simple",
+                      "convex": True, "triangles": int(tris)})
+    return hulls
+
+
 def _collider(mode, meshes, wind_mats, rig, rotate, kind):
     """The collider in the prefab root's space (Unity axes, metres)."""
     pts = xl.world_points(meshes)
@@ -603,6 +669,13 @@ def run(req):
         objs = [o for o in bpy.data.objects]
         arms = [o for o in objs if o.type == "ARMATURE"]
         meshes = xl.render_meshes(objs)
+        # collision hulls by the studio's authoring convention (*-colonly, *-convcolonly, COL_*):
+        # collider input only - they never join the render set, materials, bounds or LODs
+        hull_sources = [o for o in meshes if is_hull_name(o.name)]
+        if hull_sources:
+            meshes = [o for o in meshes if o not in hull_sources]
+            if not meshes:
+                raise ValueError("the GLB has only collision hulls (-colonly / COL_...): nothing to render")
         src_fwd, fwd_from, guessed = gp._source_forward(p, manifest, "godot", info)
         if guessed:
             warnings.append("source_forward %s %s; pass params.kind or inputs.manifest" % (src_fwd, fwd_from))
@@ -650,6 +723,7 @@ def run(req):
         pts = xl.world_points(meshes)
         _arm_restore(saved)
         lo, hi = pts.min(axis=0), pts.max(axis=0)
+        render_extent = sorted(float(hi[i] - lo[i]) for i in range(3))   # content only: no hulls
         ua, ub = turn(to_unity(lo), rotate), turn(to_unity(hi), rotate)
         bmin = [min(a, b) for a, b in zip(ua, ub)]
         bmax = [max(a, b) for a, b in zip(ua, ub)]
@@ -745,7 +819,19 @@ def run(req):
             pkg["lod"] = {"levels": [], "screen": [], "tris": []}
         saved = _arm_rest(arms)
         lod0 = [o for o in meshes]
-        pkg["collider"] = _collider(p.get("collider", "auto"), lod0, wind_mats, rig, rotate, kind)
+        mode = p.get("collider", "auto")
+        ucx_hulls = _ucx_hulls(hull_sources, lod0, warnings) if hull_sources and mode == "auto" else []
+        if ucx_hulls and mode == "auto":
+            # authored hulls are the intent: Unity builds MeshColliders from the UCX meshes,
+            # the primitive colliders of _collider() stay unused for this package
+            pkg["collider"] = {"type": "ucx", "hulls": ucx_hulls,
+                               "note": "UCX_<mesh>_## convex hulls ride the FBX and never render"}
+        else:
+            if hull_sources and mode != "none":
+                warnings.append("params.collider=%r asks for a primitive: the collision hulls are dropped without replacement" % mode)
+            pkg["collider"] = _collider(mode, lod0, wind_mats, rig, rotate, kind)
+        for src in hull_sources:                            # the source names never reach the FBX
+            bpy.data.objects.remove(src, do_unlink=True)
         _arm_restore(saved)
 
         # FBX
@@ -763,11 +849,15 @@ def run(req):
                       "sockets": len(sockets), "fx": len(fx_bind), "lod_tris": lod_tris if lod_levels else None,
                       "collider": pkg["collider"]["type"], "size_m": pkg["size_m"], "tris": info["tris"],
                       "model_rotation_y": pkg["model_rotation_y"], "fbx_mb": round(os.path.getsize(fbx_path) / 2**20, 2)})
-        # Godot and Unity must agree on the size: the glTF (x, y, z) extents are the Unity (x, y, z) extents
-        g = sorted(info["size_gltf_m"])
+        # Godot and Unity must agree on the size: the glTF (x, y, z) extents are the Unity (x, y, z)
+        # extents. With collision hulls in the GLB the raw glTF measure includes geometry the package
+        # deliberately drops, so the render set's own extents become the reference (the hull bounds
+        # are cross-checked in the selftest: a hull must not inflate the package).
+        g = render_extent if hull_sources else sorted(info["size_gltf_m"])
         u = sorted(pkg["size_m"])
         checks.append(af.check("size_matches_gltf", all(abs(a - b) <= max(0.01 * max(g), 1e-4) for a, b in zip(g, u)),
-                               {"unity": pkg["size_m"], "gltf": info["size_gltf_m"]}, "<= 1 %"))
+                               {"unity": pkg["size_m"], "gltf": g, "gltf_source": "hulls excluded" if hull_sources else "glTF"},
+                               "<= 1 %"))
 
     # sprites
     if inputs.get("sprites"):

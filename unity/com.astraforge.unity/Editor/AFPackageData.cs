@@ -45,14 +45,25 @@ namespace AstraForge.Editor
         public int[] tris = new int[0];
     }
 
+    [Serializable] public class AFHullData
+    {
+        public string mesh;                               // the render mesh this hull bounds
+        public string ucx;                                // the FBX object name of the UCX_<mesh>_## hull
+        public string source;                             // the authored name it came from (-colonly / COL_*)
+        public string kind = "simple";                    // simple | convex (the authoring suffix)
+        public bool convex = true;                        // UCX hulls are always convex
+        public int triangles;
+    }
+
     [Serializable] public class AFColliderData
     {
-        public string type = "none";                  // none | box | capsule | mesh | convex
+        public string type = "none";                  // none | box | capsule | mesh | convex | ucx
         public float[] center = { 0, 0, 0 };
         public float[] size = { 0, 0, 0 };
         public float radius, height;
         public int direction = 1;
         public string[] nodes = new string[0];
+        public AFHullData[] hulls = new AFHullData[0]; // type "ucx": convex UCX hulls riding the FBX
         public string note;
     }
 

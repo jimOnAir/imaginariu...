@@ -282,7 +282,17 @@ namespace AstraForge.Editor
                     bool hasCol = col == "box" ? inst.GetComponent<BoxCollider>() != null
                         : col == "capsule" ? inst.GetComponent<CapsuleCollider>() != null
                         : inst.GetComponentsInChildren<MeshCollider>().Length > 0;
-                    Add(ar, "collider", hasCol, col, col);
+                    var colNote = col;
+                    if (col == "ucx")
+                    {
+                        // the second half of the rule: a UCX hull that still renders is a defect,
+                        // whether the builder or the importer was supposed to silence it
+                        var renderers = inst.GetComponentsInChildren<MeshRenderer>(true);
+                        var shown = pkg.collider.hulls.Where(h => renderers.Any(mr => mr.enabled && mr.gameObject.name == h.ucx)).Select(h => h.ucx).ToList();
+                        hasCol &= shown.Count == 0;
+                        colNote = pkg.collider.hulls.Length + " hull(s)" + (shown.Count > 0 ? ", rendering: " + string.Join(", ", shown) : ", none rendered");
+                    }
+                    Add(ar, "collider", hasCol, col, colNote);
                 }
                 if (pkg.lod.levels.Length > 1)
                 {

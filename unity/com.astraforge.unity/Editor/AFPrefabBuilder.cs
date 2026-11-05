@@ -244,6 +244,25 @@ namespace AstraForge.Editor
                         mc.convex = c.type == "convex";
                     }
                     break;
+                case "ucx":
+                    // Unity's FBX collision convention: UCX_<mesh>_## is collision geometry and
+                    // never renders. When the import settings did not consume the hulls, enforce
+                    // both halves of that rule by hand: renderer off, convex MeshCollider on.
+                    foreach (var h in c.hulls)
+                    {
+                        var ht = FindDeep(model.transform, h.ucx);
+                        var hmf = ht != null ? ht.GetComponent<MeshFilter>() : null;
+                        if (hmf == null) continue;                      // consumed as collision by the importer
+                        var hr = ht.GetComponent<MeshRenderer>();
+                        if (hr != null) hr.enabled = false;             // a hull is never seen
+                        if (ht.GetComponent<MeshCollider>() == null)
+                        {
+                            var hmc = ht.gameObject.AddComponent<MeshCollider>();
+                            hmc.sharedMesh = hmf.sharedMesh;
+                            hmc.convex = true;
+                        }
+                    }
+                    break;
             }
         }
     }
