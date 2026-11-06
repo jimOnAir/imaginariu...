@@ -58,8 +58,16 @@ and `backgroundMode: keep` is refused — TripoSG always works on the cutout.
 ## Hardware
 
 Roughly **4 GB VRAM** for the pipeline in fp16 (upstream quotes ~20 s per shape on an 8 GB card;
-load dominates on a subprocess). The auto rule keeps TripoSG off small cards until the
-installer/auto ticket refines it; explicit `engine: "triposg"` always tries.
+the live 5070 ran a full job in ~30 s). The auto rule is the low-VRAM seam: with TripoSG installed,
+`engine: "auto"` resolves to TripoSG on cards up to **9216 MiB** and to Pixal3D/Hunyuan above it
+(view-set jobs never land on TripoSG). `/api/status` carries the current verdict as `shapeAuto`
+(engine + why), and the installer checklist knows the row too: `full` always offers TripoSG, and
+on a ≤9216 MiB card the quick preset trades the two multi-view Hunyuan models for it. The
+`ASTRA_VRAM_MIB` environment variable overrides the card reading (tests, odd setups).
+
+Installing it: `installer/install.sh -Only triposg,triposgvae,triposgdino` — one row in the
+checklist, three resumable components (Python env + pinned code + transformer / VAE / DINOv2
+weights, each sha256-pinned and verified on every run).
 
 ## Not here (yet, or never)
 

@@ -5,12 +5,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines,
+  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB,
 } from '../installer/af_scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -49,6 +49,7 @@ function mkS(over = {}) {
     hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss,
     mv: { node: false, weights: false, config: false, pkgs: false, ready: false, offer: false, reason: 'needs an NVIDIA graphics card', warn: '', bytes: 0 },
     p3: { dir: '/p3', exists: false, engine: false, weights: false, complete: false, offer: false, reason: 'needs an NVIDIA RTX graphics card', warn: '', missingBytes: 0, diskNeed: 0 },
+    ts: { dir: '', env: false, code: false, weights: false, complete: false, offer: false, reason: '', missingBytes: 0 },
     free: 200e9, ...over,
   };
 }
@@ -78,13 +79,19 @@ test('empty machine with an RTX card: preset letters, dependencies, the mandator
 });
 
 test('the checklist rows match the profiles of installer/manifest.json (the presets field contract)', () => {
-  const man = mkS().man;
-  const items = scanItems(mkS());
-  for (const it of items) {
-    const only = it.only.split(',').filter(Boolean);
-    for (const [p, letter] of [['quick', 'q'], ['full', 'f'], ['lite', 'l']]) {
-      const inProfile = only.some((id) => man.profiles[p].includes(id));
-      assert.equal(it.presets.includes(letter), inProfile, `${it.id}/${p}: presets=${it.presets}`);
+  // TripoSG profile rule (0.6.0 wave ticket 02): 'full' always carries it; a quick preset on a
+  // <=9216 MiB card trades hy2/hymv for it - the expectation below mirrors exactly that.
+  const expected = (vram) => { const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'manifest.json'), 'utf8')); const low = vram > 0 && vram <= TRIPOSG_AUTO_MAX_VRAM_MIB; return {
+      quick: [...(low ? man.profiles.quick.filter((i) => i !== 'hy2' && i !== 'hymv') : man.profiles.quick), ...(low ? ['triposg'] : [])],
+      full: [...man.profiles.full, 'triposg'], lite: man.profiles.lite }; };
+  for (const vram of [12288, 8192]) {
+    const prof = expected(vram);
+    for (const it of scanItems(mkS({ vram }))) {
+      const only = it.only.split(',').filter(Boolean);
+      for (const [p, letter] of [['quick', 'q'], ['full', 'f'], ['lite', 'l']]) {
+        const inProfile = only.some((id) => prof[p].includes(id));
+        assert.equal(it.presets.includes(letter), inProfile, `${it.id}/${p}@${vram}: presets=${it.presets}`);
+      }
     }
   }
 });
@@ -163,6 +170,57 @@ test('the ##ITEM lines: 13 tab-separated fields, tabs and newlines inside values
   const f = lines.find((l) => l.split('\t')[1] === 'hy2').split('\t');
   assert.equal(f[1], 'hy2');
   assert.equal(Number(f[6]), mkS().man.models.hy2.size);
+});
+
+// - - - - - - - - - TripoSG (0.6.0 wave, ticket 02) - - - - - - - - - - - - - - - - - - - - - -
+
+test('triposgScan: venv + pinned code + exact-weight snapshot is complete; a removed venv is not', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'af-ts-'));
+  const p = (...a) => path.join(dir, ...a);
+  const w = (rel, size) => { mkdirSync(path.dirname(p(rel)), { recursive: true }); writeFileSync(p(rel), ''); truncateSync(p(rel), size); };   // sparse
+  w('models/TripoSG/transformer/diffusion_pytorch_model.safetensors', 5758280104);
+  w('models/TripoSG/vae/diffusion_pytorch_model.safetensors', 970685468);
+  w('models/TripoSG/image_encoder_dinov2/model.safetensors', 1217522888);
+  mkdirSync(path.dirname(p('src/TripoSG/triposg/pipelines/pipeline_triposg.py')), { recursive: true });
+  writeFileSync(p('models/TripoSG/model_index.json'), '{}');
+  writeFileSync(p('src/TripoSG/triposg/pipelines/pipeline_triposg.py'), '');
+  mkdirSync(p('.venv/bin'), { recursive: true });
+  writeFileSync(p('.venv/bin/python'), '#!/bin/sh\n'); chmodSync(p('.venv/bin/python'), 0o755);
+  const r = triposgScan(mkS({ env: { ASTRA_TRIPOSG_DIR: dir } }));
+  assert.ok(r.complete, r.reason);
+  assert.equal(r.missingBytes, 0);
+  rmSync(p('.venv/bin/python'));
+  const r2 = triposgScan(mkS({ env: { ASTRA_TRIPOSG_DIR: dir } }));
+  assert.equal(r2.complete, false); assert.equal(r2.env, false); assert.equal(r2.code, true); assert.equal(r2.offer, true);
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('triposgScan offer gates: no NVIDIA card, or a card under ~4 GB, declines the row honestly', () => {
+  const absent = { env: { ASTRA_TRIPOSG_DIR: path.join(tmpdir(), 'af-ts-absent-' + Math.random()) } };
+  assert.match(triposgScan(mkS({ ...absent, gpu: '' })).reason, /NVIDIA graphics card/);
+  assert.match(triposgScan(mkS({ ...absent, vram: 2048 })).reason, /2 GB/);
+  assert.equal(triposgScan(mkS({ ...absent, vram: 4096 })).offer, true, '4 GB is enough to offer the low-VRAM path');
+});
+
+test('the triposg checklist row: full always carries it; a <=9216 MiB card swaps it into quick for hy2/hymv', () => {
+  let items = scanItems(mkS());   // 12288 MiB by default
+  assert.equal(row(items, 'triposg').presets.includes('f'), true);
+  assert.equal(row(items, 'triposg').presets.includes('q'), false, 'big card: quick keeps the multi-view pair');
+  assert.equal(row(items, 'hy2').presets.includes('q'), true);
+  items = scanItems(mkS({ vram: TRIPOSG_AUTO_MAX_VRAM_MIB }));
+  assert.equal(row(items, 'triposg').presets.includes('q'), true);
+  assert.equal(row(items, 'hy2').presets.includes('q'), false);
+  assert.equal(row(items, 'hymv').presets.includes('q'), false);
+  assert.deepEqual(row(items, 'triposg').only.split(','), ['triposg', 'triposgvae', 'triposgdino']);
+});
+
+test('the triposg state reaches install.sh (S_TS) and survives the shell eval', () => {
+  const s = mkS();
+  s.ts = { dir: '/d/ts', env: true, code: false, weights: false, complete: false, offer: true, reason: '', missingBytes: 123 };
+  const state = stateLines(s);
+  assert.match(state, /S_TS=''/.test(state) ? /S_TS=''/ : /S_TS='yes'/);
+  assert.match(state, /S_TS_DIR='\/d\/ts'/);
+  assert.match(state, /S_TS_BYTES='123'/);
 });
 
 test('the state block for install.sh: shell-safe quotes and the status strings of the checklist', () => {

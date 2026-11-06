@@ -6,7 +6,7 @@ import { existsSync, readFileSync, openSync, closeSync, promises as fs } from 'n
 import path from 'node:path';
 import { root, data } from './storage.mjs';
 import { localUrl } from './schema.mjs';
-import { triposgConfig, triposgInstallState } from './triposg.mjs';
+import { triposgConfig, triposgInstallState, autoShape } from './triposg.mjs';
 
 export const DEFAULT_PIXAL3D_DIR = 'C:/AstraForge/ComfyUI-Pixal3D';
 export const DEFAULT_PIXAL3D_URL = 'http://127.0.0.1:8191';
@@ -75,8 +75,10 @@ export function pixal3dInstallState(cfg = pixal3dConfig(), exists = existsSync) 
 /**
  * Which engine runs a request: 'hunyuan' (default of the API), 'pixal3d', or 'auto' = Pixal3D when it is installed, else Hunyuan.
  * An explicit 'pixal3d' without an installation is an error with the reason in Russian (code pixal3d_not_installed).
+ * opts = { vram, hasViews } shape the auto resolution (ticket 02): auto prefers TripoSG on a
+ * low-VRAM card when installed, never for view-set jobs; without opts the card is read live.
  */
-export function resolveEngine(requested = 'hunyuan', cfg = pixal3dConfig(), exists = existsSync) {
+export function resolveEngine(requested = 'hunyuan', cfg = pixal3dConfig(), exists = existsSync, opts = {}) {
   const wanted = requested || 'hunyuan';
   if (!['auto', 'hunyuan', 'pixal3d', 'triposg'].includes(wanted)) throw new Error('Unknown 3D engine: ' + wanted + ' (expected pixal3d, hunyuan, triposg or auto).');
   if (wanted === 'hunyuan') return 'hunyuan';
@@ -86,7 +88,8 @@ export function resolveEngine(requested = 'hunyuan', cfg = pixal3dConfig(), exis
     return 'triposg';
   }
   const state = pixal3dInstallState(cfg, exists);
-  if (wanted === 'auto') return state.installed ? 'pixal3d' : 'hunyuan';
+  if (wanted === 'auto')
+    return autoShape({ triposgInstalled: triposgInstallState(triposgConfig(), exists).installed, pixal3dInstalled: state.installed, ...opts }).engine;
   if (!state.installed) throw Object.assign(new Error(state.message), { code: 'pixal3d_not_installed' });
   return 'pixal3d';
 }

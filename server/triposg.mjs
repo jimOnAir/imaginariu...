@@ -5,7 +5,7 @@
 // VAST-AI/TripoSG project (code and weights), vendored as a commit-pinned clone + an HF snapshot.
 // Background removal stays the studio's own: the worker gets the prepared RGBA concept and the
 // upstream pipeline needs no segmentation net when a real alpha channel arrives.
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { root, data } from './storage.mjs';
@@ -60,6 +60,38 @@ export function triposgInstallState(cfg = triposgConfig(), exists = existsSync) 
 export function triposgStatus({ cfg = triposgConfig(), exists = existsSync } = {}) {
   const state = triposgInstallState(cfg, exists);
   return { installed: state.installed, running: false, dir: cfg.dir, missing: state.missing, message: state.message, estimate: TRIPOSG_ESTIMATE };
+}
+
+/**
+ * The auto rule (ticket 02): TripoSG is the low-VRAM shape path - 'auto' prefers it on cards at
+ * or under this size when it is installed. The 9216 MiB seam keeps it off big cards: an 8 GiB
+ * card reports ~8192 MiB and lands inside the band, a 12 GB card stays with the richer engines.
+ * ASTRA_VRAM_MIB overrides the reading (tests and odd setups).
+ */
+export const TRIPOSG_AUTO_MAX_VRAM_MIB = 9216;
+
+/** The card's VRAM in MiB: the ASTRA_VRAM_MIB seam, else nvidia-smi; null when neither answers. */
+export function vramMiB({ env = process.env, spawnFn = spawnSync } = {}) {
+  const seam = Number(env.ASTRA_VRAM_MIB);
+  if (Number.isFinite(seam) && seam > 0) return seam;
+  try {
+    const out = spawnFn('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 5000 });
+    const v = parseInt(String(out.stdout || '').split('\n')[0], 10);
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch { return null; }
+}
+
+/**
+ * What engine:'auto' resolves to right now - one decision shared by resolveEngine and the
+ * /api/status shapeAuto row so the UI never claims something other than what the queue does.
+ * View-set jobs pass hasViews:true: TripoSG shapes a single image, the view sets stay with the
+ * engines that read several.
+ */
+export function autoShape({ vram = vramMiB(), triposgInstalled = false, pixal3dInstalled = false, hasViews = false } = {}) {
+  if (!hasViews && triposgInstalled && vram !== null && vram <= TRIPOSG_AUTO_MAX_VRAM_MIB)
+    return { engine: 'triposg', reason: `low-VRAM card (${vram} MiB ≤ ${TRIPOSG_AUTO_MAX_VRAM_MIB}) with TripoSG installed - shape runs there` };
+  if (pixal3dInstalled) return { engine: 'pixal3d', reason: 'Pixal3D is installed' };
+  return { engine: 'hunyuan', reason: 'the studio 3D engine on 8190' };
 }
 
 /** The worker's argv; exported so a test can pin the meshLevel parity without a GPU. */

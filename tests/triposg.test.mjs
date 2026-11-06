@@ -13,8 +13,8 @@ import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { facesForLevel, triposgArgs, triposgConfig, triposgInstallState, triposgStatus, generateTripoSG, TRIPOSG_REQUIREMENTS } from '../server/triposg.mjs';
-import { resolveEngine } from '../server/pixal3d.mjs';
+import { facesForLevel, triposgArgs, triposgConfig, triposgInstallState, triposgStatus, generateTripoSG, TRIPOSG_REQUIREMENTS, autoShape, vramMiB, TRIPOSG_AUTO_MAX_VRAM_MIB } from '../server/triposg.mjs';
+import { resolveEngine, PIXAL3D_REQUIREMENTS } from '../server/pixal3d.mjs';
 import { generationSchema } from '../server/schema.mjs';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'af-triposg-'));
@@ -77,6 +77,43 @@ test('generationSchema accepts engine=triposg and still refuses unknown engines'
   const base = { prompt: 'a knight', seed: 1 };
   assert.equal(generationSchema.parse({ ...base, engine: 'triposg' }).engine, 'triposg');
   assert.throws(() => generationSchema.parse({ ...base, engine: 'midjourney' }));
+});
+
+// - - - - - - - - - auto rule (ticket 02) - - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+test('autoShape: TripoSG takes the low-VRAM band when installed; never for view sets or without a reading', () => {
+  const T = { triposgInstalled: true, pixal3dInstalled: true };
+  assert.equal(autoShape({ ...T, vram: 8192 }).engine, 'triposg');
+  assert.equal(autoShape({ ...T, vram: TRIPOSG_AUTO_MAX_VRAM_MIB }).engine, 'triposg', 'boundary is inclusive');
+  assert.equal(autoShape({ ...T, vram: TRIPOSG_AUTO_MAX_VRAM_MIB + 1 }).engine, 'pixal3d');
+  assert.equal(autoShape({ ...T, vram: 8192, hasViews: true }).engine, 'pixal3d', 'view sets keep multi-view engines');
+  assert.equal(autoShape({ ...T, vram: null }).engine, 'pixal3d', 'no card reading -> the old behavior');
+  assert.equal(autoShape({ triposgInstalled: false, pixal3dInstalled: false, vram: 4096 }).engine, 'hunyuan');
+  assert.match(autoShape({ ...T, vram: 8192 }).reason, /8192/, 'the reason names the reading');
+});
+
+test('vramMiB: ASTRA_VRAM_MIB wins; a missing nvidia-smi reads null, not a crash', () => {
+  assert.equal(vramMiB({ env: { ASTRA_VRAM_MIB: '12288' } }), 12288);
+  assert.equal(vramMiB({ env: { ASTRA_VRAM_MIB: '0' }, spawnFn: () => { throw new Error('no such command'); } }), null);
+  assert.equal(vramMiB({ env: {}, spawnFn: () => ({ stdout: '8192 MiB\n' }) }), 8192, 'nvidia-smi nounits line');
+});
+
+test('resolveEngine(auto) with opts: installed TripoSG + small card wins; big card and views keep Pixal3D', () => {
+  const tsDir = path.join(tmp, 'ts-full');
+  const p3Dir = path.join(tmp, 'p3-full');
+  const need = new Set([...TRIPOSG_REQUIREMENTS.map(([rel]) => path.join(tsDir, rel)),
+    ...PIXAL3D_REQUIREMENTS.map(([rel]) => path.join(p3Dir, rel))]);
+  for (const f of need) { mkdirSync(path.dirname(f), { recursive: true }); writeFileSync(f, 'x'); }
+  process.env.ASTRA_TRIPOSG_DIR = tsDir;
+  try {
+    const p3cfg = { dir: p3Dir, url: 'http://127.0.0.1:8191', port: 8191 };
+    const ex = (p) => need.has(p) || p === p3Dir || p === tsDir;
+    assert.equal(resolveEngine('auto', p3cfg, ex, { vram: 8192 }), 'triposg');
+    assert.equal(resolveEngine('auto', p3cfg, ex, { vram: 12288 }), 'pixal3d');
+    assert.equal(resolveEngine('auto', p3cfg, ex, { vram: 8192, hasViews: true }), 'pixal3d');
+    assert.equal(resolveEngine('auto', { dir: path.join(tmp, 'p3-none'), url: 'http://127.0.0.1:8191', port: 8191 }, ex, { vram: 8192 }), 'triposg',
+      'no Pixal3D at all and a small card: still TripoSG, never hunyuan-on-a-tiny-card');
+  } finally { delete process.env.ASTRA_TRIPOSG_DIR; }
 });
 
 // - - - - - - - - - worker spawn contract (fake child, no python needed) - - - - - - - - - - - -
@@ -162,13 +199,15 @@ async function boot() {
 }
 after(() => child?.kill());
 
-test('GET /api/status carries the triposg row (installed:false with the missing list, honest)', async () => {
+test('GET /api/status carries the triposg row (installed:false with the missing list, honest) and a shapeAuto verdict', async () => {
   await boot();
   const st = await (await fetch(base + '/api/status')).json();
   assert.equal(st.triposg.installed, false);
   assert.equal(st.triposg.running, false);
   assert.equal(st.triposg.missing.length, TRIPOSG_REQUIREMENTS.length);
   assert.match(st.triposg.message, /TripoSG is not ready/);
+  assert.ok(['hunyuan', 'pixal3d', 'triposg'].includes(st.shapeAuto.engine), JSON.stringify(st.shapeAuto));
+  assert.equal(typeof st.shapeAuto.reason, 'string');
 });
 
 test('POST /api/jobs engine=triposg is refused before the queue with the install instruction', async () => {

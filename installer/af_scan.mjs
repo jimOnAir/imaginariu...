@@ -30,7 +30,7 @@ export const APP_ROOT = path.resolve(HERE, '..');
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
 export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'sdxl',
-  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'flux2', 'qwenimg'];
+  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg'];
 
 const G_P = 'Programs';
 const G_3D = '3D: shape and views';
@@ -45,6 +45,17 @@ const SIZE = { node: 32000000, npm: 250000000, blender: 401000000, comfy: 600000
 const P3_ENGINE_DOWNLOAD = 5.5e9;
 const P3_ENGINE_DISK = 12e9;
 const MV_PKG_BYTES = 0.2e9;                       // the MvPkgBytes estimate of mvadapter.ps1
+// TripoSG (docs/product/triposg.md, ticket 02): standalone install in runtime/triposg - own venv
+// (the CUDA torch wheels dominate the download), the commit-pinned MIT clone, the HF snapshot
+// weights with the exact sizes install.sh pins and verifies.
+const TS_ENV_DOWNLOAD = 900e6;                            // torch cu128 + the requirements set
+const TS_CODE_BYTES = 16411924;                           // the pinned commit archive
+const TS_WEIGHTS = [
+  ['transformer/diffusion_pytorch_model.safetensors', 5758280104],
+  ['vae/diffusion_pytorch_model.safetensors', 970685468],
+  ['image_encoder_dinov2/model.safetensors', 1217522888],
+];
+export const TRIPOSG_AUTO_MAX_VRAM_MIB = 9216;            // the same seam as server/triposg.mjs
 export const VLM = 'qwen3-vl:8b';
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8').replace(/^﻿/, ''));
@@ -241,6 +252,29 @@ export function p3Scan(s) {
   return r;
 }
 
+/** TripoSG state (docs/product/triposg.md): venv + pinned clone + snapshot weights on disk. */
+export function triposgScan(s) {
+  const r = { dir: '', env: false, code: false, weights: false, complete: false, offer: true, reason: '', missingBytes: 0 };
+  const cands = s.env.ASTRA_TRIPOSG_DIR
+    ? [s.env.ASTRA_TRIPOSG_DIR]
+    : candidates('triposgDir', 'ASTRA_TRIPOSG_DIR', s.cfg, s.env, path.join(s.rt, 'triposg'));
+  const probe = (dir) => {
+    const p = { dir, env: isExe(path.join(dir, '.venv', 'bin', 'python')), code: existsSync(path.join(dir, 'src', 'TripoSG', 'triposg', 'pipelines', 'pipeline_triposg.py')) };
+    p.missingBytes = TS_WEIGHTS.reduce((n, [rel, sz]) => n + (sizeOf(path.join(dir, 'models', 'TripoSG', rel)) === sz ? 0 : sz), 0);
+    p.weights = p.missingBytes === 0 && existsSync(path.join(dir, 'models', 'TripoSG', 'model_index.json'));
+    return p;
+  };
+  const probed = cands.map(probe);
+  const p = probed.find((x) => x.env && x.code && x.weights) || probed[0];
+  Object.assign(r, { dir: p.dir, env: p.env, code: p.code, weights: p.weights, missingBytes: p.missingBytes });
+  r.complete = r.env && r.code && r.weights;
+  if (!r.complete) {
+    if (!s.gpu) { r.offer = false; r.reason = 'needs an NVIDIA graphics card'; }
+    else if (s.vram > 0 && s.vram < 4000) { r.offer = false; r.reason = `video memory is ${Math.round(s.vram / 1024)} GB, TripoSG needs about 4 GB`; }
+  }
+  return r;
+}
+
 /**
  * Scan the machine. opts = { root, env, noGpu, fail }. Throws when the check fails
  * (ASTRA_INSTALL_SCAN_FAIL=1 / opts.fail) or the folder is not the application folder -
@@ -332,6 +366,7 @@ export function scanComponents(opts = {}) {
   s.vlm = s.llms.includes(VLM);
   s.mv = mvScan(s);
   s.p3 = p3Scan(s);
+  s.ts = triposgScan(s);
   s.free = freeOn(root);
   return s;
 }
@@ -341,8 +376,18 @@ export function scanItems(s) {
   const { man, noGpu } = s;
   const items = [];
   const gpuNote = noGpu ? "won't work without an NVIDIA GPU" : '';
+  // the 0.6.0-wave profile rules for TripoSG (ticket 02): 'full' always carries it; the quick
+  // preset on a low-VRAM card (the same ≤9216 MiB seam as the auto rule) trades the two
+  // multi-view Hunyuan models for it. manifest.json stays the Windows pin it is.
+  const lowVram = s.vram > 0 && s.vram <= TRIPOSG_AUTO_MAX_VRAM_MIB;
+  const profileIds = (p) => {
+    let ids = man.profiles[p] || [];
+    if (p === 'full') ids = [...ids, 'triposg'];
+    else if (p === 'quick' && lowVram) ids = [...ids.filter((i) => i !== 'hy2' && i !== 'hymv'), 'triposg'];
+    return ids;
+  };
   const profilesOf = (only) => ['quick', 'full', 'lite']
-    .filter((p) => only.split(',').filter(Boolean).some((id) => man.profiles[p].includes(id))).map((p) => p[0]).join('');
+    .filter((p) => only.split(',').filter(Boolean).some((id) => profileIds(p).includes(id))).map((p) => p[0]).join('');
   const add = (id, group, status, have, need, size, name, lic, deps = '', only = '', note = '') => {
     const o = only || id;
     items.push({ id, group, status, have, need, size: Math.round(size), name, lic: lic || '', presets: profilesOf(o), deps, only: o, note: `${note || ''}`.replace(/[\t\r\n]+/g, ' ').trim() });
@@ -373,6 +418,13 @@ export function scanItems(s) {
   else if (s.p3.offer) add('pixal3d', G_3D, 'missing', '', '', (s.p3.engine ? 0 : P3_ENGINE_DOWNLOAD) + (s.p3.weights ? 0 : s.p3.missingBytes),
     p3Name, 'MIT; DINOv3', '', s.p3.engine ? 'pixal3dw' : s.p3.weights ? 'pixal3d' : 'pixal3d,pixal3dw', s.p3.warn);
   else add('pixal3d', G_3D, 'unavailable', '', '', 0, p3Name, 'MIT; DINOv3', '', 'pixal3d,pixal3dw', s.p3.reason);
+  const tsName = 'TripoSG: shape from a single picture (the low-VRAM path)';
+  const tsLic = 'MIT (VAST-AI); Apache-2.0 (DINOv2)';
+  const tsOnly = 'triposg,triposgvae,triposgdino';
+  if (s.ts.complete) add('triposg', G_3D, 'installed', s.ts.dir, '', 0, tsName, tsLic, '', tsOnly);
+  else if (s.ts.offer) add('triposg', G_3D, 'missing', '', '', (s.ts.env ? 0 : TS_ENV_DOWNLOAD + TS_CODE_BYTES) + (s.ts.weights ? 0 : s.ts.missingBytes),
+    tsName, tsLic, '', tsOnly, gpuNote);
+  else add('triposg', G_3D, 'unavailable', '', '', 0, tsName, tsLic, '', tsOnly, s.ts.reason);
   for (const [id, ids, name, licNote] of [['flux2', ['flux2', 'flux2te', 'flux2vae'], 'FLUX.2 klein 9B: 2D by description and references', 'noncommercial weights license'],
     ['qwenimg', ['qwenimg', 'qwente', 'qwenvae'], 'Qwen-Image: 2D by description, readable text in pictures', '']]) {
     const ms = s[id];                        // the set verdict from scanComponents (no re-probing here)
@@ -433,6 +485,8 @@ export function stateLines(s) {
     S_FLUX2W: st(s.flux2), S_QWENW: st(s.qwenimg),
     S_MV: s.mv.ready ? 'yes' : '', S_MV_NODE: s.mv.node ? 'yes' : '', S_MV_WEIGHTS: s.mv.weights ? 'yes' : '', S_MV_CONFIG: s.mv.config ? 'yes' : '',
     S_MV_PKGS: s.mv.pkgs ? 'yes' : '', S_MV_BYTES: s.mv.bytes, S_MV_REASON: s.mv.reason, S_MV_WARN: s.mv.warn,
+    S_TS: s.ts.complete ? 'yes' : '', S_TS_ENV: s.ts.env ? 'yes' : '', S_TS_CODE: s.ts.code ? 'yes' : '', S_TS_WEIGHTS: s.ts.weights ? 'yes' : '',
+    S_TS_DIR: s.ts.dir, S_TS_BYTES: s.ts.missingBytes, S_TS_REASON: s.ts.reason,
     S_P3: s.p3.complete ? 'yes' : '', S_P3_ENGINE: s.p3.engine ? 'yes' : '', S_P3_WEIGHTS: s.p3.weights ? 'yes' : '',
     S_P3_DIR: s.p3.dir, S_P3_BYTES: s.p3.weights ? 0 : s.p3.missingBytes, S_P3_REASON: s.p3.reason, S_P3_WARN: s.p3.warn,
     S_FREE: s.free === null ? '' : s.free, S_LLM_RECOMMENDED: recommendLlm(s.man, s.vram).model,

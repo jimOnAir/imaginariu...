@@ -22,7 +22,7 @@
 # Everything installs into this application folder (runtime/, data/models/), needs no root, and an
 # interrupted download resumes on the next run. Ids: node, npm, blender, comfy, comfydeps, hy2,
 # hymv, hy21, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
-# pixal3dtest, vfx, gguf, flux2, qwenimg.  Log: installer/install.log
+# triposg, triposgvae, triposgdino, pixal3dtest, vfx, gguf, flux2, qwenimg.  Log: installer/install.log
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -58,6 +58,19 @@ QwenTeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/
 QwenTeSha='cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4'
 QwenVaeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/vae/qwen_image_vae.safetensors'
 QwenVaeSha='a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f'
+# TripoSG (docs/product/triposg.md, ticket 02): the MIT VAST-AI clone pinned to one commit (the
+# archive sha from the same archive on 2026-11-06) and the HF snapshot files (sha256 as published
+# by the Hugging Face LFS listing, re-verified on the downloaded files). Weights go to
+# runtime/triposg/models/TripoSG, the venv to runtime/triposg/.venv, the clone to src/TripoSG.
+TripoSGCommit='fc5c40990181e2a756c4e0b1c2f4d6b5202faf8c'
+TripoSGZip="https://github.com/VAST-AI-Research/TripoSG/archive/$TripoSGCommit.zip"
+TripoSGZipSize=16411924; TripoSGZipSha='cbb21f7dbb9f6759b84f00b5bcdce5c75a5130ae3a63d012646cd274fd945062'
+TripoSGTfUrl='https://huggingface.co/VAST-AI/TripoSG/resolve/main/transformer/diffusion_pytorch_model.safetensors'
+TripoSGTfSize=5758280104; TripoSGTfSha='9192b5923f7b605b394192809aa2ceb73bf0f4009674d8e3b999b45bb97d4bf2'
+TripoSGVaeUrl='https://huggingface.co/VAST-AI/TripoSG/resolve/main/vae/diffusion_pytorch_model.safetensors'
+TripoSGVaeSize=970685468; TripoSGVaeSha='a2e667c24927a5a35e5f19fcb4c75890e9399aa966b6db8131d7df733a750c8b'
+TripoSGDinoUrl='https://huggingface.co/VAST-AI/TripoSG/resolve/main/image_encoder_dinov2/model.safetensors'
+TripoSGDinoSize=1217522888; TripoSGDinoSha='399fba97a95f22c36834418bc69373364a99af3a1153da1c0fb31db567c92e23'
 # The version this installer sets up is read from package.json - the installer never stamps its own
 # literal, so the announced version cannot drift from the app (behavior per ADR-0004, ticket 03)
 InstallerVersion="$(sed -nE 's/^[[:space:]]*"version"[[:space:]]*:[[:space:]]*"([^"]*)".*/\1/p' "$ROOT/package.json" 2>/dev/null | head -1)"
@@ -411,6 +424,53 @@ InstallOllama() {
 }
 
 # Pixal3D for Linux: installer/pixal3d/install-pixal3d.sh (engine|weights|test), same manifest pins
+# TripoSG as a standalone install (docs/product/triposg.md, ticket 02): its own venv, the
+# commit-pinned MIT clone and the HF snapshot split into three verified download steps, each
+# resumable on its own. configs=small json files (checksummed) land next to their weights.
+TriposgDir() { local dir; dir="$(CfgGet triposgDir)"; [ -n "$dir" ] || dir="${ASTRA_TRIPOSG_DIR:-$RT/triposg}"; CfgSet triposgDir "$dir"; printf '%s' "$dir"; }
+TriposgConfig() { # <url> <dst> <sha>
+  DownloadChecked "$1" "$2" 0 "$3" || return 1
+}
+TriposgComponent() { # env|code|tf|vae|dino
+  local dir; dir="$(TriposgDir)"
+  local py="$dir/.venv/bin/python"
+  local M="$dir/models/TripoSG"
+  case "$1" in
+    env)
+      Uv || return 1
+      if [ ! -x "$py" ]; then Run "$UV_BIN" 'TripoSG Python environment (Python 3.11)' venv "$dir/.venv" --python 3.11 || return 1; fi
+      local torchIndex='https://download.pytorch.org/whl/cpu'
+      [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
+      if ! "$py" -c 'import torch' >/dev/null 2>&1; then
+        UvTry 'TripoSG PyTorch' 3 "$UV_BIN" pip install --python "$py" torch torchvision --index-url "$torchIndex" || return 1
+      fi
+      UvTry 'TripoSG libraries' 3 "$UV_BIN" pip install --python "$py" -r "$ROOT/scripts/triposg/requirements.txt" || return 1 ;;
+    code)
+      DownloadChecked "$TripoSGZip" "$DL/triposg-code.zip" "$TripoSGZipSize" "$TripoSGZipSha" || return 1
+      if [ ! -f "$dir/src/TripoSG/triposg/pipelines/pipeline_triposg.py" ]; then
+        say '    unpacking the pinned TripoSG clone'
+        mkdir -p "$dir/src"
+        rm -rf "$dir/src/TripoSG" "$dir/src/TripoSG-$TripoSGCommit"
+        unzip -q "$DL/triposg-code.zip" -d "$dir/src" || return 1
+        mv "$dir/src/TripoSG-$TripoSGCommit" "$dir/src/TripoSG" || return 1
+      fi
+      printf '%s\n' "$TripoSGCommit" > "$dir/PINNED-COMMIT.txt"
+      TriposgConfig 'https://huggingface.co/VAST-AI/TripoSG/resolve/main/model_index.json' "$M/model_index.json" '750af638d10fc67a5f43d19ef0a0d1d3d446174e24b73bddd0a49226016c80c2' || return 1
+      TriposgConfig 'https://huggingface.co/VAST-AI/TripoSG/resolve/main/scheduler/scheduler_config.json' "$M/scheduler/scheduler_config.json" 'ea7c9b4d502dcaba97cd85291cfd7dbd3c6c82cbc4c775af5c6d9224864279c9' || return 1
+      TriposgConfig 'https://huggingface.co/VAST-AI/TripoSG/resolve/main/feature_extractor_dinov2/preprocessor_config.json' "$M/feature_extractor_dinov2/preprocessor_config.json" '14e780d86fa1861f8751f868d7f45425b5feb55c38ca26f152ca5097ab30f828' || return 1 ;;
+    tf)
+      TriposgConfig 'https://huggingface.co/VAST-AI/TripoSG/resolve/main/transformer/config.json' "$M/transformer/config.json" '54ad779e68f9bc7303122cdf291f6db48dec7c67e41d28c05ac359daf914128a' || return 1
+      DownloadChecked "$TripoSGTfUrl" "$M/transformer/diffusion_pytorch_model.safetensors" "$TripoSGTfSize" "$TripoSGTfSha" || return 1 ;;
+    vae)
+      TriposgConfig 'https://huggingface.co/VAST-AI/TripoSG/resolve/main/vae/config.json' "$M/vae/config.json" '2fb6ba9b364d42c9681879dca0f7edcb978f2db974a1ca4b15d28f9b15a5baed' || return 1
+      DownloadChecked "$TripoSGVaeUrl" "$M/vae/diffusion_pytorch_model.safetensors" "$TripoSGVaeSize" "$TripoSGVaeSha" || return 1 ;;
+    dino)
+      TriposgConfig 'https://huggingface.co/VAST-AI/TripoSG/resolve/main/image_encoder_dinov2/config.json' "$M/image_encoder_dinov2/config.json" '8ed81b0d5ffd2c8b2cecd7dc1326d3eefa409bc9d525537b6b2a3c70a992fd02' || return 1
+      DownloadChecked "$TripoSGDinoUrl" "$M/image_encoder_dinov2/model.safetensors" "$TripoSGDinoSize" "$TripoSGDinoSha" || return 1 ;;
+    *) say "  TriposgComponent: unknown step $1"; return 1 ;;
+  esac
+}
+
 Pixal3dComponent() { # engine|weights|test
   local dir; dir="$(CfgGet pixal3dDir)"; [ -n "$dir" ] || dir="${ASTRA_PIXAL3D_DIR:-$RT/ComfyUI-Pixal3D}"
   CfgSet pixal3dDir "$dir"
@@ -500,6 +560,9 @@ comp_what() { case "$1" in
   pixal3d) printf 'Pixal3D: engine (Python, PyTorch, ComfyUI, Trellis2 nodes)' ;;
   pixal3dw) printf 'Pixal3D: weights (shape, MoGe-2, NAF, DINOv3)' ;;
   pixal3dtest) printf 'Pixal3D: smoke test' ;;
+  triposg) printf 'TripoSG: Python environment, pinned MIT code, shape weights' ;;
+  triposgvae) printf 'TripoSG: VAE weights' ;;
+  triposgdino) printf 'TripoSG: DINOv2 image-encoder weights' ;;
   gguf) printf 'ComfyUI-GGUF node' ;;
   flux2) printf 'FLUX.2 klein 9B GGUF + text encoder + VAE' ;;
   qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;
@@ -507,7 +570,7 @@ comp_what() { case "$1" in
 esac; }
 
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
-ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg'
+ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg'
 
 # ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
 declare -a IT_ID IT_GRP IT_ST IT_HAVE IT_NEED IT_SIZE IT_NAME IT_LIC IT_PRE IT_DEPS IT_ONLY IT_NOTE IT_TICK
@@ -662,7 +725,7 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
   if [ -n "$n" ]; then ids="$("$n" -e 'try{const m=require(process.argv[1]);process.stdout.write(m.profiles[process.argv[2]].join(" "))}catch(e){}' "$ROOT/installer/manifest.json" "$Profile" 2>/dev/null)"; fi
   [ -n "$ids" ] || case "$Profile" in   # without node the manifest is unreadable: the 0.5.0 lists mirrored
     lite) ids='node npm blender godot clips vfx' ;;
-    full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;
+    full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg' ;;
     *)    ids='node npm blender comfy hy2 u2net hymv sdxl mvadapter godot clips' ;;
   esac
   plan=()
@@ -773,6 +836,9 @@ for e in "${plan[@]}"; do
     pixal3d) { Pixal3dComponent engine && Pixal3dComponent test; } || err=$? ;;
     pixal3dw) Pixal3dComponent weights || err=$? ;;
     pixal3dtest) Pixal3dComponent test || err=$? ;;
+    triposg) { TriposgComponent env && TriposgComponent code && TriposgComponent tf; } || err=$? ;;
+    triposgvae) TriposgComponent vae || err=$? ;;
+    triposgdino) TriposgComponent dino || err=$? ;;
     gguf) InstallGgufNode || err=$? ;;
     flux2) InstallFlux2 || err=$? ;;
     qwenimg) InstallQwen || err=$? ;;
