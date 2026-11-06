@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
   CREATURE_SIZE_RANGES, EXPORT_PROFILES, KINDS, applyProfileSize, blenderParams, creatureSizeWarning, defaultParams,
-  getPreset, isGpuStep, listPresets, listSteps, normalizeParams, pathParams, normalizeSteps, stepNames, timeoutFor,
+  creatureRigParams, getPreset, isGpuStep, listPresets, listSteps, normalizeParams, pathParams, normalizeSteps, stepNames, timeoutFor,
 } from '../server/forge-steps.mjs';
 
 const PLANNED = ['inspect', 'cleanup', 'convert', 'separate', 'rig_humanoid', 'prepare_mixamo', 'import_mixamo_rig', 'retarget',
@@ -713,4 +713,25 @@ test('attach_prop extracted: server-side flag, extracted_mode checked, not toget
   assert.equal(rig.use_placement_grips.default, true);
   assert.equal(normalizeParams('rig_humanoid', { build: 'armored', front_prior: '-Y' }).explicit.build, 'armored');
   bad('rig_humanoid', { hard_surface: 'plate' }, /allowed values/);
+});
+
+// - - - - - - - - - SkinTokens engine rule (0.6.x wave ticket 03) - - - - - - - - - - - - - - -
+test('rig_creature keeps the upstream engine choice in the contract, and refuses skintokens honestly', () => {
+  const rig = listSteps().find((x) => x.step === 'rig_creature');
+  assert.deepEqual(rig.params.rig_engine.enum, ['blender', 'skintokens']);
+  assert.equal(rig.params.rig_engine.default, 'blender', 'the shipped engine is the default');
+  assert.ok(rig.params.skeleton, 'skeleton hint exists');
+  assert.throws(() => creatureRigParams({ rig_engine: 'skintokens' }), (e) =>
+    /not shipped on this branch/.test(e.message) && /GPL-3.0/.test(e.message) && /docs\/product\/skintokens.md/.test(e.message)
+    && /rig_engine 'blender'/.test(e.message), 'the reason names the license, the way out and the doc');
+  assert.throws(() => creatureRigParams({ rig_engine: 'tripo' }), /Unknown rig_engine: tripo/);
+});
+
+test('creatureRigParams: blender passes through clean; the skeleton hint fills the template, never overwrites it', () => {
+  assert.deepEqual(creatureRigParams({ rig_engine: 'blender', skeleton: 'auto' }), {}, 'engine keys never reach Blender');
+  assert.deepEqual(creatureRigParams({}), {}, 'defaults are implicit');
+  assert.equal(creatureRigParams({ skeleton: 'bird' }).template, 'bird');
+  assert.equal(creatureRigParams({ skeleton: 'bird', template: 'quadruped' }).template, 'quadruped', 'explicit template wins');
+  assert.equal(creatureRigParams({ skeleton: 'auto', length_m: 2 }).length_m, 2, 'everything else rides through');
+  assert.throws(() => creatureRigParams({ skeleton: 'dragon' }), /Unknown skeleton: dragon/);
 });

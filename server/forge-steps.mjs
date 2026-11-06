@@ -590,6 +590,8 @@ const STEP_LIST = [
     outputs: ['glb', 'blend', 'preview', 'rig_json'], timeoutSec: 30 * 60,
     params: {
       template: oneOf(['auto', 'quadruped', 'winged_quadruped', 'bird', 'hexapod', 'octopod', 'serpent', 'custom'], 'auto', 'Pattern', 'auto - detect from the silhouette.'),
+      rig_engine: oneOf(['blender', 'skintokens'], 'blender', 'Rig engine', "blender - the template skeleton of this branch; skintokens - the learned rigging of the 0.6.0 line, not shipped here (its released encoder is GPL-3.0-derived, docs/product/skintokens.md): a job asking for it is refused with that reason before anything runs."),
+      skeleton: oneOf(['auto', 'quadruped', 'winged_quadruped', 'bird', 'hexapod', 'octopod', 'serpent', 'custom'], 'auto', 'Skeleton hint', "What skeleton to ask the engine for; on the blender engine it fills 'template' when that is left 'auto'.", { nullable: true }),
       length_m: num(null, 0.05, 200, 'Length, m', 'Scale by body length; empty - keep.', opt),
       height_m: num(null, 0.05, 100, 'Height, m', 'Scale by height (takes precedence over length); empty - keep.', opt),
       head_dir: oneOf(FACING, 'auto', 'Head direction', 'Where the head points in the input: auto - detect, -Y/+Y/-X/+X or a vector [x, y].', { alt: [VEC2] }),
@@ -1574,6 +1576,33 @@ export function stepNames() {
 
 export function getStep(name) {
   return STEPS.get(name) || null;
+}
+
+/**
+ * The rig_creature engine rule (0.6.0 wave ticket 03). The parameter contract keeps the upstream
+ * engine choice, but on this branch the learned engine is a documented absence: the released
+ * SkinTokens/TokenRig checkpoint conditions the mesh only through a shape encoder vendored from
+ * GPL-3.0 code (NeuralCarver/Michelangelo - its own repo's license), and its projection is trained
+ * against that encoder's latents, so a clean substitute would mean retraining the model. Rule:
+ * 'skintokens' throws the honest absence (callers fail the step before anything starts),
+ * 'blender' normalizes and lets the 'skeleton' hint fill the template. Returns fresh params.
+ */
+export function creatureRigParams(params = {}) {
+  const out = { ...params };
+  const engine = String(out.rig_engine ?? 'blender');
+  if (engine === 'skintokens') {
+    throw new Error("rig_engine 'skintokens' is not shipped on this branch: the released SkinTokens model conditions through a shape encoder derived from GPL-3.0 code (NeuralCarver/Michelangelo), and a clean-licensed substitute would mean retraining the model - see docs/product/skintokens.md. Run with rig_engine 'blender': the template skeleton is the supported path.");
+  }
+  if (engine !== 'blender') throw new Error(`Unknown rig_engine: ${engine} (expected blender or skintokens).`);
+  delete out.rig_engine;          // the Blender step receives the engine it actually implements
+  const hint = out.skeleton;
+  delete out.skeleton;
+  const templates = getStep('rig_creature').params.template.enum;
+  if (hint && hint !== 'auto') {
+    if (!templates.includes(hint)) throw new Error(`Unknown skeleton: ${hint} (expected one of: ${templates.join(', ')}).`);
+    if (!out.template || out.template === 'auto') out.template = hint;
+  }
+  return out;
 }
 
 /** Registry as served by GET /api/forge/steps (JSON-safe, server-only params hidden). */

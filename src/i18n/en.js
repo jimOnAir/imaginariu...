@@ -79,6 +79,8 @@ export default {
   "step.unity_package": "Unity package",
   "step.unreal_package": "Unreal Engine 5 package",
   "enum.auto": "Auto",
+  "enum.blender": "Blender (template skeleton)",
+  "enum.skintokens": "SkinTokens (not shipped on this branch)",
   "enum.strict": "Strict",
   "enum.unreal": "Unreal Engine 5",
   "enum.space_quest": "Space Quest",

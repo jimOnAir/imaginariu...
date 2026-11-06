@@ -20,7 +20,7 @@ import { PROJECT_ROOT, StepQueue, blenderInfo, blenderQueue, godotInfo, runBlend
 import { gpuLockState } from './gpu-lock.mjs';
 import {
   CLIP_CATEGORIES, EXPORT_PROFILES, KINDS, LOOP_CATEGORIES, applyProfileSize, blenderParams, creatureSizeWarning,
-  defaultParams, getPreset, getStep, isGpuStep, normalizeSteps, pathParams, timeoutFor,
+  creatureRigParams, defaultParams, getPreset, getStep, isGpuStep, normalizeSteps, pathParams, timeoutFor,
 } from './forge-steps.mjs';
 import { DECISION_OF, ForgeLearn, VERDICT_OF_DECISION, tagTitle } from './forge-learn.mjs';
 
@@ -1280,6 +1280,7 @@ export class ForgeEngine {
     if (stepName === 'retarget' && Array.isArray(out.clips)) {
       out.clips = resolveClipSources(out.clips, await this._clipIndex(), this.animationsDir);
     }
+    if (stepName === 'rig_creature') return creatureRigParams(out);  // engine rule + skeleton hint (ticket 03)
     if (stepName === 'attach_prop' && Array.isArray(out.attachments)) {
       // {asset: <prop UUID>} -> {item: <its latest GLB>}; the recipe keeps the UUID
       const attachments = [];

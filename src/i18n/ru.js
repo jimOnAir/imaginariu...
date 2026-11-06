@@ -77,6 +77,8 @@ export default {
   "step.unity_package": "Пакет для Unity",
   "step.unreal_package": "Пакет для Unreal Engine 5",
   "enum.auto": "Авто",
+  "enum.blender": "Blender (шаблонный скелет)",
+  "enum.skintokens": "SkinTokens (не поставляется в этой сборке)",
   "enum.strict": "Строгий",
   "enum.unreal": "Unreal Engine 5",
   "enum.space_quest": "Space Quest",
