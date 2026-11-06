@@ -20,6 +20,7 @@ import { llmChat } from './llm.mjs';
 import { loadJobs,allJobs,getJob,createJob,cancelJob,validateJobMesh } from './jobs.mjs';
 import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
+import { triposgStatus } from './triposg.mjs';
 import {prepareConcept} from './preprocess.mjs';
 import {optimizeMeshes} from './optimize.mjs';
 await init();await loadJobs();
@@ -49,7 +50,7 @@ app.get('/api/status',asyncRoute(async(req,res)=>{
  const probe=async(url)=>{try{const r=await fetch(url,{signal:AbortSignal.timeout(3500)});if(!r.ok)return null;return await r.json();}catch{return null;}};
  const [ollama,stats,nodes,pixal3d]=await Promise.all([probe(config.ollamaUrl+'/api/tags'),probe(config.comfyUrl+'/system_stats'),probe(config.comfyUrl+'/object_info/ImageOnlyCheckpointLoader'),pixal3dStatus().catch(e=>({installed:false,running:false,missing:[],message:e.message}))]);
  const checkpoints=nodes?.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[];
- res.json({pixal3d,ollama:{online:!!ollama,models:ollama?.models?.map(x=>x.name)||[]},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
+ res.json({pixal3d,triposg:triposgStatus(),ollama:{online:!!ollama,models:ollama?.models?.map(x=>x.name)||[]},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
 }));
 app.post('/api/runtime/start',asyncRoute(async(req,res)=>res.json(await startRuntime())));
 app.post('/api/runtime/pixal3d/start',asyncRoute(async(req,res)=>res.json(await startPixal3dRuntime())));

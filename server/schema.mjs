@@ -9,7 +9,7 @@ export const generationSchema=z.object({imageId:z.string().uuid().optional(),pro
  viewSetId:z.string().uuid().optional(),
  // Shape engine: 'hunyuan' (default - the previous API behaviour), 'pixal3d' (docs/forge/pixal3d.md) or 'auto' (Pixal3D if installed, otherwise Hunyuan).
  // For 'pixal3d' the quality, shapeModel and meshLevel fields are not used.
- engine:z.enum(['auto','hunyuan','pixal3d']).default('hunyuan')}).refine(x=>x.imageId||x.viewSetId||x.prompt.trim(),'Upload a concept or write a description.')
+ engine:z.enum(['auto','hunyuan','pixal3d','triposg']).default('hunyuan')}).refine(x=>x.imageId||x.viewSetId||x.prompt.trim(),'Upload a concept or write a description.')
  // The exhaust haze filter is passed to scripts/prepare_concept.py inside backgroundMode: '<background>:haze=<on|off>' ('auto' is the Python default).
  .transform(x=>x.hazeFilter==='auto'?x:{...x,backgroundMode:`${x.backgroundMode}:haze=${x.hazeFilter}`});
 export const chatSchema=z.object({message:z.string().min(1).max(6000),context:z.string().max(15000).default(''),history:z.array(z.object({role:z.enum(['user','assistant']),content:z.string().max(6000)})).max(12).default([])});

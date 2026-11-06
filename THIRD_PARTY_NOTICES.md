@@ -24,6 +24,9 @@
 | Модель SDXL base 1.0 | huggingface.co/stabilityai | CreativeML Open RAIL++-M |
 | Веса MV-Adapter (`mvadapter_i2mv_sdxl.safetensors`, ракурсы по одной картинке) | huggingface.co/huanngzh/mv-adapter | Apache-2.0 |
 | diffusers, peft, accelerate, timm, trimesh, antlr4-python3-runtime (пакеты Python в окружении ComfyUI для MV-Adapter) | PyPI | Apache-2.0 / MIT / BSD |
+| TripoSG — third shape engine: код (репозиторий заморожен по коммиту, `runtime/triposg/src/TripoSG`) и веса | github.com/VAST-AI-Research/TripoSG, huggingface.co/VAST-AI/TripoSG | MIT |
+| DINOv2-large — image-энкодер TripoSG (входит в снимок весов) | huggingface.co/facebook/dinov2-large | Apache-2.0 |
+| fast_simplification (сокращение граней в воркере TripoSG) | PyPI | MIT |
 | Godot 4.5.1 | godotengine.org | MIT |
 | Ollama | ollama.com | MIT |
 | Модели Qwen3 и Qwen3-VL (qwen3-vl:8b, проверка текстур и анимации) | ollama.com/library/qwen3, ollama.com/library/qwen3-vl | Apache-2.0 |

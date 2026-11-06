@@ -11,6 +11,7 @@ import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
 import {acquireEngineGpu} from './gpu-handover.mjs';
 import {pixal3dConfig,pixal3dStatus} from './pixal3d.mjs';
 import {generatePixal3d} from './pixal3d-run.mjs';
+import {triposgStatus,generateTripoSG} from './triposg.mjs';
 const jobs=new Map();const controllers=new Map();let active=null;let pumping=false;
 // Startup job load (behavior per ADR-0004, ticket 02): a job file that is empty, truncated,
 // BOM-garbled or otherwise unparseable is moved to jobs/broken/ and skipped instead of taking
@@ -115,8 +116,36 @@ async function runPixal3d(j,config,signal){
  const validation=validateGeneratedMesh(result.buffer);
  await update(j,{status:'completed',progress:100,message:'Geometry created · Pixal3D · needs review',asset,validation,pixal3d:{seconds:result.seconds,slots:result.slots,targetFaces:result.targetFaces,vramPeakMb:result.vram?.peak_used_mb??null,vramBaselineMb:result.vram?.baseline_used_mb??null,scale:result.normalization.scale,handover:result.handover}});
 }
+// TripoSG (docs/product/triposg.md): the third shape engine - one concept in, GLB out, through a
+// one-shot venv worker instead of a service (ADR-0004 ticket 01). Same job record as its siblings.
+async function runTripoSG(j,config,signal){
+ await update(j,{status:'running',message:'Checking the TripoSG engine',progress:0});
+ const state=triposgStatus();
+ if(!state.installed)throw new Error(state.message);
+ if(j.reextractSourceId)throw new Error('Surface re-extraction is available for Hunyuan3D only.');
+ if(j.viewSetId)throw new Error('TripoSG shapes a single concept image; a view set stays with Hunyuan3D or Pixal3D.');
+ let image=j.imageId;
+ if(!image){
+  let nodes;try{nodes=await jsonFetch(config.comfyUrl+'/object_info',{signal});}catch{throw new Error('A text description needs the local SDXL engine (port 8190). Open the connections and click "Start 3D engine", or upload a concept image.');}
+  image=await conceptFromPrompt(j,config,signal,nodes);
+ }
+ if(String(j.backgroundMode||'')==='keep')throw new Error('TripoSG always cuts the concept out; "keep the background" is a Hunyuan3D and Pixal3D option.');
+ await update(j,{modelCheckpoint:'VAST-AI/TripoSG (MIT)'});
+ await update(j,{message:'Removing the background and centering the concept · CPU',progress:0});
+ const prepared=await prepareConcept(image,j.id,signal,j.backgroundMode||'auto');
+ await update(j,{preparedConcept:prepared});
+ const info=await assetInfo(prepared.reference.id);
+ const result=await generateTripoSG({image:path.join(data,'assets',info.id+info.extension),level:j.meshLevel??0,seed:j.seed,signal,
+  onProgress:({percent,message})=>{if(j.status==='running')void update(j,{progress:percent,message}).catch(()=>{});},
+  onWait:message=>{if(j.status==='running')void update(j,{message}).catch(()=>{});}});
+ signal.throwIfAborted();
+ const asset=await saveAsset(result.buffer,'.glb',('TripoSG · '+(j.prompt||'from image')).slice(0,50));
+ const validation=validateGeneratedMesh(result.buffer);
+ await update(j,{status:'completed',progress:100,message:'Geometry created · TripoSG · needs review',asset,validation,triposg:{seconds:result.stats.seconds,faces:result.stats.faces,facesTarget:result.stats.facesTarget,seed:result.stats.seed,warnings:result.stats.warnings}});
+}
 async function run(j,config,signal){
  if(j.engine==='pixal3d')return runPixal3d(j,config,signal);
+ if(j.engine==='triposg')return runTripoSG(j,config,signal);
  await update(j,{status:'running',message:'Checking the 3D engine',progress:0});
  let nodes;try{nodes=await jsonFetch(config.comfyUrl+'/object_info',{signal});}catch{throw new Error('The local 3D engine is not running. Open the connections and click "Start 3D engine".');}
  const names=nodes.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[],checkpoint=j.viewSetId?MV_CHECKPOINT:j.shapeModel==='hunyuan21'?'hunyuan_3d_v2.1.safetensors':config.shapeCheckpoint;

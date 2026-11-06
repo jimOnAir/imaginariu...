@@ -6,6 +6,7 @@ import { existsSync, readFileSync, openSync, closeSync, promises as fs } from 'n
 import path from 'node:path';
 import { root, data } from './storage.mjs';
 import { localUrl } from './schema.mjs';
+import { triposgConfig, triposgInstallState } from './triposg.mjs';
 
 export const DEFAULT_PIXAL3D_DIR = 'C:/AstraForge/ComfyUI-Pixal3D';
 export const DEFAULT_PIXAL3D_URL = 'http://127.0.0.1:8191';
@@ -77,8 +78,13 @@ export function pixal3dInstallState(cfg = pixal3dConfig(), exists = existsSync) 
  */
 export function resolveEngine(requested = 'hunyuan', cfg = pixal3dConfig(), exists = existsSync) {
   const wanted = requested || 'hunyuan';
-  if (!['auto', 'hunyuan', 'pixal3d'].includes(wanted)) throw new Error('Unknown 3D engine: ' + wanted + ' (expected pixal3d, hunyuan or auto).');
+  if (!['auto', 'hunyuan', 'pixal3d', 'triposg'].includes(wanted)) throw new Error('Unknown 3D engine: ' + wanted + ' (expected pixal3d, hunyuan, triposg or auto).');
   if (wanted === 'hunyuan') return 'hunyuan';
+  if (wanted === 'triposg') {
+    const state = triposgInstallState(triposgConfig(), exists);
+    if (!state.installed) throw Object.assign(new Error(state.message), { code: 'triposg_not_installed' });
+    return 'triposg';
+  }
   const state = pixal3dInstallState(cfg, exists);
   if (wanted === 'auto') return state.installed ? 'pixal3d' : 'hunyuan';
   if (!state.installed) throw Object.assign(new Error(state.message), { code: 'pixal3d_not_installed' });

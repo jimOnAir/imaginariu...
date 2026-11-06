@@ -1,0 +1,26 @@
+# The TripoSG venv (runtime/triposg/.venv) - behavior per ADR-0004, ticket 01; installed by
+# installer/install.sh component `triposg` (ticket 02). torch/torchvision must come from a CUDA
+# 12.8+ index so Blackwell (sm_120, RTX 50) works:
+#   uv pip install --index-url https://download.pytorch.org/whl/cu128 torch torchvision
+#   uv pip install -r scripts/triposg/requirements.txt
+# Deliberate differences from the upstream vendor example: no pymeshlab (MPL) - decimation runs
+# through fast_simplification (MIT); no bria RMBG (non-commercial) - the studio's prepared RGBA
+# concept bypasses segmentation entirely; headless opencv (no X server on a render worker); no
+# diso (CC BY-NC 4.0 - non-commercial, cannot ship) - the worker registers our scikit-image
+# fallback (scripts/triposg/diso_skimage_fallback.py) as `diso` before importing TripoSG.
+torch>=2.7
+torchvision>=0.22
+diffusers>=0.33
+transformers>=4.44
+einops
+huggingface_hub
+opencv-python-headless
+trimesh
+numpy
+scikit-image
+omegaconf
+peft
+jaxtyping
+typeguard
+fast_simplification
+Pillow
