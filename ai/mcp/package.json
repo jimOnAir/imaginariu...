@@ -1,7 +1,7 @@
 {
   "name": "astraforge-mcp",
   "version": "0.1.0",
-  "description": "MCP-сервер (stdio) для локальной 3D-студии AstraForge: генерация 3D, ракурсы, Кузница, спрайты, эффекты, проекты, VFX.",
+  "description": "MCP-сервер (stdio) для локальной 3D-студии AstraForge: генерация 3D, ракурсы, Кузница, спрайты, эффекты, проекты, VFX, звук.",
   "type": "module",
   "private": true,
   "main": "server.mjs",

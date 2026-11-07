@@ -10,7 +10,7 @@ MCP-сервер (stdio) для локальной 3D-студии AstraForge. C
 ```
 cd <APP>\ai\mcp
 npm install
-npm test                 # 15 тестов на фейковой студии, видеокарта и студия не нужны
+npm test                 # 24 теста на фейковой студии, видеокарта и студия не нужны
 node server.mjs          # stdio: сам по себе ничего не печатает, ждёт MCP-клиента
 ```
 
@@ -106,6 +106,11 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | VFX | `vfx_tools` | каталог 31 генератора с доступностью |
 | | `vfx_textures` | готовые текстуры; `importName` копирует в ассеты студии |
 | | `vfx_tool_launch` | запустить инструмент на компьютере владельца |
+| Звук | `sound_status` | звуковой движок: установлены ли MOSS-SoundEffect (эффекты) и ACE-Step (петли), чего не хватает, события для привязки, пресеты длин/темпов |
+| | `sound_generate` | `POST /api/sound/tasks`: `kind=sfx` — эффект по описанию (1–30 с), `kind=loop` — петля на `bars` тактов при `bpm`; с `wait` дожидается и отдаёт запись библиотеки |
+| | `sound_list` | библиотека звука проекта (фильтры `kind`, `query`; есть ли WAV/OGG) |
+| | `sound_bind` | привязать звук к событию ассета (`footstep`, `impact`, `spell`…); пустой `soundId` снимает |
+| | `sound_export` | звуковой набор ассета файлами в папку + `missing` с причиной (звук в корзине — это видно) |
 
 ### Границы семейства `generator_*`
 
@@ -117,6 +122,18 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | `generator_plugins`, `generator_plugin_new`, `generator_plugin_install`, `generator_plugin_toggle` | управление самим генеративным движком относится к отложенной линии AstraForge Engine (ADR-0004); ComfyUI студии работает с зафиксированным набором узлов (`--disable-all-custom-nodes`), узлы и модели ставит `installer/install.sh`, не MCP |
 | `generator_graph_edit` | правка сохраняемых графов завязана на owner-режим, а механизм лицензий и owner-режим в этой ветке исключены |
 | `generator_learn_status`, `generator_learn_run`, `generator_learn_activate` | самообучение и LoRA отложены вместе с линией движка |
+
+### Границы семейства `sound_*`
+
+Семья повторяет вкладку «Звук»: два локальных генератора (MOSS-SoundEffect v2 — эффекты, ACE-Step 1.5 —
+музыкальные петли), библиотека проекта и привязки звуков к событиям ассета. Чего в ней сознательно нет:
+
+| Глагол | Причина |
+|---|---|
+| `sound_delete` | удаление звука в этой ветке — всегда перемещение в корзину (`data/sound/trash`), а не стирание; агенту это право не даётся, файлы возвращает человек одним перемещением |
+| `sound_import` | библиотека — то, что здесь сгенерировано; чужие файлы через MCP не заводятся (для этого есть файловая папка проекта) |
+| `sound_install` | веса (≈21 ГБ) и venv ставит `installer/install.sh -Only sound`, а не агент: `sound_status` честно говорит, чего не хватает |
+| `sound_play` | прослушивание — дело человека в интерфейсе; звук в библиотеке уже лежит файлами |
 
 Ресурсы MCP: `astraforge://status` (health + status студии, JSON) и `astraforge://skill` (текст `ai/skills/astraforge/SKILL.md`).
 

@@ -116,9 +116,10 @@ node scripts/art2d/art2d.mjs redo <id> <кадр> --new-seed | resume <id> | god
 
 ## Из Claude Code: MCP, панель, Pixel Art (27.10.2026)
 
-- **MCP-сервер `astraforge`** (`ai/mcp/server.mjs`, зарегистрирован в Claude Code в пользовательском scope): 56 инструментов —
+- **MCP-сервер `astraforge`** (`ai/mcp/server.mjs`, зарегистрирован в Claude Code в пользовательском scope): 66 инструментов —
   `studio_status/start/open`, `asset_*`, `generate_3d`, `jobs_*`, `views_*`, `forge_*` (steps, presets, create, run, export, batch,
-  clips; самообучение — feedback, recipes, journal, plan, recipe_pin, learn_note), `sprites_render` (профили iso8|heroes_gates|custom|pixel), `fx_presets`, `fx_texture_generate`, `projects_*`, `vfx_*`;
+  clips; самообучение — feedback, recipes, journal, plan, recipe_pin, learn_note), `sprites_render` (профили iso8|heroes_gates|custom|pixel), `fx_presets`, `fx_texture_generate`, `projects_*`, `vfx_*`,
+  `sound_*` (status, generate sfx|loop, list, bind, export — вкладка «Звук», локальные MOSS-SoundEffect и ACE-Step);
   ресурсы `astraforge://status`, `astraforge://skill`. Предпочитай их вместо curl к `/api`. Список и регистрация — `ai/mcp/README.md`.
 - **Панель в окне Claude Code** (`ai/claude-plugin`, мод по `plugin-authoring`): состояние студии, движки, очередь заданий с отменой,
   кнопки «Запустить студию / Движок / Pixal3D», команда `/astraforge [open|start|status]`. Живой 3D-вид — только встроенный браузер

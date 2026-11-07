@@ -18,7 +18,16 @@ const UUID2 = '22222222-2222-4222-8222-222222222222';
 // ------------------------------------------------------------------ fake studio
 
 const seen = [];            // every request: {method, url, headers, body}
-let fake, fakeUrl, jobPolls = 0;
+let fake, fakeUrl, jobPolls = 0, soundPolls = 0;
+
+const SOUND_EVENTS = ['footstep', 'run', 'jump', 'attack', 'hit', 'death', 'impact', 'spell', 'ui_click', 'ambient'];
+const SOUND_TASK = '55555555-5555-4555-8555-555555555555';
+const TRASHED = '66666666-6666-4666-8666-666666666666';
+const SOUND_LIBRARY = [
+  { id: UUID2, name: 'Шаги по гравию', kind: 'sfx', prompt: 'footsteps on gravel, steady pace', seconds: 5, bpm: null, bars: null, seed: 11, engine: 'moss-soundeffect-v2', createdAt: '2026-11-07T10:00:00Z', wav: `/api/sound/library/${UUID2}/wav`, ogg: null },
+  { id: TRASHED, name: 'Таверна', kind: 'loop', prompt: 'medieval tavern lute, cheerful', seconds: 4, bpm: 120, bars: 2, seed: 7, engine: 'ace-step-1.5', createdAt: '2026-11-07T10:05:00Z', wav: `/api/sound/library/${TRASHED}/wav`, ogg: `/api/sound/library/${TRASHED}/ogg` },
+];
+const SOUND_BINDINGS = { [UUID]: { footstep: UUID2, spell: TRASHED } };
 
 const JOBS = [
   { id: UUID, status: 'completed', progress: 100, message: 'Готово', engine: 'pixal3d', quality: 'standard', seed: 42, prompt: 'гоблин', asset: { id: UUID2, url: '/api/assets/' + UUID2 }, createdAt: '2026-10-20T10:00:00Z' },
@@ -91,6 +100,31 @@ before(async () => {
     if (p === '/api/vfx-tools/textures') return send(res, 200, [{ name: 'a.png', size: 10, mtime: '2026-10-20', url: '/api/vfx-tools/textures/a.png' }]);
     if (p === '/api/projects') return send(res, 200, [{ id: UUID, name: 'Риг для Godot', updatedAt: '2026-10-09', thumbnail: 'data:image/jpeg;base64,AAAA' }]);
     if (p === `/api/projects/${UUID}`) return send(res, 200, { id: UUID, name: 'Риг', scene: { object: { type: 'Group', name: 'AstraForge', children: [{ type: 'SkinnedMesh', name: 'Тело' }, { type: 'Bone', name: 'hips', children: [{ type: 'Bone', name: 'spine' }] }, { type: 'PointLight', name: 'L' }] }, geometries: [{}], materials: [{}, {}], textures: [] }, editor: { duration: 5, preset: 'walk', tracks: [1, 2], savedClips: [{ name: 'Idle' }] } });
+    if (p === '/api/sound/status') return send(res, 200, { installed: true, running: false, dir: '/app/runtime/sound', missing: [], message: '', busy: null, estimate: { sfxSeconds: 40, loopSeconds: 60 }, events: SOUND_EVENTS, presets: { sfx: { durations: [2, 5, 10, 20, 30], steps: 100, cfg_scale: 4 }, loop: { bpm: [80, 120], bars: [2, 4, 8], steps: 8 } } });
+    if (p === '/api/sound/tasks' && req.method === 'POST') {
+      const body = JSON.parse(raw.toString());
+      if (!body.prompt) return send(res, 500, { error: 'Describe the sound you want.' });
+      if (String(body.prompt).includes('no-engine')) return send(res, 500, { error: 'Sound is not ready (runtime/sound): missing the Sound Python environment. Install it with installer/install.sh -Only sound.', code: 'sound_not_installed' });
+      if (body.kind === 'loop' && (body.bars ?? 4) > 8) return send(res, 500, { error: 'A loop is 1..8 bars at 40..240 BPM.' });
+      return send(res, 202, { id: SOUND_TASK, kind: body.kind || 'sfx', prompt: body.prompt, status: 'queued', progress: 0, createdAt: '2026-11-07T10:00:00Z' });
+    }
+    if (p === `/api/sound/tasks/${SOUND_TASK}`) {
+      soundPolls++;
+      return send(res, 200, soundPolls >= 2
+        ? { id: SOUND_TASK, kind: 'sfx', status: 'completed', progress: 100, message: 'Sound ready', item: SOUND_LIBRARY[0] }
+        : { id: SOUND_TASK, kind: 'sfx', status: 'running', progress: 42, message: 'MOSS denoising step 42/100' });
+    }
+    if (p === '/api/sound/library') return send(res, 200, SOUND_LIBRARY);
+    if (p === `/api/sound/library/${UUID2}/wav`) return send(res, 200, Buffer.from('RIFF-FAKE-WAV'), { 'content-type': 'audio/wav' });
+    if (/^\/api\/sound\/library\/[^/]+\/(wav|ogg)$/.test(p)) return send(res, 500, { error: 'This sound is not in the library anymore.' });
+    if (p === '/api/sound/bindings' && req.method === 'GET') return send(res, 200, SOUND_BINDINGS);
+    if (p === '/api/sound/bindings' && req.method === 'PUT') {
+      const body = JSON.parse(raw.toString());
+      if (!SOUND_EVENTS.includes(body.event)) return send(res, 500, { error: 'Unknown asset or event kind.' });
+      SOUND_BINDINGS[body.assetId] = SOUND_BINDINGS[body.assetId] || {};
+      if (body.soundId) SOUND_BINDINGS[body.assetId][body.event] = body.soundId; else delete SOUND_BINDINGS[body.assetId][body.event];
+      return send(res, 200, SOUND_BINDINGS[body.assetId]);
+    }
     return send(res, 404, { error: 'Нет такого маршрута.' });
   });
   await new Promise((r) => fake.listen(0, '127.0.0.1', r));
@@ -118,7 +152,8 @@ test('tool and resource listing', () => withClient(async (c) => {
   const names = tools.map((t) => t.name);
   for (const n of ['studio_status', 'studio_start', 'studio_open', 'asset_upload', 'asset_info', 'asset_download', 'generate_3d', 'jobs_list', 'job_get', 'job_cancel',
     'views_create', 'views_generate', 'views_get', 'views_cancel', 'forge_steps', 'forge_presets', 'forge_assets', 'forge_asset_show', 'forge_create', 'forge_run', 'forge_job',
-    'forge_export', 'forge_batch', 'clips_list', 'clips_import', 'sprites_render', 'sculpt', 'sculpt_transfer', 'fx_presets', 'fx_texture_generate', 'projects_list', 'project_get', 'vfx_tools', 'vfx_textures', 'vfx_tool_launch']) {
+    'forge_export', 'forge_batch', 'clips_list', 'clips_import', 'sprites_render', 'sculpt', 'sculpt_transfer', 'fx_presets', 'fx_texture_generate', 'projects_list', 'project_get', 'vfx_tools', 'vfx_textures', 'vfx_tool_launch',
+    'sound_status', 'sound_generate', 'sound_list', 'sound_bind', 'sound_export']) {
     assert.ok(names.includes(n), `missing tool ${n}`);
   }
   assert.ok(tools.every((t) => /^[a-z0-9_]+$/.test(t.name) && t.description.length > 20), 'snake_case names, filled descriptions');
@@ -315,6 +350,57 @@ test('projects and VFX', () => withClient(async (c) => {
   assert.equal(v.total, 1); assert.equal(v.items[0].id, 'material-maker'); assert.equal(v.rootExists, true);
   const t = json(await c.callTool({ name: 'vfx_textures', arguments: {} }));
   assert.equal(t.items[0].name, 'a.png');
+}));
+
+test('sound: status, generate with wait, library filters, bind, export onto the disk', () => withClient(async (c) => {
+  seen.length = 0;
+  const st = json(await c.callTool({ name: 'sound_status', arguments: {} }));
+  assert.equal(st.installed, true);
+  assert.equal(st.running, false, 'a sound task is a subprocess, never a service');
+  assert.ok(st.events.includes('impact') && st.events.includes('spell'));
+  assert.equal(st.presets.loop.steps, 8);
+
+  seen.length = 0; soundPolls = 0;
+  const gen = json(await c.callTool({ name: 'sound_generate', arguments: { kind: 'sfx', prompt: 'sword unsheathing', seconds: 5, wait: true, timeoutSec: 20 } }));
+  assert.equal(gen.status, 'completed', gen.message);
+  assert.equal(gen.item.name, 'Шаги по гравию', 'the library record arrives with the task');
+  assert.ok(seen.some((s) => s.method === 'POST' && s.url === '/api/sound/tasks'));
+  assert.ok(seen.filter((s) => s.url === `/api/sound/tasks/${SOUND_TASK}`).length >= 2, 'wait polls the task until it settles');
+  const queued = json(await c.callTool({ name: 'sound_generate', arguments: { kind: 'loop', prompt: 'tavern lute', bpm: 120, bars: 2 } }));
+  assert.equal(queued.status, 'queued');
+  const tooLong = await c.callTool({ name: 'sound_generate', arguments: { kind: 'loop', prompt: 'tavern lute', bars: 16 } });
+  assert.equal(tooLong.isError, true); assert.match(text(tooLong), /bars/, 'the schema refuses 16 bars before the studio is bothered');
+  const absent = await c.callTool({ name: 'sound_generate', arguments: { kind: 'sfx', prompt: 'no-engine test' } });
+  assert.equal(absent.isError, true);
+  assert.match(text(absent), /Sound is not ready/, 'the studio reason reaches the agent as text');
+  assert.match(text(absent), /sound_not_installed/);
+
+  const all = json(await c.callTool({ name: 'sound_list', arguments: {} }));
+  assert.equal(all.total, 2);
+  assert.deepEqual([all.items[0].has.wav, all.items[0].has.ogg], [true, false]);
+  const loops = json(await c.callTool({ name: 'sound_list', arguments: { kind: 'loop' } }));
+  assert.equal(loops.total, 1); assert.equal(loops.items[0].bars, 2);
+  const q = json(await c.callTool({ name: 'sound_list', arguments: { query: 'gravel' } }));
+  assert.equal(q.total, 1); assert.equal(q.items[0].kind, 'sfx');
+
+  const bound = json(await c.callTool({ name: 'sound_bind', arguments: { assetId: UUID2, event: 'impact', soundId: UUID2 } }));
+  assert.equal(bound.impact, UUID2);
+  const wrong = await c.callTool({ name: 'sound_bind', arguments: { assetId: UUID2, event: 'laser', soundId: UUID2 } });
+  assert.equal(wrong.isError, true); assert.match(text(wrong), /footstep/, 'the allowed events are named in the error');
+  const cleared = json(await c.callTool({ name: 'sound_bind', arguments: { assetId: UUID2, event: 'impact' } }));
+  assert.equal(cleared.impact, undefined, 'no soundId clears the binding');
+
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'af-mcp-sound-'));
+  try {
+    const ex = json(await c.callTool({ name: 'sound_export', arguments: { assetId: UUID, out: dir, format: 'both' } }));
+    assert.equal(ex.folder, dir);
+    assert.deepEqual(ex.files.map((f) => `${f.event}.${f.format}`), ['footstep.wav']);
+    assert.ok(ex.files[0].bytes > 0 && (await fs.readFile(ex.files[0].file)).toString() === 'RIFF-FAKE-WAV');
+    assert.equal(ex.missing.length, 3, 'a missing OGG and a trashed sound are reported, never guessed');
+    assert.match(ex.missing[0].reason, /not in the library/);
+    const none = json(await c.callTool({ name: 'sound_export', arguments: { assetId: '99999999-9999-4999-8999-999999999999', out: dir } }));
+    assert.equal(none.files.length, 0); assert.match(none.note, /sound_bind/);
+  } finally { await fs.rm(dir, { recursive: true, force: true }); }
 }));
 
 test('effects: fx_presets and fx_texture_generate write a real PNG', () => withClient(async (c) => {

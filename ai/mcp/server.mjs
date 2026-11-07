@@ -986,6 +986,84 @@ tool('vfx_tool_launch',
   'Запускает VFX-инструмент на компьютере владельца (POST /api/vfx-tools/:id/launch): откроется окно программы (desktop / installer) или файл-заготовка в Material Maker. Веб-генераторы запуску не подлежат: адрес в vfx_tools. Если инструмент не скачан, ответ подскажет, как установить.',
   { id: z.string().regex(/^[a-z0-9][a-z0-9-]*$/).describe('id инструмента из vfx_tools.') }, ({ id }) => post(`/api/vfx-tools/${enc(id)}/launch`));
 
+// ------------------------------------------------------------------ sound (/api/sound/*, docs/product/sound.md)
+// The family mirrors the Sound tab: MOSS-SoundEffect makes an effect from a description, ACE-Step a
+// seamless loop of whole bars; both run locally in runtime/sound. A task is one worker subprocess,
+// so "running" is never a service. Removing a sound moves it to the trash; exports carry no marks.
+
+tool('sound_status',
+  'Звуковой движок студии: установлены ли обе модели (MOSS-SoundEffect v2 — эффекты по описанию, ACE-Step 1.5 — музыкальные петли), где лежат, чего не хватает и как это поставить (-Only sound), сколько примерно идёт генерация, какие события (footstep, impact, spell…) доступны для привязки и какие пресеты длин/темпов предлагает вкладка «Звук». Это же состояние видно в studio_status в поле sound.',
+  {}, async () => {
+    const s = await get('/api/sound/status', { timeout: 20000 });
+    return clean(pick(s, ['installed', 'running', 'dir', 'missing', 'message', 'estimate', 'busy', 'events', 'presets']));
+  });
+
+tool('sound_generate',
+  'Сгенерировать звук локально (POST /api/sound/tasks): kind=sfx — эффект по описанию (MOSS-SoundEffect, 48 кГц моно, 1–30 с), kind=loop — замкнутая музыкальная петля на целое число тактов (ACE-Step, 48 кГц стерео; длина = bars*4*60/bpm, хвост подмешан в начало, поэтому петля повторяется без стыка). Готовый файл сам попадает в библиотеку проекта (WAV + OGG). Возвращает задачу; с wait=true дожидается и отдаёт запись библиотеки в item. Очередь одна: во время генерации видеокарта занята.',
+  {
+    kind: z.enum(['sfx', 'loop']).default('sfx').describe('sfx — эффект по описанию; loop — музыкальная петля по тактам.'),
+    prompt: z.string().min(3).max(600).describe('Описание: «footsteps on gravel, steady pace» или «calm exploration theme, soft strings and piano».'),
+    seconds: z.number().int().min(1).max(30).optional().describe('Для sfx: длительность 1–30 с (по умолчанию 10).'),
+    bpm: z.number().int().min(40).max(240).optional().describe('Для loop: темп, 40–240 BPM (по умолчанию 120).'),
+    bars: z.number().int().min(1).max(8).optional().describe('Для loop: тактов, 1–8 (по умолчанию 4).'),
+    seed: z.number().int().min(0).max(2147483647).optional().describe('Зерно: одно и то же зерно + описание = тот же звук.'),
+    wait: WAIT, timeoutSec: TIMEOUT,
+  },
+  async ({ kind, prompt, seconds, bpm, bars, seed, wait, timeoutSec }) => {
+    const body = clean({ kind, prompt, seconds, bpm, bars, seed });
+    const started = await post('/api/sound/tasks', body, { timeout: 30000 });
+    if (!wait) return pick(started, ['id', 'kind', 'status', 'progress', 'message', 'createdAt']);
+    const { value, timedOut } = await poll(() => get(`/api/sound/tasks/${enc(started.id)}`), (t) => ['completed', 'failed', 'cancelled'].includes(t?.status), { timeoutSec, everySec: 3 });
+    const task = value || started;
+    return clean({ id: task.id, kind: task.kind, status: task.status, progress: task.progress, message: task.message, error: task.error, timedOut, item: task.item });
+  });
+
+tool('sound_list',
+  'Библиотека звука проекта (GET /api/sound/library): id, имя, вид (sfx|loop), описание, длительность или такты/темп, зерно, движок, дата, есть ли WAV и OGG. Фильтры: kind, query (подстрока имени/описания). Удалённые звуки здесь не показываются — они в data/sound/trash и возвращаются на место вручную.',
+  { kind: z.enum(['sfx', 'loop']).optional(), query: z.string().max(80).optional(), limit: LIMIT, offset: OFFSET },
+  async ({ kind, query, limit, offset }) => {
+    let items = await get('/api/sound/library');
+    if (kind) items = items.filter((x) => x.kind === kind);
+    if (query) items = items.filter((x) => `${x.name || ''} ${x.prompt || ''}`.toLowerCase().includes(query.toLowerCase()));
+    return page(items.map((x) => clean({ ...pick(x, ['id', 'name', 'kind', 'prompt', 'seconds', 'bpm', 'bars', 'seed', 'engine', 'createdAt']), has: { wav: !!x.wav, ogg: !!x.ogg } })), { limit, offset });
+  });
+
+tool('sound_bind',
+  'Привязать звук к событию ассета (PUT /api/sound/bindings): assetId — id объекта из сцены/проекта, event — событие из sound_status (footstep, run, jump, attack, hit, death, impact, spell, ui_click, ambient), soundId — звук из sound_list. Пустой soundId снимает привязку. Возвращает все привязки этого ассета; если звук убрали в корзину, привязка остаётся видимой и ждёт выбора заново.',
+  { assetId: ID, event: z.string().max(30).describe('Одно из событий sound_status.'), soundId: z.string().uuid().optional().describe('Звук из sound_list; пусто — снять привязку.') },
+  async ({ assetId, event, soundId }) => {
+    const st = await get('/api/sound/status', { timeout: 20000 }).catch(() => ({}));
+    const events = st.events || [];
+    if (events.length && !events.includes(event)) throw new StudioError(`Неизвестное событие «${event}». Доступны: ${events.join(', ')}.`);
+    return call('PUT', '/api/sound/bindings', { json: { assetId, event, soundId: soundId || null }, timeout: 20000 });
+  });
+
+tool('sound_export',
+  'Звуковой набор ассета как файлы: скачивает все привязанные к ассету звуки (sound_bind) в папку out и возвращает {folder, files:[{event,soundId,name,file,bytes}], missing:[{event,soundId,reason}]}. Файлы — обычный WAV/OGG без служебных меток (политика ветки). Формат: wav (по умолчанию), ogg, both. Если звук лежит в корзине, вместо файла придёт причина в missing.',
+  { assetId: ID, out: z.string().describe('Папка, куда положить файлы (создаётся).'), format: z.enum(['wav', 'ogg', 'both']).default('wav'), limit: z.number().int().min(1).max(50).default(20) },
+  async ({ assetId, out, format, limit }) => {
+    const bindings = await get('/api/sound/bindings');
+    const map = bindings?.[assetId] || {};
+    const entries = Object.entries(map).slice(0, limit);
+    if (!entries.length) return { folder: null, files: [], missing: [], note: 'У этого ассета нет привязанных звуков: сначала sound_bind.' };
+    const dir = path.resolve(out);
+    await fs.mkdir(dir, { recursive: true });
+    const kinds = format === 'both' ? ['wav', 'ogg'] : [format];
+    const files = [], missing = [];
+    for (const [event, soundId] of entries) {
+      for (const k of kinds) {
+        try {
+          const res = await call('GET', `/api/sound/library/${enc(soundId)}/${k}`, { raw: true, timeout: 60000 });
+          const buf = Buffer.from(await res.arrayBuffer());
+          const file = path.join(dir, `${assetId.slice(0, 8)}-${event}.${k}`);
+          await fs.writeFile(file, buf);
+          files.push({ event, soundId, format: k, file, bytes: buf.length });
+        } catch (e) { missing.push({ event, soundId, format: k, reason: e.message }); }
+      }
+    }
+    return { folder: dir, files, missing };
+  });
+
 // ------------------------------------------------------------------ Unity
 
 const UNITY_EDITORS = 'C:/Program Files/Unity/Hub/Editor';
