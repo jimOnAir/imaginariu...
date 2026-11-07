@@ -52,6 +52,33 @@ export function pickReviewModel(vramMiB, installed = [], env = process.env, chos
  * overwritten; with no usable model the variable we published is cleared, so the step says so
  * instead of guessing a model name.
  */
+/**
+ * Ask the installed vision model about pictures (the style describe, ticket 08 later too). This
+ * function only talks: the model must already be on this machine (the caller picks it), `think` is
+ * forced off because the drafts must arrive as plain answers, and a failure surfaces as a sentence.
+ * Returns the answer text.
+ */
+export async function vlmAsk({ url, model, prompt, images = [], fetchFn = fetch, timeoutMs = 180000, numPredict = 700 } = {}) {
+  if (!url || !model) throw new Error('vlmAsk needs a url and a model that is installed here.');
+  let answer;
+  try {
+    answer = await fetchFn(String(url).replace(/\/+$/, '') + '/api/chat', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model, stream: false, think: false, keep_alive: 0,
+        messages: images.length ? [{ role: 'user', content: prompt, images }] : [{ role: 'user', content: prompt }],
+        options: { num_ctx: 16384, num_predict: numPredict },
+      }),
+      signal: AbortSignal.timeout(timeoutMs),
+    });
+  } catch (e) { throw new Error(`The vision model did not answer (${e.name === 'TimeoutError' ? 'too slow' : e.code || e.message}) - the pictures may need a bigger model.`); }
+  if (!answer.ok) throw new Error(`The vision model answered ${answer.status}: ${String(await answer.text().catch(() => '')).slice(0, 160)}`);
+  const v = await answer.json().catch(() => null);
+  const text = String(v?.message?.content || '').trim();
+  if (!text) throw new Error('The vision model answered with an empty text - try once more or add clearer references.');
+  return text;
+}
+
 const HAND_SET = String(process.env.ASTRA_QA_VLM || '').trim();
 export function publishQaModel(pick, env = process.env, handSet = HAND_SET) {
   if (handSet) return { published: false, model: String(env.ASTRA_QA_VLM || handSet).trim(), reason: 'ASTRA_QA_VLM is set by hand' };

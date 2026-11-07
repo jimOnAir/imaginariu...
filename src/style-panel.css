@@ -1,0 +1,28 @@
+/* The Style tab (src/StylePanel.jsx): list with thumbnails on the left, editor on the right.
+   Only existing palette tokens - see tests/shell-palette.test.mjs. */
+.style-panel{display:grid;grid-template-columns:minmax(230px,290px) 1fr;gap:16px;align-items:start}
+.style-list,.style-editor{display:flex;flex-direction:column;gap:10px}
+.style-new{border:1px solid var(--c394545);border-radius:5px;background:var(--c222b2d);padding:10px;display:flex;flex-direction:column;gap:8px}
+.style-new p{margin:0}
+.style-card{display:flex;gap:9px;align-items:center;text-align:left;padding:8px;border:1px solid var(--c394545);border-radius:5px;background:var(--c222b2d);cursor:pointer;color:inherit}
+.style-card:hover{border-color:var(--c8b9a62)}
+.style-card.active{border-color:var(--accent)}
+.style-card img{width:44px;height:44px;object-fit:cover;border-radius:4px;flex-shrink:0}
+.style-noimg{width:44px;height:44px;display:flex;align-items:center;justify-content:center;border-radius:4px;background:var(--c222b2d);color:var(--c82988d);flex-shrink:0}
+.style-card-text{display:flex;flex-direction:column;gap:3px;min-width:0}
+.style-card-text strong{font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.style-card-text em{font-style:normal;font-size:9px;line-height:1.5;color:var(--c82988d);display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.style-images{display:flex;flex-wrap:wrap;gap:8px}
+.style-thumb{position:relative;width:72px;height:72px}
+.style-thumb img{width:100%;height:100%;object-fit:cover;border-radius:4px;border:1px solid var(--c394545)}
+.style-thumb button{position:absolute;top:3px;right:3px;padding:3px;border-radius:3px;background:var(--c222b2d);border:1px solid var(--c394545);color:var(--cec996c);cursor:pointer;line-height:0}
+.style-thumb button:hover{border-color:var(--c845643)}
+.style-add{width:72px;height:72px;display:flex;align-items:center;justify-content:center;border:1px dashed var(--c8b9a62);border-radius:4px;color:var(--c82988d);cursor:pointer}
+.style-add input{display:none}
+.style-add:hover{color:var(--accent);border-color:var(--accent)}
+.style-editor label textarea,.style-editor label input{width:100%}
+.style-editor label textarea{resize:vertical;min-height:70px;font-family:inherit}
+.style-editor label .secondary{margin-top:6px}
+.style-buttons{display:flex;gap:10px;align-items:center}
+.style-danger{color:var(--cec996c)}
+@media (max-width:900px){.style-panel{grid-template-columns:1fr}}

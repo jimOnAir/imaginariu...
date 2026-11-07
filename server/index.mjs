@@ -22,6 +22,7 @@ import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import { triposgStatus, autoShape, vramMiB } from './triposg.mjs';
 import { registerSound, soundStatus } from './sound.mjs';
+import { registerStyles } from './styles.mjs';
 import { ensureOllama, ollamaModels, ollamaCatalog, pickChatModel } from './ollama-run.mjs';
 import { pickReviewModel, publishQaModel, isVisionModelName } from './vlm.mjs';
 import {prepareConcept} from './preprocess.mjs';
@@ -57,6 +58,7 @@ const viewSets=registerViews(app,asyncRoute,{getConfig:()=>config});
 sculpt=registerSculpt(app,asyncRoute,{vfx:registerVfxTools(app,asyncRoute)});
 registerArt2d(app,asyncRoute,{getConfig:()=>config});
 registerSound(app,asyncRoute);
+registerStyles(app,asyncRoute,{getLiveConfig:()=>config});
 registerComponents(app,asyncRoute,{components:createComponents({appRoot:root,dataDir:data,appVersion})});
 app.get('/api/status',asyncRoute(async(req,res)=>{
  const probe=async(url)=>{try{const r=await fetch(url,{signal:AbortSignal.timeout(3500)});if(!r.ok)return null;return await r.json();}catch{return null;}};
