@@ -43,8 +43,13 @@ re-derived under the strict clean-room protocol of
 behavior and interface facts as the only spec channels; implementing contexts never read the
 extracted payload; every commit gated by an independent similarity audit:
 
-- **startup resilience** — corrupt job files move to `data/jobs/broken/`, a corrupt
-  `config.json` moves aside as `config.json.broken-<timestamp>`, defaults boot the run (ticket 02);
+- **startup resilience** — corrupt job files move to `data/jobs/broken/`; a `config.json` that is
+  not JSON at all moves aside untouched as `config.json.broken-<timestamp>` and defaults boot the
+  run (ticket 02); a `config.json` that *is* JSON but holds a key from another program or a value
+  this build rejects is read field by field — the foreign key is dropped, that one field falls back
+  to its default, everything the user set survives, and the file on disk is left for the next save
+  to rewrite (ticket 17). Saving from the Connections window is still strictly validated: the
+  tolerant path only ever reads what is already there;
 - **installer honesty** — Ollama below 0.12.7 refused with a recovery sentence, vanished downloads
   name the antivirus/folder-sync cause, `ASTRA_INSTALL_ISOLATED=1` keeps a check run out of the
   user's model library, `-v` and every banner print the real `package.json` version (ticket 03);

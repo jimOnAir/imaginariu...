@@ -1,7 +1,8 @@
-// Startup resilience (behavior per ADR-0004, ticket 02): a corrupt job-history file or a corrupt
-// data/config.json must never stop the studio. Unreadable job files are quarantined to
-// jobs/broken/ and skipped; an unreadable or incompatible config.json is moved aside untouched
-// as config.json.broken-<timestamp> and defaults take over for the run. Nothing is deleted.
+// Startup resilience (behavior per ADR-0004, tickets 02 and 17): a corrupt job-history file or a
+// corrupt data/config.json must never stop the studio. Unreadable job files are quarantined to
+// jobs/broken/ and skipped. A config.json that is not JSON at all is moved aside untouched as
+// config.json.broken-<timestamp> and defaults take over; one that IS JSON but carries a foreign key
+// or a bad value is read field by field (ticket 17) - the usable settings survive. Nothing is deleted.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, existsSync, rmSync } from 'node:fs';
@@ -9,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { loadJobs, allJobs } from '../server/jobs.mjs';
-import { loadConfig, defaults } from '../server/schema.mjs';
+import { loadConfig, bootConfig, configSchema, defaults } from '../server/schema.mjs';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'af-jobsload-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -43,8 +44,8 @@ test('loadJobs survives a folder of unreadable job files and keeps every readabl
   assert.ok(warnings.some((w) => /not readable/.test(w)) && warnings.some((w) => /not a job record/.test(w)));
 });
 
-test('loadConfig starts on defaults when config.json is unreadable, moving the file aside untouched', async () => {
-  const cases = ['{oops', '', '42', '[]', JSON.stringify({ ollamaUrl: 'not-a-url' }), JSON.stringify({ ...defaults, futureKey: 1 }), '\uFEFF{broken'];
+test('loadConfig starts on defaults when config.json is not JSON at all, moving the file aside untouched', async () => {
+  const cases = ['{oops', '', '42', '[]', '\uFEFF{broken'];
   for (const text of cases) {
     const dir = mkdtempSync(path.join(tmp, 'cfg-'));
     const file = path.join(dir, 'config.json');
@@ -59,6 +60,57 @@ test('loadConfig starts on defaults when config.json is unreadable, moving the f
     assert.equal(logs.length, 1);
     assert.match(logs[0], /moved aside to config\.json\.broken-/);
   }
+});
+
+// Ticket 17: one bad field must not cost the user every other setting (behavior per ADR-0004).
+test('bootConfig keeps what is usable: unknown keys dropped, bad values defaulted, the rest survives', () => {
+  const logs = [];
+  const cfg = bootConfig({ ollamaUrl: 'http://127.0.0.1:11434', comfyUrl: 'not-a-url', lmstudioUrl: 'http://127.0.0.1:1234', provider: 'ollama', ollamaModel: 'qwen3:4b', seed: true }, (m) => logs.push(m));
+  assert.equal(cfg.ollamaUrl, 'http://127.0.0.1:11434', 'a valid setting the user did set is kept');
+  assert.equal(cfg.ollamaModel, 'qwen3:4b', 'and so is the model choice');
+  assert.equal(cfg.comfyUrl, defaults.comfyUrl, 'the broken one fell back to its default');
+  assert.equal(cfg.provider, 'ollama');
+  assert.equal(cfg.lmstudioUrl, undefined, 'a foreign key is gone, not carried along');
+  assert.equal(cfg.seed, undefined, 'the boot loader neither invents nor leaks fields');
+  assert.ok(logs.some((l) => /lmstudioUrl/.test(l) && /not a setting/.test(l)), logs.join(' | '));
+  assert.ok(logs.some((l) => /comfyUrl/.test(l) && /using the default/.test(l)), logs.join(' | '));
+
+  const quiet = [];
+  assert.deepEqual(bootConfig({ ...defaults }, (m) => quiet.push(m)), { ...defaults });
+  assert.deepEqual(quiet, [], 'a healthy file boots silently');
+
+  // more than three unusable fields: one summary line instead of a wall of warnings
+  const many = [];
+  const out = bootConfig({ ...defaults, ollamaUrl: 'x', comfyUrl: 'y', provider: 'openai-max', shapeCheckpoint: {}, lmstudioUrl: 1 }, (m) => many.push(m));
+  assert.equal(out.ollamaUrl, defaults.ollamaUrl); assert.equal(out.comfyUrl, defaults.comfyUrl);
+  assert.equal(out.provider, defaults.provider); assert.equal(out.shapeCheckpoint, defaults.shapeCheckpoint);
+  assert.equal(many.length, 1, many.join(' | '));
+  assert.match(many[0], /5 settings were not usable at boot/);
+
+  // the file cannot be trusted at all (a shape the schema rejects with no field to name): defaults, loudly
+  const broken = [];
+  assert.deepEqual(bootConfig(null, (m) => broken.push(m)), { ...defaults });
+  assert.deepEqual(broken, []);
+  const garbage = [];
+  const g = bootConfig(JSON.parse(JSON.stringify({ provider: { deep: { nested: 'value' } }, ollamaModel: 'qwen3:4b' })), (m) => garbage.push(m));
+  assert.equal(g.provider, defaults.provider);
+  assert.ok(garbage.length >= 1);
+});
+
+test('loadConfig runs a schema-violating file through the tolerant path without touching it on disk', async () => {
+  const dir = mkdtempSync(path.join(tmp, 'cfg-tolerant-'));
+  const file = path.join(dir, 'config.json');
+  const text = JSON.stringify({ ...defaults, comfyUrl: 'not-a-url', lmstudioUrl: 'http://127.0.0.1:1234' });
+  writeFileSync(file, text, 'utf8');
+  const logs = [];
+  const cfg = await loadConfig(file, (m) => logs.push(m));
+  assert.equal(cfg.comfyUrl, defaults.comfyUrl);
+  assert.equal(cfg.ollamaUrl, defaults.ollamaUrl, 'the user address survives');
+  assert.deepEqual(readdirSync(dir), ['config.json'], 'the tolerant path rewrites nothing at boot');
+  assert.equal(readFileSync(file, 'utf8'), text, 'the file is exactly as it was - the next save cleans it');
+  assert.ok(logs.length >= 2, logs.join(' | '));
+  // and the strict path is still strict: the same body from the UI is refused, not healed
+  assert.throws(() => configSchema.parse(JSON.parse(text)));
 });
 
 test('loadConfig: a normal BOM-prefixed settings file still loads; a missing file is the quiet first run', async () => {

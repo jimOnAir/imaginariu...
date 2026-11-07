@@ -39,7 +39,7 @@ Commits of this wave (base `a3c959d`): `d69b6ed` (01) · `c2c1d5d` (02) · `abad
 | # | Behavior (intent, paraphrased) | Status | Where | Proof |
 |---|---|---|---|---|
 | 1 | A corrupt, empty, truncated or BOM-garbled job-history file never stops the studio: the offender moves to `data/jobs/broken/` and the boot continues with a log line per file; nothing is deleted | ✅ | ticket 02 (`c2c1d5d`), `server/jobs.mjs` `loadJobs(dir, warn)` | `node --test tests/jobs-load.test.mjs`; the live boot demo (corrupt config + two bad jobs → health OK, files quarantined) recorded in ticket 02 |
-| 2 | An unparseable or incompatible `config.json` is renamed `config.json.broken-<timestamp>` untouched and the run starts on defaults | ✅ | ticket 02, `server/schema.mjs` `loadConfig(file, warn)` | same suite; first-run and BOM-good-file cases included |
+| 2 | An unparseable or incompatible `config.json` is renamed `config.json.broken-<timestamp>` untouched and the run starts on defaults | ✅ at the time | ticket 02, `server/schema.mjs` `loadConfig(file, warn)` | same suite; first-run and BOM-good-file cases included. **Superseded for the "incompatible" half:** since 0.6.x ticket 17 a file that is valid JSON with one foreign key or one bad value is read field by field (the key dropped, that field defaulted, the rest kept, the file untouched); only a file that is not JSON at all still moves aside |
 
 ## Cluster B — the installer degrades honestly (Windows 0.5.0/0.5.3 robustness + version honesty)
 

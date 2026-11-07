@@ -14,27 +14,53 @@ export const generationSchema=z.object({imageId:z.string().uuid().optional(),pro
  .transform(x=>x.hazeFilter==='auto'?x:{...x,backgroundMode:`${x.backgroundMode}:haze=${x.hazeFilter}`});
 export const chatSchema=z.object({message:z.string().min(1).max(6000),context:z.string().max(15000).default(''),history:z.array(z.object({role:z.enum(['user','assistant']),content:z.string().max(6000)})).max(12).default([])});
 export const defaults={ollamaUrl:'http://127.0.0.1:11434',ollamaModel:'qwen3:8b',comfyUrl:'http://127.0.0.1:8190',shapeCheckpoint:'hunyuan3d-dit-v2.safetensors',imageCheckpoint:'sd_xl_base_1.0.safetensors',provider:'ollama',openaiModel:'',anthropicModel:''};
-// Startup settings load (behavior per ADR-0004, ticket 02): a data/config.json that is not valid
-// JSON, not an object, or does not match the settings shape must not stop the studio. The bad
-// file is moved aside untouched as config.json.broken-<timestamp> and this run starts on
-// defaults; a missing file is the normal first-run case. The rename keeps the evidence for
-// diagnosis - nothing is ever deleted.
+// Startup settings load (behavior per ADR-0004, tickets 02 and 17). data/config.json is the one
+// file users edit by hand, an older build writes, and a program this studio never had may have left
+// a key in - so boot is tolerant PER FIELD: a key this build does not know is dropped, a value that
+// fails its own rule falls back to that field's default, and everything the user did set survives.
+// The file is left on disk as it is; the next save from the studio writes it back clean.
+// A file that is not JSON at all is a different failure - there is nothing to read field by field,
+// so it is moved aside untouched as config.json.broken-<timestamp> and this run starts on defaults.
+// A missing file is the normal first run. Nothing is ever deleted. PUT /api/config stays strictly
+// validated: the tolerant path is only for reading what is already on disk.
+export function bootConfig(saved,warn=()=>{}){
+ const shape=configSchema.shape,kept={},unknown=[],replaced=[];
+ for(const[k,v]of Object.entries(saved??{})){if(k in shape)kept[k]=v;else unknown.push(k);}
+ const report=()=>{
+  const changed=unknown.length+replaced.length;
+  if(!changed)return;
+  if(changed>3)return warn(`config.json: ${changed} settings were not usable at boot and are now defaults or dropped - ${[...unknown.map(k=>k+' (unknown)'),...replaced.map(k=>k+' (bad value)')].join(', ')}`);
+  if(unknown.length)warn(`config.json: dropped "${unknown.join('", "')}" - not a setting of this studio`);
+  for(const k of replaced)warn(`config.json: "${k}" is not valid - using the default`);
+ };
+ for(let pass=0;pass<=Object.keys(shape).length;pass++){
+  const r=configSchema.safeParse({...defaults,...kept});
+  if(r.success){report();return r.data;}
+  // a field the file carries and the schema rejects: drop it, the merge above supplies its default
+  const bad=[...new Set(r.error.issues.map(i=>i.path[0]).filter(k=>typeof k==='string'&&k in kept))];
+  if(!bad.length)break;
+  for(const k of bad){replaced.push(k);delete kept[k];}
+ }
+ report();
+ warn('config.json: the settings on disk are unusable as a whole - starting with defaults');
+ return {...defaults};
+}
 export async function loadConfig(file,warn=(m)=>console.warn(m)){
  let raw;
  try{raw=await fs.readFile(file,'utf8');}
  catch(e){if(e.code==='ENOENT')return {...defaults};throw e;}
+ let stored;
  try{
-  const stored=parseJson(raw);
+  stored=parseJson(raw);
   if(!stored||typeof stored!=='object'||Array.isArray(stored))throw new SyntaxError('not a JSON object');
-  return configSchema.parse({...defaults,...stored});
  }catch(e){
-  if(!(e instanceof SyntaxError||e instanceof z.ZodError))throw e;
-  const reason=e instanceof z.ZodError?'does not match the settings shape':'is not readable as settings';
+  if(!(e instanceof SyntaxError))throw e;
   const aside=path.basename(file)+'.broken-'+new Date().toISOString().replace(/[:.]/g,'-');
-  try{await fs.rename(file,path.join(path.dirname(file),aside));warn('config.json '+reason+' - moved aside to '+aside+', starting with defaults');}
-  catch(ren){warn('config.json '+reason+' and could not be moved aside ('+(ren.code||ren.message)+'), starting with defaults');}
+  try{await fs.rename(file,path.join(path.dirname(file),aside));warn('config.json is not readable as settings - moved aside to '+aside+', starting with defaults');}
+  catch(ren){warn('config.json is not readable as settings and could not be moved aside ('+(ren.code||ren.message)+'), starting with defaults');}
   return {...defaults};
  }
+ return bootConfig(stored,warn);
 }
 export function hunyuanWorkflow(image,checkpoint,quality,seed,prefix,meshLevel=0){
  const cfg={draft:{steps:15,res:128},standard:{steps:25,res:256},high:{steps:45,res:512}}[quality];
