@@ -2,9 +2,9 @@
 // separate portable ComfyUI-Pixal3D (127.0.0.1:8191). The studio's own Hunyuan ComfyUI stays on 8190 (server/runtime.mjs).
 // Nothing here talks to the GPU: generation is server/pixal3d-run.mjs, the hand-over between the two engines is server/gpu-handover.mjs.
 import { spawn } from 'node:child_process';
-import { existsSync, readFileSync, openSync, closeSync, promises as fs } from 'node:fs';
+import { existsSync, openSync, closeSync, promises as fs } from 'node:fs';
 import path from 'node:path';
-import { root, data } from './storage.mjs';
+import { root, data, pathsConfig } from './storage.mjs';
 import { localUrl } from './schema.mjs';
 import { triposgConfig, triposgInstallState, autoShape } from './triposg.mjs';
 
@@ -33,17 +33,14 @@ export const PIXAL3D_REQUIREMENTS = [
 /** Typical numbers shown in the UI and docs (RTX 4070 12 GB, militia, see docs/forge/pixal3d.md). */
 export const PIXAL3D_ESTIMATE = { multiSeconds: 232, singleSeconds: 355, vramGb: 9.5 };
 
-function readPathsJson(rootDir) {
-  // a BOM from the installer used to silently lose the pixal3dDir path (the 0.4.11 fix)
-  try { return JSON.parse(readFileSync(path.join(rootDir, 'config', 'paths.json'), 'utf8').replace(/^\uFEFF/, '')); } catch { return {}; }
-}
-
 /**
- * Where Pixal3D lives: ASTRA_PIXAL3D_DIR, else config/paths.json (key pixal3dDir, written by the installer), else the default folder.
+ * Where Pixal3D lives: ASTRA_PIXAL3D_DIR, else config/paths.json (key pixal3dDir, written by the installer;
+ * a BOM from the installer used to silently lose the path - the 0.4.11 fix lives in storage.pathsConfig),
+ * else the default folder.
  * The URL (ASTRA_PIXAL3D_URL) must be a local http address; port 8191 by default.
  */
 export function pixal3dConfig({ env = process.env, appRoot = root } = {}) {
-  const paths = readPathsJson(appRoot);
+  const paths = pathsConfig(appRoot);
   // the Windows default is the short folder from the README; on POSIX the app-local runtime folder mirrors it
   let dir = process.platform === 'win32' ? DEFAULT_PIXAL3D_DIR : path.join(appRoot, 'runtime', 'ComfyUI-Pixal3D'), source = 'default';
   if (env.ASTRA_PIXAL3D_DIR) { dir = env.ASTRA_PIXAL3D_DIR; source = 'env'; }

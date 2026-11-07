@@ -8,7 +8,7 @@
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
-import { root, data } from './storage.mjs';
+import { root, data, pathsConfig } from './storage.mjs';
 
 export const DEFAULT_TRIPOSG_DIR = 'runtime/triposg';
 /** What has to be on disk for TripoSG. [relative to the install folder, what it is]. */
@@ -33,13 +33,9 @@ export function facesForLevel(level) {
   return FACES_BY_LEVEL[0];
 }
 
-function readPathsJson(rootDir) {
-  try { return JSON.parse(readFileSync(path.join(rootDir, 'config', 'paths.json'), 'utf8').replace(/^\uFEFF/, '')); } catch { return {}; }
-}
-
 /** Where TripoSG lives: ASTRA_TRIPOSG_DIR, else config/paths.json (key triposgDir), else runtime/triposg. */
 export function triposgConfig({ env = process.env, appRoot = root } = {}) {
-  const paths = readPathsJson(appRoot);
+  const paths = pathsConfig(appRoot);
   let dir = path.join(appRoot, DEFAULT_TRIPOSG_DIR), source = 'default';
   if (env.ASTRA_TRIPOSG_DIR) { dir = env.ASTRA_TRIPOSG_DIR; source = 'env'; }
   else if (typeof paths.triposgDir === 'string' && paths.triposgDir.trim()) { dir = paths.triposgDir.trim(); source = 'paths.json'; }

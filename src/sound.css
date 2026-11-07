@@ -1,0 +1,38 @@
+/* The Sound tab (src/SoundPanel.jsx): engine notice, idea chips, task rows, library list, event bindings. */
+.sound-missing{display:flex;gap:10px;align-items:flex-start;color:var(--ce9bba5)}
+.sound-missing>svg{flex-shrink:0;margin-top:2px;color:var(--cec996c)}
+.sound-missing strong{font-size:11px;display:block;margin-bottom:5px}
+.sound-missing p{font-size:10px;line-height:1.6;color:var(--cc2d4ad);margin:0}
+.sound-ideas{display:flex;flex-wrap:wrap;gap:5px;margin-top:9px}
+.sound-idea{font-size:9px;padding:6px 8px;border:1px solid var(--c394545);border-radius:4px;background:var(--c222b2d);color:var(--c93a699)}
+.sound-idea:hover{color:var(--accent);border-color:var(--c8b9a62)}
+.sound-row{display:flex;align-items:center;gap:10px;font-size:10px;color:var(--c94a991);margin-top:10px}
+.sound-row label{display:flex;align-items:center;gap:8px;font-size:10px;color:var(--c94a991)}
+.sound-row select,.sound-row input{font-size:11px;padding:7px 8px;width:auto}
+.sound-row input{width:110px}
+.sound-tasks{display:flex;flex-direction:column;gap:10px}
+.sound-task{border:1px solid var(--c394545);border-radius:5px;background:var(--c222b2d);padding:9px 10px;font-size:10px;color:var(--c9fb39b)}
+.sound-task.failed{border-color:var(--c845643)}
+.sound-task.completed{border-color:var(--c728f47)}
+.sound-task-head{display:flex;align-items:center;gap:7px}
+.sound-task-head>span{flex:1;display:flex;align-items:center;gap:6px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sound-task-head button{font-size:9px}
+.sound-task small{display:block;margin-top:6px;color:var(--c82988d);line-height:1.5;overflow-wrap:anywhere}
+.sound-task small.sound-err{color:var(--ce9bba5)}
+.sound-items{display:flex;flex-direction:column;gap:6px}
+.sound-item{display:flex;align-items:center;gap:8px;border:1px solid var(--c394545);border-radius:5px;background:var(--c222b2d);padding:6px 8px}
+.sound-play{width:26px;height:26px;flex-shrink:0;border-radius:4px;background:var(--c2e3b29);color:var(--cb4c69e)}
+.sound-play:hover{color:var(--accent)}
+.sound-item-meta{flex:1;min-width:0}
+.sound-item-meta strong{display:block;font-size:10px;font-weight:500;color:var(--ccbd5cb);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sound-item-meta small{display:block;font-size:8px;color:var(--c82988d);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.sound-badge{font-size:7px;color:var(--cb9b785);border:1px solid var(--c626541);border-radius:3px;padding:2px 4px}
+.sound-item .subtle-btn{font-size:9px;padding:4px 6px}
+.sound-bind-row{display:grid;grid-template-columns:1fr 1fr auto;gap:7px;align-items:center}
+.sound-bind-row select{font-size:10px;padding:7px}
+.sound-bind-row .secondary{font-size:10px;padding:8px 10px}
+.sound-bound{margin-top:10px;display:flex;flex-direction:column;gap:4px}
+.sound-bound>div{display:flex;align-items:center;gap:8px;font-size:9px;color:var(--c9fb39b);border-bottom:1px solid var(--c30393b);padding-bottom:4px}
+.sound-bound>div>span{width:86px;flex-shrink:0;color:var(--c8da48f)}
+.sound-bound>div>strong{flex:1;font-weight:500;color:var(--ccbd5cb);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sound-bound .icon-btn{width:22px;height:22px}

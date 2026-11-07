@@ -1,4 +1,4 @@
-import { promises as fs } from 'node:fs';
+import { promises as fs, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
@@ -12,6 +12,9 @@ export async function init(){for(const folder of ['assets','exports','projects',
 // A leading UTF-8 BOM is cut: config files written by Windows PowerShell 5.1 (Set-Content -Encoding UTF8)
 // carry one, and before 0.4.11 the studio refused to start over such data/config.json (user report 01.11.2026).
 export const parseJson=text=>JSON.parse(String(text).replace(/^\uFEFF/,''));
+// config/paths.json is the installer's machine contract (where Blender, ComfyUI, TripoSG, Sound live).
+// One reader for every engine module: the file is optional, and Windows may have written a BOM.
+export function pathsConfig(appRoot=root){try{return parseJson(readFileSync(path.join(appRoot,'config','paths.json'),'utf8'));}catch{return {};}}
 export async function readJson(file,fallback){try{return parseJson(await fs.readFile(file,'utf8'));}catch(e){if(e.code==='ENOENT')return fallback;throw e;}}
 export async function writeJson(file,value){const temp=file+'.'+randomUUID()+'.tmp';await fs.writeFile(temp,JSON.stringify(value,null,2));await fs.rename(temp,file);}
 export const isId=id=>/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);

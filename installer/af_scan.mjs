@@ -30,12 +30,14 @@ export const APP_ROOT = path.resolve(HERE, '..');
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
 export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'sdxl',
-  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg'];
+  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg',
+  'sound', 'soundmoss', 'soundace'];
 
 const G_P = 'Programs';
 const G_3D = '3D: shape and views';
 const G_2D = '2D and images';
 const G_AI = 'AI assistant';
+const G_SND = 'Sound and music';
 
 // The manifest pins the Windows archives; these are the Linux download sizes (the same numbers
 // install.sh used before the scan core existed).
@@ -56,6 +58,12 @@ const TS_WEIGHTS = [
   ['image_encoder_dinov2/model.safetensors', 1217522888],
 ];
 export const TRIPOSG_AUTO_MAX_VRAM_MIB = 9216;            // the same seam as server/triposg.mjs
+// Sound (docs/product/sound.md, ticket 04): standalone install in runtime/sound - one venv for both
+// engines (each needs its own transformers line), the two commit-pinned open-source checkouts, and
+// the weight snapshots. installer/sound/manifest.json is the single source of the pins (revision +
+// size + sha256 per file); only the environment download is an estimate, like Pixal3D's engine.
+const SOUND_ENV_DOWNLOAD = 7.0e9;                         // torch cu128 + both engines' libraries
+export const SOUND_MIN_VRAM_MIB = 8192;                   // the smallest card both engines fit on
 export const VLM = 'qwen3-vl:8b';
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8').replace(/^﻿/, ''));
@@ -275,6 +283,36 @@ export function triposgScan(s) {
   return r;
 }
 
+/** Sound state (docs/product/sound.md): one venv, both engine checkouts, both weight snapshots. */
+export function soundScan(s) {
+  const r = { dir: '', env: false, code: false, weights: false, complete: false, offer: true, reason: '', missingBytes: 0, codeBytes: 0, weightBytes: 0 };
+  let man;
+  try { man = readJson(path.join(s.root, 'installer', 'sound', 'manifest.json')); } catch { r.offer = false; r.reason = 'installer/sound/manifest.json is missing'; return r; }
+  const files = Object.values(man.models).flatMap((m) => m.files.map((f) => [path.join(m.dst, f.path), f.size]));
+  r.codeBytes = Object.values(man.code).reduce((n, c) => n + c.size, 0);
+  r.weightBytes = files.reduce((n, [, sz]) => n + sz, 0);
+  const cands = s.env.ASTRA_SOUND_DIR
+    ? [s.env.ASTRA_SOUND_DIR]
+    : candidates('soundDir', 'ASTRA_SOUND_DIR', s.cfg, s.env, path.join(s.rt, 'sound'));
+  const probe = (dir) => {
+    const p = { dir, env: isExe(path.join(dir, '.venv', 'bin', 'python')) };
+    p.code = existsSync(path.join(dir, 'src', 'MOSS-TTS', 'moss_soundeffect_v2', 'pyproject.toml'))
+      && existsSync(path.join(dir, 'src', 'ACE-Step-1.5', 'pyproject.toml'));
+    p.missingBytes = files.reduce((n, [rel, sz]) => n + (sizeOf(path.join(dir, 'models', rel)) === sz ? 0 : sz), 0);
+    p.weights = p.missingBytes === 0;
+    return p;
+  };
+  const probed = cands.map(probe);
+  const p = probed.find((x) => x.env && x.code && x.weights) || probed[0];
+  Object.assign(r, { dir: p.dir, env: p.env, code: p.code, weights: p.weights, missingBytes: p.missingBytes });
+  r.complete = r.env && r.code && r.weights;
+  if (!r.complete) {
+    if (!s.gpu) { r.offer = false; r.reason = 'needs an NVIDIA graphics card'; }
+    else if (s.vram > 0 && s.vram < SOUND_MIN_VRAM_MIB) { r.offer = false; r.reason = `video memory is ${Math.round(s.vram / 1024)} GB, the Sound models need about 8 GB`; }
+  }
+  return r;
+}
+
 /**
  * Scan the machine. opts = { root, env, noGpu, fail }. Throws when the check fails
  * (ASTRA_INSTALL_SCAN_FAIL=1 / opts.fail) or the folder is not the application folder -
@@ -367,6 +405,7 @@ export function scanComponents(opts = {}) {
   s.mv = mvScan(s);
   s.p3 = p3Scan(s);
   s.ts = triposgScan(s);
+  s.snd = soundScan(s);
   s.free = freeOn(root);
   return s;
 }
@@ -425,6 +464,15 @@ export function scanItems(s) {
   else if (s.ts.offer) add('triposg', G_3D, 'missing', '', '', (s.ts.env ? 0 : TS_ENV_DOWNLOAD + TS_CODE_BYTES) + (s.ts.weights ? 0 : s.ts.missingBytes),
     tsName, tsLic, '', tsOnly, gpuNote);
   else add('triposg', G_3D, 'unavailable', '', '', 0, tsName, tsLic, '', tsOnly, s.ts.reason);
+  // Sound (ticket 04): its own row group, and no preset contains the id - the component is new and
+  // installs only when the user ticks it (or calls -Only sound).
+  const sndName = 'Sound: effects by description + music loops';
+  const sndLic = 'Apache-2.0 (MOSS-SoundEffect); MIT (ACE-Step)';
+  const sndOnly = 'sound,soundmoss,soundace';
+  if (s.snd.complete) add('sound', G_SND, 'installed', s.snd.dir, '', 0, sndName, sndLic, '', sndOnly);
+  else if (s.snd.offer) add('sound', G_SND, 'missing', '', '', (s.snd.env ? 0 : SOUND_ENV_DOWNLOAD + s.snd.codeBytes) + (s.snd.weights ? 0 : s.snd.missingBytes),
+    sndName, sndLic, '', sndOnly, gpuNote);
+  else add('sound', G_SND, 'unavailable', '', '', 0, sndName, sndLic, '', sndOnly, s.snd.reason);
   for (const [id, ids, name, licNote] of [['flux2', ['flux2', 'flux2te', 'flux2vae'], 'FLUX.2 klein 9B: 2D by description and references', 'noncommercial weights license'],
     ['qwenimg', ['qwenimg', 'qwente', 'qwenvae'], 'Qwen-Image: 2D by description, readable text in pictures', '']]) {
     const ms = s[id];                        // the set verdict from scanComponents (no re-probing here)
@@ -487,6 +535,8 @@ export function stateLines(s) {
     S_MV_PKGS: s.mv.pkgs ? 'yes' : '', S_MV_BYTES: s.mv.bytes, S_MV_REASON: s.mv.reason, S_MV_WARN: s.mv.warn,
     S_TS: s.ts.complete ? 'yes' : '', S_TS_ENV: s.ts.env ? 'yes' : '', S_TS_CODE: s.ts.code ? 'yes' : '', S_TS_WEIGHTS: s.ts.weights ? 'yes' : '',
     S_TS_DIR: s.ts.dir, S_TS_BYTES: s.ts.missingBytes, S_TS_REASON: s.ts.reason,
+    S_SND: s.snd.complete ? 'yes' : '', S_SND_ENV: s.snd.env ? 'yes' : '', S_SND_CODE: s.snd.code ? 'yes' : '', S_SND_WEIGHTS: s.snd.weights ? 'yes' : '',
+    S_SND_DIR: s.snd.dir, S_SND_BYTES: s.snd.missingBytes, S_SND_REASON: s.snd.reason,
     S_P3: s.p3.complete ? 'yes' : '', S_P3_ENGINE: s.p3.engine ? 'yes' : '', S_P3_WEIGHTS: s.p3.weights ? 'yes' : '',
     S_P3_DIR: s.p3.dir, S_P3_BYTES: s.p3.weights ? 0 : s.p3.missingBytes, S_P3_REASON: s.p3.reason, S_P3_WARN: s.p3.warn,
     S_FREE: s.free === null ? '' : s.free, S_LLM_RECOMMENDED: recommendLlm(s.man, s.vram).model,

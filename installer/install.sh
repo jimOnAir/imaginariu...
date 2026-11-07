@@ -22,7 +22,7 @@
 # Everything installs into this application folder (runtime/, data/models/), needs no root, and an
 # interrupted download resumes on the next run. Ids: node, npm, blender, comfy, comfydeps, hy2,
 # hymv, hy21, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
-# triposg, triposgvae, triposgdino, pixal3dtest, vfx, gguf, flux2, qwenimg.  Log: installer/install.log
+# triposg, triposgvae, triposgdino, pixal3dtest, vfx, gguf, flux2, qwenimg, sound, soundmoss, soundace.  Log: installer/install.log
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -471,6 +471,63 @@ TriposgComponent() { # env|code|tf|vae|dino
   esac
 }
 
+# Sound as a standalone install (docs/product/sound.md, ticket 04): one venv for both engines (each
+# wants its own transformers line), the two commit-pinned open-source archives, and the weight
+# snapshots - every file by pinned revision, size and sha256 from installer/sound/manifest.json.
+# The code step comes first: the two libraries are installed from the checkouts.
+SoundDir() { local dir; dir="$(CfgGet soundDir)"; [ -n "$dir" ] || dir="${ASTRA_SOUND_DIR:-$RT/sound}"; CfgSet soundDir "$dir"; printf '%s' "$dir"; }
+SoundManifest() { printf '%s' "$ROOT/installer/sound/manifest.json"; }
+SoundWeights() { # <moss|ace> - the manifest files of one engine, each verified before it is accepted
+  local dir="$1" key="$2" n url dst size sha
+  n="$(NodeBin)"
+  while IFS="$(printf '\t')" read -r url dst size sha; do
+    [ -n "$url" ] || continue
+    DownloadChecked "$url" "$dir/models/$dst" "$size" "$sha" || return 1
+  done < <("$n" -e 'const m=require(process.argv[1]),e=m.models[process.argv[2]];if(!e)process.exit(1);
+    for(const f of e.files)console.log([`https://huggingface.co/${e.repo}/resolve/${e.revision}/${f.path}`,`${e.dst}/${f.path}`,f.size,f.sha256].join("\t"));' "$(SoundManifest)" "$key")
+}
+SoundComponent() { # code|env|moss|ace
+  local dir; dir="$(SoundDir)"
+  local py="$dir/.venv/bin/python" n; n="$(NodeBin)"
+  if [ -z "$n" ]; then say '  node is needed to read installer/sound/manifest.json'; return 1; fi
+  case "$1" in
+    code)
+      mkdir -p "$dir/src"
+      local key url size sha leaf commit
+      for key in moss ace; do
+        read -r url size sha leaf commit <<<"$("$n" -e 'const c=require(process.argv[1]).code[process.argv[2]];console.log(c.url,c.size,c.sha256,c.leaf,c.commit)' "$(SoundManifest)" "$key")"
+        DownloadChecked "$url" "$DL/sound-$key-code.zip" "$size" "$sha" || return 1
+        if [ ! -f "$dir/src/$leaf/pyproject.toml" ]; then
+          say "    unpacking the pinned $leaf checkout"
+          rm -rf "$dir/src/$leaf" "$dir/src/$leaf-$commit"
+          unzip -q "$DL/sound-$key-code.zip" -d "$dir/src" || return 1
+          mv "$dir/src/$leaf-$commit" "$dir/src/$leaf" || return 1
+        fi
+      done
+      "$n" -e 'const m=require(process.argv[1]);console.log(Object.values(m.code).map(c=>`${c.repo} ${c.commit} ${c.license}`).join("\n"))' "$(SoundManifest)" > "$dir/PINNED-COMMIT.txt" ;;
+    env)
+      Uv || return 1
+      if [ ! -x "$py" ]; then Run "$UV_BIN" 'Sound Python environment (Python 3.12)' venv "$dir/.venv" --python 3.12 || return 1; fi
+      local torchIndex='https://download.pytorch.org/whl/cpu' libs torchlibs
+      [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
+      torchlibs="$("$n" -e 'console.log(require(process.argv[1]).env.torch.join(" "))' "$(SoundManifest)")"
+      libs="$("$n" -e 'console.log(require(process.argv[1]).env.libs.join(" "))' "$(SoundManifest)")"
+      if ! "$py" -c 'import torch' >/dev/null 2>&1; then
+        # shellcheck disable=SC2086
+        UvTry 'Sound PyTorch' 3 "$UV_BIN" pip install --python "$py" --index-url "$torchIndex" $torchlibs || return 1
+      fi
+      # ACE-Step brings its own library set; MOSS-SoundEffect follows with --no-deps and the pinned
+      # line below, so the two engines cannot pull each other off the versions they were built on.
+      UvTry 'Sound libraries (ACE-Step 1.5)' 3 "$UV_BIN" pip install --python "$py" -e "$dir/src/ACE-Step-1.5" || return 1
+      UvTry 'Sound libraries (MOSS-SoundEffect v2)' 3 "$UV_BIN" pip install --python "$py" --no-deps -e "$dir/src/MOSS-TTS/moss_soundeffect_v2" || return 1
+      # shellcheck disable=SC2086
+      UvTry 'Sound libraries (the pinned set both engines run on)' 3 "$UV_BIN" pip install --python "$py" $libs || return 1 ;;
+    moss) SoundWeights "$dir" moss || return 1 ;;
+    ace)  SoundWeights "$dir" ace  || return 1 ;;
+    *) say "  SoundComponent: unknown step $1"; return 1 ;;
+  esac
+}
+
 Pixal3dComponent() { # engine|weights|test
   local dir; dir="$(CfgGet pixal3dDir)"; [ -n "$dir" ] || dir="${ASTRA_PIXAL3D_DIR:-$RT/ComfyUI-Pixal3D}"
   CfgSet pixal3dDir "$dir"
@@ -563,6 +620,9 @@ comp_what() { case "$1" in
   triposg) printf 'TripoSG: Python environment, pinned MIT code, shape weights' ;;
   triposgvae) printf 'TripoSG: VAE weights' ;;
   triposgdino) printf 'TripoSG: DINOv2 image-encoder weights' ;;
+  sound) printf 'Sound: pinned MOSS + ACE-Step code and Python environment' ;;
+  soundmoss) printf 'Sound: MOSS-SoundEffect v2.0 weights (effects)' ;;
+  soundace) printf 'Sound: ACE-Step 1.5 weights (music loops)' ;;
   gguf) printf 'ComfyUI-GGUF node' ;;
   flux2) printf 'FLUX.2 klein 9B GGUF + text encoder + VAE' ;;
   qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;
@@ -570,7 +630,7 @@ comp_what() { case "$1" in
 esac; }
 
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
-ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg'
+ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundace'
 
 # ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
 declare -a IT_ID IT_GRP IT_ST IT_HAVE IT_NEED IT_SIZE IT_NAME IT_LIC IT_PRE IT_DEPS IT_ONLY IT_NOTE IT_TICK
@@ -839,6 +899,9 @@ for e in "${plan[@]}"; do
     triposg) { TriposgComponent env && TriposgComponent code && TriposgComponent tf; } || err=$? ;;
     triposgvae) TriposgComponent vae || err=$? ;;
     triposgdino) TriposgComponent dino || err=$? ;;
+    sound) { SoundComponent code && SoundComponent env; } || err=$? ;;
+    soundmoss) SoundWeights "$(SoundDir)" moss || err=$? ;;
+    soundace) SoundWeights "$(SoundDir)" ace || err=$? ;;
     gguf) InstallGgufNode || err=$? ;;
     flux2) InstallFlux2 || err=$? ;;
     qwenimg) InstallQwen || err=$? ;;

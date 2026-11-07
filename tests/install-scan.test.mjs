@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB,
+  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, soundScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB, SOUND_MIN_VRAM_MIB,
 } from '../installer/af_scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -50,6 +50,7 @@ function mkS(over = {}) {
     mv: { node: false, weights: false, config: false, pkgs: false, ready: false, offer: false, reason: 'needs an NVIDIA graphics card', warn: '', bytes: 0 },
     p3: { dir: '/p3', exists: false, engine: false, weights: false, complete: false, offer: false, reason: 'needs an NVIDIA RTX graphics card', warn: '', missingBytes: 0, diskNeed: 0 },
     ts: { dir: '', env: false, code: false, weights: false, complete: false, offer: false, reason: '', missingBytes: 0 },
+    snd: { dir: '', env: false, code: false, weights: false, complete: false, offer: false, reason: '', missingBytes: 0, codeBytes: 21071466, weightBytes: 21322260234 },
     free: 200e9, ...over,
   };
 }
@@ -221,6 +222,93 @@ test('the triposg state reaches install.sh (S_TS) and survives the shell eval', 
   assert.match(state, /S_TS=''/.test(state) ? /S_TS=''/ : /S_TS='yes'/);
   assert.match(state, /S_TS_DIR='\/d\/ts'/);
   assert.match(state, /S_TS_BYTES='123'/);
+});
+
+// - - - - - - - - - Sound (0.6.x wave, ticket 04) - - - - - - - - - - - - - - - - - - - - - - - - - -
+
+/** a runtime/sound folder the scan is happy with: venv, both checkouts, every manifest file at its size */
+function buildSound(dir) {
+  const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'sound', 'manifest.json'), 'utf8'));
+  const p = (...a) => path.join(dir, ...a);
+  const put = (rel, size = 0) => { mkdirSync(path.dirname(p(rel)), { recursive: true }); writeFileSync(p(rel), ''); if (size) truncateSync(p(rel), size); };
+  for (const e of Object.values(man.models)) for (const f of e.files) put(path.join('models', e.dst, f.path), f.size);
+  put('src/MOSS-TTS/moss_soundeffect_v2/pyproject.toml');
+  put('src/ACE-Step-1.5/pyproject.toml');
+  put('.venv/bin/python'); chmodSync(p('.venv/bin/python'), 0o755);
+  return man;
+}
+
+test('soundScan: venv + both checkouts + every pinned weight is complete; a cut file is not', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'af-snd-'));
+  const man = buildSound(dir);
+  const r = soundScan(mkS({ env: { ASTRA_SOUND_DIR: dir } }));
+  assert.ok(r.complete, r.reason);
+  assert.equal(r.missingBytes, 0);
+  assert.equal(r.weightBytes, Object.values(man.models).flatMap((e) => e.files).reduce((n, f) => n + f.size, 0));
+  assert.equal(r.codeBytes, Object.values(man.code).reduce((n, c) => n + c.size, 0));
+  const big = path.join(dir, 'models', man.models.moss.dst, 'transformer', 'diffusion_pytorch_model.safetensors');
+  truncateSync(big, 1024);
+  const r2 = soundScan(mkS({ env: { ASTRA_SOUND_DIR: dir } }));
+  assert.equal(r2.weights, false);
+  assert.ok(r2.missingBytes > 5e9, 'the shortfall is the size of the truncated file');
+  rmSync(dir, { recursive: true, force: true });
+});
+
+test('soundScan offer gates: no NVIDIA card, or a card under 8 GB, declines the row honestly', () => {
+  const absent = { env: { ASTRA_SOUND_DIR: path.join(tmpdir(), 'af-snd-absent-' + Math.random()) } };
+  assert.match(soundScan(mkS({ ...absent, gpu: '' })).reason, /NVIDIA graphics card/);
+  assert.match(soundScan(mkS({ ...absent, vram: 6144 })).reason, /6 GB/);
+  assert.equal(soundScan(mkS({ ...absent, vram: SOUND_MIN_VRAM_MIB })).offer, true, '8 GB is the seam');
+});
+
+test('the sound checklist row: its own group, both licenses, and never a preset tick', () => {
+  const SOUND_ENV_GUESS = 7.0e9;
+  for (const vram of [12288, TRIPOSG_AUTO_MAX_VRAM_MIB, 4096]) {
+    const items = scanItems(mkS({ vram }));
+    const snd = row(items, 'sound');
+    assert.equal(snd.group, 'Sound and music');
+    assert.equal(snd.presets, '', 'new and experimental: no quick/full/lite preset preselects it');
+    assert.deepEqual(snd.only.split(','), ['sound', 'soundmoss', 'soundace']);
+  }
+  const s = mkS();
+  s.snd = { ...s.snd, offer: true, missingBytes: 1e9 };
+  const r = row(scanItems(s), 'sound');
+  assert.equal(r.status, 'missing');
+  assert.match(r.lic, /Apache-2\.0 \(MOSS-SoundEffect\); MIT \(ACE-Step\)/);
+  assert.equal(r.size, SOUND_ENV_GUESS + s.snd.codeBytes + s.snd.missingBytes, 'env estimate + code + weights still to fetch');
+  const gone = row(scanItems(mkS({ gpu: '' })), 'sound');
+  assert.equal(gone.status, 'unavailable');
+});
+
+test('the sound state reaches install.sh (S_SND) and survives the shell eval', () => {
+  const s = mkS();
+  s.snd = { ...s.snd, dir: '/d/sound', env: true, code: true, weights: false, complete: false, offer: true, reason: '', missingBytes: 42 };
+  const state = stateLines(s);
+  assert.match(state, /S_SND=''/);
+  assert.match(state, /S_SND_ENV='yes'/);
+  assert.match(state, /S_SND_DIR='\/d\/sound'/);
+  assert.match(state, /S_SND_BYTES='42'/);
+  assert.match(state, /S_SND_REASON=''/);
+});
+
+test('installer/sound/manifest.json pins both engines by commit and every weight by size + sha256', () => {
+  const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'sound', 'manifest.json'), 'utf8'));
+  assert.deepEqual(Object.keys(man.code).sort(), ['ace', 'moss']);
+  for (const [key, c] of Object.entries(man.code)) {
+    assert.match(c.commit, /^[0-9a-f]{40}$/, key);
+    assert.ok(c.url.includes(c.commit), `${key}: the archive url is the pinned commit`);
+    assert.ok(c.size > 0 && /^[0-9a-f]{64}$/.test(c.sha256), `${key}: size and sha256`);
+    assert.ok(c.license, `${key}: the license travels with the pin`);
+  }
+  for (const [key, e] of Object.entries(man.models)) {
+    assert.match(e.revision, /^[0-9a-f]{40}$/, key);
+    assert.ok(e.files.length > 1 && e.files.every((f) => f.size > 0 && /^[0-9a-f]{64}$/.test(f.sha256)), `${key}: every file pinned`);
+    assert.ok(new Set(e.files.map((f) => f.path)).size === e.files.length, `${key}: no duplicate paths`);
+  }
+  // the files ACE-Step's own checkpoint check insists on are all in the ACE pin
+  for (const need of ['acestep-v15-turbo/model.safetensors', 'vae/diffusion_pytorch_model.safetensors', 'Qwen3-Embedding-0.6B/model.safetensors', 'acestep-5Hz-lm-1.7B/model.safetensors']) {
+    assert.ok(man.models.ace.files.some((f) => f.path === need), `ACE-Step needs ${need}`);
+  }
 });
 
 test('the state block for install.sh: shell-safe quotes and the status strings of the checklist', () => {
