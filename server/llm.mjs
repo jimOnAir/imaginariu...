@@ -1,5 +1,7 @@
 import { z } from 'zod';
 import { getKey } from './vault.mjs';
+import { ensureOllama, ollamaModels, pickChatModel, NO_TEXT_MODEL_HINT } from './ollama-run.mjs';
+import { vramMiB } from './triposg.mjs';
 export const actionSchema=z.discriminatedUnion('type',[
  z.object({type:z.literal('material'),color:z.string().regex(/^#[0-9a-f]{6}$/i).optional(),metalness:z.number().min(0).max(1).optional(),roughness:z.number().min(0).max(1).optional()}),
  z.object({type:z.literal('transform'),position:z.tuple([z.number().min(-100).max(100),z.number().min(-100).max(100),z.number().min(-100).max(100)]).optional(),rotation:z.tuple([z.number().min(-360).max(360),z.number().min(-360).max(360),z.number().min(-360).max(360)]).optional(),scale:z.number().min(0.05).max(20).optional()}),
@@ -13,7 +15,14 @@ export async function llmChat(config,input){
  const messages=[{role:'system',content:system+'\nScene: '+input.context},...input.history,{role:'user',content:input.message}];let output;
  const signal=AbortSignal.timeout(300000);
  if(config.provider==='ollama'){
-  const res=await fetch(config.ollamaUrl+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model:config.ollamaModel,messages,stream:false,format:'json',think:false,keep_alive:0,options:{num_ctx:8192,num_predict:1500}}),signal});const v=await checked(res);output=v.message?.content;
+  // ticket 14: an installed-but-silent Ollama is started by the studio, and the model is one this
+  // machine actually has - the configured name when it is installed, otherwise the best installed
+  // text model. Never a download, never a guess at a name the user has never pulled.
+  const up=await ensureOllama({url:config.ollamaUrl});
+  if(!up.running)throw new Error(up.reason);
+  const model=pickChatModel(config.ollamaModel,await ollamaModels(config.ollamaUrl)||[],vramMiB());
+  if(!model)throw new Error(NO_TEXT_MODEL_HINT);
+  const res=await fetch(config.ollamaUrl+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,messages,stream:false,format:'json',think:false,keep_alive:0,options:{num_ctx:8192,num_predict:1500}}),signal});const v=await checked(res);output=v.message?.content;
  }else{
   const key=await getKey(config.provider);if(!key)throw new Error('Add an API key in the connections section first.');
   if(config.provider==='openai'){

@@ -20,14 +20,24 @@ import { llmChat } from './llm.mjs';
 import { loadJobs,allJobs,getJob,createJob,cancelJob,validateJobMesh } from './jobs.mjs';
 import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
-import { triposgStatus, autoShape } from './triposg.mjs';
+import { triposgStatus, autoShape, vramMiB } from './triposg.mjs';
 import { registerSound, soundStatus } from './sound.mjs';
+import { ensureOllama, ollamaModels, ollamaCatalog, pickChatModel } from './ollama-run.mjs';
+import { pickReviewModel, publishQaModel, isVisionModelName } from './vlm.mjs';
 import {prepareConcept} from './preprocess.mjs';
 import {optimizeMeshes} from './optimize.mjs';
 await init();await loadJobs();
 const pkg=await readJson(path.join(root,'package.json'),{});const appVersion=pkg.version||'0.0.0';
 const readText=async f=>{try{return await fs.readFile(path.join(root,f),'utf8');}catch{return '';}};
 let config=await loadConfig(path.join(data,'config.json'));
+// Ollama that runs itself (docs/product/ollama.md, ticket 14): an installed but silent local server
+// is started by the studio, the assistant model and the review model are chosen from what is
+// installed, and the review pick travels to the Blender steps via ASTRA_QA_VLM. Auto-start is for
+// the loopback default only, and never in a test or an engines-off run.
+const autostartOllama=()=>!process.env.NODE_TEST_CONTEXT&&process.env.ASTRA_ENGINE_AUTOSTART!=='0';
+async function reviewPick(names,vram=vramMiB()){const pick=pickReviewModel(vram,names||[],process.env,config.reviewModel);publishQaModel(pick);return pick;}
+let ollamaStarting=false;
+if(autostartOllama())void ensureOllama({url:config.ollamaUrl,appRoot:root}).then(async()=>{await reviewPick(await ollamaModels(config.ollamaUrl)||[]);}).catch(()=>{});
 const app=express();const port=Number(process.env.PORT)||3210;
 app.disable('x-powered-by');
 let sculpt=null;   // the Sculpt tab: the SculptGL page on the web port may read studio assets (server/sculpt.mjs)
@@ -39,7 +49,7 @@ const asyncRoute=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(nex
 app.get('/api/config',asyncRoute(async(req,res)=>res.json({config,keys:await keyStatus()})));
 app.get('/api/health',(req,res)=>res.json({app:'AstraForge',version:appVersion}));
 app.get('/api/about',asyncRoute(async(req,res)=>res.json({app:'AstraForge',version:appVersion,links:{site:'https://snodrod.github.io/AstraForge/',source:'https://github.com/Snodrod/AstraForge'},licenseText:await readText('LICENSE'),commercialText:await readText('COMMERCIAL-LICENSE.md'),notices:await readText('THIRD_PARTY_NOTICES.md')})));
-app.put('/api/config',asyncRoute(async(req,res)=>{if(llmBusy||allJobs().some(j=>['queued','running'].includes(j.status)))throw new Error('Wait for the generation or the AI reply to finish before changing connections.');config=configSchema.parse(req.body);await writeJson(path.join(data,'config.json'),config);res.json({config,keys:await keyStatus()});}));
+app.put('/api/config',asyncRoute(async(req,res)=>{if(llmBusy||allJobs().some(j=>['queued','running'].includes(j.status)))throw new Error('Wait for the generation or the AI reply to finish before changing connections.');config=configSchema.parse(req.body);await writeJson(path.join(data,'config.json'),config);void reviewPick(await ollamaModels(config.ollamaUrl)||[]).catch(()=>{});res.json({config,keys:await keyStatus()});}));
 app.put('/api/keys/:provider',asyncRoute(async(req,res)=>{const provider=z.enum(['openai','anthropic','tripo']).parse(req.params.provider);const key=z.string().max(500).parse(req.body.key);await setKey(provider,key);res.json(await keyStatus());}));
 registerTripo(app,asyncRoute);
 registerForge(app,asyncRoute,{getGenerationJob:getJob});
@@ -54,7 +64,14 @@ app.get('/api/status',asyncRoute(async(req,res)=>{
  const checkpoints=nodes?.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[];
  const triposg=triposgStatus();
  const sound=soundStatus();
- res.json({pixal3d,triposg,sound,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollama?.models?.map(x=>x.name)||[]},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
+ // the assistant model and the review model are resolved from what is installed, never assumed; an
+ // offline local Ollama is started in the background so the next refresh is honest about it
+ const ollamaNames=ollama?.models?.map(x=>x.name)||[];
+ const ollamaVram=ollama?vramMiB():0;   // one card read per status call: the pick and the tier share it
+ const ollamaCatalog_=ollama?await ollamaCatalog(config.ollamaUrl,fetch,isVisionModelName)||[]:[];
+ const ollamaReview=ollama?await reviewPick(ollamaNames,ollamaVram):null;
+ if(!ollama&&autostartOllama()&&!ollamaStarting){ollamaStarting=true;void ensureOllama({url:config.ollamaUrl,appRoot:root}).finally(()=>{ollamaStarting=false;});}
+ res.json({pixal3d,triposg,sound,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
 }));
 app.post('/api/runtime/start',asyncRoute(async(req,res)=>res.json(await startRuntime())));
 app.post('/api/runtime/pixal3d/start',asyncRoute(async(req,res)=>res.json(await startPixal3dRuntime())));
