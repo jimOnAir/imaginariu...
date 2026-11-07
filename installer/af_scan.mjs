@@ -391,6 +391,12 @@ export function scanComponents(opts = {}) {
   for (const id of ['hy2', 'hymv', 'hy21', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
   s.flux2 = multiState(root, s.comfy, man, ['flux2', 'flux2te', 'flux2vae']);
+  // replaced-but-retained weights (ticket 09): the klein 9B era's files, kept as the user's property
+  s.flux2old = (() => {
+    if (!s.comfy) return [];
+    const dir = path.join(s.comfy, 'models', 'unet');
+    try { return readdirSync(dir).filter((f) => /flux-2-klein.*9b.*\.gguf$/i.test(f)).map((f) => ({ name: f, size: statSync(path.join(dir, f)).size })); } catch { return []; }
+  })();
   s.qwenimg = multiState(root, s.comfy, man, ['qwenimg', 'qwente', 'qwenvae']);
   s.library = cfg.library || env.ASTRA_FORGE_LIBRARY || path.join(root, 'library');
   const quats = path.join(s.library, 'animations', 'quaternius');
@@ -473,13 +479,18 @@ export function scanItems(s) {
   else if (s.snd.offer) add('sound', G_SND, 'missing', '', '', (s.snd.env ? 0 : SOUND_ENV_DOWNLOAD + s.snd.codeBytes) + (s.snd.weights ? 0 : s.snd.missingBytes),
     sndName, sndLic, '', sndOnly, gpuNote);
   else add('sound', G_SND, 'unavailable', '', '', 0, sndName, sndLic, '', sndOnly, s.snd.reason);
-  for (const [id, ids, name, licNote] of [['flux2', ['flux2', 'flux2te', 'flux2vae'], 'FLUX.2 klein 9B: 2D by description and references', 'noncommercial weights license'],
+  for (const [id, ids, name, licNote] of [['flux2', ['flux2', 'flux2te', 'flux2vae'], 'FLUX.2 klein 4B: 2D by description and references', 'Apache-2.0 - commercial use OK'],
     ['qwenimg', ['qwenimg', 'qwente', 'qwenvae'], 'Qwen-Image: 2D by description, readable text in pictures', '']]) {
     const ms = s[id];                        // the set verdict from scanComponents (no re-probing here)
     let status = ms.st;
     if (status !== 'missing' && !s.gguf) status = 'outdated';
     let note = noGpu ? 'needs an NVIDIA graphics card' : status === 'outdated' ? 'another file version or no GGUF loader - update' : licNote;
     if (noGpu && status !== 'installed') status = 'unavailable';
+    if (id === 'flux2' && s.flux2old?.length) {
+      // the pre-0.6.6 9B weights are the user's files: never used, never deleted, always named (ticket 09)
+      const gb = Math.round(s.flux2old.reduce((n, f) => n + f.size, 0) / 1e8) / 10;
+      note = (note ? note + '; ' : '') + `the previous klein 9B (${gb} GB on disk) is kept and unused - delete it yourself to free the space`;
+    }
     add(id, G_2D, status, ms.where, '', sumSizes(man, ids), name, man.models[ids[0]].license, 'comfy', '', note);
   }
   add('ollama', G_AI, s.ollama ? 'installed' : 'missing', s.ollama || '', '', SIZE.ollama, 'Ollama (local AI models)', 'MIT');

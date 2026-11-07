@@ -46,11 +46,11 @@ VlmBytes=6100000000
 # 2D engines (the same pins as installer/manifest.json; the Windows frontends stay frozen, ADR-0003)
 GgufNodeCommit='b6016439f135342819461256ec5f03fbb4003a8b'
 GgufNodeUrl="https://github.com/molbal/ComfyUI-GGUF/archive/$GgufNodeCommit.zip"
-Flux2UnetUrl='https://huggingface.co/unsloth/FLUX.2-klein-base-9B-GGUF/resolve/main/flux-2-klein-base-9b-Q5_K_M.gguf'
-Flux2UnetSha='6194deb13cfeb2584f7fcf36e85b1713cc30af6551dab74cbe18a4b8c96527ef'
-Flux2TeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors'
-Flux2TeSha='abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6'
-Flux2VaeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/vae/flux2-vae.safetensors'
+Flux2UnetUrl='https://huggingface.co/unsloth/FLUX.2-klein-base-4B-GGUF/resolve/main/flux-2-klein-base-4b-Q4_K_M.gguf'
+Flux2UnetSha='5e3893a005ec1b0515ba6c23f6a93bec37ddf7fd2dfcf101fef4e19bc53c3a1c'
+Flux2TeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/text_encoders/qwen_3_4b_fp4_flux2.safetensors'
+Flux2TeSha='3eab03a77adb0ee5304a4e677d5c10ac22f9049c1d7c894adca4f8bb39206ca8'
+Flux2VaeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/vae/flux2-vae.safetensors'
 Flux2VaeSha='868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3'
 QwenUnetUrl='https://huggingface.co/city96/Qwen-Image-gguf/resolve/main/qwen-image-Q4_K_M.gguf'
 QwenUnetSha='c6f49103603b9a4927502549fb615c910386cfc675b1466325930ba10d2a11f4'
@@ -307,8 +307,12 @@ InstallGgufNode() {
 }
 InstallFlux2() {
   InstallGgufNode || return 1
-  DownloadChecked "$Flux2UnetUrl" "$S_COMFY/models/unet/flux-2-klein-base-9b-Q5_K_M.gguf" 7017126176 "$Flux2UnetSha" || return 1
-  DownloadChecked "$Flux2TeUrl" "$S_COMFY/models/text_encoders/qwen_3_8b_fp8mixed.safetensors" 8664848742 "$Flux2TeSha" || return 1
+  # the 9B era left weights here; they are the user's files, kept, but said out loud (ticket 09)
+  for old in "$S_COMFY"/models/unet/flux-2-klein*9b*.gguf; do
+    [ -e "$old" ] && say "  Note: the previous FLUX.2 klein 9B is still on disk ($(du -h "$old" | cut -f1)): $(basename "$old"). It is not used or touched; delete it yourself when you want the space."
+  done
+  DownloadChecked "$Flux2UnetUrl" "$S_COMFY/models/unet/flux-2-klein-base-4b-Q4_K_M.gguf" 2422055488 "$Flux2UnetSha" || return 1
+  DownloadChecked "$Flux2TeUrl" "$S_COMFY/models/text_encoders/qwen_3_4b_fp4_flux2.safetensors" 3848213998 "$Flux2TeSha" || return 1
   DownloadChecked "$Flux2VaeUrl" "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292 "$Flux2VaeSha" || return 1
   S_FLUX2=yes
 }
@@ -624,7 +628,7 @@ comp_what() { case "$1" in
   soundmoss) printf 'Sound: MOSS-SoundEffect v2.0 weights (effects)' ;;
   soundace) printf 'Sound: ACE-Step 1.5 weights (music loops)' ;;
   gguf) printf 'ComfyUI-GGUF node' ;;
-  flux2) printf 'FLUX.2 klein 9B GGUF + text encoder + VAE' ;;
+  flux2) printf 'FLUX.2 klein 4B GGUF + text encoder + VAE' ;;
   qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;
   *) printf '%s' "$1" ;;
 esac; }

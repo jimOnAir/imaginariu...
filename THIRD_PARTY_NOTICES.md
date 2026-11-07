@@ -22,6 +22,8 @@
 | Модель u2net | github.com/danielgatis/rembg | Apache-2.0 |
 | Модели Hunyuan3D-2, 2mv, 2.1 | huggingface.co/tencent | Tencent Hunyuan Community License: **не действует на территории ЕС, Великобритании и Южной Кореи**; при аудитории свыше 1 млн пользователей в месяц нужна отдельная лицензия Tencent |
 | Модель SDXL base 1.0 | huggingface.co/stabilityai | CreativeML Open RAIL++-M |
+| FLUX.2 [klein] 4B — веса вкладки «2D» (GGUF Q4_K_M + текстовый энкодер Qwen3-4B fp4 + VAE); до 0.6.6 ставилась некоммерческая 9B | huggingface.co/unsloth/FLUX.2-klein-4B-GGUF, huggingface.co/Comfy-Org/Flux-2-Klein-4B | Apache-2.0 |
+| Qwen-Image — веса вкладки «2D» (GGUF Q4_K_M + энкодер Qwen2.5-VL + VAE) | huggingface.co/city96/Qwen-Image-gguf, huggingface.co/Comfy-Org/Qwen-Image | Apache-2.0 |
 | Веса MV-Adapter (`mvadapter_i2mv_sdxl.safetensors`, ракурсы по одной картинке) | huggingface.co/huanngzh/mv-adapter | Apache-2.0 |
 | diffusers, peft, accelerate, timm, trimesh, antlr4-python3-runtime (пакеты Python в окружении ComfyUI для MV-Adapter) | PyPI | Apache-2.0 / MIT / BSD |
 | TripoSG — third shape engine: код (репозиторий заморожен по коммиту, `runtime/triposg/src/TripoSG`) и веса | github.com/VAST-AI-Research/TripoSG, huggingface.co/VAST-AI/TripoSG | MIT |

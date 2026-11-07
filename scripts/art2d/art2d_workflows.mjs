@@ -1,15 +1,15 @@
 // ComfyUI graphs (API format) for the 2D module (docs/art2d.md). Pure functions: no I/O, easy to test.
 //
 // Engines (files of the studio ComfyUI :8190 model folders):
-//   flux2 - FLUX.2 [klein] 9B base GGUF + Qwen3-8B text encoder. Text-to-image AND editing by up to 4 reference
-//           images (ReferenceLatent chain, the wiring of ComfyUI's own "Image Edit (Flux.2 Klein 9B)" template).
-//           FLUX Non-Commercial weights licence - the UI and the manifest say so.
+//   flux2 - FLUX.2 [klein] 4B base GGUF (Apache-2.0 since the 0.6.6 swap) + Qwen3-4B fp4 text encoder.
+//           Text-to-image AND editing by up to 4 reference
+//           images (ReferenceLatent chain, the wiring of ComfyUI's own "Image Edit (Flux.2 Klein)" template).
 //   qwen  - Qwen-Image GGUF, text-to-image only (Apache-2.0, commercial use OK). Best with readable text.
 //   sdxl  - SDXL base 1.0: fast drafts, text-to-image and image-to-image (denoise) (OpenRAIL++, commercial OK).
 export const ENGINES = {
   flux2: {
-    label: 'FLUX.2 klein 9B', license: 'FLUX Non-Commercial', commercial: false, edit: true, maxRefs: 4,
-    unet: 'flux-2-klein-base-9b-Q5_K_M.gguf', clip: 'qwen_3_8b_fp8mixed.safetensors', clipType: 'flux2', vae: 'flux2-vae.safetensors',
+    label: 'FLUX.2 klein 4B', license: 'Apache-2.0', commercial: true, edit: true, maxRefs: 4,
+    unet: 'flux-2-klein-base-4b-Q4_K_M.gguf', clip: 'qwen_3_4b_fp4_flux2.safetensors', clipType: 'flux2', vae: 'flux2-vae.safetensors',
     steps: 20, cfg: 5, nodes: ['UnetLoaderGGUF', 'CLIPLoader', 'VAELoader', 'ReferenceLatent', 'EmptyFlux2LatentImage', 'Flux2Scheduler', 'CFGGuider', 'SamplerCustomAdvanced'],
   },
   qwen: {

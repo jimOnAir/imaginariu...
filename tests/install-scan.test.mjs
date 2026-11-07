@@ -158,6 +158,14 @@ test('models and 2D engines: a size mismatch reads as outdated; no GGUF loader t
   const found2d = mkS({ comfy: '/c', comfyVer: '0.33.2', comfyDeps: true, flux2: { st: 'installed', where: '/d' }, qwenimg: { st: 'installed', where: '/d' }, gguf: false });
   assert.equal(row(scanItems(found2d), 'flux2').status, 'outdated', 'weights without the GGUF node need an update');
   assert.match(row(scanItems(found2d), 'flux2').note, /GGUF loader/);
+  // 0.6.6 swap (ticket 09): the row is the 4B, Apache-2.0; a leftover 9B is named but never touched
+  const ok4 = mkS({ comfy: '/c', comfyVer: '0.33.2', comfyDeps: true, gguf: true, flux2: { st: 'installed', where: '/d' } });
+  const r4 = row(scanItems(ok4), 'flux2');
+  assert.equal(r4.status, 'installed');
+  assert.match(r4.name, /klein 4B/);
+  assert.equal(r4.lic, 'Apache-2.0', 'the row license comes from the manifest pin');
+  const withOld = mkS({ comfy: '/c', comfyVer: '0.33.2', comfyDeps: true, gguf: true, flux2: { st: 'installed', where: '/d' }, flux2old: [{ name: 'flux-2-klein-base-9b-Q5_K_M.gguf', size: 7017126176 }] });
+  assert.match(row(scanItems(withOld), 'flux2').note, /previous klein 9B \(7 GB on disk\) is kept and unused/);
 });
 
 test('the ##ITEM lines: 13 tab-separated fields, tabs and newlines inside values are collapsed', () => {

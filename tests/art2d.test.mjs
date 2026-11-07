@@ -100,7 +100,8 @@ test('createSet: manifest, copied refs, seeds, engine checks', async () => {
   assert.equal(set.refs.character, 'refs/character.png');
   assert.equal(set.shots.length, 3);
   assert.ok(set.shots.every((s) => s.seed === 100 && s.status === 'pending'));   // one seed through a sequence
-  assert.equal(set.license.commercial, false);
+  assert.equal(set.license.commercial, true, 'FLUX.2 klein 4B (since 0.6.6) is Apache-2.0: the 2D default set is commercial-safe');
+  assert.equal(set.license.engine, 'Apache-2.0');
   assert.deepEqual(await runner.loadSet(dir), set);
 
   const t = await runner.createSet({ recipe: 'turnaround', character: ref, seed: 7 }, { root });
