@@ -249,6 +249,18 @@
       "url": "https://github.com/SHI-Labs/NATTEN/releases/download/v0.21.5/natten-0.21.5%2Btorch290cu128-cp312-cp312-linux_x86_64.whl",
       "size": 367937060,
       "sha256": "8c20be9bd68195c99a526c21504c10cb4ce42cf0b7e13be1329933fd846a19c0"
-    }
+    },
+    "nattenMatrix": [
+      {
+        "_comment": "ticket 11 (0.6.x wave): rows are (torch, CUDA) pairs with a pinned linux_x86_64 wheel under linux.nattenPins; verified on this branch 2026-11-08: sm_120 (RTX 5070) runs a real na2d forward with this wheel (Blackwell backends inside). CUDA 12.6 builds carry no sm_120 kernels; cards below sm_75 get no NATTEN at all - af_natten_probe.mjs turns that into the honest lighter recommendation.",
+        "id": "torch290cu128",
+        "version": "0.21.5",
+        "torch": "2.9",
+        "cuda": 12.8,
+        "py": ["cp312"],
+        "arch": "linux_x86_64",
+        "ccMin": 7.5
+      }
+    ]
   }
 }

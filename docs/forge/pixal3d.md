@@ -129,3 +129,23 @@ Pixal3D занимает около 9,5 ГБ из 12, а Hunyuan держит м
 `server/jobs.mjs` (ветка `runPixal3d`), `server/index.mjs` (`engine` в заданиях, `pixal3d` в `/api/status`), `server/views.mjs` (`forJob` отдаёт и вырезки `cutFiles`),
 `scripts/views/views_3d.mjs` (CLI), `scripts/Start.ps1` и `scripts/Stop.ps1`, `src/ViewsPanel.jsx` (`EngineSelect`), `src/App.jsx`, `src/views.css`.
 Сам движок и его описание — `C:\AstraForge\ComfyUI-Pixal3D\ASTRAFORGE_README.md`.
+
+## Ядро NATTEN и пробник видеокарты (0.6.x, тикет 11)
+
+Windows-ветка в 0.6.4 чинила падение Pixal3D на RTX 50 («no kernel image available to execute»):
+старое колесо NATTEN не умело ядро sm_120. На Linux это проверено живьём (RTX 5070, 2026-11-08):
+закреплённое колесо `natten-0.21.5+torch290cu128` умеет Blackwell (настоящий проход `na2d` с
+картой 16×16 даёт конечный результат), но установщик всё равно обязан ПРОВЕРЯТЬ, а не предполагать:
+
+- `installer/pixal3d/af_natten_probe.mjs` — выбор колеса по тройке (версия torch, CUDA, compute
+  capability); матрица закреплена в `installer/pixal3d/manifest.json` (`linux.nattenMatrix`).
+  Понты ниже `sm_75` (GTX 10xx) колесо не получают вообще — честная рекомендация облегчённого
+  набора; неизвестная карта/торч — деградация к закреплённому колесу с внятным сообщением.
+- Установка (`install-pixal3d.sh engine`) ставит колесо по вердикту пробника, затем делает
+  контрольный проход `na2d` на этой карте; при неудаче — одна переустановка, и никакой фальшивой
+  зелени: смоук-тест скажет правду.
+- Починка обоих окружений Pixal3D (переносной на 8191 и старого до-0.5 Pixal3D-на-ComfyUI):
+  `installer/pixal3d/install-pixal3d.sh natten [каталог]` — проверяет и заменяет ядро, только
+  когда оно не подходит карте; отсутствующее окружение честно называется отсутствующим.
+- Швы для тестов (в стиле `ASTRA_VRAM_MIB`): `ASTRA_GPU_CC` подменяет compute capability,
+  `ASTRA_NATTEN_PROBE=0` выключает живой проход. Логика выбора покрыта `tests/natten-probe.test.mjs`.

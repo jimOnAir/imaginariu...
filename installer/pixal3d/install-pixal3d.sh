@@ -8,6 +8,7 @@
 #   installer/pixal3d/install-pixal3d.sh engine  <dir>   Python, ComfyUI, Trellis2 nodes, packages
 #   installer/pixal3d/install-pixal3d.sh weights <dir>   Pixal3D/MoGe/NAF/DINOv3 weights (about 42 GB)
 #   installer/pixal3d/install-pixal3d.sh test    <dir>   smoke: start the engine on 8191, check the nodes
+#   installer/pixal3d/install-pixal3d.sh natten  <dir>   check-and-fix NATTEN kernels in BOTH Pixal3D environments (ticket 11)
 #
 # Uses helpers of the parent install.sh only through its own copies: no shared state, resumable.
 set -uo pipefail
@@ -53,6 +54,69 @@ Uv() {
   export UV_PYTHON_INSTALL_DIR="${UV_PYTHON_INSTALL_DIR:-$APP/runtime/python}" UV_CACHE_DIR="${UV_CACHE_DIR:-$APP/runtime/uv-cache}"
 }
 
+# ---------------------------------------------------------------- NATTEN (ticket 11)
+NattenPlan() { # <dir> -> the probe's machine line (##NATTEN json), empty when it says nothing
+  local n; n="$(NodeBin)"; [ -n "$n" ] || return 0
+  "$n" "$SRC/af_natten_probe.mjs" "$1" 2>>"$LOG" | grep '^##NATTEN' | tail -1 | sed 's/^##NATTEN //'
+}
+NattenEval() { # <json> -> shell assignments AR_* (values quoted by JSON.stringify)
+  local n; n="$(NodeBin)"
+  "$n" -e 'const j=JSON.parse(process.argv[1]);for(const k of ["verdict","reason","file","url","size","sha256","installed","forwardOk","needsReinstall","cc","torch","cuda"]){console.log("AR_"+k.toUpperCase()+"="+JSON.stringify(j[k]==null?"":String(j[k])))}' "$1"
+}
+NattenInstall() { # <dir>  probe -> install the row's wheel -> kernel check -> one repair, then honest truth
+  local dir="$1" plan url size sha file
+  plan="$(NattenPlan "$dir")"
+  if [ -n "$plan" ]; then eval "$(NattenEval "$plan")"
+  else AR_VERDICT=probe-failed; AR_REASON='the probe said nothing - keeping the pinned wheel'; fi
+  say "  probe: verdict=${AR_VERDICT:-?} cc=${AR_CC:-?} torch=${AR_TORCH:-?}+cu${AR_CUDA:-?} installed=${AR_INSTALLED:-none} - ${AR_REASON:-}"
+  [ "${AR_VERDICT:-}" = "lite-recommendation" ] && say "  this card has no NATTEN kernels (below sm_75) - Pixal3D will not run on it; the studio recommends the lighter set (the pinned wheel still installs, the smoke test tells the truth)"
+  url="${AR_URL:-$(Mv linux.natten.url)}"; size="${AR_SIZE:-$(Mv linux.natten.size)}"; sha="${AR_SHA256:-$(Mv linux.natten.sha256)}"; file="${AR_FILE:-$(Mv linux.natten.file)}"
+  DownloadChecked "$url" "$DL/$file" "$size" "$sha" || return 1
+  local py="$dir/.venv/bin/python"
+  "$UV_BIN" pip install --python "$py" --no-deps "$DL/$file" || return 1
+  plan="$(NattenPlan "$dir")"
+  if [ -n "$plan" ]; then eval "$(NattenEval "$plan")"
+  else AR_FORWARDOK=true; AR_VERDICT=probe-failed; AR_REASON='kernel check silent (kept as installed - the smoke test verifies)'; return 0; fi
+  if [ "${AR_FORWARDOK:-}" != "true" ]; then
+    say "  the kernel check did not pass (${AR_REASON:-}) - reinstalling the row's wheel once"
+    "$UV_BIN" pip install --python "$py" --no-deps --reinstall "$DL/$file" || return 1
+    plan="$(NattenPlan "$dir")"; [ -n "$plan" ] && eval "$(NattenEval "$plan")"
+    if [ "${AR_FORWARDOK:-}" != "true" ]; then
+      say "  NATTEN still cannot run a forward pass on this card - the engine smoke will report it; no fake green"
+    else
+      say '  NATTEN kernels verified on this card after reinstall'
+    fi
+  else
+    say '  NATTEN kernels verified on this card'
+  fi
+  return 0
+}
+NattenOne() { # <dir> <name>  the repair path for one environment
+  local dir="$1" name="$2" plan
+  [ -x "$dir/.venv/bin/python" ] || { say "  $name: no .venv there - nothing to check"; return 0; }
+  Uv || return 1
+  P3EnvPush "$dir"
+  plan="$(NattenPlan "$dir")"
+  [ -n "$plan" ] || { say "  $name: the probe says nothing (node or venv broken) - environment left as is"; return 0; }
+  eval "$(NattenEval "$plan")"
+  say "  $name: cc=${AR_CC:-?} installed=${AR_INSTALLED:-none} forward=${AR_FORWARDOK:-?} verdict=${AR_VERDICT} - ${AR_REASON}"
+  [ "${AR_VERDICT:-}" = "lite-recommendation" ] && { say "  $name: this card gets no NATTEN kernels; nothing to install - the lighter set is the answer"; return 0; }
+  if [ "${AR_FORWARDOK:-}" = "true" ] && [ "${AR_NEEDSREINSTALL:-}" != "true" ]; then say "  $name: NATTEN runs on this card - nothing to fix"; return 0; fi
+  local url="${AR_URL:-$(Mv linux.natten.url)}" size="${AR_SIZE:-$(Mv linux.natten.size)}" sha="${AR_SHA256:-$(Mv linux.natten.sha256)}" file="${AR_FILE:-$(Mv linux.natten.file)}"
+  say "  $name: replacing NATTEN with ${file}"
+  DownloadChecked "$url" "$DL/$file" "$size" "$sha" || { say "  $name: the replacement wheel could not be downloaded"; return 1; }
+  "$UV_BIN" pip install --python "$dir/.venv/bin/python" --no-deps --reinstall "$DL/$file" || return 1
+  plan="$(NattenPlan "$dir")"; [ -n "$plan" ] && eval "$(NattenEval "$plan")"
+  if [ "${AR_FORWARDOK:-}" = "true" ]; then say "  $name: fixed - kernels verified"; return 0; fi
+  say "  $name: still no kernels after the replacement - the environment needs a NATTEN build this matrix does not have yet"; return 1
+}
+NattenFix() { # <primary dir>  check-and-fix BOTH Pixal3D environments (the 0.6.5 fact, ticket 02's slimmed line)
+  NattenOne "$1" 'ComfyUI-Pixal3D (8191)' || return 1
+  local legacy="$APP/runtime/ComfyUI"
+  if [ -d "$legacy/custom_nodes/ComfyUI-Trellis2" ]; then NattenOne "$legacy" 'the pre-0.5 Pixal3D-on-ComfyUI environment' || return 1
+  else say '  the pre-0.5 Pixal3D-on-ComfyUI environment is not present here - nothing to fix'; fi
+}
+
 # ---------------------------------------------------------------- engine
 Engine() { # <dir>
   local dir="$1" py node
@@ -86,9 +150,8 @@ Engine() { # <dir>
   Title 'FlashAttention 2.8.3 (official Linux wheel, sha256 checked)'
   DownloadChecked "$(Mv linux.flashAttn.url)" "$DL/$(Mv linux.flashAttn.file)" "$(Mv linux.flashAttn.size)" "$(Mv linux.flashAttn.sha256)" || return 1
   "$UV_BIN" pip install --python "$py" --no-deps "$DL/$(Mv linux.flashAttn.file)" || return 1
-  Title 'NATTEN (official Linux wheel for torch2.9+cu128, sha256 checked)'
-  DownloadChecked "$(Mv linux.natten.url)" "$DL/$(Mv linux.natten.file)" "$(Mv linux.natten.size)" "$(Mv linux.natten.sha256)" || return 1
-  "$UV_BIN" pip install --python "$py" --no-deps "$DL/$(Mv linux.natten.file)" || return 1
+  Title 'NATTEN (kernel probe picks the wheel: torch, CUDA, compute capability - ticket 11)'
+  if ! NattenInstall "$dir"; then return 1; fi
   Title 'node wheels (cumesh, custom_rasterizer, flex_gemm, nvdiffrast, nvdiffrec_render, o_voxel)'
   local wd="$node/$(Mv linux.wheelDir)" f dn
   for f in $(Mv linux.wheels | tr -d '[]"' | tr ',' ' '); do
@@ -119,6 +182,7 @@ Extras() { # <dir>  own helpers: vram probe, tools, launch script, installation 
   cp -f "$SRC/af_vram_probe.py" "$dir/ComfyUI/custom_nodes/af_vram_probe.py"
   local f
   for f in dinov3_timm_to_hf.py normalize_seed_mesh.py smoke_test.py patch_trellis2.py; do cp -f "$SRC/$f" "$dir/tools/$f"; done
+  cp -f "$SRC/af_natten_probe.mjs" "$dir/tools/af_natten_probe.mjs"
   cat > "$dir/start-pixal3d.sh" <<'EOF'
 #!/usr/bin/env bash
 # Start the Pixal3D engine (ComfyUI on 127.0.0.1:8191). Stop: Ctrl+C. The studio starts it on its own.
@@ -256,5 +320,6 @@ case "$cmd" in
   engine)  Engine "$dir" ;;
   weights) Weights "$dir" ;;
   test)    Test "$dir" ;;
-  *) echo 'usage: install-pixal3d.sh engine|weights|test [dir]'; exit 2 ;;
+  natten)  NattenFix "$dir" ;;
+  *) echo 'usage: install-pixal3d.sh engine|weights|test|natten [dir]'; exit 2 ;;
 esac
