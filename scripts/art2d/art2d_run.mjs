@@ -42,8 +42,10 @@ export async function saveSet(dir, set) {
   return set;
 }
 
-/** {ready, engines:{flux2:{ready,reasons}, ...}} - what is usable right now on the given ComfyUI. */
-export async function art2dStatus(comfyUrl = DEFAULT_COMFY_URL) {
+/** {ready, engines:{flux2:{ready,reasons}, ...}} - what is usable right now on the given ComfyUI.
+ *  vramMiB (optional): engines carrying a gateMiB (qwenedit, ticket 07) reason themselves out
+ *  honestly on a small card - below the gate the style series are drawn by FLUX.2 klein. */
+export async function art2dStatus(comfyUrl = DEFAULT_COMFY_URL, { vramMiB = 0 } = {}) {
   let info = null;
   try {
     const r = await fetch(comfyUrl + '/object_info', { signal: AbortSignal.timeout(15000) });
@@ -58,11 +60,13 @@ export async function art2dStatus(comfyUrl = DEFAULT_COMFY_URL) {
       if (missing.length) reasons.push('missing nodes ' + missing.join(', ') + (missing.includes('UnetLoaderGGUF') ? ' - restart the studio (stop.sh -> start.sh): the ComfyUI-GGUF node attaches at startup' : ''));
       const list = (node, field) => info[node]?.input?.required?.[field]?.[0] || [];
       if (e.unet && info.UnetLoaderGGUF && !list('UnetLoaderGGUF', 'unet_name').includes(e.unet)) reasons.push('no weights ' + e.unet);
+      if (e.lora && info.LoraLoaderModelOnly && !list('LoraLoaderModelOnly', 'lora_name').includes(e.lora)) reasons.push('no LoRA ' + e.lora);
       if (e.clip && !list('CLIPLoader', 'clip_name').includes(e.clip)) reasons.push('no text encoder ' + e.clip);
       if (e.vae && !list('VAELoader', 'vae_name').includes(e.vae)) reasons.push('no VAE ' + e.vae);
       if (e.checkpoint && !list('CheckpointLoaderSimple', 'ckpt_name').includes(e.checkpoint)) reasons.push('no ' + e.checkpoint);
     }
-    engines[id] = { label: e.label, license: e.license, commercial: e.commercial, edit: e.edit, ready: reasons.length === 0, reasons };
+    if (e.gateMiB && vramMiB > 0 && vramMiB < e.gateMiB) reasons.push(`wants at least ${Math.round(e.gateMiB / 1024)} GB of video memory (this card has ${Math.round(vramMiB / 1024)} GB) - style series fall back to FLUX.2 klein`);
+    engines[id] = { label: e.label, license: e.license, commercial: e.commercial, edit: e.edit, gateMiB: e.gateMiB || null, ready: reasons.length === 0, reasons };
   }
   return { online: !!info, ready: Object.values(engines).some((e) => e.ready), engines };
 }
@@ -101,12 +105,18 @@ export async function createSet(o, { root = ART2D_ROOT } = {}) {
   };
   for (const [i, f] of (o.poses || []).entries()) refs.poses.push(await copyRef(dir, 'pose_' + String(i).padStart(2, '0'), f));
   for (const [i, f] of (o.inputs || []).entries()) refs.inputs.push(await copyRef(dir, 'input_' + String(i).padStart(2, '0'), f));
+  // the style bible (ticket 07): its pictures are copied in, its text is remembered - the set keeps
+  // the look it was made with even if the bible is edited afterwards
+  refs.styleBible = [];
+  for (const [i, f] of (o.styleBible?.files || []).entries()) refs.styleBible.push(await copyRef(dir, 'bible_' + String(i).padStart(2, '0'), f));
+  const styleBible = o.styleBible?.id ? { id: o.styleBible.id, name: o.styleBible.name || '', description: o.styleBible.description || '', negative: o.styleBible.negative || '' } : null;
   const shots = expandRecipe({ ...o, hasCharacter: !!refs.character, poses: refs.poses.length, inputs: refs.inputs.length });
   const seed = Number.isFinite(Number(o.seed)) ? Math.trunc(Number(o.seed)) : Math.floor(Math.random() * 1e9);
   const style = o.style || 'painted';
   const set = {
     app: 'AstraForge', kind: 'art2d', version: 1, id, name: o.name || `${recipe.label}${o.action ? ' \u00b7 ' + (ACTIONS[o.action]?.label || o.action) : ''}`,
     recipe: o.recipe, style, engine, license: { engine: e.license, commercial: e.commercial },
+    styleBible, engineNote: o.engineNote || null,
     params: { prompt: o.prompt || '', action: o.action || null, direction: o.direction || 'right', frames: o.frames || null, chain: !!o.chain, sheet: o.sheet || 'default', seed, steps: o.steps || null },
     refs, createdAt: nowIso(),
     shots: shots.map((s, i) => ({ ...s, seed: seed + (s.seedOffset ?? (o.recipe === 'animation' || o.recipe === 'poses3d' ? 0 : i)), status: 'pending' })),
@@ -115,10 +125,12 @@ export async function createSet(o, { root = ART2D_ROOT } = {}) {
   return { dir, set: await saveSet(dir, set) };
 }
 
-function finalPrompt(set, shot) {
+/** The prompt a shot is drawn with (exported for tests): recipe text + style tab style + bible recipe. */
+export function finalPrompt(set, shot) {
   const styleImage = !!set.refs.styleImage && ENGINES[set.engine].edit;
   let p = shot.prompt + styleSuffix(set.style, { styleImage });
   if (styleImage) p += ' ' + STYLE_REF_PROMPT;
+  if (set.styleBible?.description) p += ' ' + set.styleBible.description;   // the bible's EN recipe, written for generators (ticket 06)
   return p.replace(/\s+/g, ' ').trim();
 }
 
@@ -138,6 +150,8 @@ function resolveRefs(dir, set, shot, index) {
     files.push(path.join(dir, rel));
   }
   if (set.refs.styleImage && ENGINES[set.engine].edit) files.push(path.join(dir, set.refs.styleImage));
+  // bible pictures ride last: character and pose are composition, the bible is the look (ticket 07)
+  if (set.refs.styleBible?.length && ENGINES[set.engine].edit) for (const rel of set.refs.styleBible) files.push(path.join(dir, rel));
   return files.slice(0, ENGINES[set.engine].maxRefs || 0);
 }
 
@@ -188,7 +202,8 @@ export async function runSet(dir, { comfyUrl = DEFAULT_COMFY_URL, signal, onProg
         if (sz) { const k = Math.sqrt((1024 * 1024) / (sz.w * sz.h)); w = sz.w * k; h = sz.h * k; }
       }
       const prompt = finalPrompt(set, shot);
-      const wf = buildWorkflow(set.engine, { prompt, negative: NEGATIVE, refs: names, width: w, height: h, seed: shot.seed, steps: set.params.steps || undefined, prefix: `astra_2d/${set.id.slice(0, 8)}_${shot.key}` });
+      const negative = NEGATIVE + (set.styleBible?.negative ? ' ' + set.styleBible.negative : '');
+      const wf = buildWorkflow(set.engine, { prompt, negative, refs: names, width: w, height: h, seed: shot.seed, steps: set.params.steps || undefined, prefix: `astra_2d/${set.id.slice(0, 8)}_${shot.key}` });
       const run = await withEngineGpu('hunyuan', () => runWorkflow(comfyUrl, wf, { signal, onProgress: (t) => onProgress(`${shot.label}: ${t}`) }),
         { signal, failOpen: true, timeoutMs: 60 * 60 * 1000, urls: { hunyuan: comfyUrl }, onWait: () => onProgress('Waiting for the GPU to free up'), onStep: onProgress });
       const img = Object.values(run.outputs).flatMap((x) => x.images || [])[0];

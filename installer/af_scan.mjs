@@ -30,7 +30,7 @@ export const APP_ROOT = path.resolve(HERE, '..');
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
 export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'sdxl',
-  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg',
+  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg', 'qwenedit', 'qweneditlora',
   'sound', 'soundmoss', 'soundace'];
 
 const G_P = 'Programs';
@@ -391,6 +391,7 @@ export function scanComponents(opts = {}) {
   for (const id of ['hy2', 'hymv', 'hy21', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
   s.flux2 = multiState(root, s.comfy, man, ['flux2', 'flux2te', 'flux2vae']);
+  s.qwenedit = multiState(root, s.comfy, man, ['qwenedit', 'qweneditlora', 'qwente', 'qwenvae']);
   // replaced-but-retained weights (ticket 09): the klein 9B era's files, kept as the user's property
   s.flux2old = (() => {
     if (!s.comfy) return [];
@@ -480,12 +481,18 @@ export function scanItems(s) {
     sndName, sndLic, '', sndOnly, gpuNote);
   else add('sound', G_SND, 'unavailable', '', '', 0, sndName, sndLic, '', sndOnly, s.snd.reason);
   for (const [id, ids, name, licNote] of [['flux2', ['flux2', 'flux2te', 'flux2vae'], 'FLUX.2 klein 4B: 2D by description and references', 'Apache-2.0 - commercial use OK'],
-    ['qwenimg', ['qwenimg', 'qwente', 'qwenvae'], 'Qwen-Image: 2D by description, readable text in pictures', '']]) {
+    ['qwenimg', ['qwenimg', 'qwente', 'qwenvae'], 'Qwen-Image: 2D by description, readable text in pictures', ''],
+    ['qwenedit', ['qwenedit', 'qweneditlora', 'qwente', 'qwenvae'], 'Qwen-Image-Edit 2511: style series from the style bible', 'Apache-2.0 - 10 GB card or bigger']]) {
     const ms = s[id];                        // the set verdict from scanComponents (no re-probing here)
     let status = ms.st;
     if (status !== 'missing' && !s.gguf) status = 'outdated';
     let note = noGpu ? 'needs an NVIDIA graphics card' : status === 'outdated' ? 'another file version or no GGUF loader - update' : licNote;
     if (noGpu && status !== 'installed') status = 'unavailable';
+    if (id === 'qwenedit' && status === 'missing' && s.vram > 0 && s.vram < 10240) {
+      // the ticket-07 gate: below 10 GiB the style is drawn by FLUX.2 klein, this row says so and bows out
+      status = 'unavailable';
+      note = `the card has ${Math.round(s.vram / 1024)} GB - style series are drawn by FLUX.2 klein on smaller cards`;
+    }
     if (id === 'flux2' && s.flux2old?.length) {
       // the pre-0.6.6 9B weights are the user's files: never used, never deleted, always named (ticket 09)
       const gb = Math.round(s.flux2old.reduce((n, f) => n + f.size, 0) / 1e8) / 10;
@@ -541,7 +548,7 @@ export function stateLines(s) {
     S_GGUF: s.gguf ? 'yes' : '', S_GODOT: s.godot, S_GODOT_VER: s.godotVer, S_LIBRARY: s.library, S_CLIPS: s.clips,
     S_VFXDIR: s.vfxDir, S_VFXOK: s.vfxOk ? 'yes' : '', S_OLLAMA: s.ollama, S_LLMS_STR: s.llms.join(' '), S_VLM: s.vlm ? 'yes' : '',
     S_HY2: st(s.hy2), S_HYMV: st(s.hymv), S_HY21: st(s.hy21), S_SDXL: st(s.sdxl), S_U2NET: st(s.u2net),
-    S_FLUX2W: st(s.flux2), S_QWENW: st(s.qwenimg),
+    S_FLUX2W: st(s.flux2), S_QWENW: st(s.qwenimg), S_QWENEDITW: st(s.qwenedit),
     S_MV: s.mv.ready ? 'yes' : '', S_MV_NODE: s.mv.node ? 'yes' : '', S_MV_WEIGHTS: s.mv.weights ? 'yes' : '', S_MV_CONFIG: s.mv.config ? 'yes' : '',
     S_MV_PKGS: s.mv.pkgs ? 'yes' : '', S_MV_BYTES: s.mv.bytes, S_MV_REASON: s.mv.reason, S_MV_WARN: s.mv.warn,
     S_TS: s.ts.complete ? 'yes' : '', S_TS_ENV: s.ts.env ? 'yes' : '', S_TS_CODE: s.ts.code ? 'yes' : '', S_TS_WEIGHTS: s.ts.weights ? 'yes' : '',

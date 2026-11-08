@@ -12,14 +12,16 @@
 //   POST /api/art2d/sets/:id/asset                 {key}  a shot -> studio asset (use as reference, or as a concept for 3D)
 //   GET  /api/art2d/sets/:id/godot                 ZIP for Godot 4.5 (SpriteFrames .tres / cutout .tscn / PNGs)
 import path from 'node:path';
-import { promises as fs, existsSync } from 'node:fs';
+import { promises as fs, existsSync, readFileSync } from 'node:fs';
 import { z } from 'zod';
 import JSZip from 'jszip';
-import { data, isId, assetInfo, saveAsset } from './storage.mjs';
+import { data, isId, root, pathsConfig, assetInfo, saveAsset } from './storage.mjs';
 import * as defaultRunner from '../scripts/art2d/art2d_run.mjs';
 import { STYLES } from '../scripts/art2d/art2d_styles.mjs';
 import { RECIPES, ACTIONS, DIRECTIONS, TURNAROUND, PARTS } from '../scripts/art2d/art2d_recipes.mjs';
 import { ENGINES } from '../scripts/art2d/art2d_workflows.mjs';
+import { getStyle, styleImageFile } from './styles.mjs';
+import { vramMiB } from './triposg.mjs';
 
 const httpError = (message, status = 400) => Object.assign(new Error(message), { status });
 const uuid = z.string().uuid();
@@ -27,7 +29,8 @@ const uuid = z.string().uuid();
 export const createSchema = z.object({
   recipe: z.enum(Object.keys(RECIPES)),
   style: z.enum(Object.keys(STYLES)).default('painted'),
-  engine: z.enum(Object.keys(ENGINES)).default('flux2'),
+  engine: z.enum([...Object.keys(ENGINES), 'auto']).default('flux2'),
+  styleBibleId: uuid.optional(),
   prompt: z.string().max(1500).optional(),
   name: z.string().max(120).optional(),
   action: z.enum(Object.keys(ACTIONS)).optional(),
@@ -49,7 +52,7 @@ const redoSchema = z.object({ keys: z.array(z.string().regex(/^[\w-]{1,40}$/)).m
 
 const IMAGE_EXT = ['.png', '.jpg', '.jpeg', '.webp'];
 
-export function createArt2dService({ root = defaultRunner.ART2D_ROOT, runner = defaultRunner, getConfig = () => ({ comfyUrl: 'http://127.0.0.1:8190' }), getAsset = assetInfo, assetFile = (info) => path.join(data, 'assets', info.id + info.extension), putAsset = saveAsset } = {}) {
+export function createArt2dService({ root = defaultRunner.ART2D_ROOT, runner = defaultRunner, getConfig = () => ({ comfyUrl: 'http://127.0.0.1:8190' }), getAsset = assetInfo, assetFile = (info) => path.join(data, 'assets', info.id + info.extension), putAsset = saveAsset, getVram = () => vramMiB(), styleDataDir = data } = {}) {
   const tasks = new Map();
   const dirOf = (id) => {
     if (!isId(id)) throw httpError('Incorrect set id.', 400);
@@ -103,13 +106,45 @@ export function createArt2dService({ root = defaultRunner.ART2D_ROOT, runner = d
       poses: await Promise.all((o.poseIds || []).map((id) => imagePath(id, 'Pose'))),
       inputs: await Promise.all((o.inputIds || []).map((id) => imagePath(id, 'Picture'))),
     };
-    const { characterId, styleImageId, poseIds, inputIds, ...rest } = o;
-    const { dir, set } = await runner.createSet({ ...rest, ...files }, { root });
-    set.sourceAssets = { characterId: characterId || null, styleImageId: styleImageId || null };
+    // the style bible (ticket 07): its pictures and text ride the set; the engine follows the look -
+    // a style is drawn by Qwen-Image-Edit when the gate and the weights allow it, FLUX.2 klein otherwise
+    let styleBible = null;
+    if (o.styleBibleId) {
+      const rec = getStyle(o.styleBibleId, styleDataDir);
+      if (!rec) throw httpError('No such style bible - add one in the Style tab first.', 404);
+      const imageFiles = rec.images.map((f) => styleImageFile(rec.id, f, styleDataDir)).filter(Boolean);
+      if (!imageFiles.length) throw httpError('This style bible has no picture files on disk.');
+      styleBible = { id: rec.id, name: rec.name, description: rec.description, negative: rec.negative, files: imageFiles };
+    }
+    let engine = o.engine, engineNote = null;
+    if (engine === 'auto' || (styleBible && engine === 'flux2')) {
+      const st = await runner.art2dStatus(getConfig().comfyUrl, { vramMiB: getVram() });
+      const qe = st.engines.qwenedit;
+      if (qe?.ready) {
+        if (engine !== 'qwenedit') {
+          engineNote = engine === 'auto'
+            ? `auto: ${qe.label} (the biggest style engine this machine runs)`
+            : `style engine: ${qe.label}${styleBible ? ` (${refsOf(styleBible)})` : ''}`;
+        }
+        engine = 'qwenedit';
+      } else if (engine === 'auto') {
+        // the edit recipes can only be drawn by the reference engines; plain concepts may use any
+        const wantEdit = !!RECIPES[o.recipe]?.edit;
+        const order = wantEdit ? ['qwenedit', 'flux2'] : ['qwenedit', 'flux2', 'qwen', 'sdxl'];
+        engine = order.find((k) => st.engines[k]?.ready) || Object.keys(st.engines).find((k) => st.engines[k]?.ready) || 'flux2';
+        engineNote = `auto: ${ENGINES[engine]?.label || engine} - Qwen-Image-Edit unavailable (${qe?.reasons?.[0] || 'not checked'})`;
+      } else if (styleBible) {
+        engineNote = `style drawn by ${ENGINES.flux2.label} - ${qe?.reasons?.[0] || 'Qwen-Image-Edit unavailable'}`;
+      }
+    }
+    const { characterId, styleImageId, poseIds, inputIds, styleBibleId, engine: engineRaw, ...rest } = o;
+    const { dir, set } = await runner.createSet({ ...rest, engine, engineNote, ...files, styleBible }, { root });
+    set.sourceAssets = { characterId: characterId || null, styleImageId: styleImageId || null, styleBibleId: styleBibleId || null };
     await runner.saveSet(dir, set);
     start(set, dir);
     return publicSet(set);
   }
+  const refsOf = (sb) => `${sb.files.length} reference picture${sb.files.length === 1 ? '' : 's'}`;
 
   async function list() {
     const sets = await runner.listSets(root);
@@ -183,12 +218,29 @@ export function createArt2dService({ root = defaultRunner.ART2D_ROOT, runner = d
 
 let statusCache = { at: 0, value: null };
 
+/**
+ * For /api/status (ticket 07 T3): is the style engine ready - cheaply. File existence against the
+ * manifest pins (one source for names), plus the card against the gate. No ComfyUI round trip here;
+ * the full per-node verdict lives in /api/art2d/status.
+ */
+export function editReadiness({ appRoot = root, exists = existsSync, env = process.env } = {}) {
+  let files;
+  try {
+    const man = JSON.parse(readFileSync(path.join(appRoot, 'installer', 'manifest.json'), 'utf8'));
+    files = ['qwenedit', 'qweneditlora', 'qwente', 'qwenvae'].map((id) => ({ dir: man.models[id].dir, file: man.models[id].file, label: man.models[id].name }));
+  } catch { return { installed: false, dir: '', missing: [{ file: 'installer/manifest.json', label: 'the manifest' }], gateMiB: 10240 }; }
+  const cfg = pathsConfig(appRoot);
+  const dir = env.ASTRA_COMFY_DIR || (typeof cfg.comfyDir === 'string' && cfg.comfyDir.trim()) || path.join(appRoot, 'runtime', 'ComfyUI');
+  const missing = files.filter((f) => !exists(path.join(dir, 'models', f.dir, f.file))).map(({ file, label }) => ({ file, label }));
+  return { installed: missing.length === 0, dir, missing, gateMiB: 10240 };
+}
+
 export function registerArt2d(app, asyncRoute, options = {}) {
   const service = options.service || createArt2dService(options);
   const comfyUrl = () => options.getConfig?.()?.comfyUrl || 'http://127.0.0.1:8190';
   app.get('/api/art2d/status', asyncRoute(async (req, res) => {
     if (!statusCache.value || Date.now() - statusCache.at > 15000 || req.query.fresh) {
-      statusCache = { at: Date.now(), value: await (options.runner || defaultRunner).art2dStatus(comfyUrl()) };
+      statusCache = { at: Date.now(), value: await (options.runner || defaultRunner).art2dStatus(comfyUrl(), { vramMiB: (options.getVram || (() => vramMiB()))() }) };
     }
     res.json({
       ...statusCache.value,

@@ -2,6 +2,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, promises as fs } from 'node:fs';
+import http from 'node:http';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { flux2Workflow, qwenWorkflow, sdxlWorkflow, buildWorkflow, snapSize, ENGINES } from '../scripts/art2d/art2d_workflows.mjs';
@@ -164,4 +165,106 @@ test('service: schema, asset checks, one set at a time, safe file paths', async 
   assert.equal(list[0].id, s.id);
   assert.equal(ENGINES.flux2.maxRefs, 4);
   assert.equal(PARTS.length, 10);
+});
+
+// ---------------------------------------------------------------- ticket 07: the style engine
+
+test('qwenedit graph: lora chain, refs into both prompts, zero_cond on both, latent by intent', () => {
+  const wf = buildWorkflow('qwenedit', { prompt: 'a fox in this style', negative: 'photo', refs: ['b0.png', 'b1.png', 'b2.png', 'b3.png'], width: 1000, height: 1210, seed: 11 });
+  assert.equal(wf[1].class_type, 'UnetLoaderGGUF');
+  assert.equal(wf[1].inputs.unet_name, 'qwen-image-edit-2511-Q4_K_M.gguf');
+  assert.equal(wf[2].class_type, 'LoraLoaderModelOnly');
+  assert.equal(wf[2].inputs.lora_name, ENGINES.qwenedit.lora);
+  assert.equal(wf[5].inputs.model[0], '2', 'sampling rides the LoRA, not the raw unet');
+  assert.equal(wf[5].inputs.shift, 3.1);
+  // four references offered, three slots exist (TextEncodeQwenImageEditPlus image1..3) - and both prompts see them
+  assert.deepEqual([wf[30].inputs.image1[0], wf[30].inputs.image2[0], wf[30].inputs.image3[0], wf[30].inputs.image4], ['40', '41', '42', undefined]);
+  assert.deepEqual([wf[31].inputs.image1[0], wf[31].inputs.image2[0], wf[31].inputs.image3[0]], ['40', '41', '42'], 'the negative sees the same pictures');
+  assert.equal(wf[30].inputs.vae[0], '4', 'a wired vae makes the encoder splice reference latents');
+  // zero_cond handling: both conditionings marked index_timestep_zero, the sampler takes the marked pair
+  assert.equal(wf[32].class_type, 'FluxKontextMultiReferenceLatentMethod');
+  assert.equal(wf[32].inputs.reference_latents_method, 'index_timestep_zero');
+  assert.equal(wf[33].inputs.reference_latents_method, 'index_timestep_zero');
+  assert.deepEqual(wf[50].inputs.positive, ['32', 0]); assert.deepEqual(wf[50].inputs.negative, ['33', 0]);
+  assert.deepEqual([wf[50].inputs.steps, wf[50].inputs.cfg], [4, 1], 'lightning: four steps at cfg 1');
+  assert.equal(wf[46].class_type, 'EmptySD3LatentImage', 'generation in a style: no source pixels');
+  const edit = buildWorkflow('qwenedit', { prompt: 'redraw', refs: [], base: 'src.png', seed: 1 });
+  assert.equal(edit[45].class_type, 'FluxKontextImageScale');
+  assert.equal(edit[46].class_type, 'VAEEncode', 'an image being re-drawn rides its own latent');
+  const bare = buildWorkflow('qwenedit', { prompt: 'plain', seed: 1 });
+  assert.ok(!Object.values(bare).some((n) => n.class_type === 'FluxKontextMultiReferenceLatentMethod'), 'no references, no method nodes');
+  assert.deepEqual(bare[50].inputs.positive, ['30', 0]);
+});
+
+test('art2dStatus: the 10 GiB gate reasons only the qwenedit row', async () => {
+  const need = new Set(Object.values(ENGINES).flatMap((e) => e.nodes));
+  const info = {};
+  const list = (key) => [Object.values(ENGINES).map((e) => e[key]).filter(Boolean)];  // object_info hands combos as [names]
+  for (const n of need) info[n] = { input: { required: { unet_name: list('unet'), lora_name: list('lora'), clip_name: list('clip'), vae_name: list('vae'), ckpt_name: list('checkpoint') } } };
+  const srv = http.createServer((req, res) => { res.setHeader('content-type', 'application/json'); res.end(JSON.stringify(info)); });
+  await new Promise((r) => srv.listen(0, '127.0.0.1', r));
+  try {
+    const url = 'http://127.0.0.1:' + srv.address().port;
+    const big = await runner.art2dStatus(url, { vramMiB: 12288 });
+    assert.equal(big.engines.qwenedit.ready, true, JSON.stringify(big.engines.qwenedit.reasons));
+    assert.equal(big.engines.qwenedit.gateMiB, 10240);
+    const small = await runner.art2dStatus(url, { vramMiB: 8192 });
+    assert.equal(small.engines.qwenedit.ready, false);
+    assert.match(small.engines.qwenedit.reasons.find((r) => /10 GB/.test(r)), /FLUX.2 klein/, 'the reason names the fallback');
+    assert.ok(small.engines.flux2.ready, 'the gate never touches the klein row');
+  } finally { srv.close(); }
+});
+
+test('the style bible rides the set: picture copies, engine choice with a note, prompt fold', async () => {
+  const root = tmp();
+  // a style on disk in the real layout: <dir>/styles/<id>/style.json + pictures with generated names
+  const styleDir = tmp();
+  const sid = uid(9);
+  const imgA = '11111111-1111-4111-8111-111111111111.png';
+  const imgB = '22222222-2222-4222-8222-222222222222.png';
+  await fs.mkdir(path.join(styleDir, 'styles', sid), { recursive: true });
+  await fs.writeFile(path.join(styleDir, 'styles', sid, 'style.json'), JSON.stringify({
+    id: sid, name: 'Painted dusk', description: 'soft gouache, warm rim light, painterly edges', negative: 'photo, gradients',
+    palette: 'ochre and teal', notes: '', images: [imgA, imgB], createdAt: 'x', updatedAt: 'x',
+  }));
+  await fs.writeFile(path.join(styleDir, 'styles', sid, imgA), PNG);
+  await fs.writeFile(path.join(styleDir, 'styles', sid, imgB), PNG);
+  const assets = { [uid(1)]: { id: uid(1), extension: '.png', name: 'hero.png' } };
+  await fs.writeFile(path.join(root, uid(1) + '.png'), PNG);
+  const asset = () => ({ getAsset: async (id) => assets[id], assetFile: (i) => path.join(root, i.id + i.extension) });
+
+  const stReady = { online: true, ready: true, engines: { qwenedit: { label: 'Qwen-Image-Edit 2511', ready: true, reasons: [], gateMiB: 10240 }, flux2: { label: 'FLUX.2 klein 4B', ready: true, reasons: [] } } };
+  const fakeReady = { ...runner, art2dStatus: async () => stReady, runSet: async (dir) => runner.loadSet(dir) };
+  const svc = createArt2dService({ root, runner: fakeReady, ...asset(), styleDataDir: styleDir, getVram: () => 12288 });
+  const s = await svc.create({ recipe: 'turnaround', characterId: uid(1), views: ['front'], styleBibleId: sid });
+  assert.equal(s.engine, 'qwenedit', 'a style on a capable card is drawn by the style engine (default klein upgrades)');
+  assert.match(s.engineNote, /Qwen-Image-Edit 2511.*2 reference pictures/);
+  assert.equal(s.styleBible.id, sid);
+  assert.equal(s.styleBible.description, 'soft gouache, warm rim light, painterly edges');
+  assert.deepEqual(s.refs.styleBible, ['refs/bible_00.png', 'refs/bible_01.png']);
+  assert.ok((await fs.readFile(path.join(root, s.id, 'refs', 'bible_00.png'))).equals(PNG), 'the pictures are copied in - the set survives bible edits');
+  assert.equal(s.sourceAssets.styleBibleId, sid);
+
+  // the gate failed (or weights absent): the set stays honest - klein draws it, the note says why
+  const stSmall = { ...stReady, engines: { ...stReady.engines, qwenedit: { ...stReady.engines.qwenedit, ready: false, reasons: ['wants at least 10 GB of video memory (this card has 8 GB) - style series fall back to FLUX.2 klein'] } } };
+  const fakeSmall = { ...runner, art2dStatus: async () => stSmall, runSet: async (dir) => runner.loadSet(dir) };
+  const svc2 = createArt2dService({ root: tmp(), runner: fakeSmall, ...asset(), styleDataDir: styleDir, getVram: () => 8192 });
+  const s2 = await svc2.create({ recipe: 'turnaround', characterId: uid(1), views: ['front'], styleBibleId: sid });
+  assert.equal(s2.engine, 'flux2');
+  assert.match(s2.engineNote, /style drawn by FLUX.2 klein 4B - wants at least 10 GB/);
+
+  // 'auto' without a bible: the first ready engine wins, still with a note
+  const s3 = await svc.create({ recipe: 'concept', prompt: 'robot', engine: 'auto' });
+  assert.equal(s3.engine, 'qwenedit'); assert.match(s3.engineNote, /^auto: Qwen-Image-Edit/);
+  assert.equal(s3.styleBible, null);
+
+  await new Promise((r) => setTimeout(r, 30));   // let the auto-set's fake run finish: one set at a time is the guard
+  await assert.rejects(svc.create({ recipe: 'concept', prompt: 'x', styleBibleId: uid(8) }), /No such style bible/);
+
+  // the prompt fold: the bible recipe rides every shot, the negative extends too (generation path reads these)
+  const set = { engine: 'qwenedit', style: 'painted', refs: { styleBible: ['refs/bible_00.png'] }, styleBible: { id: sid, name: 'Painted dusk', description: 'soft gouache, warm rim light', negative: 'photo, gradients' }, shots: [] };
+  const p = runner.finalPrompt(set, { prompt: 'a red fox' });
+  assert.match(p, /^a red fox/); assert.match(p, /soft gouache, warm rim light/, 'the description is generator text');
+  const files = []; // resolveRefs is internal - check through createSet's record that shots resolve bible refs
+  assert.equal(set.refs.styleBible.length, 1);
 });

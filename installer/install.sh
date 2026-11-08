@@ -56,6 +56,10 @@ QwenUnetUrl='https://huggingface.co/city96/Qwen-Image-gguf/resolve/main/qwen-ima
 QwenUnetSha='c6f49103603b9a4927502549fb615c910386cfc675b1466325930ba10d2a11f4'
 QwenTeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors'
 QwenTeSha='cb5636d852a0ea6a9075ab1bef496c0db7aef13c02350571e388aea959c5c0b4'
+QwenEditUnetUrl='https://huggingface.co/unsloth/Qwen-Image-Edit-2511-GGUF/resolve/main/qwen-image-edit-2511-Q4_K_M.gguf'
+QwenEditUnetSha='07951f61941a81e236cbd4a9b6f250d49626b3ba518f260135bf2e01a87cf1c8'
+QwenEditLoraUrl='https://huggingface.co/lightx2v/Qwen-Image-Edit-2511-Lightning/resolve/main/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors'
+QwenEditLoraSha='22226e8d05d354bb356627d428809f5afd7819399b077238a2b70a82883a904f'
 QwenVaeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/vae/qwen_image_vae.safetensors'
 QwenVaeSha='a70580f0213e67967ee9c95f05bb400e8fb08307e017a924bf3441223e023d1f'
 # TripoSG (docs/product/triposg.md, ticket 02): the MIT VAST-AI clone pinned to one commit (the
@@ -315,6 +319,16 @@ InstallFlux2() {
   DownloadChecked "$Flux2TeUrl" "$S_COMFY/models/text_encoders/qwen_3_4b_fp4_flux2.safetensors" 3848213998 "$Flux2TeSha" || return 1
   DownloadChecked "$Flux2VaeUrl" "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292 "$Flux2VaeSha" || return 1
   S_FLUX2=yes
+}
+# the style engine (ticket 07): the edit model rides the SAME text encoder and VAE pins as qwenimg,
+# so it downloads them if absent but never the plain t2i unet - 13 GB of picture belongs to its own row.
+InstallQwenEdit() {
+  InstallGgufNode || return 1
+  DownloadChecked "$QwenTeUrl" "$S_COMFY/models/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors" 9384670680 "$QwenTeSha" || return 1
+  DownloadChecked "$QwenVaeUrl" "$S_COMFY/models/vae/qwen_image_vae.safetensors" 253806246 "$QwenVaeSha" || return 1
+  DownloadChecked "$QwenEditUnetUrl" "$S_COMFY/models/unet/qwen-image-edit-2511-Q4_K_M.gguf" 12842830432 "$QwenEditUnetSha" || return 1
+  DownloadChecked "$QwenEditLoraUrl" "$S_COMFY/models/loras/Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors" 849608296 "$QwenEditLoraSha" || return 1
+  S_QWENEDIT=yes
 }
 InstallQwen() {
   InstallGgufNode || return 1
@@ -629,12 +643,12 @@ comp_what() { case "$1" in
   soundace) printf 'Sound: ACE-Step 1.5 weights (music loops)' ;;
   gguf) printf 'ComfyUI-GGUF node' ;;
   flux2) printf 'FLUX.2 klein 4B GGUF + text encoder + VAE' ;;
-  qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;
+  qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;  qwenedit) printf 'Qwen-Image-Edit 2511 GGUF + lightning LoRA (reuses the Qwen-Image encoder and VAE)' ;;
   *) printf '%s' "$1" ;;
 esac; }
 
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
-ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundace'
+ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundaceflux2 qwenimg qwenedit sound soundmoss soundace'
 
 # ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
 declare -a IT_ID IT_GRP IT_ST IT_HAVE IT_NEED IT_SIZE IT_NAME IT_LIC IT_PRE IT_DEPS IT_ONLY IT_NOTE IT_TICK
@@ -908,7 +922,7 @@ for e in "${plan[@]}"; do
     soundace) SoundWeights "$(SoundDir)" ace || err=$? ;;
     gguf) InstallGgufNode || err=$? ;;
     flux2) InstallFlux2 || err=$? ;;
-    qwenimg) InstallQwen || err=$? ;;
+    qwenimg) InstallQwen || err=$? ;;    qwenedit) InstallQwenEdit || err=$? ;;
     *) say "  not implemented yet: $id"; err=1 ;;
   esac
   if [ -z "$err" ]; then

@@ -46,7 +46,7 @@ function mkS(over = {}) {
     node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '',
     comfy: '', comfyVer: '', comfyDeps: false, gguf: false, godot: '', godotVer: '', clips: 0, library: '/l',
     vfxDir: '/v', vfxOk: false, ollama: '', llms: [], vlm: false,
-    hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss,
+    hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
     mv: { node: false, weights: false, config: false, pkgs: false, ready: false, offer: false, reason: 'needs an NVIDIA graphics card', warn: '', bytes: 0 },
     p3: { dir: '/p3', exists: false, engine: false, weights: false, complete: false, offer: false, reason: 'needs an NVIDIA RTX graphics card', warn: '', missingBytes: 0, diskNeed: 0 },
     ts: { dir: '', env: false, code: false, weights: false, complete: false, offer: false, reason: '', missingBytes: 0 },
@@ -166,6 +166,13 @@ test('models and 2D engines: a size mismatch reads as outdated; no GGUF loader t
   assert.equal(r4.lic, 'Apache-2.0', 'the row license comes from the manifest pin');
   const withOld = mkS({ comfy: '/c', comfyVer: '0.33.2', comfyDeps: true, gguf: true, flux2: { st: 'installed', where: '/d' }, flux2old: [{ name: 'flux-2-klein-base-9b-Q5_K_M.gguf', size: 7017126176 }] });
   assert.match(row(scanItems(withOld), 'flux2').note, /previous klein 9B \(7 GB on disk\) is kept and unused/);
+  // ticket 07: the style engine rows and its 10 GiB card gate
+  const qeBig = mkS({ comfy: '/c', comfyVer: '0.33.2', comfyDeps: true, gguf: true, qwenedit: { st: 'installed', where: '/d' } });
+  assert.equal(row(scanItems(qeBig), 'qwenedit').status, 'installed');
+  assert.match(row(scanItems(qeBig), 'qwenedit').name, /Qwen-Image-Edit/);
+  const qeSmall = mkS({ comfy: '/c', comfyVer: '0.33.2', comfyDeps: true, gguf: true, vram: 8192, qwenedit: { st: 'missing', where: '' } });
+  assert.equal(row(scanItems(qeSmall), 'qwenedit').status, 'unavailable', 'an 8 GB card is under the style gate');
+  assert.match(row(scanItems(qeSmall), 'qwenedit').note, /8 GB - style series are drawn by FLUX.2 klein/);
 });
 
 test('the ##ITEM lines: 13 tab-separated fields, tabs and newlines inside values are collapsed', () => {
@@ -346,6 +353,7 @@ test('integration: a fake app folder with a wrong-size model reads as outdated, 
         hy2: { file: 'h.safetensors', size: 123 }, u2net: { file: 'u2net.onnx', size: 5 },
         hymv: { file: 'hm.safetensors', size: 5 }, hy21: { file: 'h21.safetensors', size: 5 },
         sdxl: { file: 'sd.safetensors', size: 5 }, flux2: { file: 'f.gguf', size: 5 }, qwenimg: { file: 'q.gguf', size: 5 },
+        qwenedit: { file: 'qe.gguf', size: 5 }, qweneditlora: { file: 'qe.safetensors', dir: 'loras', size: 5 },
       },
     }));
     writeFileSync(path.join(tmp, 'data', 'models', 'checkpoints', 'h.safetensors'), 'x'.repeat(9));

@@ -3,8 +3,8 @@
 Branch: `linux-support`, 0.6.x reintroduction wave, ticket 06. A **style** is what makes a series
 of pictures feel like one world: 1–6 reference pictures plus an English description (and a
 negative, a palette, notes), stored under `data/styles/<id>/` and managed from the **Style** tab.
-Ticket 07 makes the generators consume it (style-conditioned 2D); this ticket is the data, the
-editor and the describe.
+Ticket 06 is the data, the editor and the describe; ticket 07 taught the generators to consume it -
+see "How a set wears the style" below.
 
 ## A style record
 
@@ -63,3 +63,23 @@ Two painted concept pictures, `POST /api/styles` then describe: 23.6 s round tri
 digital vector art with crisp, sharp lines and solid flat colors … Lighting is even and flat …
 Avoid: Any gradients, surface textures, or realistic shadows…"*. Deleting moved `style.json` and
 both pictures into `data/styles/trash/<id>/` with the draft still inside.
+
+## How a set wears the style (ticket 07)
+
+The 2D tab gained a **Style (bible)** picker and an **Auto** engine. A set created with a style carries
+it: the bible pictures are copied into the set (`refs/bible_NN.png` - the set survives later bible
+edits), its English description rides every shot's prompt and its "Never like this" joins the negative.
+
+The engine follows the look: **Qwen-Image-Edit 2511** (GGUF Q4_K_M + the lightx2v lightning LoRA,
+4 steps at cfg 1, Apache-2.0 - component `qwenedit`, ≈ 13.7 GB new, its text encoder and VAE shared
+with `qwenimg`) draws the series when the card is **10 GiB or bigger** and the weights are installed;
+below that - or without the weights - **FLUX.2 klein** draws the style, and the set card says why
+(`engineNote`). Node wiring per ComfyUI's own 2511 template: both prompts see the references through
+`TextEncodeQwenImageEditPlus` (vae wired → reference latents), and
+`FluxKontextMultiReferenceLatentMethod: index_timestep_zero` conditions from step zero - that is what
+makes the samples govern the whole frame rather than a corner of it. `TextEncodeQwenImageEditPlus`
+has three image slots: the first three bible pictures ride as references, the description carries
+the rest in words.
+
+Measured on the RTX 5070 (11.6 GiB, passes the gate): live demo recorded on
+`.scratch/astraforge-060-reintroduction/issues/07-style-generation-qwenedit-comfy.md`.

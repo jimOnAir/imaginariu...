@@ -50,6 +50,16 @@ function readRecord(id, dataDir = data) {
   try { return styleFields.extend({ id: z.string(), images: z.array(z.string()), createdAt: z.string(), updatedAt: z.string() }).parse(JSON.parse(readFileSync(recordFile(id, dataDir), 'utf8'))); }
   catch { return null; }
 }
+/** One style by id, or null - the read other modules (ticket 07) go through. */
+export function getStyle(id, dataDir = data) { return isId(String(id || '')) ? readRecord(String(id), dataDir) : null; }
+
+/** The absolute file of a style picture, or null: only names the record itself carries resolve. */
+export function styleImageFile(id, file, dataDir = data) {
+  const rec = getStyle(id, dataDir);
+  if (!rec || !rec.images.includes(file) || !IMAGE_NAME.test(String(file))) return null;
+  const full = path.join(styleDirOf(String(id), dataDir), String(file));
+  return existsSync(full) ? full : null;
+}
 function writeRecord(rec, dataDir = data) {
   writeFileSync(recordFile(rec.id, dataDir), JSON.stringify(rec, null, 2));
   return rec;

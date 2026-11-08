@@ -4,7 +4,7 @@ import {registerForge} from './forge.mjs';
 import {registerViews} from './views.mjs';
 import {registerVfxTools} from './vfx-tools.mjs';
 import {registerSculpt} from './sculpt.mjs';
-import {registerArt2d} from './art2d.mjs';
+import {registerArt2d,editReadiness} from './art2d.mjs';
 import {createComponents,registerComponents} from './components.mjs';
 import {unwrapUV} from './uv.mjs';
 import {saveProjectData,readProjectData,projectList,decodeProject} from './projects.mjs';
@@ -66,14 +66,17 @@ app.get('/api/status',asyncRoute(async(req,res)=>{
  const checkpoints=nodes?.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[];
  const triposg=triposgStatus();
  const sound=soundStatus();
+ const statusVram=vramMiB();   // one card read per status call: the edit gate, the picks and the tiers share it
+ const editState=editReadiness();
+ const edit={...editState,vramMiB:statusVram,ready:editState.installed&&statusVram>=editState.gateMiB,missing:editState.missing.map(m=>m.file)};
  // the assistant model and the review model are resolved from what is installed, never assumed; an
  // offline local Ollama is started in the background so the next refresh is honest about it
  const ollamaNames=ollama?.models?.map(x=>x.name)||[];
- const ollamaVram=ollama?vramMiB():0;   // one card read per status call: the pick and the tier share it
+ const ollamaVram=statusVram;
  const ollamaCatalog_=ollama?await ollamaCatalog(config.ollamaUrl,fetch,isVisionModelName)||[]:[];
  const ollamaReview=ollama?await reviewPick(ollamaNames,ollamaVram):null;
  if(!ollama&&autostartOllama()&&!ollamaStarting){ollamaStarting=true;void ensureOllama({url:config.ollamaUrl,appRoot:root}).finally(()=>{ollamaStarting=false;});}
- res.json({pixal3d,triposg,sound,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
+ res.json({pixal3d,triposg,sound,edit,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
 }));
 app.post('/api/runtime/start',asyncRoute(async(req,res)=>res.json(await startRuntime())));
 app.post('/api/runtime/pixal3d/start',asyncRoute(async(req,res)=>res.json(await startPixal3dRuntime())));

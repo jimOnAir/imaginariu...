@@ -27,6 +27,9 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
   const [recipe, setRecipe] = useState('turnaround');
   const [style, setStyle] = useState('painted');
   const [engine, setEngine] = useState('flux2');
+  // ticket 07: the project look rides a 2D set through its style bible
+  const [bibles, setBibles] = useState([]);
+  const [styleBibleId, setStyleBibleId] = useState('');
   const [character, setCharacter] = useState(null);
   const [styleImage, setStyleImage] = useState(null);
   const [many, setMany] = useState([]);
@@ -47,7 +50,7 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
 
   // a subscriber of the Windows build may have no FLUX.2 weights: pick the first installed engine right away,
   // otherwise "Draw" is silently grey
-  useEffect(() => { api('/art2d/status').then(s => { setStatus(s); const first = Object.entries(s?.engines || {}).find(([, e]) => e.ready)?.[0]; if (first && !s.engines[engine]?.ready) setEngine(first); }).catch(e => notify(t('art2d.loadFail') + e.message, true)); refreshList(); }, []);
+  useEffect(() => { api('/art2d/status').then(s => { setStatus(s); const first = Object.entries(s?.engines || {}).find(([, e]) => e.ready)?.[0]; if (first && !s.engines[engine]?.ready) setEngine(first); }).catch(e => notify(t('art2d.loadFail') + e.message, true)); refreshList(); api('/styles').then(setBibles).catch(() => setBibles([])); }, []);
   useEffect(() => { if (reference && !character) setCharacter(reference); }, [reference]);
   useEffect(() => { setHost(active ? document.getElementById('art2d-stage-host') : null); }, [active]);
   // while the set generates - refresh every 2.5 s
@@ -61,7 +64,7 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
   const r = status?.recipes?.find(x => x.id === recipe);
   const eng = status?.engines?.[engine];
   const needsEdit = r?.edit && !(engine === 'sdxl' && recipe === 'restyle');
-  const engineOk = eng?.ready && (!needsEdit || eng.edit || recipe === 'storyboard');
+  const engineOk = engine === 'auto' ? !!status?.ready : (eng?.ready && (!needsEdit || eng.edit || recipe === 'storyboard'));
   const act = status?.actions?.find(a => a.id === action);
 
   async function pick(e, kind) {
@@ -79,6 +82,7 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
     await run(async () => {
       const body = {recipe, style, engine, prompt: prompt || undefined, sheet, characterId: character?.id, styleImageId: styleImage?.id};
       if (seed !== '') body.seed = Number(seed);
+      if (styleBibleId) body.styleBibleId = styleBibleId;
       if (recipe === 'animation') Object.assign(body, {action, direction, chain, frames: frames ? Number(frames) : undefined});
       if (recipe === 'concept') body.frames = frames ? Number(frames) : 2;
       if (recipe === 'storyboard') body.scenes = scenes.split('\n').map(s => s.trim()).filter(Boolean);
@@ -107,6 +111,8 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
           : current.run?.status === 'failed' ? <p className="a2-error">{current.run.error}</p>
           : <p className="a2-muted">{t('art2d.progress', {done: current.shots.filter(s => s.status === 'done').length, total: current.shots.length, seed: current.params.seed})}{current.run?.seconds ? t('art2d.minutes', {min: Math.round(current.run.seconds / 60)}) : ''}</p>}
         {!current.license?.commercial && <p className="a2-warn">{t('art2d.licenseWarn', {license: current.license?.engine})}</p>}
+        {current.engineNote && <p className="a2-muted">{current.engineNote}</p>}
+        {current.styleBible && <p className="a2-muted">{t('art2d.styleRide', {name: current.styleBible.name, n: current.refs?.styleBible?.length || 0})}</p>}
       </div>
       <div className="a2-stage-actions">
         {running && <button className="secondary small" onClick={cancel}><Ban size={13}/>{t('art2d.cancel')}</button>}
@@ -175,7 +181,8 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
     <section className="section"><div className="section-heading"><h3>{recipe === 'concept' ? t('art2d.sec.desc') : t('art2d.sec.refine')}</h3></div>
       <textarea rows={recipe === 'concept' ? 4 : 2} value={prompt} placeholder={recipe === 'concept' ? t('art2d.descPlaceholder') : t('art2d.refinePlaceholder')} onChange={e => setPrompt(e.target.value)}/>
       <div className="a2-row">
-        <label>{t('art2d.engine')}<select value={engine} onChange={e => setEngine(e.target.value)}>{status && Object.entries(status.engines).map(([id, en]) => <option key={id} value={id} disabled={!en.ready}>{en.label}{en.edit ? '' : t('art2d.engineNoRef')}</option>)}</select></label>
+        <label>{t('art2d.engine')}<select value={engine} onChange={e => setEngine(e.target.value)}><option value="auto">{t('art2d.engineAuto')}</option>{status && Object.entries(status.engines).map(([id, en]) => <option key={id} value={id} disabled={!en.ready}>{en.label}{en.edit ? '' : t('art2d.engineNoRef')}</option>)}</select></label>
+        <label>{t('art2d.styleBible')}<select value={styleBibleId} onChange={e => setStyleBibleId(e.target.value)}><option value="">{t('art2d.styleNone')}</option>{bibles.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}</select></label>
         <label>{t('art2d.seed')}<input type="number" min="0" placeholder={t('art2d.seedRandom')} value={seed} onChange={e => setSeed(e.target.value)}/></label>
       </div>
       {['animation', 'poses3d', 'turnaround', 'expressions', 'parts', 'concept'].includes(recipe) && <label className="a2-block">{t('art2d.sheet')}<select value={sheet} onChange={e => setSheet(e.target.value)}>{status?.sheets?.map(s => <option key={s.id} value={s.id}>{nameOf('sheet', s)}</option>)}</select></label>}

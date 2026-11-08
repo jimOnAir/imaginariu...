@@ -12,6 +12,13 @@ export const ENGINES = {
     unet: 'flux-2-klein-base-4b-Q4_K_M.gguf', clip: 'qwen_3_4b_fp4_flux2.safetensors', clipType: 'flux2', vae: 'flux2-vae.safetensors',
     steps: 20, cfg: 5, nodes: ['UnetLoaderGGUF', 'CLIPLoader', 'VAELoader', 'ReferenceLatent', 'EmptyFlux2LatentImage', 'Flux2Scheduler', 'CFGGuider', 'SamplerCustomAdvanced'],
   },
+  qwenedit: {
+    label: 'Qwen-Image-Edit 2511', license: 'Apache-2.0', commercial: true, edit: true, maxRefs: 3,
+    unet: 'qwen-image-edit-2511-Q4_K_M.gguf', clip: 'qwen_2.5_vl_7b_fp8_scaled.safetensors', clipType: 'qwen_image', vae: 'qwen_image_vae.safetensors',
+    lora: 'Qwen-Image-Edit-2511-Lightning-4steps-V1.0-bf16.safetensors',
+    gateMiB: 10240,   // the ticket's rule: a 10 GiB card or bigger; below it FLUX.2 klein draws the style series
+    steps: 4, cfg: 1, nodes: ['UnetLoaderGGUF', 'LoraLoaderModelOnly', 'CLIPLoader', 'VAELoader', 'ModelSamplingAuraFlow', 'TextEncodeQwenImageEditPlus', 'FluxKontextMultiReferenceLatentMethod', 'FluxKontextImageScale', 'VAEEncode', 'EmptySD3LatentImage', 'LoadImage', 'KSampler', 'VAEDecode', 'SaveImage'],
+  },
   qwen: {
     label: 'Qwen-Image', license: 'Apache-2.0', commercial: true, edit: false, maxRefs: 0,
     unet: 'qwen-image-Q4_K_M.gguf', clip: 'qwen_2.5_vl_7b_fp8_scaled.safetensors', clipType: 'qwen_image', vae: 'qwen_image_vae.safetensors',
@@ -74,6 +81,53 @@ export function flux2Workflow({ prompt, negative = '', refs = [], width = 1024, 
   return wf;
 }
 
+/**
+ * Qwen-Image-Edit 2511 (docs/product/styles.md, ticket 07): the style engine. `refs` (0..3 uploaded
+ * names) go through TextEncodeQwenImageEditPlus into BOTH prompts - with the vae wired the encoder
+ * splices their latents into the sequence, and FluxKontextMultiReferenceLatentMethod marks them
+ * `index_timestep_zero`: the reference conditions from step zero, which is how a style drives the
+ * whole picture instead of a corner of it. `base` (a name) is an image being re-drawn: its scaled
+ * pixels become the latent, the true edit path; without it the latent is empty and the pictures
+ * condition through the encoder only. The pinned lightning LoRA brings it to 4 steps at cfg 1 -
+ * the wiring of ComfyUI's own 2511 template, node for node.
+ */
+export function qwenEditWorkflow({ prompt, negative = '', refs = [], base = null, width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/qwenedit' }) {
+  const e = ENGINES.qwenedit;
+  const seen = refs.slice(0, 3);
+  const wf = {
+    1: { class_type: 'UnetLoaderGGUF', inputs: { unet_name: e.unet } },
+    2: { class_type: 'LoraLoaderModelOnly', inputs: { model: ['1', 0], lora_name: e.lora, strength_model: 1 } },
+    3: { class_type: 'CLIPLoader', inputs: { clip_name: e.clip, type: e.clipType, device: 'default' } },
+    4: { class_type: 'VAELoader', inputs: { vae_name: e.vae } },
+    5: { class_type: 'ModelSamplingAuraFlow', inputs: { model: ['2', 0], shift: 3.1 } },
+    30: { class_type: 'TextEncodeQwenImageEditPlus', inputs: { clip: ['3', 0], prompt } },
+    31: { class_type: 'TextEncodeQwenImageEditPlus', inputs: { clip: ['3', 0], prompt: negative } },
+  };
+  for (let i = 0; i < 3; i++) {
+    if (!seen[i]) continue;
+    wf[40 + i] = { class_type: 'LoadImage', inputs: { image: seen[i] } };
+    for (const enc of ['30', '31']) wf[enc].inputs['image' + (i + 1)] = [String(40 + i), 0];
+  }
+  if (seen.length) {
+    for (const enc of ['30', '31']) wf[enc].inputs.vae = ['4', 0];   // with a vae the encoder adds reference latents
+    wf[32] = { class_type: 'FluxKontextMultiReferenceLatentMethod', inputs: { conditioning: ['30', 0], reference_latents_method: 'index_timestep_zero' } };
+    wf[33] = { class_type: 'FluxKontextMultiReferenceLatentMethod', inputs: { conditioning: ['31', 0], reference_latents_method: 'index_timestep_zero' } };
+  }
+  const positive = seen.length ? ['32', 0] : ['30', 0];
+  const negativeRef = seen.length ? ['33', 0] : ['31', 0];
+  if (base) {
+    wf[44] = { class_type: 'LoadImage', inputs: { image: base } };
+    wf[45] = { class_type: 'FluxKontextImageScale', inputs: { image: ['44', 0] } };
+    wf[46] = { class_type: 'VAEEncode', inputs: { pixels: ['45', 0], vae: ['4', 0] } };
+  } else {
+    wf[46] = { class_type: 'EmptySD3LatentImage', inputs: { width: snapSize(width), height: snapSize(height), batch_size: 1 } };
+  }
+  wf[50] = { class_type: 'KSampler', inputs: { model: ['5', 0], positive, negative: negativeRef, latent_image: ['46', 0], seed: seedOf(seed), steps: Number(steps) || e.steps, cfg: Number(cfg) || e.cfg, sampler_name: 'euler', scheduler: 'simple', denoise: 1 } };
+  wf[51] = { class_type: 'VAEDecode', inputs: { samples: ['50', 0], vae: ['4', 0] } };
+  wf[52] = { class_type: 'SaveImage', inputs: { images: ['51', 0], filename_prefix: prefix } };
+  return wf;
+}
+
 export function qwenWorkflow({ prompt, negative = '', width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/qwen' }) {
   const e = ENGINES.qwen;
   return {
@@ -117,6 +171,7 @@ export function sdxlWorkflow({ prompt, negative = '', width = 1024, height = 102
 /** One entry point for the runner: picks the builder by engine. */
 export function buildWorkflow(engine, o) {
   if (engine === 'flux2') return flux2Workflow(o);
+  if (engine === 'qwenedit') return qwenEditWorkflow(o);
   if (engine === 'qwen') return qwenWorkflow(o);
   if (engine === 'sdxl') return sdxlWorkflow({ ...o, init: o.refs?.[0] || null });
   throw new Error('Unknown 2D engine: ' + engine);
