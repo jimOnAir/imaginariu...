@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, soundScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB, SOUND_MIN_VRAM_MIB, EXPERIMENTAL,
+  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, soundScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB, SOUND_MIN_VRAM_MIB, MIN_NVIDIA_DRIVER, EXPERIMENTAL,
 } from '../installer/af_scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -122,6 +122,15 @@ test('Pixal3D offer gates (P3Scan of pixal3d.ps1): VRAM and compute capability g
   assert.equal(r.status, 'missing');
   assert.equal(r.only, 'pixal3dw');
   assert.equal(r.size, 1.2e9);
+  // ticket 20: an NVIDIA driver below the 570 floor withholds the Pixal3D offer up front (no
+  // multi-GB downloads for a config that cannot run), and an installed Pixal3D says it would refuse.
+  const old = p3Scan(mkS({ driver: '550.54.14', driverMajor: 550, driverOld: true }));
+  assert.equal(old.offer, false);
+  assert.match(old.reason, /NVIDIA driver 570 or newer \(this machine reports 550\.54\.14\)/);
+  assert.equal(MIN_NVIDIA_DRIVER, 570, 'the installer floor matches server/gpu-info.mjs');
+  const done = mkS();
+  done.p3 = { dir: '/p3', exists: true, engine: true, weights: true, complete: true, offer: true, reason: '', warn: 'installed, but Pixal3D refuses to run below NVIDIA driver 570 (this machine reports 550.54.14)', missingBytes: 0, diskNeed: 0 };
+  assert.match(row(scanItems(done), 'pixal3d').note, /refuses to run below NVIDIA driver 570/);
   // a low-VRAM card that is otherwise fine only warns:
   const warn = p3Scan(mkS({ vram: 8192 }));
   assert.equal(warn.offer, true);

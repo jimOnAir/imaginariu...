@@ -21,6 +21,7 @@ import { loadJobs,allJobs,getJob,createJob,cancelJob,validateJobMesh,hooks as jo
 import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import { triposgStatus, autoShape, vramMiB } from './triposg.mjs';
+import { gpuInfo } from './gpu-info.mjs';
 import { registerSound, soundStatus } from './sound.mjs';
 import { registerStyles } from './styles.mjs';
 import { ensureOllama, ollamaModels, ollamaCatalog, pickChatModel } from './ollama-run.mjs';
@@ -82,7 +83,7 @@ app.get('/api/status',asyncRoute(async(req,res)=>{
  const ollamaCatalog_=ollama?await ollamaCatalog(config.ollamaUrl,fetch,isVisionModelName)||[]:[];
  const ollamaReview=ollama?await reviewPick(ollamaNames,ollamaVram):null;
  if(!ollama&&autostartOllama()&&!ollamaStarting){ollamaStarting=true;void ensureOllama({url:config.ollamaUrl,appRoot:root}).finally(()=>{ollamaStarting=false;});}
- res.json({pixal3d,triposg,sound,edit,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
+ res.json({pixal3d,triposg,sound,edit,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,gpuCard:gpuInfo(),ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
 }));
 app.post('/api/runtime/start',asyncRoute(async(req,res)=>res.json(await startRuntime())));
 app.post('/api/runtime/pixal3d/start',asyncRoute(async(req,res)=>res.json(await startPixal3dRuntime())));

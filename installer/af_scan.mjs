@@ -63,6 +63,9 @@ export const TRIPOSG_AUTO_MAX_VRAM_MIB = 9216;            // the same seam as se
 // the weight snapshots. installer/sound/manifest.json is the single source of the pins (revision +
 // size + sha256 per file); only the environment download is an estimate, like Pixal3D's engine.
 const SOUND_ENV_DOWNLOAD = 7.0e9;                         // torch cu128 + both engines' libraries
+// the NVIDIA driver branch that carries working Blackwell support (ticket 20; the same floor
+// as server/gpu-info.mjs - the installer keeps its own copy, like TRIPOSG_AUTO_MAX_VRAM_MIB)
+export const MIN_NVIDIA_DRIVER = 570;
 export const SOUND_MIN_VRAM_MIB = 8192;                   // the smallest card both engines fit on
 export const VLM = 'qwen3-vl:8b';
 
@@ -245,11 +248,13 @@ export function p3Scan(s) {
   const p = probed.find((x) => x.engine && x.weights) || probed.find((x) => x.python || x.comfy || x.node) || probed[0] || probe(cands[0]);
   Object.assign(r, { dir: p.dir, exists: p.exists, engine: p.engine, weights: p.weights, missingBytes: p.missingBytes });
   r.complete = r.engine && r.weights;
+  if (r.complete && s.driverOld) r.warn = `installed, but Pixal3D refuses to run below NVIDIA driver ${MIN_NVIDIA_DRIVER} (this machine reports ${s.driver})`;
   if (!r.complete) {
     if (!s.gpu) { r.offer = false; r.reason = 'needs an NVIDIA RTX graphics card'; }
     else if (s.vram < 7900) { r.offer = false; r.reason = `video memory is ${Math.round(s.vram / 1024)} GB, at least 8 GB needed (10+ preferred)`; }
     else if (s.cc && parseFloat(s.cc) < 8.0) { r.offer = false; r.reason = 'needs an NVIDIA RTX 30-series or newer (Ampere and above)'; }
     else if (!s.cc && !/RTX\s*(30|40|50|A\d|PRO)/i.test(s.gpu)) { r.offer = false; r.reason = 'needs an NVIDIA RTX 30/40/50'; }
+    else if (s.driverOld) { r.offer = false; r.reason = `needs NVIDIA driver ${MIN_NVIDIA_DRIVER} or newer (this machine reports ${s.driver}) - update the driver, then run the installer again: Pixal3D would not run with it anyway`; }
     else if (s.vram < 10000) r.warn = `video memory is ${Math.round(s.vram / 1024)} GB: several views on 8 GB may fall short of memory, 10+ GB recommended`;
     if (r.offer) {
       r.diskNeed = (r.engine ? 0 : P3_ENGINE_DISK) + (r.weights ? 0 : r.missingBytes);
@@ -330,7 +335,7 @@ export function scanComponents(opts = {}) {
 
   const pyRel = process.platform === 'win32' ? path.join('.venv', 'Scripts', 'python.exe') : path.join('.venv', 'bin', 'python');
   const s = { root, rt, env, cfg, man, pyRel, gpu: '', vram: 0, cc: '', adapters: [], gpuBroken: '',
-    node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '', comfy: '', comfyVer: '', comfyDeps: false,
+    node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '', comfy: '', comfyVer: '', comfyDeps: false, driver: '', driverMajor: null, driverOld: false,
     gguf: false, godot: '', godotVer: '', clips: 0, library: '', vfxDir: '', vfxOk: false, ollama: '', llms: [], vlm: false };
 
   // --- GPU: name/VRAM/compute capability from nvidia-smi; lspci only names the cards in the warning
@@ -340,9 +345,14 @@ export function scanComponents(opts = {}) {
     const smi = which('nvidia-smi') || (process.platform === 'win32'
       ? [path.join(env.SystemRoot || 'C:/Windows', 'System32', 'nvidia-smi.exe')].find(isExe) : '');
     if (smi) {
-      const out = spawnText(smi, ['--query-gpu=name,memory.total,compute_cap', '--format=csv,noheader,nounits'], 15000).out;
+      const out = spawnText(smi, ['--query-gpu=name,memory.total,compute_cap,driver_version', '--format=csv,noheader,nounits'], 15000).out;
       const parts = (out.split('\n')[0] || '').split(',').map((x) => x.trim());
-      if (parts.length >= 3 && parts[0] && /^\d+(\.\d+)?$/.test(parts[2])) { s.gpu = parts[0]; s.vram = parseInt(parts[1], 10) || 0; s.cc = parts[2]; }
+      if (parts.length >= 3 && parts[0] && /^\d+(\.\d+)?$/.test(parts[2])) {
+        s.gpu = parts[0]; s.vram = parseInt(parts[1], 10) || 0; s.cc = parts[2];
+        s.driver = /^\d/.test(parts[3] || '') ? parts[3] : '';        // [N/A] on old nvidia-smi: stay honest
+        const dm = /^(\d+)/.exec(s.driver); s.driverMajor = dm ? Number(dm[1]) : null;
+        s.driverOld = s.driverMajor !== null && s.driverMajor < MIN_NVIDIA_DRIVER;
+      }
       else s.gpuBroken = `nvidia-smi answered unexpectedly: ${parts.join(', ') || 'no output'}`;
     }
     if (which('lspci')) {
@@ -464,7 +474,7 @@ export function scanItems(s) {
   else if (s.mv.offer) add('mvadapter', G_3D, 'missing', '', '', s.mv.bytes, mvName, 'Apache-2.0', 'sdxl,comfy', '', s.mv.warn);
   else add('mvadapter', G_3D, 'unavailable', '', '', 0, mvName, 'Apache-2.0', '', '', s.mv.reason);
   const p3Name = 'Pixal3D (TRELLIS.2): shape from 1-4 views';
-  if (s.p3.complete) add('pixal3d', G_3D, 'installed', s.p3.dir, '', 0, p3Name, 'MIT; DINOv3', '', 'pixal3d,pixal3dw');
+  if (s.p3.complete) add('pixal3d', G_3D, 'installed', s.p3.dir, '', 0, p3Name, 'MIT; DINOv3', '', 'pixal3d,pixal3dw', s.p3.warn);
   else if (s.p3.offer) add('pixal3d', G_3D, 'missing', '', '', (s.p3.engine ? 0 : P3_ENGINE_DOWNLOAD) + (s.p3.weights ? 0 : s.p3.missingBytes),
     p3Name, 'MIT; DINOv3', '', s.p3.engine ? 'pixal3dw' : s.p3.weights ? 'pixal3d' : 'pixal3d,pixal3dw', s.p3.warn);
   else add('pixal3d', G_3D, 'unavailable', '', '', 0, p3Name, 'MIT; DINOv3', '', 'pixal3d,pixal3dw', s.p3.reason);
@@ -547,6 +557,7 @@ export function stateLines(s) {
   const st = (x) => (x ? x.st : 'missing');
   const pairs = {
     S_GPU: s.gpu, S_VRAM: s.vram, S_CC: s.cc, S_GPU_BROKEN: s.gpuBroken, S_ADAPTERS_STR: s.adapters.join('; '), S_NOGPU: s.noGpu ? '1' : '',
+    S_DRIVER: s.driver || '', S_DRIVER_OLD: s.driverOld ? '1' : '',
     S_NODE: s.node, S_NODEVER: s.nodeVer, S_NPM: s.npmDeps ? 'yes' : '', S_UI: s.ui ? 'yes' : '',
     S_BLENDER: s.blender, S_BLENDER_VER: s.blenderVer, S_COMFY: s.comfy, S_COMFYVER: s.comfyVer, S_COMFYDEPS: s.comfyDeps ? 'yes' : '',
     S_GGUF: s.gguf ? 'yes' : '', S_GODOT: s.godot, S_GODOT_VER: s.godotVer, S_LIBRARY: s.library, S_CLIPS: s.clips,
@@ -578,9 +589,10 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     else if (mode === 'sh') process.stdout.write(`${stateLines(s)}\n${itemLines(items).join('\n')}\n`);
     else {
       const head = ['', `AstraForge scan: ${s.root}`];
-      if (s.gpu) head.push(`  [found]    GPU: ${s.gpu} (${Math.round(s.vram / 1024)} GB${s.cc ? `, compute ${s.cc}` : ''})`);
+      if (s.gpu) head.push(`  [found]    GPU: ${s.gpu} (${Math.round(s.vram / 1024)} GB${s.cc ? `, compute ${s.cc}` : ''}${s.driver ? `, driver ${s.driver}` : ''})`);
       else if (s.gpuBroken) head.push(`  [driver]   the NVIDIA driver does not answer (${s.gpuBroken}) - generation starts only after a reboot or a driver update`);
       else head.push(`  [no GPU]   NVIDIA graphics card not found${s.adapters.length ? ` (this computer has: ${s.adapters.join(', ')})` : ''} - 3D generation from a picture will be unavailable (the interface and Blender still work)`);
+      if (s.gpu && s.driverOld) head.push(`  [driver]   NVIDIA driver ${s.driver} is older than ${MIN_NVIDIA_DRIVER}: Pixal3D is withheld and would refuse to start (ticket 20) - a driver update fixes both`);
       if (s.free !== null) head.push(`  [disk]     free in the application folder: ${gb(s.free)}`);
       process.stdout.write(`${head.concat(scanTable(items)).join('\n')}\n`);
     }

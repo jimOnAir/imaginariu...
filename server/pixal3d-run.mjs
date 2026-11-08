@@ -13,6 +13,7 @@ import { pixal3dConfig, startPixal3dRuntime } from './pixal3d.mjs';
 import { acquireEngineGpu, freeIfIdle, engineQueue } from './gpu-handover.mjs';
 import { validateGeneratedMesh, maxMeshBytes } from './mesh-validation.mjs';
 import { normalizeGlb } from './glb-normalize.mjs';
+import { gpuInfo, oldDriverText } from './gpu-info.mjs';
 
 /**
  * node class -> [percent from, percent to, label]. The ranges follow the measured time shares of a four-view run (243 s on the militia:
@@ -146,6 +147,11 @@ export async function generatePixal3d(o) {
   const tag = String(o.tag || randomUUID()).replace(/[^0-9a-zA-Z-]/g, '').slice(0, 24);
 
   onProgress?.({ percent: 0, message: 'Checking the Pixal3D engine' });
+  // 0.6.10 wave ticket 20 (the Linux form of the 0.6.8 driver gate): a driver below the floor
+  // dies mid-run upstream - refuse up front, before starting anything, with what to do instead.
+  const card = (deps.gpuInfo || gpuInfo)({ env: deps.env || process.env, spawnFn: deps.spawnFn });
+  const refuse = oldDriverText(card, 'Pixal3D');
+  if (refuse) throw new Error(refuse);
   await (deps.start || startPixal3dRuntime)({ cfg, signal, onProgress: (message) => onProgress?.({ percent: 0, message }) });
   signal?.throwIfAborted();
 

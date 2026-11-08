@@ -7,6 +7,7 @@ import path from 'node:path';
 import { root, data, pathsConfig } from './storage.mjs';
 import { localUrl } from './schema.mjs';
 import { triposgConfig, triposgInstallState, autoShape } from './triposg.mjs';
+import { gpuInfo } from './gpu-info.mjs';
 
 export const DEFAULT_PIXAL3D_DIR = 'C:/AstraForge/ComfyUI-Pixal3D';
 export const DEFAULT_PIXAL3D_URL = 'http://127.0.0.1:8191';
@@ -105,6 +106,7 @@ export async function pixal3dStatus({ cfg = pixal3dConfig(), fetchFn = fetch, ex
   return {
     installed: state.installed, running, url: cfg.url, dir: cfg.dir, missing: state.missing, message: state.message,
     startedByStudio: !!child && !child.killed, estimate: PIXAL3D_ESTIMATE,
+    driverVersion: gpuInfo()?.driverVersion ?? null,   // ticket 20: the detected driver rides the card info
   };
 }
 
