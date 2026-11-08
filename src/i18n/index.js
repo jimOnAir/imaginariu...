@@ -32,6 +32,11 @@ function stored() {
   }
 }
 
+/** Did the user ever pick a language? Only when they did not, the OS default may apply (ticket 26). */
+export function hasStoredLang() {
+  return stored() !== null;
+}
+
 let lang = stored() || DEFAULT_LANG;
 const listeners = new Set();
 
@@ -46,15 +51,31 @@ export function getLang() {
   return lang;
 }
 
+// Apply a language for real: the mirror to <html lang> plus the subscriber re-render, in one
+// place so every path (user pick, OS default) changes the UI through identical steps.
+function commitLang(next) {
+  lang = next;
+  applyHtmlLang();
+  for (const fn of listeners) fn(lang);
+}
+
 /** Switch the UI language; remembered in localStorage, mirrored to <html lang>. */
 export function setLang(next) {
   if (!DICTS[next] || next === lang) return;
-  lang = next;
   try {
     globalThis.window?.localStorage?.setItem(STORAGE_KEY, next);
   } catch { /* private mode / blocked storage */ }
-  applyHtmlLang();
-  for (const fn of listeners) fn(lang);
+  commitLang(next);
+}
+
+/**
+ * The OS default (ticket 26, from GET /api/locale): applied like a switch but NOT remembered -
+ * the detection answers only while the user has stored nothing, so it must not become a pick.
+ */
+export function applyOsLang(next) {
+  if (!DICTS[next] || next === lang) return;
+  if (stored() !== null) return;                   // a pick, even racing the boot, outranks the OS
+  commitLang(next);
 }
 
 export function subscribeLang(fn) {

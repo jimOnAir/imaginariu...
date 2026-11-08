@@ -23,6 +23,7 @@ import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import { triposgStatus, autoShape, vramMiB } from './triposg.mjs';
 import { gpuInfo } from './gpu-info.mjs';
 import { repairStudioVenvs } from './venv-health.mjs';
+import { registerLocale } from './locale.mjs';
 import { registerSound, soundStatus } from './sound.mjs';
 import { registerStyles } from './styles.mjs';
 import { ensureOllama, ollamaModels, ollamaCatalog, pickChatModel } from './ollama-run.mjs';
@@ -68,6 +69,7 @@ registerArt2d(app,asyncRoute,{getConfig:()=>config});
 registerSound(app,asyncRoute);
 registerStyles(app,asyncRoute,{getLiveConfig:()=>config});
 registerComponents(app,asyncRoute,{components:createComponents({appRoot:root,dataDir:data,appVersion})});
+registerLocale(app,asyncRoute);   // ticket 26: GET /api/locale
 // auto-review (docs/product/autoreview.md, ticket 08): every finished shape job is orbit-rendered,
 // scored by the local VLM and decided by the fixed table; retries run with new seeds, one review at a time.
 const autoReview=createAutoReviewService({getConfig:()=>config,createJob,getJob});
