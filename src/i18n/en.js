@@ -2448,6 +2448,8 @@ export default {
   "about.link.source": "Source code",
   "about.link.sourceText": "The studio is published under the MIT license.",
   "about.components.open": "Studio components",
+  "app.appearance.title": "Appearance",
+  "app.appearance.note": "Theme and interface language apply instantly and are remembered on this computer. A first start follows the system language; your choice then wins.",
   "components.lead": "The studio has checked the computer: what is installed and at which version. Tick what to download or update - everything lands in the application folder, what is already installed is not touched.",
   "components.checking": "Checking components...",
   "components.st.installed": "installed",
