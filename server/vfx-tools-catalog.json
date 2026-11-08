@@ -89,7 +89,7 @@
       "ru": "Node-based image editor and texture builder: noise, masks, normals, PBR.",
       "local": { "installer": "downloads/PixaFlux.20260528.exe", "find": { "hints": ["PixaFlux"], "exe": "PixaFlux.exe" }, "extras": ["downloads/pixaflux_blender_addon.zip", "apps/pixaflux-samples"] },
       "linux": { "unsupported": "PixaFlux: the vendor ships a Windows installer only." },
-      "download": { "url": "https://pixaflux.com/bin/PixaFlux.20260528.exe", "sha256": "8fcb0c7e33432068733a89801f1f9467433e7b0dfc0f053c9ed44afb6e702aec", "file": "downloads/PixaFlux.20260528.exe", "extra": [ { "url": "https://pixaflux.com/blender/pixaflux.zip", "sha256": "84fd626c06b7b8d10e34feef9aa2d6bae6c6176cf0aa3c0bd26d16421902fc97", "file": "downloads/pixaflux_blender_addon.zip" }, { "url": "https://pixaflux.com/wiki/samples/Samples.zip", "sha256": "aa739f932f8cd9fa8ad8c10716ff0718278a1de07d0ba41793dc826c014ab743", "unzip": "apps/pixaflux-samples" } ] }
+      "download": { "optional": "Опция (по решению ветки, 2026-11-08): автор снял прямую ссылку сборки — загрузка отвалилась (404); программу можно взять на сайте автора (ссылка на вкладке «VFX»). ", "url": "https://pixaflux.com/bin/PixaFlux.20260528.exe", "sha256": "8fcb0c7e33432068733a89801f1f9467433e7b0dfc0f053c9ed44afb6e702aec", "file": "downloads/PixaFlux.20260528.exe", "extra": [ { "url": "https://pixaflux.com/blender/pixaflux.zip", "sha256": "84fd626c06b7b8d10e34feef9aa2d6bae6c6176cf0aa3c0bd26d16421902fc97", "file": "downloads/pixaflux_blender_addon.zip" }, { "url": "https://pixaflux.com/wiki/samples/Samples.zip", "sha256": "aa739f932f8cd9fa8ad8c10716ff0718278a1de07d0ba41793dc826c014ab743", "unzip": "apps/pixaflux-samples" } ] }
     },
     {
       "id": "kumoworks",
@@ -115,7 +115,7 @@
       "ru": "Builds flipbooks and sprite sheets from sequences, with preview and flow texture preparation.",
       "local": { "installer": "downloads/Slate_Installer.exe", "find": { "hints": ["Slate", "FacedownFX"], "exe": "Slate.exe" } },
       "linux": { "unsupported": "Slate: the vendor package pinned here is a Windows installer; no Linux build is distributed (checked 2026-11-02)." },
-      "download": { "url": "https://s3.eu-west-2.amazonaws.com/facedownfx/Slate/Builds/Slate_Installer.zip", "unzip": "downloads" }
+      "download": { "optional": "Опция (по решению ветки, 2026-11-08): CDN facedownfx сбрасывает соединения у ряда провайдеров; сборку можно взять на сайте автора (ссылка на вкладке «VFX»). ", "url": "https://s3.eu-west-2.amazonaws.com/facedownfx/Slate/Builds/Slate_Installer.zip", "unzip": "downloads" }
     },
     {
       "id": "texture-generator-online",

@@ -1622,6 +1622,7 @@ export default {
   "vfx.slot.roughnessMap": "Шероховатость",
   "vfx.slot.metalnessMap": "Металличность",
   "vfx.tool.missing": "не скачано",
+  "vfx.tool.optionalSkip": " опция - при установке пропустили (см. ссылку на сайт)",
   "vfx.tool.launch": "Запустить",
   "vfx.tool.install": "Установить",
   "vfx.tool.open": "Открыть",

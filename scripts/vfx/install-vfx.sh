@@ -19,7 +19,7 @@ for arg in "$@"; do
     *) [ "$prev" = Root ] && ROOT="$arg"; [ "$prev" = Only ] && Only="$arg"; ;;
   esac
 done
-CATALOG="$APP/server/vfx-tools-catalog.json"
+CATALOG="${ASTRA_VFX_CATALOG:-$APP/server/vfx-tools-catalog.json}"   # the seam tests use; production reads the shipped catalog
 NODE_BIN="${ASTRA_NODE:-$(command -v node || true)}"
 [ -n "$NODE_BIN" ] || { echo 'node is required (npm for DisplacementX). Run installer/install.sh first.'; exit 1; }
 NPM_BIN="$("$NODE_BIN" -e 'const p=require("path"),d=require("path").dirname(process.execPath);console.log(p.join(d,process.platform==="win32"?"npm.cmd":"npm"))')"
@@ -119,7 +119,14 @@ MaterialMaker() { # <id> <file>
 say "VFX texture generators -> $ROOT"
 mkdir -p "$ROOT/downloads" "$ROOT/textures"
 failed=''
-while IFS=$'\t' read -r id name license action payload plan; do
+# Ticket 15: a catalog entry whose download carries an `optional` reason string never fails the
+# step - the miss is named in the log with the reason and the hint to the author's site (which the
+# VFX tab links anyway); every hard entry still fails the way it always did.
+FailOrSkip() { # <id> <name> <optional-reason>
+  if [ -n "$3" ]; then say "    SKIPPED (optional, $1): $3 - open the author's site from the VFX tab if you still want it"; return 0; fi
+  failed="$failed $1"; return 0
+}
+while IFS=$'\t' read -r id name license action payload plan optional; do
   [ -n "$id" ] || continue
   [ -n "$Only" ] && { case ",$Only," in *",$id,"*) ;; *) continue ;; esac; }
   say "  $name  ($license)"
@@ -127,7 +134,7 @@ while IFS=$'\t' read -r id name license action payload plan; do
   case "$action" in
     skip) say "    $payload" ;;
     fetch) IFS=$'\x1f' read -r url kind target strip sha <<<"$payload"
-      Fetch "$url" "$target" "$([ "$kind" = unzip ] && echo 1 || echo 0)" "$strip" "$sha" || failed="$failed $id" ;;
+      Fetch "$url" "$target" "$([ "$kind" = unzip ] && echo 1 || echo 0)" "$strip" "$sha" || FailOrSkip "$id" "$name" "${optional:-}" ;;
     github) IFS=$'\x1f' read -r git branch dir build base out <<<"$payload"
       if GitHub "$git" "$branch" "$dir"; then
         case "$build" in
@@ -163,7 +170,7 @@ done < <("$NODE_BIN" -e '
      console.log([t.id, t.name, t.license || "", "materialmaker", [d.materialMaker, d.file].join(sep), "materialmaker.org #" + d.materialMaker].join("\t"));
    } else if (d.url) {
      const kind = d.unzip ? "unzip" : "file", target = d.unzip || d.file;
-     console.log([t.id, t.name, t.license || "", "fetch", [d.url, kind, target, d.strip || "", d.sha256 || ""].join(sep), d.url].join("\t"));
+     console.log([t.id, t.name, t.license || "", "fetch", [d.url, kind, target, d.strip || "", d.sha256 || ""].join(sep), d.url, String(d.optional || "").replace(/[\t\r\n]+/g, " ")].join("\t"));
    }
    for (const x of [].concat(d.extra || [])) if (x) console.log([t.id + ":extra", t.name, t.license || "", x.unzip ? "fetch" : "fetch", [x.url, x.unzip ? "unzip" : "file", x.unzip || x.file, x.strip || "", x.sha256 || ""].join(sep), x.url].join("\t"));
  }' "$CATALOG")

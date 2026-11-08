@@ -6,15 +6,15 @@ const SLOTS=[['map','vfx.slot.map'],['emissiveMap','vfx.slot.emissiveMap'],['nor
 const kindTitle=(kind,title)=>tOr('vfx.kind.'+kind,title);
 const toolDesc=tool=>tOr('vfx.toolDesc.'+tool.id,tool.en||tool.ru);
 function Section({title,children,aside}){return <section className="section"><div className="section-heading"><h3>{title}</h3>{aside}</div>{children}</section>;}
-const Missing=()=>{const t=useT();return <span className="optional">{t('vfx.tool.missing')}</span>;};
+const Missing=({opt})=>{const t=useT();return opt?<span className="optional vfx-warn" title={opt}>{t('vfx.tool.optionalSkip')}</span>:<span className="optional">{t('vfx.tool.missing')}</span>;};
 function ToolCard({t:tool,busy,onLaunch,onInstall,onWeb,onFolder}){const t=useT();
  const program=tool.kind==='desktop'||tool.kind==='installer';
  const open=(label,icon,fn,disabled,title)=><button className="secondary small" disabled={busy||disabled} title={title} onClick={fn}>{icon}{label}</button>;
  let action=null;
- if(tool.kind==='desktop')action=tool.available?open(t('vfx.tool.launch'),<Play size={12}/>,onLaunch):<Missing/>;
- else if(tool.kind==='installer')action=tool.installed?open(t('vfx.tool.launch'),<Play size={12}/>,onLaunch):tool.installerAvailable?open(t('vfx.tool.install'),<Download size={12}/>,onInstall):<Missing/>;
- else if(tool.kind==='web-local')action=tool.available?(tool.webUrl?open(t('vfx.tool.open'),<Globe size={12}/>,onWeb):<span className="optional vfx-warn" title={tool.webError}>{t('vfx.tool.webDown')}</span>):<Missing/>;
- else if(tool.kind==='file')action=tool.available?open(t('vfx.tool.openInMm'),<Play size={12}/>,onLaunch,!tool.launchable,tool.launchable?undefined:t('vfx.tool.needMm')):<Missing/>;
+ if(tool.kind==='desktop')action=tool.available?open(t('vfx.tool.launch'),<Play size={12}/>,onLaunch):<Missing opt={tool.optional}/>;
+ else if(tool.kind==='installer')action=tool.installed?open(t('vfx.tool.launch'),<Play size={12}/>,onLaunch):tool.installerAvailable?open(t('vfx.tool.install'),<Download size={12}/>,onInstall):<Missing opt={tool.optional}/>;
+ else if(tool.kind==='web-local')action=tool.available?(tool.webUrl?open(t('vfx.tool.open'),<Globe size={12}/>,onWeb):<span className="optional vfx-warn" title={tool.webError}>{t('vfx.tool.webDown')}</span>):<Missing opt={tool.optional}/>;
+ else if(tool.kind==='file')action=tool.available?open(t('vfx.tool.openInMm'),<Play size={12}/>,onLaunch,!tool.launchable,tool.launchable?undefined:t('vfx.tool.needMm')):<Missing opt={tool.optional}/>;
  return <div className={'vfx-card'+(tool.unavailable?' off':'')}>
   <div className="vfx-card-head"><strong>{tool.name}</strong>{tool.unavailable&&<span className="badge" title={t('vfx.tool.unavailableHint')}>{t('vfx.tool.unavailable')}</span>}</div>
   <div className="vfx-meta">{tool.author} · {tool.license}</div>

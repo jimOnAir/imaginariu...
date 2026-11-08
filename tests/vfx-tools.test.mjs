@@ -393,3 +393,52 @@ test('catalog: downloads are https-only and PixaFlux ships sha256 pins', () => {
     assert.match(d.sha256, /^[0-9a-f]{64}$/, `sha256 pin for ${d.url}`);
   }
 });
+
+// ---------------------------------------------------------------- ticket 15: optional third-party generators
+
+test('ticket 15: the catalog marks exactly pixaflux and slate optional, with dated reasons', () => {
+  const cat = loadCatalog();
+  const optOf = (t) => (t.linux?.download || t.download || {}).optional;
+  const ids = cat.tools.filter((t) => optOf(t)).map((t) => t.id).sort();
+  assert.deepEqual(ids, ['pixaflux', 'slate']);
+  for (const t of cat.tools.filter((x) => optOf(x))) {
+    assert.equal(typeof optOf(t), 'string');
+    assert.ok(optOf(t).trim().length > 20, t.id + ': the reason must say why, in a sentence');
+    assert.match(optOf(t), /2026-\d\d-\d\d/, t.id + ': dated reason (the day we marked it)');
+  }
+  // the URLs and sums stay for users who fetch by hand (the entries are otherwise unchanged)
+  for (const t of cat.tools.filter((x) => optOf(x))) assert.match((t.linux?.download || t.download).url, /^https:\/\//, t.id);
+  assert.doesNotThrow(() => validateCatalog(cat));
+});
+
+test('ticket 15: the tools list surfaces the optional reason (the tab distinguishes skipped-optional from missing)', async () => {
+  const tools = (await (await fetch(base + '/api/vfx-tools')).json()).tools;
+  for (const id of ['pixaflux', 'slate']) {
+    const t = tools.find((x) => x.id === id);
+    assert.ok(t && typeof t.optional === 'string' && t.optional.length > 20, id + ' exposes its reason');
+    assert.ok(t.url && /^https:\/\//.test(t.url), id + ' still carries its site link for the tab');
+  }
+  assert.equal(tools.find((x) => x.id === 'material-maker').optional, null, 'regular entries expose nothing');
+});
+
+test('ticket 15 shell: an optional entry that cannot download is named-and-skipped, a hard one fails the step', async () => {
+  const { spawnSync } = await import('node:child_process');
+  const root = mkdtempSync(path.join(tmpdir(), 'af-vfx15-'));
+  const file = path.join(root, 'catalog.json');
+  const stub = (opt) => ({ tools: [
+    { id: 'optone', name: 'Optional One', license: 'MIT', kind: 'file', url: 'https://author.example/optone',
+      local: { file: 'downloads/opt.bin' }, download: { url: 'file:///astraforge15-no-such-file.bin', file: 'downloads/opt.bin', ...(opt ? { optional: 'the author pulled the link (2026-11-08)' } : {}) } },
+  ] });
+  const run = () => spawnSync('bash', [path.join(import.meta.dirname, '..', 'scripts', 'vfx', 'install-vfx.sh'), '-Only', 'optone'],
+    { env: { ...process.env, ASTRA_VFX_CATALOG: file, ASTRA_VFX_TOOLS: path.join(root, 'vfx') }, encoding: 'utf8', timeout: 120000 });
+  writeFileSync(file, JSON.stringify(stub(true)));
+  const soft = run();
+  assert.equal(soft.status, 0, soft.stdout + soft.stderr);
+  assert.match(soft.stdout, /SKIPPED \(optional, optone\).*author pulled the link/, 'the log names the entry and the reason');
+  assert.match(soft.stdout, /author's site from the VFX tab/, 'and points at the site route');
+  assert.doesNotMatch(soft.stdout, /Failed:/, 'the step stayed green');
+  writeFileSync(file, JSON.stringify(stub(false)));
+  const hard = run();
+  assert.equal(hard.status, 1, 'the same entry without the marker still fails the step loudly');
+  assert.match(hard.stdout, /Failed: optone/);
+});

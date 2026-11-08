@@ -1624,6 +1624,7 @@ export default {
   "vfx.slot.roughnessMap": "Roughness",
   "vfx.slot.metalnessMap": "Metalness",
   "vfx.tool.missing": "not downloaded",
+  "vfx.tool.optionalSkip": " optional - skipped at install (see the site link)",
   "vfx.tool.launch": "Launch",
   "vfx.tool.install": "Install",
   "vfx.tool.open": "Open",

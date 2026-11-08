@@ -161,6 +161,10 @@ function startProcess(spawnFn, exe, args = [], { cwd, elevate = true } = {}) {
 }
 
 const stripDownload = ({ download, linux, ...tool }) => tool;
+/** Ticket 15: an entry whose download carries an `optional` reason may be skipped by the installer;
+ *  the VFX tab then shows the skipped-optional state instead of a plain "missing" (the site link is
+ *  on every row anyway), so a dead third-party build never hides the way to get the program. */
+const optionalReason = (t) => String((((t && t.linux && t.linux.download) || (t && t.download) || {}).optional) || '') || null;
 
 /** Catalog entries may override local paths for Linux (linux.local) or say the vendor ships no Linux binary (linux.unsupported). */
 const localSpec = (t) => (!IS_WIN && t?.linux?.local) ? t.linux.local : (t?.local || {});
@@ -229,7 +233,7 @@ export function createVfxTools(options = {}) {
     }
     await startWeb();
     const tools = await Promise.all(catalog.tools.map(async (t) => {
-      const item = { ...stripDownload(t), ...(await stateOf(t)), webUrl: null };
+      const item = { ...stripDownload(t), ...(await stateOf(t)), webUrl: null, optional: optionalReason(t) };
       if (t.kind === 'web-local') {
         if (web.port) item.webUrl = `http://127.0.0.1:${web.port}/vfx-web/${t.id}/`;
         else item.webError = web.error || 'The generators web server is not running.';
