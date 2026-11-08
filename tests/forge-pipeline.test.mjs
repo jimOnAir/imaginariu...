@@ -301,6 +301,14 @@ test('a run creates v001 with numbered step folders and resolves inputs along th
   assert.equal(calls[0].step, 'unity_package');
   assert.equal(calls[0].request.params.profile, 'unity');
   assert.equal(calls[0].request.inputs.glb, path.join(v1, '03_rig_humanoid', 'rig_humanoid.glb'));
+  // the Bevy profile joins the export family (0.6.10 wave ticket 28, docs/forge/bevy.md)
+  calls.length = 0;
+  const exB = await engine.startExport(a.id, { profile: 'bevy' });
+  assert.equal(exB.version, 'v007');
+  assert.equal((await engine.waitJob(exB.jobId)).status, 'completed');
+  assert.equal(calls[0].step, 'bevy_package');
+  assert.equal(calls[0].request.params.profile, 'bevy');
+  assert.equal(calls[0].request.inputs.glb, path.join(v1, '03_rig_humanoid', 'rig_humanoid.glb'), 'the same GLB the Godot line packages');
 });
 
 test('generators take asset source params; attach_prop gets character and item', async () => {

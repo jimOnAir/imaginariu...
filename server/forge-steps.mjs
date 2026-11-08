@@ -979,6 +979,20 @@ const STEP_LIST = [
       validate: bool(true, 'Check in Unity', 'Unity without a window on the check project (URP): the prefab, materials, Avatar, clips, sockets, effects, LOD, size, a screenshot.'),
     },
   },
+  {
+    step: 'bevy_package', module: 'export', title: 'Bevy 0.20 package',
+    help: 'The same GLB (model, rig, clips) as the Godot profile plus the af_bevy.json passport: one astraforge_bevy dependency line puts the asset in-game with default-clip autostart, clip blending, socket-mounted effects, studio sounds and hot model reload. With Rust on the machine the studio additionally checks the package headlessly in Bevy and captures a preview frame; without it the package builds the same, minus the check.',
+    kinds: ALL_KINDS, inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
+    outputs: ['package', 'glb', 'manifest', 'readme'], export: true, timeoutSec: 10 * 60,
+    params: {
+      asset_id: str(null, 'Asset ID', 'snake_case ASCII; filled in by the server from the passport name.', { auto: 'asset_slug' }),
+      profile: oneOf(['bevy'], 'bevy', 'Profile', ''),
+      collider: oneOf(['auto', 'box', 'capsule', 'mesh', 'none'], 'auto', 'Collider', 'auto - collision hull meshes (COL_*, *-colonly, *-convcolonly) win, then a capsule for rigged models, a box for the rest.'),
+      autoplay: str(null, 'Default clip', 'Autostarted by the crate; empty - idle or the first loop.'),
+      fx: list([], 'Effects', 'A list of {preset, socket, params} - like the Godot package (socket masks with * fan out). Empty - the fx of the passport.', { items: { type: 'object' } }),
+      fx_auto_scale: bool(true, 'Effect scale', 'Fit the effects to the socket or the asset size (the crate scales socket-mounted effects).'),
+    },
+  },
 ];
 
 const STEPS = new Map(STEP_LIST.map((s) => [s.step, s]));
@@ -1098,6 +1112,7 @@ export const EXPORT_PROFILES = {
   iso8: { step: 'render_sprites', params: { profile: 'iso8' } },
   unity: { step: 'unity_package', params: { profile: 'unity' } },
   unreal: { step: 'unreal_package', params: { profile: 'unreal' } },
+  bevy: { step: 'bevy_package', params: { profile: 'bevy' } },
 };
 
 // Structured params the per-param schema cannot describe: checked before the run, so a typo fails
