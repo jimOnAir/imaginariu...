@@ -4,6 +4,7 @@ import {randomUUID} from 'node:crypto';
 import path from 'node:path';
 import {z} from 'zod';
 import {root,data,comfyDir,venvPython} from './storage.mjs';
+import {venvSpawnFailText} from './venv-health.mjs';
 const schema=z.object({meshes:z.array(z.object({id:z.string().uuid(),positions:z.array(z.number().finite()).max(9000000),indices:z.array(z.number().int().nonnegative()).max(9000000)})).min(1).max(100)});
 let busy=false;
 export async function unwrapUV(body,signal){
@@ -14,7 +15,7 @@ export async function unwrapUV(body,signal){
  try{
   await fs.writeFile(source,JSON.stringify(input));
   const python=venvPython();
-  await new Promise((resolve,reject)=>{const p=spawn(python,[path.join(root,'scripts','unwrap_uv.py'),source,output],{windowsHide:true,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});let error='';p.stderr.on('data',b=>error=(error+b.toString()).slice(-1500));const abort=()=>p.kill();signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(()=>p.kill(),900000);const finish=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);};p.on('error',e=>{finish();reject(e);});p.on('exit',code=>{finish();if(code!==0)reject(new Error('UV unwrap failed: '+error));else resolve();});});
+  await new Promise((resolve,reject)=>{const p=spawn(python,[path.join(root,'scripts','unwrap_uv.py'),source,output],{windowsHide:true,env:{...process.env,PYTHONDONTWRITEBYTECODE:'1'}});let error='';p.stderr.on('data',b=>error=(error+b.toString()).slice(-1500));const abort=()=>p.kill();signal?.addEventListener('abort',abort,{once:true});const timer=setTimeout(()=>p.kill(),900000);const finish=()=>{clearTimeout(timer);signal?.removeEventListener('abort',abort);};p.on('error',e=>{finish();reject(e.code==='ENOENT'?new Error(venvSpawnFailText(python,'UV unwrapping')):e);});p.on('exit',code=>{finish();if(code!==0)reject(new Error('UV unwrap failed: '+error));else resolve();});});
   return JSON.parse(await fs.readFile(output,'utf8'));
  }finally{busy=false;await fs.unlink(source).catch(()=>{});await fs.unlink(output).catch(()=>{});}
 }

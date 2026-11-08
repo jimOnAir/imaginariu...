@@ -3,6 +3,7 @@
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { venvSpawnFailText } from '../../server/venv-health.mjs';
 import { spawn } from 'node:child_process';
 
 export const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
@@ -87,7 +88,7 @@ export async function downloadOutput(url, item, dest) {
 /** Run a script in the ComfyUI venv; resolves with the parsed `RESULT {json}` stdout line. */
 export function runPython(script, args, { signal, timeoutMs = 600000, onLine } = {}) {
   const python = pythonExe();
-  if (!existsSync(python)) return Promise.reject(new Error('ComfyUI Python is required (' + python + '). Set ASTRA_COMFY_DIR.'));
+  if (!existsSync(python)) return Promise.reject(new Error(venvSpawnFailText(python, 'This generation step')));   // ticket 25
   return new Promise((resolve, reject) => {
     const child = spawn(python, ['-I', script, ...args], {
       windowsHide: true,
@@ -99,7 +100,7 @@ export function runPython(script, args, { signal, timeoutMs = 600000, onLine } =
     const kill = () => { if (process.platform === 'win32') spawn('taskkill', ['/PID', String(child.pid), '/T', '/F'], { windowsHide: true }); else child.kill(); };
     const timer = setTimeout(kill, timeoutMs);
     signal?.addEventListener('abort', kill, { once: true });
-    child.on('error', (e) => { clearTimeout(timer); reject(e); });
+    child.on('error', (e) => { clearTimeout(timer); reject(e.code === 'ENOENT' ? new Error(venvSpawnFailText(python, 'This generation step')) : e); });
     child.on('close', (code) => {
       clearTimeout(timer);
       if (signal?.aborted) return reject(new DOMException('Cancelled', 'AbortError'));

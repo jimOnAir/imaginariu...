@@ -259,10 +259,26 @@ Uv() {
   fi
   export UV_PYTHON_INSTALL_DIR="$RT/python" UV_CACHE_DIR="$RT/uv-cache"
 }
+# 0.6.10 wave ticket 25: a venv can survive "being there" and still be broken - the python entry
+# copied flat out of a symlink, the CPython it links to cleaned away, an interpreter that no longer
+# starts. Such a venv must not be reused on a reinstall: the pip steps below would die confusingly.
+# On an explicit component (re)install the honest move is to delete the broken skeleton and rebuild
+# it (the -x checks right after then recreate it); the studio at startup does the cheap in-place
+# repair instead and never deletes (server/venv-health.mjs).
+VenvRecreateIfBroken() { # <venv-parent-dir> <label>
+  local dir="$1" label="$2" py="$1/.venv/bin/python"
+  [ -e "$dir/.venv" ] || return 0
+  if [ ! -x "$py" ] || ! "$py" -c 'import site' >/dev/null 2>&1; then
+    say "  the $label Python environment is damaged - recreating it from scratch (models and settings are not touched)"
+    rm -rf "$dir/.venv"
+  fi
+}
+
 InstallComfyDeps() { # <dir> — the venv and PyTorch (CUDA when an NVIDIA GPU was found, CPU otherwise)
   local dir="$1" py
   py="$dir/.venv/bin/python"
   Uv || return 1
+  VenvRecreateIfBroken "$dir" 'ComfyUI'
   if [ ! -x "$py" ]; then (cd "$dir" && Run "$UV_BIN" 'Python 3.12 for ComfyUI' venv --python 3.12 .venv) || return 1; fi
   local torchIndex='https://download.pytorch.org/whl/cpu'
   [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
@@ -526,6 +542,7 @@ TriposgComponent() { # env|code|tf|vae|dino
   case "$1" in
     env)
       Uv || return 1
+      VenvRecreateIfBroken "$dir" 'TripoSG'
       if [ ! -x "$py" ]; then Run "$UV_BIN" 'TripoSG Python environment (Python 3.11)' venv "$dir/.venv" --python 3.11 || return 1; fi
       local torchIndex='https://download.pytorch.org/whl/cpu'
       [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
@@ -595,6 +612,7 @@ SoundComponent() { # code|env|moss|ace
       "$n" -e 'const m=require(process.argv[1]);console.log(Object.values(m.code).map(c=>`${c.repo} ${c.commit} ${c.license}`).join("\n"))' "$(SoundManifest)" > "$dir/PINNED-COMMIT.txt" ;;
     env)
       Uv || return 1
+      VenvRecreateIfBroken "$dir" 'Sound'
       if [ ! -x "$py" ]; then Run "$UV_BIN" 'Sound Python environment (Python 3.12)' venv "$dir/.venv" --python 3.12 || return 1; fi
       local torchIndex='https://download.pytorch.org/whl/cpu' libs torchlibs
       [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'

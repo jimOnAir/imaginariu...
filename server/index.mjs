@@ -22,6 +22,7 @@ import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import { triposgStatus, autoShape, vramMiB } from './triposg.mjs';
 import { gpuInfo } from './gpu-info.mjs';
+import { repairStudioVenvs } from './venv-health.mjs';
 import { registerSound, soundStatus } from './sound.mjs';
 import { registerStyles } from './styles.mjs';
 import { ensureOllama, ollamaModels, ollamaCatalog, pickChatModel } from './ollama-run.mjs';
@@ -41,6 +42,11 @@ const autostartOllama=()=>!process.env.NODE_TEST_CONTEXT&&process.env.ASTRA_ENGI
 async function reviewPick(names,vram=vramMiB()){const pick=pickReviewModel(vram,names||[],process.env,config.reviewModel);publishQaModel(pick);return pick;}
 let ollamaStarting=false;
 if(autostartOllama())void ensureOllama({url:config.ollamaUrl,appRoot:root}).then(async()=>{await reviewPick(await ollamaModels(config.ollamaUrl)||[]);}).catch(()=>{});
+// venv self-repair at startup (0.6.10 wave ticket 25): diagnose each venv the studio owns, recreate
+// the interpreter skeleton in place when only that broke (packages survive), log the honest sentence
+// naming the fix command when it needs the installer. Delayed so it never competes with the boot,
+// and off entirely in test contexts and engines-off runs (same gate as the other side effects).
+if(autostartOllama())setTimeout(()=>{void repairStudioVenvs({appRoot:root,log:m=>console.log(m)}).catch(()=>{});},3000);
 const app=express();const port=Number(process.env.PORT)||3210;
 app.disable('x-powered-by');
 let sculpt=null;   // the Sculpt tab: the SculptGL page on the web port may read studio assets (server/sculpt.mjs)
