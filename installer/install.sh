@@ -161,7 +161,13 @@ CfgSet() { local n; n="$(NodeBin)"; if [ -z "$n" ]; then say '  node is needed t
  for(let i=2;i<process.argv.length;i+=2)c[process.argv[i]]=process.argv[i+1];
  fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,JSON.stringify(c,null,2)+"\n")' "$CFGF" "$@"; }
 
+# The free bytes of a filesystem; empty output means the reading FAILED (odd mount, blocked df).
+# A failed reading is UNKNOWN - never zero: the 0.6.11 patch line fixed an installer that stopped
+# with "0.0 GB free" over an unreadable value, and every gate here skips honestly instead (33).
 FreeOn() { df -B1 --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '; }
+FreeText() { local f="$1"; if [ -n "$f" ]; then Gb "$f"; else printf 'unknown'; fi; }
+FreeUnder() { # true only when the reading EXISTS and falls short (an unknown never does)
+  [ -n "$1" ] && [ "$(awk -v f="$1" -v d="$2" 'BEGIN{print (f<d)?1:0}')" = 1 ]; }
 
 # ---------------------------------------------------------------- scan (installer/af_scan.mjs is the scan core)
 ITEMS_FILE="$DL/scan-items.tsv"
@@ -397,7 +403,8 @@ PrepareOllamaModels() { # <model-bytes-expected> - used only to judge whether th
     defdev="$(deviceOf "$homedir")"
     studioplace="$RT/models/ollama"
     homedev="$(deviceOf "$RT")"
-    if [ -n "$defdev" ] && [ -n "$homedev" ] && [ "$defdev" != "$homedev" ] && [ "$(FreeOn "$homedir")" -lt "$need" ]; then
+    homfree="$(FreeOn "$homedir")"
+    if [ -n "$defdev" ] && [ -n "$homedev" ] && [ "$defdev" != "$homedev" ] && FreeUnder "$homfree" "$need"; then
       mkdir -p "$studioplace" || true
       CfgSet ollamaModels "$studioplace" || true
       export OLLAMA_MODELS="$studioplace"
@@ -803,9 +810,9 @@ ShowChecklist() {
 }
 
 SumFooter() {   # the footer of the checklist: download vs free disk (the UpdateSum of Setup.cs)
-  local n="$1" cs="$2" free="${S_FREE:-}"; free="${free:-$(FreeOn "$ROOT")}"; free="${free:-0}"
-  if [ "$n" = 0 ]; then say "  Nothing ticked: everything needed is installed. Free on $ROOT: $(Gb "$free")."
-  else say "  Download: $(Gb "$cs") ($n items). Free on $ROOT: $(Gb "$free")."; fi
+  local n="$1" cs="$2" free="${S_FREE:-}"; free="${free:-$(FreeOn "$ROOT")}"
+  if [ "$n" = 0 ]; then say "  Nothing ticked: everything needed is installed. Free on $ROOT: $(FreeText "$free")."
+  else say "  Download: $(Gb "$cs") ($n items). Free on $ROOT: $(FreeText "$free")."; fi
 }
 
 BeginInstallPlan() {   # the ticked rows -> $plan; 1 = the user refused a confirmation (back to the checklist)
@@ -828,13 +835,15 @@ BeginInstallPlan() {   # the ticked rows -> $plan; 1 = the user refused a confir
     else Ask 'Install anyway?' n || return 1; fi
   fi
   n="$(CheckedCount)"; cs="$(CheckedBytesSum)"
-  free="${S_FREE:-$(FreeOn "$ROOT")}"; free="${free:-0}"
+  free="${S_FREE:-$(FreeOn "$ROOT")}"
   needx="$(awk -v c="$cs" 'BEGIN{printf "%d", c + c/10}')"
-  if [ "$n" != 0 ] && [ "$(awk -v f="$free" -v d="$needx" 'BEGIN{print (f<d)?1:0}')" = 1 ]; then
+  if [ "$n" != 0 ] && FreeUnder "$free" "$needx"; then
     say ''
-    say "  $ROOT has $(Gb "$free") free, the ticked items need about $(Gb "$needx")."
+    say "  $ROOT has $(FreeText "$free") free, the ticked items need about $(Gb "$needx")."
     if [ "$Yes" = 1 ]; then say '  Autonomous mode: installing anyway (interrupted downloads resume on the next run).'
     else Ask 'Continue anyway?' n || return 1; fi
+  elif [ "$n" != 0 ] && [ -z "$free" ]; then
+    say "  free space on $ROOT: unknown (df could not read it) - the disk check is skipped, not failed."
   fi
   plan=()
   for id in $ORDER_IDS; do
@@ -973,8 +982,8 @@ for e in "${plan[@]:-}"; do [ -n "$e" ] || continue; s="$(printf '%s' "$e" | cut
 say "  components: ${#plan[@]}, download about $(Human "$dl")"
 free="$(FreeOn "$ROOT")"
 if [ "${#plan[@]}" != 0 ]; then
-  say "  disk: about $(Human "$dl") needed, $(Gb "${free:-0}") free"
-  if [ "$SCAN_OK" != 1 ] && [ "$(awk -v d="$dl" -v f="${free:-0}" 'BEGIN{print (d>f)?1:0}')" = 1 ]; then say '  Not enough disk space - free some space and run again.'; exit 1; fi
+  say "  disk: about $(Human "$dl") needed, $(FreeText "$free") free"
+  if [ "$SCAN_OK" != 1 ] && FreeUnder "$free" "$dl"; then say '  Not enough disk space - free some space and run again.'; exit 1; fi
 fi
 lics="$(for e in "${plan[@]:-}"; do [ -n "$e" ] && printf '%s\n' "$(printf '%s' "$e" | cut -d'|' -f4)"; done | grep -v '^$' | sort -u | awk '{printf "%s%s", (NR>1?"; ":""), $0}')"
 [ -n "$lics" ] && say "  licenses: $lics"

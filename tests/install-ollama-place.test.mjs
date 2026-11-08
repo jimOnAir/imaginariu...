@@ -22,6 +22,8 @@ export ASTRA_MANIFEST="$REPO/installer/manifest.json"
 NodeBin() { printf '%s' "$NODE"; }
 Gb() { awk -v b="$1" 'BEGIN{printf "%.1f GB", b/1e9}'; }
 FreeOn() { df -B1 --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '; }
+FreeText() { local f="$1"; if [ -n "$f" ]; then Gb "$f"; else printf 'unknown'; fi; }
+FreeUnder() { [ -n "$1" ] && [ "$(awk -v f="$1" -v d="$2" 'BEGIN{print (f<d)?1:0}')" = 1 ]; }
 say() { echo "SAY: $1"; }
 curl() { [ "\${FAKE_SERVER_UP:-0}" = 1 ] && return 0; return 7; }
 CfgGet() { local n; n="$(NodeBin)"; [ -n "$n" ] || { printf ''; return; }; "$n" -e 'try{const c=require(process.argv[1]);const v=c[process.argv[2]];if(v!=null)process.stdout.write(String(v))}catch(e){}' "$CFGF" "$1" 2>/dev/null || true; }
@@ -57,6 +59,25 @@ DF
               export FAKE_HOME_PREFIX="$HOME"
               chmod +x "$WORK/bin/df"; PATH="$WORK/bin:$PATH"
               PrepareOllamaModels 9300000000
+              echo "MODELS=\${OLLAMA_MODELS:-unset}"
+              echo "PATHS=$(cat "$CFGF" 2>/dev/null)" ;;
+  dfunknown)  mkdir -p "$WORK/bin"
+              cat > "$WORK/bin/df" <<'DF'
+#!/usr/bin/env bash
+case "$*" in
+  *--output=avail*) exit 1 ;;
+esac
+p="\${*: -1}"
+case "\$p" in
+  *"\$FAKE_HOME_PREFIX"*) dev="/dev/fakehome" ;;
+  *)                     dev="/dev/fakestudio" ;;
+esac
+echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "$dev 1 1 1 100% /"
+DF
+              export FAKE_HOME_PREFIX="$HOME"
+              chmod +x "$WORK/bin/df"; PATH="$WORK/bin:$PATH"
+              PrepareOllamaModels 9300000000 2> "$WORK/err.txt"
+              echo "rc=$?"; echo "ERR=$(cat "$WORK/err.txt")"
               echo "MODELS=\${OLLAMA_MODELS:-unset}"
               echo "PATHS=$(cat "$CFGF" 2>/dev/null)" ;;
 esac
@@ -121,5 +142,15 @@ test('short system drive + room on the studio drive: placed, recorded, exported'
   assert.match(r.stdout, /MODELS=\S+runtime\/models\/ollama/);
   const paths = JSON.parse(/PATHS=\{[\s\S]*\}/.exec(r.stdout)[0].slice('PATHS='.length));
   assert.match(paths.ollamaModels, /runtime\/models\/ollama$/, 'the recorded key is the studio folder (server/ollama-run.mjs reads the same key)');
+  rmSync(r.work, { recursive: true, force: true });
+});
+
+test('an unreadable free-space reading never fakes a short drive: no relocation, no error (ticket 33)', () => {
+  const r = run({ CASE: 'dfunknown' });
+  assert.match(r.stdout, /rc=0/, r.stdout + r.stderr);
+  assert.match(r.stdout, /ERR=$/m, 'bash stayed silent: no integer-expression test error, no missing helper');
+  assert.match(r.stdout, /MODELS=unset/, 'unknown free space must not relocate the user\'s models');
+  assert.match(r.stdout, /PATHS=$/m, 'and nothing is written to config');
+  assert.match(r.stdout, /usual folder/, 'the ordinary placement message still runs');
   rmSync(r.work, { recursive: true, force: true });
 });
