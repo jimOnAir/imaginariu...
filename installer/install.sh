@@ -107,7 +107,7 @@ case "$Profile" in quick|full|lite) ;; *) printf 'Unknown profile: %s (quick, fu
 if [ "$Yes" = 1 ] || [ -n "$Only" ]; then ASTRA_UNATTENDED=1; export ASTRA_UNATTENDED; fi
 
 # ---------------------------------------------------------------- helpers
-say() { printf '%s\n' "$1"; printf '%s\n' "$1" >>"$LOG"; }
+say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
 Ok() { say "  [found]    $1"; }
 Miss() { say "  [missing]  $1"; }
 Opt() { say "  [optional] $1"; }
@@ -367,10 +367,27 @@ InstallVfx() {
   "$ROOT/scripts/vfx/install-vfx.sh" -Root "$dir"
 }
 InstallClips() {
-  local src="$DL/actionforge" base='https://actionforge.app/assets/animation-library' n f
+  local src="$DL/actionforge" n f mbase
   n="$(NodeBin)"
-  Download "$base/manifests/library.json" "$src/manifests/library.json" || return 1
-  while read -r f; do [ -n "$f" ] && { Download "$base/$f" "$src/$f" || return 1; }; done < <("$n" -e '
+  # Ticket 16 (the clips leg of 0.6.x network resilience): the author's site first, then every
+  # mirror base listed in installer/manifest.json (clips.mirrors). No public copy of this repack
+  # (retargeted + composed clips) is checksum-verifiable as of 2026-11-08, so the list ships
+  # EMPTY and the step says so when the site is down - inventing an unverified "mirror" would be
+  # the one move worse than a failed download. Add a base the day one exists.
+  local bases=("https://actionforge.app/assets/animation-library")
+  while IFS= read -r m; do [ -n "$m" ] && bases+=("${m%/}"); done < <(
+    "$n" -e 'try{for(const u of require(process.argv[1]).clips.mirrors||[])if(typeof u==="string"&&u)console.log(u)}catch(e){}' "$ROOT/installer/manifest.json")
+  fetch1() { # <relative path> - first base that delivers
+    local mb rc=1
+    for mb in "${bases[@]}"; do
+      if Download "$mb/$1" "$src/$1"; then return 0; fi
+      rm -f "$src/$1" "$src/$1.part"
+    done
+    say "  $1 reached none of the ${#bases[@]} clip sources - the site is down and this set has no verified mirror yet; run the installer again when actionforge.app answers, or fetch the library by hand from it."
+    return 1
+  }
+  fetch1 manifests/library.json || return 1
+  while read -r f; do [ -n "$f" ] && { fetch1 "$f" || return 1; }; done < <("$n" -e '
    const fs=require("fs");const man=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
    for(const k of Object.keys(man.clips))console.log(man.clips[k].file.split("?")[0])' "$src/manifests/library.json")
   local fbx="$DL/actionforge_fbx"

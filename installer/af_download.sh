@@ -112,6 +112,13 @@ FileOk() {
   return 0
 }
 
+HfMirrorUrl() { # <url> - the hf-mirror.com twin of a huggingface.co URL, '' for anything else
+  case "$1" in
+    https://huggingface.co/*) printf '%s' "https://hf-mirror.com/${1#https://huggingface.co/}" ;;
+    *) printf '' ;;
+  esac
+}
+
 DownloadChecked() { # <url> <dst> [size] [sha256]
   local leaf; leaf="$(basename "$2")"
   if FileOk "$2" "${3:-0}"; then
@@ -121,12 +128,32 @@ DownloadChecked() { # <url> <dst> [size] [sha256]
     say "    file $leaf does not match the checksum - downloading again"
   fi
   rm -f "$2"
-  Download "$1" "$2" "${3:-0}" || return 1
+  if ! Download "$1" "$2" "${3:-0}"; then
+    # huggingface.co drops or throttles connections on whole networks (0.6.x wave, ticket 16):
+    # a verified file (sha256 present) may also come from the official hf-mirror.com host -
+    # the same path, the checksum verified as always, so a substituted file can never pass
+    local alt; alt="$(HfMirrorUrl "$1")"
+    if [ -n "$alt" ] && [ -n "${4:-}" ]; then
+      say "    huggingface.co did not come through - trying the same file through hf-mirror.com (the checksum still decides)"
+      Download "$alt" "$2" "${3:-0}" || return 1
+    else
+      return 1
+    fi
+  fi
   [ -n "${4:-}" ] && say "    checking checksum: $leaf"
   if ! FileOk "$2" "${3:-0}" "${4:-}"; then
+    # arrived but damaged (interrupted transfers do this): one FULL re-download from scratch, then truth
+    local alt2; alt2="$(HfMirrorUrl "$1")"
     rm -f "$2"
-    say "  File $leaf was downloaded incorrectly (size or sha256 mismatch). The file was deleted - run the installer again."
-    return 1
+    say "  File $leaf downloaded damaged (size or sha256 mismatch) - downloading it once more from the start"
+    if ! Download "$1" "$2" "${3:-0}"; then
+      [ -n "$alt2" ] && [ -n "${4:-}" ] && Download "$alt2" "$2" "${3:-0}" || { rm -f "$2"; say "  file $leaf downloaded damaged (size or sha256 mismatch); removed - run the installer again"; return 1; }
+    fi
+    if ! FileOk "$2" "${3:-0}" "${4:-}"; then
+      rm -f "$2"
+      say "  file $leaf downloaded damaged (size or sha256 mismatch); removed - run the installer again"
+      return 1
+    fi
   fi
 }
 

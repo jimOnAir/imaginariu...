@@ -53,6 +53,15 @@ if (mode === 'noresume33') {
   fs.writeFileSync(out, 'FULL'); process.exit(0);
 }
 if (mode === 'badsha') { fs.writeFileSync(out, 'wrong-bytes'); process.exit(0); }
+if (mode === 'hf_fallback') {
+  if (url.includes('huggingface.co')) { say('fake: huggingface.co drops the connection'); process.exit(7); }
+  if (url.includes('hf-mirror.com')) { fs.writeFileSync(out, 'payload'); process.exit(0); }
+  say('fake: unexpected host ' + url); process.exit(22);
+}
+if (mode === 'damaged_once') {
+  if (n === 1) { fs.writeFileSync(out, 'corrupt-on-the-wire'); process.exit(0); }
+  fs.writeFileSync(out, 'payload'); process.exit(0);
+}
 if (mode === 'fail6') { say('curl: (6) Could not resolve host: dead.test'); process.exit(6); }
 if (mode === 'always35') {
   if (a.includes('--ssl-no-revoke')) { say('fake: Linux curl must not get --ssl-no-revoke'); process.exit(98); }
@@ -136,9 +145,10 @@ test('checksum mismatch: the existing file and a bad fresh download are both del
   const r = inCore('badsha', `DownloadChecked ${JSON.stringify('https://hf.test/model.safetensors')} ${JSON.stringify(dst)} 11 ${good}; echo RC=$?`);
   assert.match(r.stdout, /RC=1/);
   assert.match(r.log, /does not match the checksum - downloading again/);
-  assert.match(r.log, /downloaded incorrectly \(size or sha256 mismatch\)/);
+  assert.match(r.log, /downloaded damaged \(size or sha256 mismatch\) - downloading it once more from the start/, 'ticket 16: the damaged file gets ONE full re-download');
+  assert.match(r.log, /file model\.safetensors downloaded damaged \(size or sha256 mismatch\); removed - run the installer again/, 'second failure: named line');
   assert.ok(!existsSync(dst), 'a file that fails the checksum must not stay around');
-  assert.equal(r.calls.length, 1);                   // one redownload attempt, then stop
+  assert.equal(r.calls.length, 2);                   // the redownload plus the one from-scratch retry, then stop
 });
 
 test('the log gets a plain-language reason and the exact curl text in one quotable line', () => {
@@ -362,4 +372,63 @@ test('Ollama gate: a newer Ollama is accepted too', () => {
   const run = runOllamaGate('99.9.9');
   assert.match(run.r.stdout, /RC=0/);
   assert.doesNotMatch(run.log, /is older than/);
+});
+
+// ---------------------------------------------------------------- ticket 16: hf-mirror fallthrough,
+// the damaged-file one-shot, the never-abort log rule, and the clips mirror wiring
+
+test('huggingface.co that never comes through is retried once through hf-mirror.com, same checksum', () => {
+  const dst = path.join(tmp, 'hf16', 'model.bin');
+  const r = inCore('hf_fallback', `DownloadChecked ${JSON.stringify('https://huggingface.co/some.repo/resolve/main/model.bin')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)} && echo RC=$?`);
+  assert.match(r.stdout, /RC=0/, r.log + r.stderr);
+  assert.equal(readFileSync(dst, 'utf8'), 'payload');
+  assert.ok(r.calls.some((c) => c.url === 'https://hf-mirror.com/some.repo/resolve/main/model.bin'), JSON.stringify(r.calls));
+  assert.match(r.log, /trying the same file through hf-mirror\.com/);
+});
+
+test('a non-HF URL gets no invented mirror, and a sha-less HF file gets no unverified fallthrough', () => {
+  const a = inCore('fail6', `HfMirrorUrl https://huggingface.co/a/b; echo; HfMirrorUrl https://files.test/a; echo RC=$?`);
+  assert.match(a.stdout, /^https:\/\/hf-mirror\.com\/a\/b$/m, 'the path is kept');
+  const b = inCore('hf_fallback', `DownloadChecked ${JSON.stringify('https://huggingface.co/x/y.bin')} ${JSON.stringify(path.join(tmp, 'hf16nosh.bin'))} 7 '' ; echo RC=$?`);
+  assert.equal(b.calls.every((c) => !c.url.includes('hf-mirror.com')), true, 'no checksum = no mirror: a substituted file must not pass');
+  assert.match(b.stdout, /RC=1/);
+});
+
+test('a file that arrives damaged re-downloads once from scratch and heals', () => {
+  const dst = path.join(tmp, 'hf16dmg', 'file.bin');
+  const r = inCore('damaged_once', `DownloadChecked ${JSON.stringify('https://files.test/file.bin')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)} && echo RC=$?`);
+  assert.match(r.stdout, /RC=0/, r.log + r.stderr);
+  assert.equal(readFileSync(dst, 'utf8'), 'payload');
+  assert.match(r.log, /downloaded damaged \(size or sha256 mismatch\) - downloading it once more from the start/);
+  assert.doesNotMatch(r.log, /; removed - run the installer again/, 'the healing path is not the failure path');
+});
+
+test('damaged twice: the file is removed and the named line tells to run the installer again', () => {
+  const dst = path.join(tmp, 'hf16dmg2', 'file.bin');
+  const r = inCore('badsha', `DownloadChecked ${JSON.stringify('https://files.test/file.bin')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`);
+  assert.match(r.stdout, /RC=1/);
+  assert.equal(existsSync(dst), false, 'the damaged file must not stay on disk');
+  assert.match(r.log, /file file\.bin downloaded damaged \(size or sha256 mismatch\); removed - run the installer again/);
+});
+
+test('an unwritable install log never aborts the run - it is announced once, then silence', () => {
+  const dir = path.join(tmp, 'log16'); mkdirSync(dir, { recursive: true });
+  const script = `
+    source ${JSON.stringify(INSTALL_SH)}
+    LOG=${JSON.stringify(dir)}                       # a directory: appending always fails
+    say 'first line'; say 'second line'; echo RC=$?
+  `;
+  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', timeout: 60000, env: { ...process.env, ASTRA_INSTALL_CURL: '/bin/true' } });
+  assert.match(r.stdout, /RC=0/);
+  assert.match(r.stdout, /first line/);              // the user still sees everything
+  const warns = (r.stdout.match(/the install log is not writable/g) || []).length;
+  assert.equal(warns, 1, 'announced exactly once: ' + r.stdout);
+});
+
+test('the clips step reads its mirror bases from installer/manifest.json (ships empty until a verified copy exists)', () => {
+  const man = JSON.parse(readFileSync(path.join(HERE, '..', 'installer', 'manifest.json'), 'utf8'));
+  assert.ok(Array.isArray(man.clips.mirrors) && man.clips.mirrors.length === 0, 'the list is explicit and empty - no invented mirrors');
+  const src = readFileSync(INSTALL_SH, 'utf8');
+  assert.match(src, /clips\.mirrors/);
+  assert.match(src, /no verified mirror yet/, 'and the honest failure line says exactly that');
 });

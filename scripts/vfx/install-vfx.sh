@@ -24,7 +24,8 @@ NODE_BIN="${ASTRA_NODE:-$(command -v node || true)}"
 [ -n "$NODE_BIN" ] || { echo 'node is required (npm for DisplacementX). Run installer/install.sh first.'; exit 1; }
 NPM_BIN="$("$NODE_BIN" -e 'const p=require("path"),d=require("path").dirname(process.execPath);console.log(p.join(d,process.platform==="win32"?"npm.cmd":"npm"))')"
 
-say() { printf '%s\n' "$1"; }
+LOG="$APP/installer/install.log"   # ticket 16: the fallback/skip/retry lines belong in the install log too
+say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
 # the shared download core (reason table, resume/retry loop, checksums, mirrors)
 DL_USER_AGENT='Mozilla/5.0 AstraForge'; export DL_USER_AGENT
 # shellcheck source=../../installer/af_download.sh

@@ -19,7 +19,7 @@ LOG="$APP/installer/install.log"
 MAN="$SRC/manifest.json"
 PORT=8191
 
-say() { printf '%s\n' "$1"; printf '%s\n' "$1" >>"$LOG"; }
+say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
 Title() { say ''; say "== $1 =="; }
 NodeBin() { local n; n="${ASTRA_NODE:-$(command -v node || true)}"; printf '%s' "$n"; }
 Mv() { local n; n="$(NodeBin)"; "$n" -e 'const m=require(process.argv[1]);const g=process.argv[2].split(".").reduce((o,k)=>o&&o[k],m);console.log(typeof g==="string"?g:JSON.stringify(g??null))' "$MAN" "$1"; }

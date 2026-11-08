@@ -41,6 +41,6 @@
       { "minVramMiB": 0, "model": "qwen3:4b", "size": 2500000000 }
     ]
   },
-  "clips": { "base": "https://actionforge.app/assets/animation-library", "manifest": "manifests/library.json", "size": 10000000, "license": "CC0-1.0", "name": "Quaternius animation library (ActionForge)" },
+  "clips": { "base": "https://actionforge.app/assets/animation-library", "manifest": "manifests/library.json", "size": 10000000, "license": "CC0-1.0", "mirrors": [], "_mirrors_comment": "ticket 16: extra clip sources tried when actionforge.app does not answer; empty on purpose - no public copy of this repack is checksum-verifiable as of 2026-11-08", "name": "Quaternius animation library (ActionForge)" },
   "vfx": { "size": 330000000, "disk": 500000000, "license": "MIT / BSD-3-Clause / GPL-3.0 / freeware" }
 }
