@@ -2,8 +2,9 @@
 
 AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
-Linux, and since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line as well (see the
-two sections below and `docs/product/acceptance-0.5.0.md` / `docs/product/acceptance-0.5.1.md`). This page documents the
+Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, and since 0.6.6 the
+Windows 0.6.0 → 0.6.6 line as one release (see the sections below and
+`docs/product/acceptance-0.5.0.md` / `acceptance-0.5.1.md` / `acceptance-0.6.6.md`). This page documents the
 Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
 ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
 `process.platform` check or lives in Linux-only files, and the Windows frontends
@@ -70,6 +71,52 @@ extracted payload; every commit gated by an independent similarity audit:
 Deferred or excluded by decision (Engine + self-learning LoRA, provenance/licensing machinery,
 updater/telemetry/keys-server, AMD/ROCm, frozen Windows frontends) — the full list with reasons is
 the deviations section of the [0.5.1 acceptance report](product/acceptance-0.5.1.md).
+
+## 0.6.6 — the Windows 0.6.0 → 0.6.6 line, re-derived and shipped once
+
+Version 0.6.6 of this branch adds everything the shipped `AstraForge-Setup-0.6.0.exe` plus its
+0.6.1–0.6.6 patches bring over 0.5.3 — as a **single Linux release** (Windows shipped 0.6.0 and
+then patched; this branch folded the patches in before its one release, so there was never a
+Linux 0.6.0–0.6.5; recorded deviation). Same Protocol v2 discipline as 0.5.1: T1/T2/T3 spec
+channels only, payload quarantined, every commit gated by a fresh-context similarity audit.
+
+- **TripoSG — the third shape engine** (ticket 01/02): a standalone venv worker (weights + code
+  installed as checklist components, per-file resumable checksummed downloads), `auto` resolves the
+  shape engine by card — TripoSG ≤ 9216 MiB, else Pixal3D, else Hunyuan — all through the
+  `ASTRA_VRAM_MIB` seam; Windows ships it as an Engine plugin, this branch keeps the worker shape
+  (deviation recorded);
+- **SkinTokens refused on license grounds** (ticket 03): the released checkpoint hard-asserts a
+  GPL-vendored mesh encoder, so the engine slot stays open and `skintokens` is rejected before
+  anything spawns, with the reason and a doc — the Blender template rig remains the supported path;
+- **Sound** (tickets 04/05): a tab that makes effects from a description and seamless music loops
+  from a style prompt (MOSS-SoundEffect + ACE-Step, Apache-2.0/MIT, own venv), library + event
+  bindings on the game object, and the MCP `sound_*` family for agents;
+- **the style bible** (tickets 06/07): styles are reference pictures + an English description
+  (described locally by the installed vision model); a 2D set carries a bible, and the drawing
+  goes through **Qwen-Image-Edit 2511 GGUF** with the lightning LoRA (stock ComfyUI nodes, not the
+  Engine — deviation), gated at 10 GiB of video memory, FLUX.2 klein below it;
+- **auto-review** (ticket 08): the studio checks its own finished shapes — Blender orbit render,
+  five VLM score axes, and the **verdict from a fixed threshold table, never from the model**;
+  rejected attempts redo with new seeds (retries 0..3, best kept), every verdict journaled
+  (`<library>/learning/autoreview.jsonl`), the «Check» tab shows it all;
+- **FLUX.2 klein 4B** (ticket 09): the 2D tab's base model swapped from 9B to the Apache-2.0 4B
+  GGUF — commercial-safe; an existing 9B is reported and left on disk for the user to remove;
+- **NATTEN kernel probe** (ticket 11): the Pixal3D installer checks the actual card (torch, CUDA,
+  compute capability) and verifies a real `na2d` forward pass instead of assuming; old cards get
+  the honest lighter-set recommendation; `install-pixal3d.sh natten` re-checks both environments;
+- **«новое, проба»** (ticket 12): experimental components are never preselected by presets (below);
+- **Ollama goes local-first** (ticket 14): the studio starts Ollama when nothing answers on
+  127.0.0.1:11434, only offers models that are actually installed (live catalog), and the review
+  model travels through one explicit pick with the reason recorded next to every verdict;
+- **network resilience** (ticket 16): huggingface.co failures retry through hf-mirror.com behind
+  the same sha256 gate, damaged arrivals get one full re-download before a named honest failure,
+  the clips step reads its mirror list from the manifest, and an unwritable install log never
+  aborts a component;
+- **tolerant config boot** (ticket 17): one foreign key or bad value in `config.json` no longer
+  costs every setting — the file is read field by field, the offender defaults, the rest survives.
+
+The bullet-by-bullet evidence, ⚠️ rows and the audit trail are the
+[0.6.6 acceptance report](product/acceptance-0.6.6.md).
 
 ## «Новое, проба» — experimental components are never preselected (0.6.6, ticket 12)
 

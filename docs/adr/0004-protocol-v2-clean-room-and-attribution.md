@@ -109,3 +109,40 @@ full deviations table live in `docs/product/acceptance-0.5.1.md`.
   re-landed only after original rework; the FAIL→fix→PASS trail is part of the release record.
   Pre-existing ADR-0003-era strings flagged by the auditors were carried to the retroactive audit
   (ticket 09) rather than silently kept.
+
+## Amendment at the 0.6.6 release (deviations actually taken while implementing)
+
+The 0.6.x wave re-derived the shipped Windows 0.6.0 → 0.6.6 line into a single Linux release 0.6.6.
+Per-cluster evidence and the full deviations table live in
+`docs/product/acceptance-0.6.6.md`; what refines the protocol's application here:
+
+- **Shape-engine mapping.** Windows ships TripoSG inside the proprietary Engine; this branch maps
+  it to a standalone venv worker (its own Python, commit-pinned clone, checksummed HF snapshot
+  split into resumable steps) behind the same `auto` rule — plugin plumbing stays deferred with
+  the Engine line.
+- **A license refusal as a shipped feature.** The SkinTokens checkpoint hard-asserts a GPL-vendored
+  mesh encoder with no clean substitute; rather than port or fake it, the engine slot accepts only
+  `blender`, refuses `skintokens` before spawning anything, and names the reason and the doc. The
+  license rule never trades for one rigging button.
+- **Style generation without the Engine.** The style bible rides Qwen-Image-Edit 2511 GGUF through
+  stock ComfyUI nodes (deviation recorded like the TripoSG worker): the VRAM gate (10 GiB) and the
+  klein fallback are this branch's own constants.
+- **Verdicts are code, not opinions.** The auto-review loop takes the VLM's scores but decides
+  through an exported fixed-threshold table (tunable via env, clamped); plain mesh numbers cap the
+  seam score so topology out-votes taste. Verdicts journal to the learning directory as
+  `source:"auto"` in their own file — same vocabulary intent as forge feedback, different contract
+  (forge records require a forge asset manifest a studio job does not have).
+- **Stricter than upstream on opt-in.** Upstream forces TripoSG into the low-VRAM quick preset;
+  this branch's «новое, проба» rule is unconditional: no preset ever preselects an experimental
+  component (supersedes the wave's earlier swap rule).
+- **No invented mirrors.** The clips step gained a mirror chain, and the list ships deliberately
+  empty: as of the release no public copy of the retargeted clip repack is checksum-verifiable.
+  An unverified "mirror" is a supply-chain hazard worse than an honest failed step.
+- **Audit discipline held.** All fifteen implementing tickets of the wave passed the fresh-context
+  similarity gate (no FAIL→rewrite cycles this time); the live-caught defects found during demos
+  (an input-name plural, an unassigned camera, `think:false` ignored by the local runtime) are
+  recorded on their tickets with the reproduction, per the protocol's evidence rule.
+- **Retarget honesty.** `AstraForge-Setup-0.6.10.exe` arrived before closeout with no published
+  behavior facts for 0.6.7–0.6.10; the wave scope did not move on an artifact's arrival alone —
+  recorded as an open decision (keep `v0.6.6`, or fold 0.6.7–0.6.10 into a later release when
+  their intent is sourced). The branch also skips a Linux 0.6.5 entirely (single folded release).

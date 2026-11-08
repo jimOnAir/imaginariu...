@@ -126,3 +126,21 @@ overlap; per-ticket audits covered that for the wave. The reference trees are sn
 shipped installers; if the author ever publishes source, re-run with that as corpus. The evidence
 file's `ref` paths are relative to the reference tree that matched; `containment` is measured
 against the single best-matching reference file.
+
+## Re-run at the 0.6.6 release (2026-11-08)
+
+Re-ran the frozen tool over the same tree method at the 0.6.6 closeout commit, corpus widened to
+**all eight payload trees** (`--trees 0.4.16,0.4.6,0.5.0,0.5.1,0.5.3,0.6.0,0.6.5,0.6.6`;
+13 619 reference files, 541 tracked). Result: **the pre-existing buckets are unchanged** — same
+per-module counts, same worst runs (`ship_gen.py` 35 973, containment 1.00) — the 0.6.x trees
+bundle the same lineage files and widen the grandfathered corpus without changing its verdict.
+Evidence: [`similarity-audit-0-6-6.evidence.json`](similarity-audit-0-6-6.evidence.json).
+
+The 0.6.x reintroduction wave (tickets 01–17, `linux-support` base `ea96e11`) added 34 files:
+each landed only after its own fresh-context added-line audit (per-ticket records under
+`.scratch/astraforge-060-reintroduction/issues/`, trail table in the
+[0.6.6 acceptance report](acceptance-0.6.6.md)); the raw whole-file numbers for those 34 files
+(6 rewrite-band by rule, all containment ≤ 0.148, every run classified junction/idiom/public-pin
+by the ticket audits; 3 clean) are recorded there too. The campaign rows 09a…09j stand — `09j`
+now also owes re-verification of the 0.6.x wave lines that anchor on HEAD idioms, discharged the
+same way as its existing carry-over list.
