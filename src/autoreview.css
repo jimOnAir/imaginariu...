@@ -1,0 +1,26 @@
+/* The Check tab (ticket 08) — review records, attempt timeline, score chips, orbit strip. */
+.ar-panel .ar-bar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:10px 0}
+.ar-limits{font-size:11px;opacity:.65}
+.ar-list{display:flex;flex-direction:column;gap:8px;margin-bottom:14px}
+.ar-card{display:grid;grid-template-columns:auto 1fr auto;gap:4px 10px;align-items:center;text-align:left;padding:10px 12px;border-radius:10px;border:1px solid var(--line,var(--c333333));background:transparent;cursor:pointer}
+.ar-card.active{border-color:var(--accent,var(--c7aa2ff))}
+.ar-card strong{font-size:12px}
+.ar-muted{font-size:11px;opacity:.6}
+.ar-status{display:inline-flex;align-items:center;gap:5px;font-size:11px;grid-row:span 2}
+.ar-running{color:var(--ce5c07b)}.ar-accepted{color:var(--c7ec87e)}.ar-rejected{color:var(--ce06c75)}.ar-skipped{color:var(--c99aaaa)}
+.ar-attempts{display:flex;gap:4px;grid-column:2/4}
+.ar-dot{width:18px;height:18px;border-radius:50%;display:inline-flex;align-items:center;justify-content:center;font-size:10px;font-style:normal;border:1px solid var(--line,var(--c444444))}
+.ar-dot.accepted{color:var(--c7ec87e);border-color:var(--c7ec87e)}.ar-dot.rejected{color:var(--ce06c75);border-color:var(--ce06c75)}.ar-dot.skipped{color:var(--c99aaaa)}
+.ar-detail{margin-top:6px}
+.ar-attempt{border-left:2px solid var(--line,var(--c333333));padding:8px 10px;margin:8px 0;border-radius:0 8px 8px 0}
+.ar-attempt-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ar-mean{font-size:11px;opacity:.8}
+.ar-best{display:inline-flex;align-items:center;gap:5px;font-size:12px;color:var(--ce5c07b)}
+.ar-scores{display:flex;gap:6px;flex-wrap:wrap;margin:6px 0}
+.ar-score{font-size:11px;padding:2px 8px;border-radius:20px;border:1px solid var(--line,var(--c3a3a3a))}
+.ar-score b{font-size:12px}
+.ar-score.good{border-color:var(--c7ec87e)}.ar-score.mid{border-color:var(--ce5c07b)}.ar-score.bad{border-color:var(--ce06c75)}.ar-score.na{opacity:.5}
+.ar-reasons{margin:4px 0 4px 18px;padding:0;font-size:11px;opacity:.85}
+.ar-error{color:var(--ce06c75);font-size:12px}
+.ar-orbit{display:flex;gap:4px;margin-top:6px;overflow-x:auto}
+.ar-orbit img{width:52px;height:52px;object-fit:contain;border-radius:6px;background:rgba(127,127,127,.12);flex:none}

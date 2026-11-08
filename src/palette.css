@@ -512,6 +512,14 @@
   --cffe8d6:#ffe8d6;
   --cfff3cc:#fff3cc;
   --cffffff:#ffffff;
+  --c333333:#333333;
+  --c3a3a3a:#3a3a3a;
+  --c444444:#444444;
+  --c7aa2ff:#7aa2ff;
+  --c7ec87e:#7ec87e;
+  --c99aaaa:#99aaaa;
+  --ce06c75:#e06c75;
+  --ce5c07b:#e5c07b;
 }
 html[data-theme=light]{
   --c00000077:#00000077;
@@ -1023,4 +1031,12 @@ html[data-theme=light]{
   --cffe8d6:#522400;
   --cfff3cc:#4d3b00;
   --cffffff:#333333;
+  --c333333:#e7e7e7;
+  --c3a3a3a:#e5e5e5;
+  --c444444:#e2e2e2;
+  --c7aa2ff:#002e99;
+  --c7ec87e:#3d8f3d;
+  --c99aaaa:#5d7272;
+  --ce06c75:#a4232d;
+  --ce5c07b:#956b1d;
 }

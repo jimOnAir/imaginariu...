@@ -60,21 +60,30 @@ export function pickReviewModel(vramMiB, installed = [], env = process.env, chos
  */
 export async function vlmAsk({ url, model, prompt, images = [], fetchFn = fetch, timeoutMs = 180000, numPredict = 700 } = {}) {
   if (!url || !model) throw new Error('vlmAsk needs a url and a model that is installed here.');
-  let answer;
-  try {
-    answer = await fetchFn(String(url).replace(/\/+$/, '') + '/api/chat', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        model, stream: false, think: false, keep_alive: 0,
-        messages: images.length ? [{ role: 'user', content: prompt, images }] : [{ role: 'user', content: prompt }],
-        options: { num_ctx: 16384, num_predict: numPredict },
-      }),
-      signal: AbortSignal.timeout(timeoutMs),
-    });
-  } catch (e) { throw new Error(`The vision model did not answer (${e.name === 'TimeoutError' ? 'too slow' : e.code || e.message}) - the pictures may need a bigger model.`); }
-  if (!answer.ok) throw new Error(`The vision model answered ${answer.status}: ${String(await answer.text().catch(() => '')).slice(0, 160)}`);
-  const v = await answer.json().catch(() => null);
-  const text = String(v?.message?.content || '').trim();
+  const send = async (think) => {
+    let answer;
+    try {
+      answer = await fetchFn(String(url).replace(/\/+$/, '') + '/api/chat', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          model, stream: false, think, keep_alive: 0,
+          messages: images.length ? [{ role: 'user', content: prompt, images }] : [{ role: 'user', content: prompt }],
+          options: { num_ctx: 16384, num_predict: think ? Math.max(numPredict, 3000) : numPredict },
+        }),
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+    } catch (e) { throw new Error(`The vision model did not answer (${e.name === 'TimeoutError' ? 'too slow' : e.code || e.message}) - the pictures may need a bigger model.`); }
+    if (!answer.ok) throw new Error(`The vision model answered ${answer.status}: ${String(await answer.text().catch(() => '')).slice(0, 160)}`);
+    return answer.json().catch(() => null);
+  };
+  // `think: false` is forced because drafts must arrive as plain answers - but some models reason
+  // anyway (qwen3-vl under ollama 0.40 ignores the flag and fills message.thinking, leaving
+  // content empty). When that happens, a second request with reasoning ON and a budget big enough
+  // to finish it returns the real answer; a model that answered nothing twice is honestly no answer.
+  let v = await send(false);
+  let text = String(v?.message?.content || '').trim();
+  const thought = String(v?.message?.thinking || '').trim();
+  if (!text && thought) { v = await send(true); text = String(v?.message?.content || '').trim(); }
   if (!text) throw new Error('The vision model answered with an empty text - try once more or add clearer references.');
   return text;
 }
