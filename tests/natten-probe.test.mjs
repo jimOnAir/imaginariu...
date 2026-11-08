@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { parseWheel, pickNatten, readEnv } from '../installer/pixal3d/af_natten_probe.mjs';
+import { parseWheel, pickNatten, readEnv, probe } from '../installer/pixal3d/af_natten_probe.mjs';
 
 const MAN = JSON.parse(readFileSync(path.join(import.meta.dirname, '..', 'installer', 'pixal3d', 'manifest.json'), 'utf8'));
 const MATRIX = MAN.linux.nattenMatrix.map((r) => ({ ...r, ...MAN.linux.natten }));
@@ -55,11 +55,20 @@ test('pickNatten: unknown GPU, unknown torch, and rows for another torch all deg
   assert.match(p.reason, /no NATTEN wheel row for torch 2\.8/);
 });
 
-test('readEnv: parses the venv\'s one-line JSON past import chatter; garbage is null, never a guess', () => {
+test('readEnv: parses the venv\'s one-line JSON past import chatter; a silent death reports its exit code, a missing python stays null', () => {
   const spawnFn = (py, args) => ({ status: 0, stdout: 'Welcome to torch...\nwarmup done\n' + JSON.stringify({ torch: '2.9.1', cuda: 12.8, cc: '12.0', forward: true }) + '\n' });
   assert.deepEqual(readEnv('/venv/bin/python', { forward: true, spawnFn }), { torch: '2.9.1', cuda: 12.8, cc: '12.0', forward: true });
-  const bad = () => ({ status: 0, stdout: 'no json here' });
-  assert.equal(readEnv('/venv/bin/python', { spawnFn: bad }), null);
+  // ticket 23: garbage on stdout now carries the exit code of the death, not nothing
+  assert.deepEqual(readEnv('/venv/bin/python', { spawnFn: () => ({ status: 137, stdout: 'Killed\n', stderr: '' }) }),
+    { probeFailed: true, exitCode: 137, signal: null, stderr: '' });
   const boom = () => { throw new Error('python missing'); };
-  assert.equal(readEnv('/venv/bin/python', { spawnFn: boom }), null);
+  assert.equal(readEnv('/venv/bin/python', { spawnFn: boom }), null, 'no python at all is still a plain null');
+});
+
+test('a probe that dies silently names the exit code and the 570 driver floor in its reason', async () => {
+  const r = await probe('/venv', { spawnFn: () => ({ status: 139, signal: 'SIGSEGV', stdout: 'chatter', stderr: 'segfault tail' }), env: {} });
+  assert.equal(r.verdict, 'probe-failed');
+  assert.match(r.reason, /python probe died without answering \(exit 139, signal SIGSEGV\)/);
+  assert.match(r.reason, /keeping the pinned wheel/);
+  assert.match(r.reason, /NVIDIA driver below 570/);
 });

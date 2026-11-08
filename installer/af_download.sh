@@ -92,6 +92,14 @@ Download() {
     say "  The downloaded file vanished between the connection and the folder - an antivirus or a folder-sync tool deletes downloads from here. Add $(dirname "$dst") to its exclusions and run the installer again; downloading the same file once more without an exclusion changes nothing."
     return 1
   fi
+  # 0.6.10 wave ticket 23 (the 0.6.8 interception line, Linux form): curl says OK and hands over
+  # an EMPTY file - that is something answering on the way (captive provider login, proxy block
+  # page, antivirus substitute). Name it; a later checksum verdict would just confuse the story.
+  if [ ! -s "$part" ]; then
+    say "  The site answered with an empty file: something intercepted the transfer (a captive provider login page, a proxy block page, or an antivirus substitute). Open the site's address in a browser - if you see a login or a block page there, finish that first; otherwise add $(dirname "$dst") to the antivirus exclusions and run the installer again."
+    rm -f "$part"
+    return 1
+  fi
   mv -f "$part" "$dst" || {
     say "  The downloaded file cannot be put in place - an antivirus or a folder-sync tool interferes with $(dirname "$dst"). Add the folder to its exclusions and run the installer again; retrying the download without an exclusion is pointless."
     return 1

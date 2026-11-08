@@ -81,7 +81,12 @@ export function readEnv(pyPath, { forward = false, spawnFn = spawnSync } = {}) {
   try { r = spawnFn(pyPath, ['-c', ENV_PY].concat(forward ? ['forward'] : []), { encoding: 'utf8', timeout: 180000 }); } catch { return null; }
   // the script's json is the last stdout line (torch import chatter above it)
   const last = String(r.stdout || '').trim().split('\n').filter(Boolean).pop();
-  try { return JSON.parse(last); } catch { return null; }
+  try { return JSON.parse(last); } catch {
+    // ticket 23 (0.6.8 line): a silent subprocess death used to answer nothing at all - now the
+    // exit code and the kill signal are part of the diagnosis (OOM-kill and a driver-level crash
+    // look different in the log, and the 570+ driver floor gets named when it is an RTX 50 class box)
+    return { probeFailed: true, exitCode: Number.isInteger(r?.status) ? r.status : null, signal: r?.signal || null, stderr: String(r?.stderr || '').slice(-200) };
+  }
 }
 
 export async function probe(dir, { manifest, env = process.env, spawnFn = spawnSync } = {}) {
@@ -89,7 +94,12 @@ export async function probe(dir, { manifest, env = process.env, spawnFn = spawnS
   const matrix = (man.linux.nattenMatrix || []).map((r) => ({ ...r, ...pinOf(man, r.id) }));
   const py = path.join(dir, '.venv', 'bin', 'python');
   const info = readEnv(py, { forward: env.ASTRA_NATTEN_PROBE !== '0', spawnFn });
-  if (!info || info.torchError) return { dir, verdict: 'probe-failed', reason: (info && info.torchError) || 'the environment answered nothing - keeping the pinned wheel', matrix };
+  if (!info || info.torchError || info.probeFailed) {
+    const why = (info && (info.torchError || (info.probeFailed
+      ? `the environment's python probe died without answering (exit ${info.exitCode ?? '?'}${info.signal ? ', signal ' + info.signal : ''}) - keeping the pinned wheel; on an RTX 50 a probe like this often means an NVIDIA driver below 570 (the studio gates Pixal3D on that floor) - see the scan's driver line`
+      : null))) || 'the environment answered nothing - keeping the pinned wheel';
+    return { dir, verdict: 'probe-failed', reason: why, matrix };
+  }
   const ccRaw = env.ASTRA_GPU_CC || info.cc;
   const cc = ccRaw === null || ccRaw === undefined ? null : Number(ccRaw);
   const installed = (() => {

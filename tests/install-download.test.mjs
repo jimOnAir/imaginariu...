@@ -53,6 +53,7 @@ if (mode === 'noresume33') {
   fs.writeFileSync(out, 'FULL'); process.exit(0);
 }
 if (mode === 'badsha') { fs.writeFileSync(out, 'wrong-bytes'); process.exit(0); }
+if (mode === 'empty_ok') { fs.writeFileSync(out, ''); process.exit(0); }   // curl "succeeds" with an empty file
 if (mode === 'hf_fallback') {
   if (url.includes('huggingface.co')) { say('fake: huggingface.co drops the connection'); process.exit(7); }
   if (url.includes('hf-mirror.com')) { fs.writeFileSync(out, 'payload'); process.exit(0); }
@@ -431,4 +432,24 @@ test('the clips step reads its mirror bases from installer/manifest.json (ships 
   const src = readFileSync(INSTALL_SH, 'utf8');
   assert.match(src, /clips\.mirrors/);
   assert.match(src, /no verified mirror yet/, 'and the honest failure line says exactly that');
+});
+
+// ---------------------------------------------------------------- ticket 23: the interception verdict
+
+test('a "successful" empty download is named as an interception, not a checksum puzzle', () => {
+  const dst = path.join(tmp, 'intr23', 'clip.zip');
+  const r = inCore('empty_ok', `DownloadChecked ${JSON.stringify('https://files.test/clip.zip')} ${JSON.stringify(dst)} 2048 ''; echo RC=$?`);
+  assert.match(r.stdout, /RC=1/);
+  assert.match(r.log, /The site answered with an empty file: something intercepted the transfer \(a captive provider login page, a proxy block page, or an antivirus substitute\)/);
+  assert.match(r.log, /Open the site's address in a browser/);
+  assert.equal(existsSync(dst), false, 'the empty impostor is never left in place');
+  assert.equal(existsSync(dst + '.part'), false);
+});
+
+test('the mirror rule holds behind interception: an HF file that only mirrors empty still dies honestly', () => {
+  // hf_fallback: huggingface exits 7, the mirror answers - now with both sides empty the file
+  // must never be accepted, and the explanation must be there
+  const r = inCore('empty_ok', `Download ${JSON.stringify('https://huggingface.co/x/y.bin')} ${JSON.stringify(path.join(tmp, 'intr23b.bin'))} 1024; echo RC=$?`);
+  assert.match(r.stdout, /RC=1/);
+  assert.match(r.log, /empty file/);
 });
