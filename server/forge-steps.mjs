@@ -983,7 +983,7 @@ const STEP_LIST = [
     step: 'bevy_package', module: 'export', title: 'Bevy 0.20 package',
     help: 'The same GLB (model, rig, clips) as the Godot profile plus the af_bevy.json passport: one astraforge_bevy dependency line puts the asset in-game with default-clip autostart, clip blending, socket-mounted effects, studio sounds and hot model reload. With Rust on the machine the studio additionally checks the package headlessly in Bevy and captures a preview frame; without it the package builds the same, minus the check.',
     kinds: ALL_KINDS, inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
-    outputs: ['package', 'glb', 'manifest', 'readme'], export: true, timeoutSec: 10 * 60,
+    outputs: ['package', 'glb', 'manifest', 'readme', 'bevy_check', 'bevy_shots', 'bevy_log', 'bevy_forward'], export: true, timeoutSec: 45 * 60,
     params: {
       asset_id: str(null, 'Asset ID', 'snake_case ASCII; filled in by the server from the passport name.', { auto: 'asset_slug' }),
       profile: oneOf(['bevy'], 'bevy', 'Profile', ''),
@@ -991,6 +991,7 @@ const STEP_LIST = [
       autoplay: str(null, 'Default clip', 'Autostarted by the crate; empty - idle or the first loop.'),
       fx: list([], 'Effects', 'A list of {preset, socket, params} - like the Godot package (socket masks with * fan out). Empty - the fx of the passport.', { items: { type: 'object' } }),
       fx_auto_scale: bool(true, 'Effect scale', 'Fit the effects to the socket or the asset size (the crate scales socket-mounted effects).'),
+      validate: bool(true, 'Check in Bevy', 'Cargo without a window: the crate loads the package, plays the default clip, verifies the passport and captures preview frames. The first check pays the Bevy compile (minutes), after that the build cache makes it seconds. Without Rust the package exports the same, minus the check.'),
     },
   },
 ];

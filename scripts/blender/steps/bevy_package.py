@@ -14,13 +14,17 @@ params:
   collider       'auto' (collision hull meshes *-colonly/convcolonly/COL_* win, then rigged -
                  capsule, the rest - box) | box | capsule | mesh | none
   fx, fx_auto_scale, autoplay   as godot_package; '*' socket masks fan out over the real sockets
-  validate       false by default here: the headless cargo check belongs to the engine driver
-                 (ticket 30); the package builds identically without any Rust on the machine
-outputs: package (folder), glb, manifest (af_bevy.json), readme
+  validate       true by default (ticket 30): with cargo on this machine the package is checked
+                 headlessly through scripts/engines/bevy.mjs (the crate's af_bevy_check plays it
+                 and captures preview frames); without Rust the export is byte-identical minus
+                 the check - the honest absence row, like Godot's and Unreal's
+outputs: package (folder), glb, manifest (af_bevy.json), readme, and - when the check ran -
+         bevy_check (json), bevy_shots (preview frames), bevy_log (cargo output), bevy_forward
 """
 import json
 import os
 import shutil
+import subprocess
 
 import bpy
 
@@ -55,6 +59,58 @@ def _readme(pkg, passport):
         lines += ["| `%s` | %s | %.2f |" % (c["name"], "yes" if c["loop"] else "no", c["seconds"]) for c in clips]
         lines.append("")
     return "\n".join(lines)
+
+
+def _cargo_check(pkg_dir, out_dir, warnings, checks):
+    """The headless Bevy validation of ticket 30, driven by scripts/engines/bevy.mjs (node runs
+    the crate's af_bevy_check). Returns the check outputs; when node or Rust is not on this
+    machine it answers honestly and the package exports byte-identical minus the check."""
+    node = os.environ.get("ASTRA_NODE") or shutil.which("node")
+    driver = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                           "..", "..", "engines", "bevy.mjs"))
+    if not node or not os.path.isfile(driver):
+        warnings.append("node or the Bevy engine driver not found: package not cargo-checked")
+        checks.append(af.check("bevy_validation", False, "node/driver missing", severity="warning"))
+        return {}
+    timeout_min = float(os.environ.get("ASTRA_CARGO_TIMEOUT_MIN", "25")) + 3
+    try:
+        r = subprocess.run([node, driver, "check-package", "--package", os.path.abspath(pkg_dir),
+                            "--out", os.path.abspath(out_dir)],
+                           capture_output=True, text=True, timeout=timeout_min * 60)
+    except subprocess.TimeoutExpired:
+        checks.append(af.check("bevy_validation", False, "the cargo check ran past its ceiling", severity="warning"))
+        return {}
+    line = next((ln for ln in (r.stdout or "").splitlines() if ln.startswith("AFBEVYCHECK ")), None)
+    try:
+        rep = json.loads(line[len("AFBEVYCHECK "):]) if line else None
+    except ValueError:
+        rep = None
+    if rep is None:
+        checks.append(af.check("bevy_validation", False, (r.stderr or r.stdout or "no answer")[-300:],
+                               severity="warning"))
+        return {}
+    if rep.get("skipped"):   # honest absence row (the Godot/Unreal pattern)
+        warnings.append("cargo not found on this machine: the package was exported unchecked - "
+                        "installing Rust adds the headless Bevy validation, the files are the same")
+        checks.append(af.check("bevy_validation", False, rep.get("skipped"), severity="warning"))
+        return {}
+    outs = {}
+    for tok, rel in (("bevy_check", "bevy_check.json"), ("bevy_log", "bevy_log.txt"),
+                     ("bevy_forward", "bevy_forward.json")):
+        pth = os.path.join(out_dir, rel)
+        if os.path.isfile(pth):
+            outs[tok] = pth
+    shots_dir = os.path.join(out_dir, "shots")
+    if os.path.isdir(shots_dir):
+        shots = sorted(os.path.join(shots_dir, f) for f in os.listdir(shots_dir) if f.endswith(".png"))
+        if shots:
+            outs["bevy_shots"] = shots
+    failed = [c.get("name") for c in rep.get("checks", []) if not c.get("ok")]
+    checks.append(af.check("bevy_validation", bool(rep.get("ok")), {"failed": failed, "shots": rep.get("shots")},
+                           severity="error",
+                           note="af_bevy_check (Bevy 0.20, headless): the package loads, its clips "
+                                "wire, the default clip autostarts, sockets resolve, frames capture"))
+    return outs
 
 
 def run(req):
@@ -136,9 +192,16 @@ def run(req):
     with open(os.path.join(pkg_dir, "README.md"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(_readme(pkg_dir, passport))
 
+    # ticket 30: with Rust on this machine the package is then loaded, played and previewed in
+    # headless Bevy for real; without it the honest absence row goes out and the exported bytes
+    # are the same minus the check answers.
+    cks = _cargo_check(pkg_dir, af.out_path(req, "bevy"), warnings, checks) if p.get("validate", True) else {}
+
     outputs = {"package": pkg_dir, "glb": os.path.join(pkg_dir, bl.GLB_FILE),
                "manifest": os.path.join(pkg_dir, bl.PASSPORT_FILE),
                "readme": os.path.join(pkg_dir, "README.md")}
+    outputs.update(cks)
     stats = {"tris": info["tris"], "clips": len(clips), "sockets": len(sockets), "fx": len(fx),
-             "collider": collider["kind"], "default_clip": default_clip}
+             "collider": collider["kind"], "default_clip": default_clip,
+             "bevy_checked": bool(cks.get("bevy_check"))}
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}

@@ -57,9 +57,19 @@ The crate (`bevy/astraforge_bevy`, MIT, on this branch) is written against bevy 
 ## Headless check and preview frames
 
 When `cargo` is on PATH, the studio additionally validates the package in a throwaway Bevy
-project (`scripts/engines/bevy.mjs`, ids `af_bevy_check` / `af_bevy_send_<slug>`) and captures a
-preview frame; without Rust the export is byte-identical minus the check — the package never
-depends on the machine having a toolchain. See `docs/linux.md` (0.6.10) for the run book.
+project (`scripts/engines/bevy.mjs`, ids `af_bevy_check` / `af_bevy_send_<slug>`): the crate's
+own `af_bevy_check` binary (behind the crate's `check` feature) mounts the package through the
+same loader a game uses, proves the passport against the live world (`scene_mounted`,
+`clips_in_graph`, `default_clip_autostarts`, `sockets_named`, `sockets_found`), switches a
+clip, and captures preview frames through bevy's screenshot pass. The step carries the answers
+as the tokens `bevy_check` (report json), `bevy_shots` (frames), `bevy_log` (cargo output),
+`bevy_forward` (the orientation record the frames prove). Cargo runs with an idle-kill and a
+hard ceiling (`ASTRA_CARGO_IDLE_MIN` 4, `ASTRA_CARGO_TIMEOUT_MIN` 25 minutes — a stuck
+toolchain never hangs a forge job), and the build cache (`ASTRA_CARGO_TARGET_DIR`, default
+`data/engines/bevy/target`) is shared: the first check pays the Bevy compile, later ones
+seconds. Without Rust the export is byte-identical minus the check — one honest warning row,
+the package never depends on the machine having a toolchain. See `docs/linux.md` (0.6.10) for
+the run book.
 
 ## Deviations recorded (Protocol v2)
 

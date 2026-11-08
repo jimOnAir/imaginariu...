@@ -33,8 +33,11 @@ pub struct AstraForgeAsset {
     pub instance: Option<InstanceId>,
     /// set when the model has no default scene at all (say it once, stay quiet afterwards)
     pub dead_instance: bool,
-    /// the instance's root entity (the animation host), once it appears
+    /// the instance's root entity (the mounted scene's top), once it appears
     pub scene_root: Option<Entity>,
+    /// the entity inside the instance that carries bevy_gltf's AnimationPlayer - it is NOT
+    /// the scene root in practice (the exporter anchors it at the animation's target subtree)
+    pub anim_player: Option<Entity>,
     /// clip name -> node in this asset's animation graph, once wired
     pub clip_nodes: HashMap<String, AnimationNodeIndex>,
     /// loop flags per clip name (for .repeat() at play time)
@@ -122,7 +125,7 @@ impl AstraForgeAppExt for App {
             let mtime = std::fs::metadata(&fs_glb).and_then(|m| m.modified()).ok();
             Ok(AstraForgeAsset {
                 passport, asset_dir: dir, glb_path, glb: None, hot_reload, mtime,
-                instance: None, dead_instance: false, scene_root: None, clip_nodes: HashMap::new(), clip_loops: HashMap::new(),
+                instance: None, dead_instance: false, scene_root: None, anim_player: None, clip_nodes: HashMap::new(), clip_loops: HashMap::new(),
                 pending_plays: Vec::new(), mounted_fx: Vec::new(), fx_pending_scale: Vec::new(),
             })
         })() {
@@ -230,17 +233,29 @@ fn instance_root(spawner: &WorldInstanceSpawner, parents: &Query<&ChildOf>, inst
 fn resolve_scene_roots(
     spawner: Res<WorldInstanceSpawner>,
     parents: Query<&ChildOf>,
+    players: Query<(), With<AnimationPlayer>>,
     mut assets: Query<&mut AstraForgeAsset>,
 ) {
     for mut a in assets.iter_mut() {
-        if a.scene_root.is_some() || a.instance.is_none() || a.dead_instance {
+        if a.dead_instance || a.instance.is_none() {
             continue;
+        }
+        if a.scene_root.is_some() && (a.anim_player.is_some() || a.passport.clips.is_empty()) {
+            continue;   // a clip-less package has no player to wait for
         }
         let instance = a.instance.unwrap();
         if !spawner.instance_is_ready(instance) {
             continue;
         }
-        a.scene_root = instance_root(&spawner, &parents, instance);
+        if a.scene_root.is_none() {
+            a.scene_root = instance_root(&spawner, &parents, instance);
+        }
+        if a.anim_player.is_none() {
+            // the live run proved it: bevy_gltf anchors the AnimationPlayer on the animation's
+            // target node, somewhere inside the instance - find it there, not at the root
+            a.anim_player = spawner.iter_instance_entities(instance)
+                .find(|e| players.get(*e).is_ok());
+        }
     }
 }
 
@@ -251,12 +266,15 @@ fn wire_animations(
     gltfs: Res<Assets<Gltf>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     mut assets: Query<&mut AstraForgeAsset>,
-    roots: Query<(), (With<AnimationPlayer>, Without<AstraWired>)>,
+    players: Query<(), With<AnimationPlayer>>,
 ) {
     for mut a in assets.iter_mut() {
-        let Some(root) = a.scene_root else { continue };
-        if !a.clip_nodes.is_empty() || roots.get(root).is_err() {
+        let Some(player) = a.anim_player else { continue };
+        if !a.clip_nodes.is_empty() {
             continue;
+        }
+        if players.get(player).is_err() {
+            continue;   // the entity has not materialised in the world this frame
         }
         let Some(gltf) = a.glb.as_ref().and_then(|h| gltfs.get(h)) else { continue };
         let mut ordered: Vec<(String, Handle<AnimationClip>)> = Vec::new();
@@ -279,7 +297,7 @@ fn wire_animations(
             a.clip_nodes.insert(name, node);
         }
         a.clip_loops = a.passport.clips.iter().map(|c| (c.name.clone(), c.is_loop)).collect();
-        commands.entity(root).insert((AnimationGraphHandle(handle), AnimationTransitions::new(), AstraWired));
+        commands.entity(player).insert((AnimationGraphHandle(handle), AnimationTransitions::new(), AstraWired));
         let wanted = a.passport.default_clip_index(None)
             .and_then(|i| a.passport.clips.get(i))
             .map(|c| c.name.clone());
@@ -356,11 +374,11 @@ fn play_requests(
     mut players: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
 ) {
     for (mut a, mut queue) in assets.iter_mut() {
-        let Some(root) = a.scene_root else { continue };
+        let Some(player_e) = a.anim_player else { continue };
         if queue.requests.is_empty() && a.pending_plays.is_empty() {
             continue;
         }
-        let Ok((mut player, mut transitions)) = players.get_mut(root) else { continue };
+        let Ok((mut player, mut transitions)) = players.get_mut(player_e) else { continue };
         let mut plays = std::mem::take(&mut queue.requests);
         plays.append(&mut std::mem::take(&mut a.pending_plays));
         for (name, fade) in plays {
@@ -399,6 +417,8 @@ fn watch_hot_reload(
         if a.mtime.is_some_and(|m| m != now) {
             a.mtime = Some(now);
             a.clip_nodes.clear();
+            a.scene_root = None;    // the reload respawns the instance; resolve_scene_roots re-finds both
+            a.anim_player = None;
             a.mounted_fx.clear();
             a.fx_pending_scale.clear();
             assets.reload(a.glb_path.clone());

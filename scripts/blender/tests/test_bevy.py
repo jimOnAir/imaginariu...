@@ -2,7 +2,8 @@
 
 A synthetic rigged-less model (box + socket empty + COL_ hull + two clips) is exported to GLB and
 packed; everything the passport promises is then read back from af_bevy.json. No Rust needed: the
-package build is the contract, the headless cargo check is a separate, optional pass (ticket 30).
+package build is the contract, the headless cargo check is a separate, optional pass (ticket
+30): its lines drive the driver with a stub toolchain - the real check runs live on the box.
 """
 import atexit
 import json
@@ -110,7 +111,7 @@ def test_bevy_package_passport_full():
     d = _tmp("af_bevy_")
     glb = _model_glb(d)
     res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
-                "params": {"asset_id": "test_box", "profile": "bevy",
+                "params": {"asset_id": "test_box", "profile": "bevy", "validate": False,   # the cargo pass has its own tests below
                            "fx": [{"preset": "fire", "socket": "socket_fx_*"}]}})
     failed = [c["name"] for c in res["checks"] if not c["ok"] and c.get("severity") == "error"]
     assert not failed, failed
@@ -143,7 +144,7 @@ def test_bevy_package_static_no_fx_no_presets_file():
     d = _tmp("af_bevy_plain_")
     glb = _model_glb(d, clips=False, hull=False)
     res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
-                "params": {"asset_id": "plain_box"}})
+                "params": {"asset_id": "plain_box", "validate": False}})
     assert not [c for c in res["checks"] if not c["ok"] and c.get("severity") == "error"], \
         [c for c in res["checks"] if not c["ok"]]
     p = json.load(open(res["outputs"]["manifest"], encoding="utf-8"))
@@ -169,3 +170,98 @@ def test_bevy_package_rejects_bad_input():
         raise AssertionError("no glb input must raise")
     except ValueError as e:
         assert "inputs.glb" in str(e)
+
+
+# ------------------------------------------------- the ticket 30 cargo pass (driver contract)
+
+def _stub_cargo(folder):
+    """A stand-in for the Rust toolchain: it answers exactly the argv the driver builds and
+    writes exactly the artifacts af_bevy_check writes - the real check is verified live, this
+    row tests that the step FINDS the answer and CARRIES the outputs."""
+    p = os.path.join(folder, "cargo")
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("""#!/usr/bin/env bash
+slug=""; out=""; prev=""
+for a in "$@"; do
+  case "$prev" in --slug) slug="$a";; --out) out="$a";; esac
+  prev="$a"
+done
+if [ ! -f "assets/astraforge/$slug/af_bevy.json" ]; then
+  echo 'AFBEVY {"ok":false,"slug":"'"$slug"'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
+  exit 2
+fi
+mkdir -p "$out/shots"
+printf 'PNGSTUB' > "$out/shots/forward.png"
+echo '{"ok":true,"from":"stub"}' > "$out/bevy_check.json"
+echo '{"up":"+Y","from":"stub"}' > "$out/bevy_forward.json"
+echo "AFBEVY {\\\"ok\\\":true,\\\"slug\\\":\\\"$slug\\\",\\\"code\\\":0,\\\"why\\\":\\\"\\\",\\\"shots\\\":[\\\"shots/forward.png\\\"],\\\"checks\\\":[{\\\"name\\\":\\\"scene_mounted\\\",\\\"ok\\\":true,\\\"detail\\\":\\\"stub\\\"}]}"
+exit 0
+""")
+    os.chmod(p, 0o755)
+    return p
+
+
+def _cargo_env(env):
+    """Point the driver's findCargo at env; hand back a restore closure (the suite shares one os.environ)."""
+    saved = {k: os.environ.get(k) for k in env}
+    os.environ.update(env)
+    def restore():
+        for k, v in saved.items():
+            if v is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = v
+    return restore
+
+
+def test_bevy_package_validate_row_without_cargo():
+    """The T2-3 absence row: no Rust, honest warning, package bytes unchanged, no check outputs."""
+    d = _tmp("af_bevy_nocargo_")
+    glb = _model_glb(d)
+    if not shutil.which("node"):
+        import pytest
+        pytest.skip("the honest skip row needs node to answer (the absence of BOTH is another row)")
+    restore = _cargo_env({"ASTRA_CARGO": os.path.join(d, "definitely-not-cargo"),
+                          "ASTRA_CARGO_TARGET_DIR": os.path.join(d, "target")})
+    try:
+        res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
+                    "params": {"asset_id": "nocargo_box"}})   # validate defaults True
+    finally:
+        restore()
+    rows = [c for c in res["checks"] if c["name"] == "bevy_validation"]
+    assert len(rows) == 1, "exactly one validation verdict"
+    assert rows[0]["ok"] is False and rows[0]["severity"] == "warning", rows[0]
+    assert "cargo not found" in str(rows[0]["value"]), rows[0]
+    assert any("unchecked" in w for w in res["warnings"]), res["warnings"]
+    for tok in ("bevy_check", "bevy_shots", "bevy_log", "bevy_forward"):
+        assert tok not in res["outputs"], tok
+    assert res["stats"]["bevy_checked"] is False
+    assert not [c for c in res["checks"] if not c["ok"] and c.get("severity") == "error"], \
+        "a skipped check must never fail the export"
+    assert os.path.isfile(os.path.join(res["outputs"]["package"], "af_bevy.json")), "the package is still complete"
+
+
+def test_bevy_package_validate_row_with_stub_cargo():
+    """The four contract tokens ride the step outputs when the check answers (ticket 30)."""
+    d = _tmp("af_bevy_stub_")
+    glb = _model_glb(d)
+    if not shutil.which("node"):
+        import pytest
+        pytest.skip("the driver is node")
+    restore = _cargo_env({"ASTRA_CARGO": _stub_cargo(d),
+                          "ASTRA_CARGO_TARGET_DIR": os.path.join(d, "target")})
+    try:
+        res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
+                    "params": {"asset_id": "stub_box"}})
+    finally:
+        restore()
+    row = [c for c in res["checks"] if c["name"] == "bevy_validation"]
+    assert len(row) == 1 and row[0]["ok"] is True, row
+    out = res["outputs"]
+    for tok in ("bevy_check", "bevy_log", "bevy_forward"):
+        assert tok in out and os.path.isfile(out[tok]), tok
+    assert isinstance(out["bevy_shots"], list) and any(s.endswith("forward.png") for s in out["bevy_shots"])
+    assert res["stats"]["bevy_checked"] is True
+    val = row[0]["value"]
+    assert val["failed"] == [] and val["shots"] == ["shots/forward.png"], val
+    assert os.path.isfile(out["bevy_check"]), "the check json the binary wrote rides the outputs"

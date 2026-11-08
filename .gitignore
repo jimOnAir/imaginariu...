@@ -29,6 +29,7 @@ config/paths.json
 installer/downloads/
 installer/install.log
 installer/install.lock
+data/engines/
 
 # user settings written by the app
 data/config.json
