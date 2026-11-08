@@ -8,6 +8,7 @@ import { existsSync, statSync, readFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { root, pathsConfig, parseJson } from './storage.mjs';
+import { promises as fsp } from 'node:fs';
 
 export const OLLAMA_DEFAULT_URL = 'http://127.0.0.1:11434';
 // The one address this module may start a process for. Anything else (another host, another port)
@@ -141,6 +142,18 @@ const starting = new Map();
  * Make sure the local Ollama answers. Never kills anything, never downloads a model, and never
  * touches a non-loopback address. Returns {running, started, exe, reason}.
  */
+/**
+ * Where the studio-spawned Ollama should keep its models (ticket 22): the user's own
+ * OLLAMA_MODELS always wins (then there is nothing to place), else config/paths.json
+ * (key `ollamaModels`, written by installer/install.sh when the default drive ran short),
+ * else null = Ollama's own default folder.
+ */
+export function ollamaModelsDir(appRoot = root, env = process.env) {
+  if (env.OLLAMA_MODELS) return null;
+  const p = pathsConfig(appRoot).ollamaModels;
+  return typeof p === 'string' && p.trim() ? p.trim() : null;
+}
+
 export async function ensureOllama({ url = OLLAMA_DEFAULT_URL, appRoot = root, env = process.env, exists = existsSync, fetchFn = fetch, spawnFn = spawn, waitMs = 20000, everyMs = 500, now = () => Date.now(), sleepFn = (ms) => new Promise((r) => setTimeout(r, ms)) } = {}) {
   if (!(await ollamaTags(url, fetchFn))) {
     if (!isLocalServeUrl(url)) {
@@ -152,7 +165,14 @@ export async function ensureOllama({ url = OLLAMA_DEFAULT_URL, appRoot = root, e
     }
     if (!starting.has(url)) starting.set(url, (async () => {
       try {
-        const child = spawnFn(exe, ['serve'], { detached: true, stdio: 'ignore', env: { ...env } });
+        // 0.6.10 wave ticket 22 (Linux form of the 0.6.8 model-placement fix): when the installer
+        // moved the model folder off a cramped drive (config/paths.json key ollamaModels), the
+        // serve this studio starts uses the same place - unless the user set OLLAMA_MODELS
+        // themselves, which always wins.
+        const spawnEnv = { ...env };
+        const placed = ollamaModelsDir(appRoot, env);
+        if (placed) { await fsp.mkdir(placed, { recursive: true }).catch(() => {}); spawnEnv.OLLAMA_MODELS = placed; }
+        const child = spawnFn(exe, ['serve'], { detached: true, stdio: 'ignore', env: spawnEnv });
         child?.unref?.();
       } catch { /* it may already be starting by hand - the poll below decides */ }
       const until = now() + waitMs;

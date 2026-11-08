@@ -338,6 +338,59 @@ InstallQwen() {
   S_QWEN=yes
 }
 
+# ---------------------------------------------------------------- Ollama model placement (0.6.10 wave ticket 22)
+# Where the assistant/review models go. The user's own OLLAMA_MODELS always wins. Otherwise, when
+# the drive under Ollama's default model home ($HOME/.ollama/models) is running short and the
+# studio lives on a drive with room, the models are placed under the studio (runtime/models/ollama)
+# and recorded in config/paths.json (key ollamaModels) - the studio's own `ollama serve` reads the
+# same key (server/ollama-run.mjs). A model folder that ALREADY has models is never switched or
+# hidden: that would make the user's existing models disappear from `ollama list`, so we keep them
+# and, if the drive is genuinely short, only note how much a manual move would free.
+ollamaDefaultHome() { printf '%s' "${OLLAMA_MODELS:-$HOME/.ollama/models}"; }
+# expected download size of a model name, from installer/manifest.json (empty when unknown)
+modelBytes() { local n out=''; n="$(NodeBin)"; if [ -n "$n" ]; then
+  out="$("$n" -e '
+   const m=require(process.argv[1]);const name=process.argv[2];
+   for(const t of (m.llm||{}).byVram||[])if(t.model===name)process.stdout.write(String(t.size));
+   if((m.llm.vlm||{}).model===name)process.stdout.write(String((m.llm.vlm||{}).size||""));
+  ' "${ASTRA_MANIFEST:-$ROOT/installer/manifest.json}" "$1" 2>/dev/null)"
+fi; printf '%s' "$out"; }
+# The device a path lives on (df's source column); '' when df cannot say.
+deviceOf() { df -P "$1" 2>/dev/null | awk 'NR==2{print $1}'; }
+# Decide and export OLLAMA_MODELS for this run. Idempotent. Answers a short human line.
+PrepareOllamaModels() { # <model-bytes-expected> - used only to judge whether the home drive is short
+  local def need defdev homedir homedev studioplace stated
+  def="$(ollamaDefaultHome)"
+  if [ -z "${OLLAMA_MODELS:-}" ] && curl -sf -m 2 http://127.0.0.1:11434/api/version >/dev/null 2>&1; then
+    say '  model placement: an Ollama server is already running - models land where that server stores them; the studio placement only applies to a serve this studio or the installer starts.'
+    return 0
+  fi
+  stated="$(CfgGet ollamaModels)"
+  if [ -n "${OLLAMA_MODELS:-}" ]; then
+    say "  model placement: keeping your OLLAMA_MODELS (models live under $OLLAMA_MODELS)"
+  elif [ -n "$stated" ]; then
+    mkdir -p "$stated" || true
+    export OLLAMA_MODELS="$stated"
+    say "  model placement: models go to the studio folder from config/paths.json ($stated)"
+  elif [ -n "$(ls -A "$def" 2>/dev/null)" ]; then
+    local have; have="$(du -sb "$def" 2>/dev/null | cut -f1)"; have="${have:-0}"
+    say "  model placement: you already have models in $def ($(Gb "$have") used) - they stay exactly where they are, nothing is hidden; moving them to the studio's drive would free that much"
+  else
+    need="${1:-6000000000}"
+    homedir="$(dirname "$def")"; while [ ! -d "$homedir" ] && [ "$homedir" != "/" ]; do homedir="$(dirname "$homedir")"; done
+    defdev="$(deviceOf "$homedir")"
+    studioplace="$RT/models/ollama"
+    homedev="$(deviceOf "$RT")"
+    if [ -n "$defdev" ] && [ -n "$homedev" ] && [ "$defdev" != "$homedev" ] && [ "$(FreeOn "$homedir")" -lt "$need" ]; then
+      mkdir -p "$studioplace" || true
+      CfgSet ollamaModels "$studioplace" || true
+      export OLLAMA_MODELS="$studioplace"
+      say "  model placement: the system drive is short on space - models go under the studio instead ($studioplace). Your already-downloaded models, if any, stay where they are."
+    else
+      say "  model placement: models download to Ollama's usual folder ($def)"
+    fi
+  fi
+}
 EnsureOllama() {
   if [ -z "$S_OLLAMA" ]; then
     say '  No usable Ollama - the model step was skipped. Install Ollama from https://ollama.com, then run this installer again: it will retry the model.'
@@ -352,7 +405,7 @@ EnsureOllama() {
   say '  Ollama did not answer on http://127.0.0.1:11434 - the model step was skipped; check this Ollama can serve (ollama --version, ollama serve), then run the installer again.'
   return 1
 }
-PullModel() { EnsureOllama && Run "$S_OLLAMA" "downloading model $1" pull "$1"; }
+PullModel() { PrepareOllamaModels "$(modelBytes "$1")"; EnsureOllama && Run "$S_OLLAMA" "downloading model $1" pull "$1"; }
 PullLlm() {
   PullModel "$1" || return 1
   local n; n="$(NodeBin)"

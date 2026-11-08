@@ -3,10 +3,10 @@
 // review both, older generations included. Nothing here may download or guess a model name.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, chmodSync, rmSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { ollamaExecutable, isLocalServeUrl, pickChatModel, ollamaTags, ollamaModels, ollamaCatalog, ensureOllama, NO_TEXT_MODEL_HINT, CHAT_LADDER } from '../server/ollama-run.mjs';
+import { ollamaExecutable, isLocalServeUrl, pickChatModel, ollamaTags, ollamaModels, ollamaCatalog, ensureOllama, ollamaModelsDir, NO_TEXT_MODEL_HINT, CHAT_LADDER } from '../server/ollama-run.mjs';
 import { isVisionModelName, pickReviewModel, publishQaModel, FALLBACK_REVIEW_MODEL } from '../server/vlm.mjs';
 
 const mkTmp = () => mkdtempSync(path.join(tmpdir(), 'af-ollama-'));
@@ -198,4 +198,44 @@ test('publishQaModel hands the pick to the Blender step - but never overwrites a
   const r = publishQaModel({ model: 'qwen3.5:9b', installed: false, reason: 'not installed: install.sh' }, gone);
   assert.equal(r.model, null); assert.match(r.reason, /install\.sh/);
   assert.equal(gone.ASTRA_QA_VLM, undefined, 'with no usable model the step must say so, not review with a name nobody has');
+});
+
+// ---------------------------------------------------------------- ticket 22: model placement
+
+test('ollamaModelsDir: the user OLLAMA_MODELS always wins; else paths.json; else null', () => {
+  const dir = mkTmp();
+  try {
+    mkdirSync(path.join(dir, 'config'), { recursive: true });
+    writeFileSync(path.join(dir, 'config', 'paths.json'), JSON.stringify({ ollamaModels: '/studio/runtime/models/ollama' }));
+    assert.equal(ollamaModelsDir(dir, {}), '/studio/runtime/models/ollama');
+    assert.equal(ollamaModelsDir(dir, { OLLAMA_MODELS: '/home/user/own' }), null, 'the user set it: nothing to place');
+    assert.equal(ollamaModelsDir(path.join(dir, 'nothing'), {}), null, 'no paths.json is no placement');
+    writeFileSync(path.join(dir, 'config', 'paths.json'), JSON.stringify({ ollamaModels: '   ' }));
+    assert.equal(ollamaModelsDir(dir, {}), null, 'blank is not a placement');
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('ensureOllama: a studio-spawned serve inherits the placed OLLAMA_MODELS - the folder is created, the user value untouched', async () => {
+  const dir = mkTmp();
+  try {
+    mkdirSync(path.join(dir, 'config'), { recursive: true });
+    const placed = path.join(dir, 'runtime', 'models', 'ollama');
+    writeFileSync(path.join(dir, 'config', 'paths.json'), JSON.stringify({ ollamaModels: placed }));
+    const exe = exeFile(path.join(dir, 'ollama'));
+    const seen = [];
+    let up = false;
+    const spawnFn = (file, args, o) => { seen.push({ file, args, env: o.env }); up = true; return { unref() {} }; };
+    const fetchFn = async () => (up ? tagsBody([M('qwen3:8b')]) : (() => { throw new Error('ECONNREFUSED'); })());
+    const r = await ensureOllama({ url: 'http://127.0.0.1:11434', appRoot: dir, env: { ASTRA_OLLAMA_EXE: exe, PATH: '' }, spawnFn, fetchFn, waitMs: 4000, everyMs: 50, now: (() => { let t = 0; return () => (t += 100); }) });
+    assert.equal(r.started, true);
+    assert.deepEqual(seen[0].args, ['serve']);
+    assert.equal(seen[0].env.OLLAMA_MODELS, placed, 'the placed folder rides the spawn env');
+    assert.ok(existsSync(placed), 'and the folder exists before the serve starts');
+    // user value untouched:
+    seen.length = 0; up = false;
+    const r2 = await ensureOllama({ url: 'http://127.0.0.1:11434', appRoot: dir, env: { ASTRA_OLLAMA_EXE: exe, OLLAMA_MODELS: '/home/user/own', PATH: '' }, spawnFn, fetchFn, waitMs: 4000, everyMs: 50, now: (() => { let t = 0; return () => (t += 100); }) });
+    assert.equal(r2.started, true);
+    assert.equal(seen[0].env.OLLAMA_MODELS, '/home/user/own', 'the user folder passes through unchanged');
+    assert.equal(existsSync(placed), true);
+  } finally { rmSync(dir, { recursive: true, force: true }); }
 });
