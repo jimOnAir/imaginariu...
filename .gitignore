@@ -28,6 +28,7 @@ data/runtime/custom_nodes/**/__pycache__/
 config/paths.json
 installer/downloads/
 installer/install.log
+installer/install.lock
 
 # user settings written by the app
 data/config.json

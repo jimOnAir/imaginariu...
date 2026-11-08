@@ -8,6 +8,17 @@
 # which does not ask CAs about revoked certificates at all, so there is nothing to turn off -
 # code 35 on this platform is an ordinary flaky-TLS failure and joins the resume-and-retry set.
 #
+# WriteInstallStatus <progress> <text> [code] appends one JSON line to $ASTRA_INSTALL_STATUS
+# when it is set (0.6.10 wave ticket 24): the Components window re-attaches to a run that outlived
+# its studio by reading this file - the installer owns the truth, the studio is just a viewer.
+# The other two installers that source this file never set the variable: they pay nothing.
+WriteInstallStatus() {
+  [ -n "${ASTRA_INSTALL_STATUS:-}" ] || return 0
+  local esc; esc="$(printf '%s' "${2:-}" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')"
+  printf '{"at":"%s","pid":%s,"progress":%s,"text":"%s"%s%s}\n' \
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "${1:-0}" "$esc" "${3:+,\"code\":$3}" "${4:+,\"failed\":\"$4\"}" >> "$ASTRA_INSTALL_STATUS" 2>/dev/null || true
+}
+
 # The sourcing script must define say(). Optional:
 #   DL_USER_AGENT            sent as -A on every request (itch.io and friends want one)
 #   ASTRA_UNATTENDED=1       curl goes quiet, the loop prints '##PROGRESS <pct>|<text>' lines
@@ -60,8 +71,11 @@ Download() {
     while kill -0 "$pid" 2>/dev/null; do
       if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
         got="$(stat -c%s "$part" 2>/dev/null || echo 0)"   # the file length: curl is quiet in this mode
-        printf '##PROGRESS %d|%s\n' "$(awk -v g="$got" -v s="$size" 'BEGIN{printf "%d", (s>0)?(g/s*99):0}')" \
-          "$(printf 'downloaded %s%s' "$(DlHuman "$got")" "$( [ "$size" != 0 ] && printf ' of %s' "$(DlHuman "$size")")")"
+        local pct text
+        pct="$(awk -v g="$got" -v s="$size" 'BEGIN{printf "%d", (s>0)?(g/s*99):0}')"
+        text="$(printf 'downloaded %s%s' "$(DlHuman "$got")" "$( [ "$size" != 0 ] && printf ' of %s' "$(DlHuman "$size")")")"
+        printf '##PROGRESS %d|%s\n' "$pct" "$text"
+        WriteInstallStatus "$pct" "$text"   # ticket 24: the same truth for a studio that restarts
       fi
       sleep 2
     done

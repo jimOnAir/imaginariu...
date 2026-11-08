@@ -2,11 +2,15 @@
 // opens, background installs with progress, the busy guard. The non-win32 sibling of the reference
 // components.test.mjs: the reference stubs powershell; here the child is installer/install.sh and
 // the scan is the shared core module, so the same behaviors are checked with an importCore stub and
-// a fake spawn that streams the '##PROGRESS / ##FAILED / ##DONE' contract of ticket 16/17.
+// a fake spawn. Ticket 24 changed the child contract: the installer is DETACHED (stdio ignored -
+// a closed studio must not kill it) and reports progress into the file named by its env
+// ASTRA_INSTALL_STATUS (WriteInstallStatus in installer/af_download.sh), so the fakes below write
+// that file, exactly like a live run does, and the studio re-attaches by reading it plus pid.json.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { spawn } from 'node:child_process';
+import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync, existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -35,18 +39,34 @@ test('parseScanList: fields, dependencies, the -Only ids; short lines are skippe
   assert.deepEqual(items[2].only, ['pixal3d', 'pixal3dw']);
 });
 
-// a child process that streams the given lines and exits with the given code (the fakeSpawn of the reference)
-function fakeSpawn(lines, code = 0) {
+// A fake install.sh: detached-spawn shaped (pid, unref, exit events) and speaking the ticket-24
+// truth file. status() appends one WriteInstallStatus-shaped JSON line; finish() ends the run.
+function manualSpawn() {
   const calls = [];
-  const spawnImpl = (cmd, args) => {
-    calls.push({ cmd, args });
-    const c = new EventEmitter();
-    c.stdout = new EventEmitter();
-    c.stderr = new EventEmitter();
-    setTimeout(() => { for (const l of lines) c.stdout.emit('data', Buffer.from(l + '\n')); c.emit('exit', code); }, 5);
+  let child = null;
+  const spawnImpl = (cmd, args, o = {}) => {
+    calls.push({ cmd, args, opts: o });
+    child = new EventEmitter();
+    child.pid = process.pid;                      // alive, so re-attach reads see a live run
+    child.unref = () => {};
+    child.status = (progress, text, extra = {}) => {
+      writeFileSync(o.env.ASTRA_INSTALL_STATUS, JSON.stringify(
+        { at: new Date().toISOString(), pid: child.pid, progress, text, ...extra }) + '\n', { flag: 'a' });
+    };
+    child.finish = (code) => child.emit('exit', code);
+    return child;
+  };
+  return { calls, spawnImpl, child: () => child };
+}
+// script the whole run at once: lines flush, then the exit (the old fakeSpawn, file-based now)
+function fakeSpawn(lines, code = 0) {
+  const m = manualSpawn();
+  const spawnImpl = (...a) => {
+    const c = m.spawnImpl(...a);
+    setTimeout(() => { for (const [p, t, x] of lines) c.status(p, t, x || {}); c.finish(code); }, 5);
     return c;
   };
-  return { calls, spawnImpl };
+  return { calls: m.calls, spawnImpl, child: m.child };
 }
 function app(profile) {
   const root = path.join(tmp, 'app-' + Math.random().toString(36).slice(2));
@@ -59,6 +79,7 @@ const tick = (ms = 30) => new Promise((r) => setTimeout(r, ms));
 const fakeCore = (scanComponents = () => ({}), scanItems = () => []) => async () => ({
   scanComponents, scanItems, itemLines: CORE.itemLines,
 });
+const NEVER_SPAWN = () => { throw new Error('a surviving run must never be doubled by the studio'); };
 
 test('the window opens once per version: first start is due, after it only when the version changes', async () => {
   const { root, data } = app();
@@ -96,6 +117,7 @@ function scanStateFixture() {
     gpu: 'RTX 4070', vram: 12288, cc: '8.9', gpuBroken: '', adapters: [], node: '/n', nodeVer: '22.23.3',
     npmDeps: true, ui: true, blender: '/b', blenderVer: '5.0.1', comfy: '', comfyVer: '', comfyDeps: false,
     gguf: false, godot: '', godotVer: '', clips: 0, library: '/l', vfxDir: '/v', vfxOk: false, ollama: '', llms: [], vlm: false,
+    driver: '615.71.09', driverMajor: 615, driverOld: false,
     hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
     mv: { node: false, weights: false, config: false, pkgs: false, ready: false, offer: true, reason: '', warn: '', bytes: 1 },
     p3: { dir: '', exists: false, engine: false, weights: false, complete: false, offer: true, reason: '', warn: '', missingBytes: 0, diskNeed: 0 },
@@ -105,42 +127,62 @@ function scanStateFixture() {
   };
 }
 
-test('install: the ids go to install.sh -Yes -Profile -Only, ##PROGRESS feeds the job, ##DONE closes it', async () => {
+test('install: the detached run reports through the status file; progress, done, pid bookkeeping', async () => {
   const { root, data } = app('quick');
-  const { calls, spawnImpl } = fakeSpawn(['##PROGRESS 12|downloaded 5 MB of 40 MB', '##PROGRESS 80|downloaded 32 MB of 40 MB', '##DONE'], 0);
+  const { calls, spawnImpl, child } = manualSpawn();
   const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl });
   const st = await c.install(['godot', 'clips']);
   assert.equal(st.job.code, null);
   assert.equal(st.job.progress, 0);
   assert.equal(st.job.profile, 'quick', 'the profile from config is the default');
-  await tick();
-  const after1 = (await c.state()).job;
-  assert.equal(after1.code, 0);
-  assert.equal(after1.progress, 100);
-  assert.equal(after1.text, 'Done');
-  assert.deepEqual(after1.failed, []);
   assert.equal(calls[0].cmd, 'bash');
   assert.ok(calls[0].args[0].endsWith(path.join('installer', 'install.sh')), calls[0].args[0]);
   assert.deepEqual(calls[0].args.slice(1), ['-Yes', '-Profile', 'quick', '-Only', 'godot,clips']);
+  assert.equal(calls[0].opts.detached, true, 'the run must survive a studio closing');
+  assert.equal(calls[0].opts.stdio, 'ignore', 'and never die on the studio\'s closed stdout');
+  const statusFile = path.join(data, 'update', 'install-run', 'status.jsonl');
+  assert.equal(calls[0].opts.env.ASTRA_INSTALL_STATUS, statusFile, 'the run is told where to report');
+  const pidInfo = JSON.parse(readFileSync(path.join(data, 'update', 'install-run', 'pid.json'), 'utf8'));
+  assert.equal(pidInfo.pid, process.pid);
+  assert.deepEqual(pidInfo.ids, ['godot', 'clips']);
   assert.equal(JSON.parse(readFileSync(path.join(data, 'update', 'checklist.json'), 'utf8')).version, '0.5.0',
     'starting an install marks the version seen');
+  // progress arrives through the file, not the pipe:
+  child().status(12, 'downloaded 5 MB of 40 MB');
+  const mid = (await c.state()).job;
+  assert.equal(mid.progress, 12);
+  assert.equal(mid.text, 'downloaded 5 MB of 40 MB');
+  assert.equal((await c.state()).busy, true);
+  child().status(100, 'done', { code: 0 });
+  child().finish(0);
+  await tick();
+  const after1 = (await c.state());
+  assert.equal(after1.job.code, 0);
+  assert.equal(after1.job.progress, 100);
+  assert.equal(after1.job.text, 'done');
+  assert.deepEqual(after1.job.failed, []);
+  assert.equal(after1.busy, false);
+  assert.equal(existsSync(path.join(data, 'update', 'install-run', 'pid.json')), false, 'a finished run gives up its pid');
 });
 
-test('install: ##FAILED carries the failed ids and a nonzero exit lands in the job state', async () => {
+test('install: the failed line carries the failed ids and a nonzero exit lands in the job state', async () => {
   const { root, data } = app();
-  const { spawnImpl } = fakeSpawn(['##PROGRESS 40|downloaded 16 MB of 40 MB', '##FAILED hy2,u2net'], 1);
+  const { spawnImpl, child } = manualSpawn();
   const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl });
   await c.install(['hy2', 'u2net'], { profile: 'full' });
+  child().status(40, 'downloaded 16 MB of 40 MB');
+  child().status(100, 'failed', { code: 1, failed: 'hy2,u2net' });
+  child().finish(1);
   await tick();
   const j = (await c.state()).job;
   assert.equal(j.code, 1);
   assert.deepEqual(j.failed, ['hy2', 'u2net']);
-  assert.equal(j.progress, 40);
+  assert.equal(j.progress, 100, 'the closing line wins: the run said where it ended');
 });
 
 test('a running job is never started twice, and scan waits for it (the reference busy rules)', async () => {
   const { root, data } = app();
-  const { calls, spawnImpl } = fakeSpawn(['##DONE'], 0);
+  const { calls, spawnImpl } = manualSpawn();
   const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl,
     importCore: fakeCore(scanStateFixture, (s) => CORE.scanItems(s)) });
   await c.install(['godot']);
@@ -148,14 +190,19 @@ test('a running job is never started twice, and scan waits for it (the reference
   assert.deepEqual(again.job.ids, ['godot'], 'the second request returns the running job');
   assert.equal(calls.length, 1);
   await assert.rejects(c.scan(), /install is running/);
+  spawnImpl; // (child stays open - the next test proves the finished path)
+  const done = fakeSpawn([[100, 'done', { code: 0 }]], 0);
+  const c2 = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl: done.spawnImpl,
+    importCore: fakeCore(scanStateFixture, (s) => CORE.scanItems(s)) });
+  await c2.install(['clips']);
   await tick();
-  const s = await c.scan();
+  const s = await c2.scan();
   assert.ok(s.items.length > 0, 'scan works again after the job finished');
 });
 
 test('install sanitizes ids: nothing ticked is an error, junk ids are dropped', async () => {
   const { root, data } = app();
-  const { calls, spawnImpl } = fakeSpawn(['##DONE'], 0);
+  const { calls, spawnImpl } = fakeSpawn([[100, 'done', { code: 0 }]], 0);
   const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl });
   await assert.rejects(c.install([]), /Nothing ticked/);
   await assert.rejects(c.install(undefined), /Nothing ticked/);
@@ -163,4 +210,79 @@ test('install sanitizes ids: nothing ticked is an error, junk ids are dropped', 
   await c.install(['godot', 'godot', '../evil', 'u2net']);
   assert.equal(calls.length, 1);
   assert.match(calls[0].args.join(' '), /-Only godot,u2net$/);
+});
+
+// ---------------------------------------------------------------- ticket 24: survive and re-attach
+
+// write what a PREVIOUS studio session left behind (same files the real run writes)
+function plantRun(data, { pid, lines, ids = ['pixal3d', 'pixal3dw'], profile = 'full' }) {
+  const runDir = path.join(data, 'update', 'install-run');
+  mkdirSync(runDir, { recursive: true });
+  if (lines) writeFileSync(path.join(runDir, 'status.jsonl'),
+    lines.map((l) => JSON.stringify({ at: '2026-11-08T10:00:0Z', pid, ...l })).join('\n') + '\n');
+  if (pid) writeFileSync(path.join(runDir, 'pid.json'), JSON.stringify({ pid, ids, profile, startedAt: '2026-11-08T09:55:0Z' }));
+}
+
+test('studio restart mid-install: the panel re-attaches to the surviving run - progress, no error, no double', async () => {
+  const { root, data } = app();
+  plantRun(data, { pid: process.pid, lines: [{ progress: 0, text: 'starting' }, { progress: 55, text: 'downloaded 9 GB of 16 GB' }] });
+  const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl: NEVER_SPAWN, lockProbe: async () => true });
+  const s = await c.state();
+  assert.equal(s.busy, true);
+  assert.equal(s.job.external, true, 'the window says so (a note line rides it)');
+  assert.equal(s.job.code, null, 'still running - the dead studio changed nothing');
+  assert.equal(s.job.progress, 55);
+  assert.equal(s.job.text, 'downloaded 9 GB of 16 GB');
+  assert.deepEqual(s.job.ids, ['pixal3d', 'pixal3dw']);
+  // and asking for an install now joins the survivor, never spawns a second one:
+  const s2 = await c.install(['clips']);
+  assert.equal(s2.job.progress, 55);
+});
+
+test('a run that died mid-way answers honestly: no finish line, no pretending', async () => {
+  const { root, data } = app();
+  plantRun(data, { pid: 999999, lines: [{ progress: 30, text: 'downloaded 4 GB of 16 GB' }] });   // dead pid, no closing line
+  const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl: NEVER_SPAWN });
+  const s = await c.state();
+  assert.equal(s.busy, false, 'a corpse does not block the install button');
+  assert.equal(s.job.code, -1);
+  assert.match(s.job.text, /ended without a finish line - installer\/install\.log has the story/);
+});
+
+test('an install completed outside the studio reads as done, with its ids', async () => {
+  const { root, data } = app();
+  plantRun(data, { pid: 999999, lines: [{ progress: 100, text: 'done', code: 0 }] });
+  const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl: NEVER_SPAWN });
+  const s = await c.state();
+  assert.equal(s.busy, false);
+  assert.equal(s.job.code, 0);
+  assert.equal(s.job.text, 'done');
+});
+
+test('the second install.sh run is refused through the lock - busy state, honest sentence, no spawn', async () => {
+  const { root, data } = app();
+  const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl: NEVER_SPAWN, lockProbe: async () => true });
+  const s = await c.state();
+  assert.equal(s.busy, true, 'busy comes from the lock alone (a terminal run writes no status file)');
+  assert.equal(s.job, null, 'and with no status to read, the window says "another installer" - not fake progress');
+  await assert.rejects(c.install(['godot']), /Another installer is already running \(it holds installer\/install\.lock\)/);
+});
+
+test('the real flock probe: a live holder is busy, the same lock free again is not (no fake injected)', async () => {
+  const { root, data } = app();
+  mkdirSync(path.join(root, 'installer'), { recursive: true });
+  const lock = path.join(root, 'installer', 'install.lock');
+  const c = createComponents({ appRoot: root, dataDir: data, appVersion: '0.5.0', spawnImpl: NEVER_SPAWN });
+  assert.equal((await c.state()).busy, false, 'nobody runs yet');
+  // exactly what TakeInstallLock in installer/install.sh does, in its own process:
+  const holder = spawn('bash', ['-c', `exec 19>${lock}; flock -n 19; printf '%s\\n' $$ >&19; exec sleep 30`], { detached: true, stdio: 'ignore' });
+  holder.unref();
+  try {
+    await tick(500);
+    assert.match(readFileSync(lock, 'utf8').trim(), /^\d+$/, 'the holder recorded its pid inside the lock');
+    assert.equal((await c.state()).busy, true, 'flock -n says held - the studio believes it');
+    await assert.rejects(c.install(['godot']), /Another installer is already running/);
+  } finally { try { process.kill(holder.pid); } catch { /* already gone */ } }
+  await tick(300);
+  assert.equal((await c.state()).busy, false, 'the lock is off again - installs are open');
 });

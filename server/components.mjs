@@ -10,7 +10,8 @@
 // The reference also reported a failed background install through telemetry on finish - telemetry
 // is excluded from this branch, so the job state simply carries the failed ids for the panel.
 import { spawn } from 'node:child_process';
-import { promises as fs } from 'node:fs';
+import { promises as fs, openSync } from 'node:fs';
+import { spawn as nodeSpawn } from 'node:child_process';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -39,31 +40,59 @@ export function parseScanList(text) {
   return items;
 }
 
-export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spawn, importCore = null, log = () => {} }) {
+export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spawn, importCore = null, log = () => {},
+  lockProbe = null } = {}) {
   const updDir = path.join(dataDir, 'update');
+  // ticket 24 (0.6.10 wave): the run survives its studio. The installer gets its stdout ignored
+  // (a broken pipe would kill it when the studio closes) and writes the truth to a status file
+  // instead (WriteInstallStatus in installer/af_download.sh); a restarted studio re-attaches by
+  // tailing that file and checking the run's pid, so a mid-install restart shows progress, not a
+  // fetch error. The same installer/install.lock the run holds (flock) answers "already running".
+  const runDir = path.join(updDir, 'install-run');
+  const statusFile = path.join(runDir, 'status.jsonl');
+  const pidFile = path.join(runDir, 'pid.json');
+  const lockFile = path.join(appRoot, 'installer', 'install.lock');
+  // exit codes of `flock -n file -c true`: 0 free, 1 held (busy - the answer we came for),
+  // 66 the file could not even be opened (no installer folder is nobody's install).
+  const probeLock = lockProbe || (() => new Promise((resolve) => {
+    try {
+      const c = nodeSpawn('flock', ['-n', lockFile, '-c', 'true']);
+      c.on('error', () => resolve(false));
+      c.on('exit', (code) => resolve(code === 1));
+    } catch { resolve(false); }
+  }));
+  /** The newest JSON line the installer appended, or null (a torn last line is skipped). */
+  async function tailStatus() {
+    let text = '';
+    try { text = await fs.readFile(statusFile, 'utf8'); } catch { return null; }
+    let last = null;
+    for (const l of text.split(/\r?\n/)) {
+      if (!l.trim()) continue;
+      try { const j = JSON.parse(l); if (!last || String(j.at) >= String(last.at)) last = j; } catch { /* a torn line */ }
+    }
+    return last;
+  }
+  async function readRun() { // last status line + pid truth -> a job shape, or null
+    let info; try { info = JSON.parse(await fs.readFile(pidFile, 'utf8')); } catch { return null; }
+    const last = await tailStatus();
+    if (!last) return null;
+    let alive = false;
+    if (Number.isInteger(info.pid)) { try { process.kill(info.pid, 0); alive = true; } catch (e) { alive = e.code === 'EPERM'; } }
+    if (alive || last.code != null) {
+      return { ids: info.ids || [], profile: info.profile || '', progress: last.progress ?? 0,
+        text: last.text || 'installing', code: alive ? null : last.code,
+        failed: String(last.failed || '').split(',').filter(Boolean), startedAt: info.startedAt || null, external: true };
+    }
+    // the pid is gone and the status has no finish line: the run died (power, kill -9) mid-way
+    return { ids: info.ids || [], profile: info.profile || '', progress: last.progress ?? 0,
+      text: 'the install run ended without a finish line - installer/install.log has the story', code: -1,
+      failed: info.ids || [], startedAt: info.startedAt || null, external: true };
+  }
   const readSoft = async (f) => { try { return JSON.parse((await fs.readFile(f, 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; } };
   const core = importCore || (() => import(pathToFileURL(path.join(appRoot, 'installer', 'af_scan.mjs')).href));
   let job = null;
   let lastScan = null;
 
-  const run = (args, onLine) => new Promise((resolve, reject) => {
-    const child = spawnImpl('bash', [path.join(appRoot, 'installer', 'install.sh'), ...args], { cwd: appRoot });
-    let out = '';
-    let buf = '';
-    child.stdout?.on('data', (d) => {
-      const s = d.toString('utf8');
-      out += s; buf += s;
-      let i;
-      while ((i = buf.indexOf('\n')) >= 0) {
-        const line = buf.slice(0, i).replace(/\r$/, '');
-        buf = buf.slice(i + 1);
-        try { onLine?.(line); } catch { /* a bad line must not stop the stream */ }
-      }
-    });
-    child.stderr?.on('data', () => {});
-    child.on?.('error', reject);
-    child.on?.('exit', (code) => resolve({ code, out }));
-  });
 
   async function due() {
     const seen = await readSoft(path.join(updDir, 'checklist.json'));
@@ -93,27 +122,55 @@ export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spa
   /** Background install of the ticked ids; a running job is returned untouched (the reference rule). */
   async function install(ids, { profile: pr } = {}) {
     if (job && job.code == null) return state();
+    // a run this session does not own - the terminal, or a studio restart that orphaned nothing -
+    // means the answer is "wait", never a second installer fighting over the same files (ticket 24)
+    if (await probeLock()) {
+      const ext = await readRun();
+      if (ext && ext.code == null) return state();
+      throw new Error('Another installer is already running (it holds installer/install.lock): the Components window shows its progress; start this one after it is done.');
+    }
     const list = [...new Set((Array.isArray(ids) ? ids : []).map(String))].filter((x) => ID_RE.test(x));
     if (!list.length) throw new Error('Nothing ticked.');
     const p = PROFILES.includes(pr) ? pr : await profile();
+    await fs.mkdir(runDir, { recursive: true });
+    await fs.writeFile(statusFile, '').catch(() => {});
     job = { ids: list, profile: p, progress: 0, text: 'Preparing', code: null, failed: [], startedAt: new Date().toISOString() };
     await markSeen().catch(() => {});
     const cur = job;
-    void run(['-Yes', '-Profile', p, '-Only', list.join(',')], (l) => {
-      const m = /^##PROGRESS (\d+)\|(.*)$/.exec(l);
-      if (m) { cur.progress = Number(m[1]); cur.text = m[2]; }
-      else if (l.startsWith('##FAILED')) cur.failed = l.slice(8).trim().split(',').filter(Boolean);
-      else if (l === '##DONE') { cur.progress = 100; cur.text = 'Done'; }
-    }).then(({ code }) => {
-      cur.code = code;
-      cur.finishedAt = new Date().toISOString();
+    const child = spawnImpl('bash', [path.join(appRoot, 'installer', 'install.sh'), '-Yes', '-Profile', p, '-Only', list.join(',')], {
+      cwd: appRoot, detached: true, stdio: 'ignore',
+      env: { ...process.env, ASTRA_INSTALL_STATUS: statusFile },
+    });
+    if (Number.isInteger(child?.pid)) await fs.writeFile(pidFile, JSON.stringify({ pid: child.pid, ids: list, profile: p, startedAt: job.startedAt })).catch(() => {});
+    child?.unref?.();
+    const finish = (code, text) => {
+      cur.code = code; cur.finishedAt = new Date().toISOString();
+      if (text) cur.text = text;
+      // the installer wrote the closing line to the status file (it may not have flushed before
+      // the exit event): re-take the final numbers from there, then forget the pid (ticket 24)
+      void tailStatus().then((last) => {
+        if (last) {
+          cur.progress = last.progress ?? cur.progress;
+          cur.text = last.text || cur.text;
+          cur.failed = String(last.failed || '').split(',').filter(Boolean);
+        }
+        void fs.rm(pidFile, { force: true }).catch(() => {});
+      });
       log(`components: ${list.join(',')} -> code ${code}`);
-    }, (e) => { cur.code = -1; cur.failed = list; cur.text = e.message; });
+    };
+    child?.on?.('exit', (code) => finish(code ?? 0));
+    child?.on?.('error', (e) => finish(-1, e.message));
+    if (!child?.on) finish(0);   // a spawn implementation without events (tests' immediate answer)
     return state();
   }
 
   async function state() {
-    return { supported: true, due: await due(), scan: lastScan, job: job ? { ...job } : null };
+    const activeOwn = job && job.code == null;
+    let shown = job ? { ...job } : null;
+    if (activeOwn) { const ext = await readRun(); if (ext) { shown.progress = ext.progress; shown.text = ext.text; shown.failed = ext.failed; } }
+    else if (!job) shown = await readRun();
+    const busy = !!shown && shown.code == null || (await probeLock());
+    return { supported: true, due: await due(), scan: lastScan, job: shown, busy };
   }
 
   return { due, markSeen, scan, install, state };

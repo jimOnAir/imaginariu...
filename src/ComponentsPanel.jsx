@@ -27,6 +27,7 @@ export default function ComponentsPanel({ notify, onDone }) {
   const [checked, setChecked] = useState({});
   const [preset, setPreset] = useState('full');
   const [busy, setBusy] = useState(true);
+  const [foreign, setForeign] = useState(false);   // an installer this studio did not start (ticket 24)
   const [error, setError] = useState(null);
   const timer = useRef(null);
 
@@ -45,8 +46,8 @@ export default function ComponentsPanel({ notify, onDone }) {
     timer.current = setTimeout(async () => {
       try {
         const s = await api('/components');
-        setJob(s.job);
-        if (s.job && s.job.code == null) poll();
+        setJob(s.job); setForeign(!!s.busy);
+        if ((s.job && s.job.code == null) || s.busy) poll();   // follow a run, ours or somebody else's
         else if (s.job) onJobEnd(s.job);
       } catch { poll(); }
     }, 1500);
@@ -57,7 +58,12 @@ export default function ComponentsPanel({ notify, onDone }) {
   };
   useEffect(() => {
     (async () => {
-      try { const s = await api('/components'); if (s.job && s.job.code == null) { setJob(s.job); poll(); } } catch { /* the first open may be the only one */ }
+      try {
+        const s = await api('/components');
+        setForeign(!!s.busy);
+        if (s.job) setJob(s.job);   // a run from before this window opened (re-attach, ticket 24) is shown as it stands
+        if ((s.job && s.job.code == null) || s.busy) poll();
+      } catch { /* the first open may be the only one */ }
       await rescan();
     })();
     return () => clearTimeout(timer.current);
@@ -95,6 +101,9 @@ export default function ComponentsPanel({ notify, onDone }) {
   return <div className="comp-panel">
     <p className="field-note">{t('components.lead')}</p>
     {running && <div className="comp-job"><Loader2 className="spin" size={14} /><span>{job.text} — {job.progress}%</span><div className="comp-bar"><i style={{ width: job.progress + '%' }} /></div></div>}
+    {running && job.external && <p className="field-note"><Download size={12} /> {t('components.job.reattached')}</p>}
+    {foreign && !running && <p className="field-note"><Loader2 className="spin" size={12} /> {t('components.foreign')}</p>}
+    {job && !running && job.external && job.code === -1 && <p className="field-note views-warn">{t('components.job.lost')}</p>}
     {job && job.code === 0 && !running && <p className="field-note"><Check size={12} /> {t('components.installed', { ids: job.ids.join(', ') })}</p>}
     {error && <p className="field-note views-warn">{error}</p>}
     {busy && !scan && <p className="field-note"><Loader2 className="spin" size={12} /> {t('components.checking')}</p>}
@@ -113,8 +122,8 @@ export default function ComponentsPanel({ notify, onDone }) {
     </label>)}</div>}
     {scan && <p className="field-note">{picked.length ? t('components.footer.download', { size: gb(total), count: picked.length }) : t('components.footer.none')}</p>}
     <div className="about-actions">
-      <button type="button" className="primary small" disabled={busy || running || !picked.length} onClick={install}><Download size={14} />{t('components.installSelected')}</button>
-      <button type="button" className="secondary small" disabled={busy || running} onClick={rescan}><RefreshCw size={14} />{t('components.recheck')}</button>
+      <button type="button" className="primary small" disabled={busy || running || foreign || !picked.length} onClick={install}><Download size={14} />{t('components.installSelected')}</button>
+      <button type="button" className="secondary small" disabled={busy || running || foreign} onClick={rescan}><RefreshCw size={14} />{t('components.recheck')}</button>
       <button type="button" className="secondary small" onClick={later}>{running ? t('components.laterRunning') : t('components.later')}</button>
     </div>
   </div>;

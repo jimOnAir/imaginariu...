@@ -883,6 +883,25 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
   Lite=$( [ "$Profile" = lite ] && echo 1 || echo "$Lite" )
 }
 
+# ---------------------------------------------------------------- installer concurrency (0.6.10 wave ticket 24)
+# One live installer at a time: the second would fight the first over the same half-written files.
+# The run holds installer/install.lock as an exclusive flock (Linux's cooperating-process lock -
+# the honest twin of the Windows exclusive-open) and records its pid inside, so anyone can tell
+# WHICH run is active. Scans and dry runs never lock: they touch nothing. The studio's Components
+# window checks the same lock (server/components.mjs) before starting a run of its own.
+TakeInstallLock() {
+  local lock="$ROOT/installer/install.lock" other=''
+  exec 19>"$lock" 2>/dev/null || return 0          # an unwritable folder must not brick the installer
+  if ! flock -n 19; then
+    other="$(head -c 40 "$lock" 2>/dev/null | tr -dc '0-9')"
+    printf '##BUSY\n'
+    say "  Another AstraForge installer is already running${other:+ (pid $other)}: two at once would fight over the same files. Wait for it to finish - the Components window follows its progress; start this one after it is done."
+    exit 1
+  fi
+  printf '%s\n' "$$" >&19 2>/dev/null || true
+  WriteInstallStatus 0 "starting"        # the Components window re-attaches from here (ticket 24)
+}
+
 # ---------------------------------------------------------------- start
 # when sourced by tests/install-download.test.mjs, only the functions above are needed
 # (run directly, $0 and BASH_SOURCE[0] are the same file; sourced, $0 is the caller's shell)
@@ -954,6 +973,10 @@ if [ "${#plan[@]}" = 0 ]; then
 fi
 if [ "$DryRun" != 1 ] && { [ "$Yes" = 1 ] || [ "$Lite" = 1 ] || [ -z "$(CfgGet profile)" ]; }; then CfgSet profile "$Profile"; fi
 
+# downloads start here - and from here on the run is exclusive (ticket 24; -DryRun changes nothing
+# to anything worth a lock, so it passes through)
+[ "$DryRun" = 1 ] || TakeInstallLock
+
 failed_ids=''
 dl_join_failed() { printf '%s' "$failed_ids" | tr -s ' ' '\n' | sed '/^$/d' | paste -sd, -; }
 for e in "${plan[@]}"; do
@@ -1004,12 +1027,16 @@ for e in "${plan[@]}"; do
   fi
 done
 if [ "$DryRun" = 1 ]; then
-  if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then [ -n "$failed_ids" ] && printf '##FAILED %s\n' "$(dl_join_failed)" && exit 1; printf '##DONE\n'; fi
+  if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
+    if [ -n "$failed_ids" ]; then WriteInstallStatus 100 "failed" 1 "$(dl_join_failed)"; printf '##FAILED %s\n' "$(dl_join_failed)"; exit 1; fi
+    WriteInstallStatus 100 "done" 0; printf '##DONE\n'
+  fi
   exit 0
 fi
 # the machine contract for the calling frontend (server/components.mjs): what failed and where it ended
 if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
-  if [ -n "$failed_ids" ]; then printf '##FAILED %s\n' "$(dl_join_failed)"; exit 1; fi
+  if [ -n "$failed_ids" ]; then WriteInstallStatus 100 "failed" 1 "$(dl_join_failed)"; printf '##FAILED %s\n' "$(dl_join_failed)"; exit 1; fi
+  WriteInstallStatus 100 "done" 0
   printf '##DONE\n'
 fi
 
