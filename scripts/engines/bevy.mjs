@@ -20,6 +20,7 @@
 // the hard ceiling. The build cache (ASTRA_CARGO_TARGET_DIR) is shared across checks, so the
 // first package pays the minutes-long Bevy compile and every package after it pays seconds.
 import { spawn, spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, cpSync, readFileSync, writeFileSync, rmSync, readdirSync } from 'node:fs';
 import { mkdtemp } from 'node:fs/promises';
 import os from 'node:os';
@@ -142,7 +143,7 @@ export function bevyVersionOf(dir) {
 
 /** Copy the integrator template into <dir>/<Name>: the player starter, aimed at THIS crate. */
 export async function createBevyProject({ name, dir, env = process.env } = {}) {
-  if (!name || !/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) throw new Error('createBevyProject: --name is required (letters, digits, underscore).');
+  if (!name || !/^[A-Za-z][A-Za-z0-9_-]*$/.test(name)) throw new Error('createBevyProject: --name is required (letters, digits, dash, underscore).');
   const target = path.join(dir || path.join(APP_DIR, 'data', 'engines', 'bevy'), name);
   if (existsSync(path.join(target, 'Cargo.toml'))) throw new Error(`createBevyProject: ${target} already holds a project.`);
   mkdirSync(target, { recursive: true });
@@ -242,6 +243,56 @@ async function runCheck({ slug, assetsRoot, out, cargo, env, onLine }) {
   return { ok: !!report?.ok, taskId, skipped: null, report, code: r.code };
 }
 
+// ---------------------------------------------------------------- the MCP bridge (checksum-pinned)
+
+/// The third-party Bevy bridge. Supply-chain rule (policies): the toolchain NEVER installs from
+/// the index - the .crate file is downloaded, hashed, compared to the pinned crates.io record,
+/// and only that verified file is unpacked and installed.
+export const BRP_MCP = Object.freeze({
+  crate: 'bevy_brp_mcp',
+  version: '0.23.0',
+  sha256: 'a6ec60a2b45471af92bf953372d56f269dbd7a3f7d76a151fda520635255af11',
+  url: (version) => `https://static.crates.io/crates/bevy_brp_mcp/bevy_brp_mcp-${version}.crate`,
+});
+
+export function brpBinary({ env = process.env } = {}) {
+  const name = (env.OS || process.env.OS || '').toLowerCase().includes('win') ? 'bevy_brp_mcp.exe' : 'bevy_brp_mcp';
+  return path.join(env.CARGO_HOME || path.join(os.homedir(), '.cargo'), 'bin', name);
+}
+
+/** Download -> sha256 vs pin -> unpack -> cargo install --path. Any mismatch throws before install. */
+export async function installBrpMcp({ env = process.env, log = () => {}, cargo = findCargo({ env }),
+  fetchImpl = null, version = BRP_MCP.version, sha256 = BRP_MCP.sha256 } = {}) {
+  if (!cargo) throw new Error('installBrpMcp: cargo is not on PATH - the Bevy MCP bridge needs the Rust toolchain.');
+  if (existsSync(brpBinary({ env }))) { log('bevy_brp_mcp: already installed'); return { installed: true, skipped: 'already installed' }; }
+  const tmpRoot = await mkdtemp(path.join(os.tmpdir(), 'af_brp_'));
+  try {
+    const crateFile = path.join(tmpRoot, `bevy_brp_mcp-${version}.crate`);
+    if (fetchImpl) await fetchImpl(BRP_MCP.url(version), crateFile);
+    else {
+      const d = spawnSync('curl', ['-fsSL', '--', BRP_MCP.url(version), '-o', crateFile], { encoding: 'utf8' });
+      if (d.status !== 0) throw new Error(`installBrpMcp: download failed: ${(d.stderr || d.stdout || 'curl error').trim()}`);
+    }
+    const got = createHash('sha256').update(readFileSync(crateFile)).digest('hex');
+    if (got !== sha256) {
+      throw new Error(`installBrpMcp: checksum mismatch for bevy_brp_mcp ${version}: expected ${sha256}, got ${got} - refusing to install (the verified crates.io record is pinned in scripts/engines/bevy.mjs).`);
+    }
+    log(`bevy_brp_mcp ${version}: sha256 ${got} verified against the pinned crates.io record`);
+    const x = spawnSync('tar', ['xzf', crateFile, '-C', tmpRoot], { encoding: 'utf8' });
+    if (x.status !== 0) throw new Error(`installBrpMcp: cannot unpack the verified crate: ${(x.stderr || x.stdout).trim()}`);
+    const src = path.join(tmpRoot, `bevy_brp_mcp-${version}`);
+    if (!existsSync(path.join(src, 'Cargo.toml'))) throw new Error('installBrpMcp: the verified archive does not hold the expected crate folder.');
+    // the shared target dir lets the bridge reuse the very bevy the studio's checks compiled
+    const r = await runCargo({ cargo, args: ['install', '--path', src, '--locked'], cwd: tmpRoot,
+      env: { ...env, CARGO_TARGET_DIR: cargoTargetDir(env) }, onLine: log });
+    if (r.code !== 0) return { installed: false, code: r.code, log: String(r.log).split(/\r?\n/).slice(-3).join(' / ') };
+    log(`bevy_brp_mcp ${version}: installed from the verified file`);
+    return { installed: true, version, sha256: got };
+  } finally {
+    rmSync(tmpRoot, { recursive: true, force: true });
+  }
+}
+
 // ---------------------------------------------------------------- small shared helpers
 
 function safeJson(text) { try { return JSON.parse(text); } catch { return null; } }
@@ -290,11 +341,15 @@ async function main() {
     const r = await checkPackage({ packageDir: path.resolve(opt('package')), out: path.resolve(opt('out')) });
     console.log(`AFBEVYCHECK ${JSON.stringify(r.report ? { ok: r.ok, skipped: r.skipped, shots: r.report.shots, checks: r.report.checks } : { ok: false, skipped: r.skipped || 'the check answered nothing' })}`);
     process.exitCode = r.ok || r.skipped ? 0 : 1;
+  } else if (CMD === 'brp-install') {
+    const r = await installBrpMcp({ log: (s) => console.log(s) });
+    console.log(JSON.stringify(r));
+    process.exitCode = r.installed ? 0 : 1;
   } else if (CMD) {
-    console.error('bevy: unknown command ' + CMD + ' (status|create|send|test|check-package)');
+    console.error('bevy: unknown command ' + CMD + ' (status|create|send|test|check-package|brp-install)');
     process.exitCode = 2;
   } else {
-    console.error('usage: bevy.mjs status | create --name N [--path dir] | send --project dir <pkg...> | test --project dir --slug id [--out dir] | check-package --package dir --out dir');
+    console.error('usage: bevy.mjs status | create --name N [--path dir] | send --project dir <pkg...> | test --project dir --slug id [--out dir] | check-package --package dir --out dir | brp-install');
     process.exitCode = 2;
   }
 }

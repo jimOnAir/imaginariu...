@@ -9,7 +9,7 @@ import { PassThrough } from 'node:stream';
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync, existsSync, readdirSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { soundArgs, soundConfig, soundInstallState, soundLibrary, soundPresets, soundStatus, addSoundToLibrary, trashSound, loadBindings, setBinding, createSoundTask, soundTask, findAudioMarks, SOUND_REQUIREMENTS, SOUND_EVENTS } from '../server/sound.mjs';
+import { soundArgs, soundConfig, soundInstallState, soundLibrary, soundPresets, soundStatus, addSoundToLibrary, trashSound, loadBindings, setBinding, exportSoundBank, createSoundTask, soundTask, findAudioMarks, SOUND_REQUIREMENTS, SOUND_EVENTS } from '../server/sound.mjs';
 
 const tmp = mkdtempSync(path.join(tmpdir(), 'af-sound-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
@@ -223,6 +223,44 @@ test('exports are plain audio: no afmk chunk, no product name in a RIFF chunk or
     Buffer.from('\x03vorbis', 'latin1'), Buffer.from([vendor.length, 0, 0, 0]), vendor, Buffer.from([0, 0, 0, 0]),
   ]);
   assert.deepEqual(findAudioMarks(tagged), ['AstraForge', 'ogg field AstraForge']);
+});
+
+test('the bevy sound bank export is exactly what the astraforge_bevy crate parses (0.6.10 wave ticket 31)', () => {
+  const cfg = fakeInstall('bank');
+  const { lib } = soundPathsOf(cfg);
+  mkdirSync(lib, { recursive: true });
+  const asset = '33333333-3333-4333-8333-333333333333';
+  writeFileSync(path.join(lib, 'seed1.wav'), 'WAV');
+  const sfx = addSoundToLibrary(path.join(lib, 'seed1.wav'), { kind: 'sfx', name: 'sword hit' }, cfg);
+  writeFileSync(path.join(lib, 'seed2.wav'), 'WAV2');
+  writeFileSync(path.join(lib, 'seed2.ogg'), 'OGG2');
+  const loop = addSoundToLibrary(path.join(lib, 'seed2.wav'), { kind: 'loop', name: 'battle ambience' }, cfg);
+  setBinding(asset, 'attack', sfx.id, cfg);
+  setBinding(asset, 'ambient', loop.id, cfg);
+
+  const out = path.join(tmp, 'bank-out');
+  const r = exportSoundBank({ assetId: asset, engine: 'bevy', out, cfg });
+  assert.equal(r.folder, path.join(out, 'assets', 'astraforge', 'sounds', r.slug));
+  assert.equal(r.slug, '33333333_3333_4333_8333_333333333333', 'the bank slug follows the sendBevy slug rule');
+  const man = JSON.parse(readFileSync(r.manifest, 'utf8'));
+  assert.equal(man.format, 'astraforge-soundbank/1', 'the versioned format the crate BankManifest demands');
+  assert.deepEqual(man.sounds, [
+    { name: 'ambient', file: `${r.slug}-ambient.ogg`, loop: true, gain: 1.0 },   // kind loop -> loop true
+    { name: 'attack', file: `${r.slug}-attack.wav`, loop: false, gain: 1.0 },     // no ogg companion -> the wav travels
+  ], 'entries sorted by name: the manifest is byte-stable for re-exports');
+  assert.ok(existsSync(path.join(r.folder, `${r.slug}-attack.wav`)) && existsSync(path.join(r.folder, `${r.slug}-ambient.ogg`)));
+  assert.deepEqual(r.missing, [], 'both sounds were bound and present');
+
+  // the house rule: removing = trashing; a re-export replaces the bank, so a manifest can never
+  // outlive one of its files (the crate would otherwise fail to load the whole bank)
+  trashSound(loop.id, cfg);
+  const r2 = exportSoundBank({ assetId: asset, engine: 'bevy', out, cfg });
+  assert.equal(r2.files.length, 1);
+  assert.deepEqual(r2.missing, [{ event: 'ambient', soundId: loop.id, reason: 'not in the library (trashed or never generated)' }]);
+  assert.equal(existsSync(path.join(r2.folder, `${r2.slug}-ambient.ogg`)), false, 'the replaced bank holds only what its manifest names');
+
+  assert.throws(() => exportSoundBank({ assetId: asset, engine: 'godot', out, cfg }), /no bank layout/);
+  assert.throws(() => exportSoundBank({ engine: 'bevy', out, cfg }), /assetId is required/);
 });
 
 function soundPathsOf(cfg) {

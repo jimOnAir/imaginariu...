@@ -3,13 +3,13 @@
 //
 //   node scripts/engines/af_engine.mjs status
 //   node scripts/engines/af_engine.mjs projects
-//   node scripts/engines/af_engine.mjs create --engine unity|godot|unreal --name <Name> [--path <folder>] [--pipeline urp|builtin]
+//   node scripts/engines/af_engine.mjs create --engine unity|godot|unreal|bevy --name <Name> [--path <folder>] [--pipeline urp|builtin]
 //                                             [--renderer forward_plus|mobile|gl_compatibility] [--with-mcp]
 //   node scripts/engines/af_engine.mjs link   --path <project folder> [--name <Name>]
-//   node scripts/engines/af_engine.mjs send   --project <name|folder> [--engine unity|godot|unreal] <package | export.zip> [...] [--build]
-//   node scripts/engines/af_engine.mjs test   --project <name|folder> [--engine unity|godot|unreal] [--shots] [--playmode] [--scene res://...]
+//   node scripts/engines/af_engine.mjs send   --project <name|folder> [--engine unity|godot|unreal|bevy] <package | export.zip> [...] [--build]
+//   node scripts/engines/af_engine.mjs test   --project <name|folder> [--engine unity|godot|unreal|bevy] [--shots] [--playmode] [--scene res://...]
 //   node scripts/engines/af_engine.mjs scaffold --project <name|folder> [--engine ...] --kind player --asset <asset_id> [--force]
-//   node scripts/engines/af_engine.mjs mcp-register        # UnityMCP + godot + unreal-mcp in Claude Code (user scope), idempotent
+//   node scripts/engines/af_engine.mjs mcp-register [--install-bevy-brp]  # UnityMCP + godot + unreal-mcp + bevy bridge in Claude Code (user scope), idempotent
 //
 // Projects are remembered in <engines home>/projects.json (name, engine, path, versions); the home is
 // ASTRA_ENGINES_HOME, C:\AstraForge\engines on Windows and <app>/data/engines elsewhere. Unity runs only in
@@ -55,6 +55,10 @@ function godotExe() {
   return null;
 }
 
+/** The Bevy driver (scripts/engines/bevy.mjs): the Rust toolchain is this engine's editor, so
+ * the whole line - project, send, headless check, MCP bridge - lives there; loaded on demand. */
+const bevyLib = () => import('./bevy.mjs');
+
 /** The Unity sender belongs to the Unity line (scripts/unity); loaded only when a Unity command runs. */
 async function unitySender() {
   try {
@@ -86,6 +90,10 @@ export function detectEngine(dir) {
   if (existsSync(path.join(dir, 'project.godot'))) return 'godot';
   if (existsSync(path.join(dir, 'ProjectSettings', 'ProjectVersion.txt')) && existsSync(path.join(dir, 'Assets'))) return 'unity';
   if (findUproject(dir)) return 'unreal';
+  // a cargo project that depends on the studio crate is a Bevy project (scripts/engines/bevy.mjs)
+  try {
+    if (existsSync(path.join(dir, 'Cargo.toml')) && /astraforge_bevy\b/.test(readFileSync(path.join(dir, 'Cargo.toml'), 'utf8'))) return 'bevy';
+  } catch { /* unreadable folder */ }
   return null;
 }
 
@@ -160,22 +168,30 @@ export async function resolveProject(ref, engine = null) {
   const byName = reg.projects.find((p) => p.name.toLowerCase() === String(ref).toLowerCase() && (!engine || p.engine === engine));
   const dir = byName ? byName.path : path.resolve(ref);
   const found = detectEngine(dir);
-  if (!found) throw new Error(`Not a Unity, Godot or Unreal project: ${dir}`);
+  if (!found) throw new Error(`Not a Unity, Godot, Unreal or Bevy project: ${dir}`);
   return { name: byName?.name || path.basename(dir), engine: found, path: dir };
 }
 
 // ------------------------------------------------------------------ create / link
 
 export async function createProject({ engine, name, dir, pipeline = 'urp', renderer = 'forward_plus', withMcp = false, log = () => {} }) {
-  if (!['unity', 'godot', 'unreal'].includes(engine)) throw new Error('engine: unity, godot or unreal.');
+  if (!['unity', 'godot', 'unreal', 'bevy'].includes(engine)) throw new Error('engine: unity, godot, unreal or bevy.');
   const projName = slug(name);
-  const target = path.resolve(dir || path.join(DEFAULT_PROJECTS_DIR, `${projName}_${({ unity: 'Unity', unreal: 'Unreal' })[engine] || 'Godot'}`));
+  const target = path.resolve(dir || path.join(DEFAULT_PROJECTS_DIR, `${projName}_${({ unity: 'Unity', unreal: 'Unreal', bevy: 'Bevy' })[engine] || 'Godot'}`));
   if (existsSync(target) && (await fs.readdir(target)).length) {
     const existing = detectEngine(target);
     if (existing) throw new Error(`The folder already holds a ${existing} project: ${target}. Bind it with link.`);
     throw new Error(`The folder is not empty: ${target}`);
   }
   await fs.mkdir(path.dirname(target), { recursive: true });
+  if (engine === 'bevy') {
+    const bevy = await bevyLib();
+    const r = await bevy.createBevyProject({ name: path.basename(target), dir: path.dirname(target) });
+    log(`Bevy: project ${r.dir} (player starter + path-dep into the studio's astraforge_bevy crate)`);
+    if (!r.status.hasCargo) log('cargo is not on PATH: the project is fine, but packages will travel unchecked until Rust is installed (docs/linux.md).');
+    const entry = await saveProject({ name: name || projName, engine, path: r.dir, bevy: r.status.bevy, cargo: r.status.cargoVersion });
+    return { ...entry, cargo: r.status };
+  }
   if (engine === 'unreal') {
     // A minimal Unreal project needs no editor: .uproject + the AstraForge importer plugin + Python.
     if (!existsSync(path.join(APP_DIR, 'unreal', 'AstraForge'))) throw new Error(`AstraForge importer plugin not found: ${path.join(APP_DIR, 'unreal', 'AstraForge')}`);
@@ -231,7 +247,11 @@ export async function createProject({ engine, name, dir, pipeline = 'urp', rende
 export async function linkProject({ dir, name }) {
   const target = path.resolve(dir);
   const engine = detectEngine(target);
-  if (!engine) throw new Error(`Not a Unity, Godot or Unreal project: ${target}`);
+  if (!engine) throw new Error(`Not a Unity, Godot, Unreal or Bevy project: ${target}`);
+  if (engine === 'bevy') {
+    const bevy = await bevyLib();
+    return saveProject({ name: name || path.basename(target), engine, path: target, linked: true, bevy: bevy.bevyVersionOf(target) || bevy.BEVY_VERSION });
+  }
   return saveProject({ name: name || path.basename(target), engine, path: target, linked: true,
     ...(engine === 'unity' ? { unity: unityVersionOf(target) } : { godot: '4.5' }) });
 }
@@ -313,6 +333,13 @@ export async function sendPackages({ project, engine = null, sources, build = fa
     } finally { for (const t of tmp) await fs.rm(t, { recursive: true, force: true }); }
     return { engine: 'unreal', project: p, packages, note: 'assets materialize on the next test run (UnrealEditor-Cmd -run=pythonscript)' };
   }
+  if (p.engine === 'bevy') {
+    // packages ride into the project's asset server; the headless check (or the honest skip) is part of every send
+    const bevy = await bevyLib();
+    const packages = await bevy.sendBevy({ project: p.path, sources });
+    for (const s of packages) log(`${s.id}: ${s.dest}`);
+    return { engine: 'bevy', project: p, packages, note: 'one app.add_astraforge_asset line plays them (docs/forge/bevy.md)' };
+  }
   if (!GODOT_EXE) throw new Error('Godot not found (ASTRA_GODOT or godot on PATH).');
   const packages = [];
   const tmp = [];
@@ -364,6 +391,21 @@ export async function testProject({ project, engine = null, shots = false, scene
   const p = await resolveProject(project, engine);
   const outDir = path.join(ENGINES_HOME, 'reports', `${slug(p.name)}_${new Date().toISOString().replace(/[:.]/g, '-')}`);
   await fs.mkdir(outDir, { recursive: true });
+  if (p.engine === 'bevy') {
+    const bevy = await bevyLib();
+    const root = path.join(p.path, 'assets', 'astraforge');
+    let slugs = [];
+    try { slugs = (await fs.readdir(root, { withFileTypes: true })).filter((e) => e.isDirectory() && !e.name.startsWith('_')).map((e) => e.name); } catch { /* no packages yet */ }
+    const results = [];
+    for (const id of slugs) {
+      const r = await bevy.testBevy({ project: p.path, slug: id, out: path.join(outDir, id), log });
+      results.push({ slug: id, ok: !!r.ok, skipped: r.skipped || null, checks: r.report?.checks || [], shots: r.report?.shots || [] });
+    }
+    const allSkipped = results.length > 0 && results.every((r) => r.skipped);
+    return { ok: results.every((r) => r.ok || r.skipped), engine: 'bevy', project: p, report_dir: outDir, results,
+      note: !results.length ? 'no packages in the project yet: af_engine.mjs send first.'
+        : allSkipped ? 'cargo is not on PATH - the check skipped everywhere; the packages themselves are unchanged.' : null };
+  }
   if (p.engine === 'unreal') {
     const exe = unrealExe();
     if (!exe) return { ok: false, engine: 'unreal', project: p, report_dir: outDir,
@@ -487,9 +529,11 @@ export async function scaffold({ project, engine = null, kind = 'player', assetI
   if (kind !== 'player') throw new Error('kind: only the player template exists so far (character controller + tests).');
   if (!/^[a-z][a-z0-9_]*$/.test(assetId || '')) throw new Error(`A character asset_id is required (snake_case): ${assetId}`);
   const p = await resolveProject(project, engine);
-  const src = path.join(TEMPLATES_DIR, p.engine);
+  const src = p.engine === 'bevy' ? (await bevyLib()).BEVY_TEMPLATE_DIR : path.join(TEMPLATES_DIR, p.engine);
   const dst = p.engine === 'unity' ? path.join(p.path, 'Assets') : p.path;
-  const need = p.engine === 'unity' ? path.join(p.path, 'Assets', 'AstraForge', assetId) : path.join(p.path, 'astraforge', assetId);
+  const need = p.engine === 'unity' ? path.join(p.path, 'Assets', 'AstraForge', assetId)
+    : p.engine === 'bevy' ? path.join(p.path, 'assets', 'astraforge', assetId)
+    : path.join(p.path, 'astraforge', assetId);
   if (!existsSync(need)) throw new Error(`Asset ${assetId} is not in the project (${need}): send it first.`);
   const written = []; const kept = [];
   async function walk(from, to) {
@@ -497,6 +541,7 @@ export async function scaffold({ project, engine = null, kind = 'player', assetI
     for (const e of await fs.readdir(from, { withFileTypes: true })) {
       const s = path.join(from, e.name); const d = path.join(to, e.name);
       if (e.isDirectory()) { await walk(s, d); continue; }
+      if (p.engine === 'bevy' && e.name === 'Cargo.toml') continue;   // the project's manifest is its own - the template's must never clobber it
       if (existsSync(d) && !force) { kept.push(d); continue; }
       await fs.writeFile(d, (await fs.readFile(s, 'utf8')).replaceAll('__PLAYER_ID__', assetId));
       written.push(d);
@@ -517,14 +562,16 @@ export async function status() {
   const editors = existsSync(UNITY_EDITORS) ? (await fs.readdir(UNITY_EDITORS)).filter((v) => existsSync(path.join(UNITY_EDITORS, v, 'Editor', 'Unity.exe'))) : [];
   const servers = Object.keys(claudeConfig().mcpServers || {});
   const lic = path.join(process.env.LOCALAPPDATA || '', 'Unity', 'licenses', 'UnityEntitlementLicense.xml');
+  const bevy = await (await bevyLib()).bevyStatus();
   return {
     unity: { editors, default: editors.includes(UNITY_DEFAULT) ? UNITY_DEFAULT : editors.sort().at(-1) || null,
       license_modified: existsSync(lic) ? (await fs.stat(lic)).mtime.toISOString() : null },
     godot: { exe: GODOT_EXE, found: !!GODOT_EXE },
     unreal: { exe: unrealExe(), found: !!unrealExe(), plugin: path.join(APP_DIR, 'unreal', 'AstraForge'),
       note: unrealExe() ? null : 'Unreal Editor not found; packages build and travel anyway (docs/product/unreal.md).' },
+    bevy,
     mcp: { astraforge: servers.includes('astraforge'), UnityMCP: servers.includes('UnityMCP'), godot: servers.includes('godot'),
-      'unreal-mcp': servers.includes('unreal-mcp'),
+      'unreal-mcp': servers.includes('unreal-mcp'), bevy_brp_mcp: servers.includes('bevy_brp_mcp'),
       note: servers.includes('UnityMCP') && servers.includes('godot') ? null : 'Engine MCP servers are missing: node scripts/engines/af_engine.mjs mcp-register' },
     projects: await listProjects(),
     registry: REGISTRY,
@@ -532,7 +579,7 @@ export async function status() {
 }
 
 /** Idempotent: UnityMCP (MCP for Unity, stdio, telemetry off) and godot (Godot MCP) in the user scope of Claude Code. */
-export async function registerMcp({ log = () => {} } = {}) {
+export async function registerMcp({ log = () => {}, installBevyBrp = false } = {}) {
   const { UNITY_MCP_VERSION } = await unitySender();
   const have = Object.keys(claudeConfig().mcpServers || {});
   const done = [];
@@ -555,9 +602,23 @@ export async function registerMcp({ log = () => {} } = {}) {
       log('unreal-mcp: skipped - set ASTRA_UNREAL_MCP to the server entry point to register it (create/send/test work without MCP).');
     }
   }
+  if (!have.includes('bevy_brp_mcp')) {
+    const bevy = await bevyLib();
+    const bridge = bevy.brpBinary();
+    if (!existsSync(bridge) && installBevyBrp) {
+      try { await bevy.installBrpMcp({ log }); }
+      catch (e) { log(`bevy_brp_mcp: install refused/failed - ${e.message}`); }
+    }
+    if (existsSync(bridge)) {
+      const r = cli(['mcp', 'add', '--scope', 'user', '--transport', 'stdio', 'bevy_brp_mcp', '--', bridge]);
+      done.push({ server: 'bevy_brp_mcp', ok: r.status === 0, out: (r.stdout || r.stderr || r.error?.message || '').trim().split('\n')[0] });
+    } else {
+      log('bevy_brp_mcp: not installed - mcp-register with installBevyBrp (CLI --install-bevy-brp) installs it from the checksum-pinned crate; create/send/test work without the bridge.');
+    }
+  }
   for (const d of done) log(`${d.server}: ${d.ok ? 'registered' : 'failed'} - ${d.out}`);
   if (!done.length) log('UnityMCP and godot are already registered.');
-  return { registered: done, servers: Object.keys(claudeConfig().mcpServers || {}).filter((s) => ['astraforge', 'UnityMCP', 'godot', 'unreal-mcp'].includes(s)) };
+  return { registered: done, servers: Object.keys(claudeConfig().mcpServers || {}).filter((s) => ['astraforge', 'UnityMCP', 'godot', 'unreal-mcp', 'bevy_brp_mcp'].includes(s)) };
 }
 
 // ------------------------------------------------------------------ CLI
@@ -568,7 +629,7 @@ function parse(argv) {
     const a = argv[i];
     if (a.startsWith('--')) {
       const k = a.slice(2);
-      if (['with-mcp', 'build', 'shots', 'json', 'playmode', 'force'].includes(k)) flags[k] = true;
+      if (['with-mcp', 'build', 'shots', 'json', 'playmode', 'force', 'install-bevy-brp'].includes(k)) flags[k] = true;
       else flags[k] = argv[++i];
     } else rest.push(a);
   }
@@ -588,7 +649,7 @@ async function main(argv) {
     case 'send': res = await sendPackages({ project: flags.project, engine: flags.engine || null, sources: rest, build: !!flags.build, withMcp: !!flags['with-mcp'], log }); break;
     case 'test': res = await testProject({ project: flags.project, engine: flags.engine || null, shots: !!flags.shots, scene: flags.scene || null, frames: +(flags.frames || 120), playMode: !!flags.playmode, log }); break;
     case 'scaffold': res = await scaffold({ project: flags.project, engine: flags.engine || null, kind: flags.kind || 'player', assetId: flags.asset, force: !!flags.force, log }); break;
-    case 'mcp-register': res = await registerMcp({ log }); break;
+    case 'mcp-register': res = await registerMcp({ log, installBevyBrp: !!flags['install-bevy-brp'] }); break;
     default:
       console.log(readFileSync(fileURLToPath(import.meta.url), 'utf8').split('\n').slice(1, 13).map((l) => l.replace(/^\/\/ ?/, '')).join('\n'));
       return cmd ? 2 : 0;

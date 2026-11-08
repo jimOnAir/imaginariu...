@@ -16,9 +16,9 @@ Claude Code в scope user — их видит любая сессия. Пров�
 | Экспорт | `forge_export` (`godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`, `unreal`), `forge_export_fetch` | пакет под движок; `out` — ждать и скачать |
 | Спрайты | `sprites_render` (`iso8`, `heroes_gates`, `custom`, `pixel`) | 2D и изометрия |
 | Эффекты | `fx_presets`, `fx_texture_types`, `fx_texture_generate`, `vfx_tools`, `vfx_textures`, `vfx_tool_launch` | скилл **astraforge-vfx** |
-| Звук | `sound_status`, `sound_generate` (`sfx` — эффект по описанию, `loop` — петля на `bars` тактов), `sound_list`, `sound_bind`, `sound_export` | озвучка ассета: шаги, удар, заклинание, фоновая петля; файлы WAV/OGG без служебных меток; удаления нет — корзина `data/sound/trash` |
+| Звук | `sound_status`, `sound_generate` (`sfx` — эффект по описанию, `loop` — петля на `bars` тактов), `sound_list`, `sound_bind`, `sound_export` | озвучка ассета: шаги, удар, заклинание, фоновая петля; файлы WAV/OGG без служебных меток; `sound_export {engine:"bevy"}` — банк `assets/astraforge/sounds/<slug>/` + манифест `af_sounds.json` для крейта astraforge_bevy; удаления нет — корзина `data/sound/trash` |
 | Проекты студии | `projects_list`, `project_get` | сцены редактора студии — это не проекты движков |
-| **Движки** | `engine_status`, `engine_project_create`, `engine_project_link`, `engine_send`, `engine_scaffold`, `engine_test`, `engine_mcp_register` | проекты Unity, Godot и Unreal в фоне: создать, привязать, положить пакеты, логика по шаблону, тесты без окон |
+| **Движки** | `engine_status`, `engine_project_create`, `engine_project_link`, `engine_send`, `engine_scaffold`, `engine_test`, `engine_mcp_register` | проекты Unity, Godot, Unreal и Bevy в фоне: создать, привязать, положить пакеты, логика по шаблону, тесты без окон (Bevy — headless cargo-проверка пакета крейтом) |
 | Unity-пакеты | `unity_status`, `unity_send`, `unity_check` | точечная работа с пакетами Unity и проверочным проектом студии |
 
 ## 2. `UnityMCP` — живой редактор Unity (MCP for Unity 10.3.0, CoplayDev, MIT)

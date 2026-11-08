@@ -71,6 +71,24 @@ seconds. Without Rust the export is byte-identical minus the check — one hones
 the package never depends on the machine having a toolchain. See `docs/linux.md` (0.6.10) for
 the run book.
 
+## MCP parity, sound banks, the bridge
+
+`bevy` is an engine everywhere the other engines are: the MCP engine verbs
+(`engine_project_create` / `engine_project_link` / `engine_send` / `engine_scaffold` /
+`engine_test`, enum `unity|godot|bevy`), the `forge_export` profile list, and `sound_export
+{engine:"bevy"}` — the last lays down the studio sound bank exactly as the crate reads it:
+`assets/astraforge/sounds/<slug>/` with the bound sounds inside (ogg when the library has one,
+wav otherwise) and an `af_sounds.json` manifest, format `astraforge-soundbank/1`, one
+`{name, file, loop, gain}` entry per event sorted by name (the crate's `play_sound("attack")`
+looks them up by those names). A re-export replaces the bank folder wholesale, so a manifest
+can never outlive one of its files.
+
+The optional editor bridge is `bevy_brp_mcp 0.23.0` — installed only by `installBrpMcp`
+(`bevy.mjs brp-install`, or `engine_mcp_register {installBevyBrp:true}`): the .crate is
+downloaded, its sha256 compared to the crates.io record pinned in the driver, and only the
+verified file is unpacked and handed to `cargo install --path`. A mismatch refuses and the
+toolchain never runs — the branch's supply-chain rule, never a bare index install.
+
 ## Deviations recorded (Protocol v2)
 
 - the studio's English wording is this branch's; upstream's runtime phrase-map is not ported;

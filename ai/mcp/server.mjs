@@ -647,7 +647,7 @@ tool('forge_learn_note',
     (engine) => engine.learn.addNote({ cls: a.class, kind: a.kind, text: a.text, steps: a.steps, by: a.by }),
   ));
 
-const PROFILES = ['godot', 'space_quest', 'heroes_gates', 'iso8', 'unity'];
+const PROFILES = ['godot', 'space_quest', 'heroes_gates', 'iso8', 'unity', 'unreal', 'bevy'];
 /** Downloads the export archives of job jobId (or all latest ones) and unpacks them with the system tar. */
 async function fetchExports(assetId, jobId, out, unzip) {
   const m = await get(`/api/forge/assets/${enc(assetId)}`);
@@ -673,7 +673,7 @@ async function fetchExports(assetId, jobId, out, unzip) {
 }
 
 tool('forge_export',
-  'Экспорт ассета в профиль (POST /api/forge/assets/:id/export): godot / space_quest (пакет Godot: GLB + .tscn + скрипт + эффекты), heroes_gates (спрайты «Врат Героев», 8 направлений), iso8 (изометрические спрайты), unity (FBX + текстуры + af_unity.json; импортёр com.astraforge.unity собирает префаб; дальше unity_send). Берёт последнюю завершённую версию. Экспорт долгий (рендер): по умолчанию возвращает jobId. Если задан out — ждёт задачу (timeoutSec) и скачивает архив в папку out с распаковкой.',
+  'Экспорт ассета в профиль (POST /api/forge/assets/:id/export): godot / space_quest (пакет Godot: GLB + .tscn + скрипт + эффекты), heroes_gates (спрайты «Врат Героев», 8 направлений), iso8 (изометрические спрайты), unity (FBX + текстуры + af_unity.json; импортёр com.astraforge.unity собирает префаб; дальше unity_send), unreal (FBX + PASSPORT af_unreal.json; плагин unreal/AstraForge строит SM_/SK_, LOD, UCX-коллизии, сокеты и A_ blueprint; тест — на машине с Unreal Editor), bevy (GLB + паспорт af_bevy.json; пакет играет крейт astraforge_bevy — одна строка зависимости; при наличии Rust студия дополнительно прогоняет headless cargo-проверку и снимает превью-кадры). Берёт последнюю завершённую версию. Экспорт долгий (рендер): по умолчанию возвращает jobId. Если задан out — ждёт задачу (timeoutSec) и скачивает архив в папку out с распаковкой.',
   {
     assetId: ID, profile: z.enum(PROFILES),
     params: z.record(z.string(), z.any()).optional().describe('Параметры шага экспорта (godot_package или render_sprites), см. forge_steps.'),
@@ -1039,9 +1039,14 @@ tool('sound_bind',
   });
 
 tool('sound_export',
-  'Звуковой набор ассета как файлы: скачивает все привязанные к ассету звуки (sound_bind) в папку out и возвращает {folder, files:[{event,soundId,name,file,bytes}], missing:[{event,soundId,reason}]}. Файлы — обычный WAV/OGG без служебных меток (политика ветки). Формат: wav (по умолчанию), ogg, both. Если звук лежит в корзине, вместо файла придёт причина в missing.',
-  { assetId: ID, out: z.string().describe('Папка, куда положить файлы (создаётся).'), format: z.enum(['wav', 'ogg', 'both']).default('wav'), limit: z.number().int().min(1).max(50).default(20) },
-  async ({ assetId, out, format, limit }) => {
+  'Звуковой набор ассета как файлы: скачивает все привязанные к ассету звуки (sound_bind) в папку out и возвращает {folder, files:[{event,soundId,name,file,bytes}], missing:[{event,soundId,reason}]}. Файлы — обычный WAV/OGG без служебных меток (политика ветки). Формат: wav (по умолчанию), ogg, both. Если звук лежит в корзине, вместо файла придёт причина в missing. engine=bevy — раскладка банка для движка Bevy: папка assets/astraforge/sounds/<slug>/ внутри out + манифест af_sounds.json (формат astraforge-soundbank/1, loop по kind звука) — его читает крейт astraforge_bevy (play_sound по имени события).',
+  { assetId: ID, out: z.string().describe('Папка, куда положить файлы (создаётся).'), format: z.enum(['wav', 'ogg', 'both']).default('wav'), limit: z.number().int().min(1).max(50).default(20),
+    engine: z.enum(['files', 'bevy']).default('files').describe('files — просто файлы; bevy — банк звуков для astraforge_bevy (папка + af_sounds.json).') },
+  async ({ assetId, out, format, limit, engine = 'files' }) => {
+    if (engine === 'bevy') {
+      const r = await post('/api/sound/export-bank', { assetId, engine, out: path.resolve(out) });
+      return r && Object.keys(r).length ? r : { folder: null, files: [], missing: [], note: 'студия не ответила банком' };
+    }
     const bindings = await get('/api/sound/bindings');
     const map = bindings?.[assetId] || {};
     const entries = Object.entries(map).slice(0, limit);
@@ -1134,15 +1139,15 @@ tool('unity_check',
 // ------------------------------------------------------------------ engines: Unity and Godot projects in the background
 
 const engineLib = () => import(pathToFileURL(path.join(APP, 'scripts', 'engines', 'af_engine.mjs')).href);
-const ENGINE = z.enum(['unity', 'godot']);
+const ENGINE = z.enum(['unity', 'godot', 'bevy']);
 const withLog = async (fn) => { const log = []; const res = await fn((t) => log.push(t)); return { ...res, log }; };
 
 tool('engine_status',
-  'Движки и связка: редакторы Unity (версии, дата лицензии), Godot, зарегистрированы ли MCP-серверы astraforge / UnityMCP / godot в Claude Code, проекты движков в реестре (ASTRA_ENGINES_HOME; C:/AstraForge/engines на Windows) и открыт ли проект в редакторе Unity. Ничего не запускает.',
+  'Движки и связка: редакторы Unity (версии, дата лицензии), Godot, Rust-тулчейн для Bevy (cargo, крейт astraforge_bevy, шаблон проекта), зарегистрированы ли MCP-серверы astraforge / UnityMCP / godot / bevy_brp_mcp в Claude Code, проекты движков в реестре (ASTRA_ENGINES_HOME; C:/AstraForge/engines на Windows) и открыт ли проект в редакторе Unity. Ничего не запускает.',
   {}, async () => (await engineLib()).status());
 
 tool('engine_project_create',
-  'Создаёт проект движка в фоне, без окон: Unity — batchmode из шаблона URP редактора + импортёр com.astraforge.unity (+ MCP for Unity при withMcp); Godot — project.godot 4.5 + первый headless-импорт. Регистрирует проект в реестре под именем игры (у одной игры может быть и Unity-, и Godot-проект).',
+  'Создаёт проект движка в фоне, без окон: Unity — batchmode из шаблона URP редактора + импортёр com.astraforge.unity (+ MCP for Unity при withMcp); Godot — project.godot 4.5 + первый headless-импорт; Bevy — cargo-проект из шаблона astraforge-integrator (плеер-стартер + path-зависимость на крейт astraforge_bevy; редактор здесь — сам тулчейн). Регистрирует проект в реестре под именем игры (у одной игры может быть и Unity-, и Godot-проект).',
   {
     engine: ENGINE, name: z.string().min(1).describe('Имя игры/проекта.'),
     path: z.string().optional().describe('Папка проекта; по умолчанию — папка projects в каталоге движков реестра.'),
@@ -1153,12 +1158,12 @@ tool('engine_project_create',
   ({ engine, name, path: dir, pipeline, renderer, withMcp }) => withLog(async (log) => (await engineLib()).createProject({ engine, name, dir, pipeline, renderer, withMcp, log })));
 
 tool('engine_project_link',
-  'Привязывает существующий проект Unity или Godot владельца к реестру (движок определяется по папке). Ничего в проекте не меняет.',
+  'Привязывает существующий проект Unity, Godot или Bevy владельца к реестру (движок определяется по папке: project.godot / Assets+ProjectSettings / Cargo.toml с astraforge_bevy). Ничего в проекте не меняет.',
   { path: z.string(), name: z.string().optional() },
   async ({ path: dir, name }) => (await engineLib()).linkProject({ dir, name }));
 
 tool('engine_send',
-  'Кладёт пакеты студии в проект движка: Unity — пакеты профиля unity (папки с af_unity.json или zip экспорта): импортёр в Packages/, ассет в Assets/AstraForge/<id>/; Godot — пакеты профилей godot / space_quest (af_package.json): res://astraforge/<id>/ + headless-импорт. Пишет в проект — только по просьбе владельца.',
+  'Кладёт пакеты студии в проект движка: Unity — пакеты профиля unity (папки с af_unity.json или zip экспорта): импортёр в Packages/, ассет в Assets/AstraForge/<id>/; Godot — пакеты профилей godot / space_quest (af_package.json): res://astraforge/<id>/ + headless-импорт; Bevy — пакеты профиля bevy (папки с af_bevy.json или zip экспорта): assets/astraforge/<id>/ (дальше одна строка add_astraforge_asset). Пишет в проект — только по просьбе владельца.',
   {
     project: z.string().describe('Имя из реестра или папка проекта.'), engine: ENGINE.optional().describe('Если под одним именем есть оба движка.'),
     sources: z.array(z.string()).min(1), build: z.boolean().default(false).describe('Unity: собрать префабы сразу (проект закрыт).'),
@@ -1166,12 +1171,12 @@ tool('engine_send',
   ({ project, engine, sources, build }) => withLog(async (log) => (await engineLib()).sendPackages({ project, engine, sources, build, log })));
 
 tool('engine_scaffold',
-  'Логика под ассет по шаблону скилла astraforge-integrator. kind=player: управление персонажем (Unity: Assets/Game/Scripts/PlayerController.cs + asmdef, Godot: res://scripts/player_controller.gd) и смоук-тесты (Unity EditMode, Godot res://tests/run_tests.gd). Существующие файлы не трогает без force.',
+  'Логика под ассет по шаблону скилла astraforge-integrator. kind=player: управление персонажем (Unity: Assets/Game/Scripts/PlayerController.cs + asmdef, Godot: res://scripts/player_controller.gd, Bevy: src/player.rs из шаблона) и смоук-тесты (Unity EditMode, Godot res://tests/run_tests.gd). Существующие файлы не трогает без force.',
   { project: z.string(), engine: ENGINE.optional(), kind: z.enum(['player']).default('player'), assetId: z.string().describe('asset_id персонажа в проекте.'), force: z.boolean().default(false) },
   ({ project, engine, kind, assetId, force }) => withLog(async (log) => (await engineLib()).scaffold({ project, engine, kind, assetId, force, log })));
 
 tool('engine_test',
-  'Тесты проекта в фоне, без окон. Unity (batchmode): проверка пакетов AstraForge (префабы, материалы, Avatar, клипы, сокеты, эффекты, LOD, размер) + EditMode-тесты проекта (playMode — ещё PlayMode); если проект открыт в редакторе — подсказка про UnityMCP. Godot (headless): все сцены res://astraforge и res://scenes грузятся и работают N кадров + res://tests/run_tests.gd; shots — кадры из окна за пределами экрана. Отчёт и кадры — в папке reports каталога движков.',
+  'Тесты проекта в фоне, без окон. Unity (batchmode): проверка пакетов AstraForge (префабы, материалы, Avatar, клипы, сокеты, эффекты, LOD, размер) + EditMode-тесты проекта (playMode — ещё PlayMode); если проект открыт в редакторе — подсказка про UnityMCP. Godot (headless): все сцены res://astraforge и res://scenes грузятся и работают N кадров + res://tests/run_tests.gd; shots — кадры из окна за пределами экрана; Bevy — headless cargo-проверка каждого пакета (крейт играет паспорт, сверяет обещания, снимает превью-кадры), при отсутствии Rust — честный skip. Отчёт и кадры — в папке reports каталога движков.',
   {
     project: z.string(), engine: ENGINE.optional(), shots: z.boolean().default(false), playMode: z.boolean().default(false),
     scene: z.string().optional().describe('Godot: проверить одну сцену res://…'), frames: z.number().int().min(1).max(3000).default(120),
@@ -1179,8 +1184,9 @@ tool('engine_test',
   ({ project, engine, shots, playMode, scene, frames }) => withLog(async (log) => (await engineLib()).testProject({ project, engine, shots, playMode, scene, frames, log })));
 
 tool('engine_mcp_register',
-  'Регистрирует в Claude Code (scope user) серверы движков, если их нет: UnityMCP (MCP for Unity 10.3.0, stdio, телеметрия выключена) и godot (Godot MCP, GODOT_PATH = найденный Godot). Новые инструменты появятся в следующей сессии Claude Code.',
-  {}, async () => withLog(async (log) => (await engineLib()).registerMcp({ log })));
+  'Регистрирует в Claude Code (scope user) серверы движков, если их нет: UnityMCP (MCP for Unity 10.3.0, stdio, телеметрия выключена), godot (Godot MCP, GODOT_PATH = найденный Godot), unreal-mcp (по ASTRA_UNREAL_MCP) и bevy_brp_mcp (если бинарь установлен; с installBevyBrp=true ставит его из .crate-файла с проверкой sha256 по закреплённой записи crates.io — никогда не cargo install из индекса вслепую). Новые инструменты появятся в следующей сессии Claude Code.',
+  { installBevyBrp: z.boolean().default(false).describe('Bevy: установить мост bevy_brp_mcp 0.23.0 (длинная Rust-компиляция; сначала скачивание + сверка контрольной суммы).') },
+  async ({ installBevyBrp }) => withLog(async (log) => (await engineLib()).registerMcp({ log, installBevyBrp })));
 
 // ------------------------------------------------------------------ MCP resources
 

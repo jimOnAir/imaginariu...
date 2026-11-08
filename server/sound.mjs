@@ -5,7 +5,7 @@
 // The project sound library lives under data/sound; removal moves files to a trash folder, the
 // product never destroys a user's sound. NVIDIA only; AMD arrives with the ROCm line (deferred).
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync, statSync, unlinkSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, writeFileSync, statSync, unlinkSync, copyFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { root, data, pathsConfig } from './storage.mjs';
@@ -321,6 +321,45 @@ export function soundDiskBytes(cfg = soundConfig()) {
  * /api/sound/*: status + presets, the library (WAV/OGG, removal = trash), per-asset event
  * bindings, and the task queue. Everything here is local; a task is one worker subprocess.
  */
+/**
+ * Engine-shaped sound export (0.6.10 wave ticket 31). engine 'bevy' lays down exactly what the
+ * astraforge_bevy crate reads (ticket 29's sound.rs): the bank folder
+ * `assets/astraforge/sounds/<slug>/` under `out`, the ogg companions inside it (wav when a sound
+ * has none), and the `af_sounds.json` manifest - format "astraforge-soundbank/1", one entry per
+ * bound event: name (what the game plays by), file, loop (kind == 'loop'), gain 1.0. The binding
+ * table (sound_bind) is the source of truth; a re-export replaces the bank folder wholesale, so
+ * the manifest can never outlive one of its files. Absent sounds answer in `missing`, never fatal.
+ */
+export function exportSoundBank({ assetId, engine, out, cfg = soundConfig() } = {}) {
+  if (!assetId) throw new Error('exportSoundBank: assetId is required.');
+  if (engine !== 'bevy') throw new Error(`exportSoundBank: engine ${JSON.stringify(engine)} has no bank layout (only "bevy" so far).`);
+  if (!out) throw new Error('exportSoundBank: out (the destination folder) is required.');
+  const slug = String(assetId).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'asset';
+  const dir = path.join(path.resolve(out), 'assets', 'astraforge', 'sounds', slug);
+  const bindings = loadBindings(cfg)[assetId] || {};
+  const byId = new Map(soundLibrary(cfg).map((x) => [x.id, x]));
+  const { lib } = soundPaths(cfg);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const files = [], missing = [], sounds = [];
+  for (const [event, soundId] of Object.entries(bindings)) {
+    const safeEvent = String(event).toLowerCase().replace(/[^a-z0-9_-]/g, '_') || 'sound';
+    const item = byId.get(soundId);
+    if (!item) { missing.push({ event, soundId, reason: 'not in the library (trashed or never generated)' }); continue; }
+    const ext = item.ogg ? 'ogg' : 'wav';
+    const src = path.join(lib, `${soundId}.${ext}`);
+    if (!existsSync(src)) { missing.push({ event, soundId, reason: `the ${ext} file is missing on disk` }); continue; }
+    const file = `${slug}-${safeEvent}.${ext}`;
+    copyFileSync(src, path.join(dir, file));
+    sounds.push({ name: safeEvent, file, loop: item.kind === 'loop', gain: 1.0 });
+    files.push({ event, soundId, name: item.name, format: ext, file, bytes: statSync(path.join(dir, file)).size });
+  }
+  sounds.sort((a, b) => a.name.localeCompare(b.name));
+  const manifest = path.join(dir, 'af_sounds.json');
+  writeFileSync(manifest, JSON.stringify({ format: 'astraforge-soundbank/1', slug, sounds }, null, 1) + '\n');
+  return { engine: 'bevy', folder: dir, slug, manifest, files, missing };
+}
+
 export function registerSound(app, asyncRoute, { cfg = soundConfig(), encode = encodeOgg } = {}) {
   app.get('/api/sound/status', asyncRoute(async (req, res) => res.json({ ...soundStatus({ cfg }), presets: soundPresets(), events: SOUND_EVENTS })));
   app.get('/api/sound/library', asyncRoute(async (req, res) => res.json(soundLibrary(cfg))));
@@ -346,6 +385,7 @@ export function registerSound(app, asyncRoute, { cfg = soundConfig(), encode = e
     const { assetId, event, soundId } = req.body || {};
     res.json(setBinding(assetId, event, soundId || null, cfg));
   }));
+  app.post('/api/sound/export-bank', asyncRoute(async (req, res) => res.json(exportSoundBank(req.body || {}))));
   app.post('/api/sound/tasks', asyncRoute(async (req, res) => res.status(202).json(createSoundTask(req.body || {}, { cfg }))));
   app.get('/api/sound/tasks', asyncRoute(async (req, res) => res.json(soundTasks())));
   app.get('/api/sound/tasks/:id', asyncRoute(async (req, res) => {

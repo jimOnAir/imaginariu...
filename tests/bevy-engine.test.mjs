@@ -6,13 +6,14 @@
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync, chmodSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync, readFileSync, chmodSync, cpSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 import {
   BEVY_VERSION, BEVY_CRATE_DIR, findCargo, bevyStatus, isBevyProject, bevyVersionOf,
-  createBevyProject, installCrate, sendBevy, checkPackage, runCargo,
+  createBevyProject, installCrate, sendBevy, checkPackage, runCargo, installBrpMcp, brpBinary, BRP_MCP,
 } from '../scripts/engines/bevy.mjs';
 
 const REPO = path.resolve(import.meta.dirname, '..');
@@ -175,4 +176,81 @@ test('the CLI: status and check-package degrade honestly without Rust (T2-3)', (
   assert.equal(ck.status, 0, 'an honest skip is not a failed export');
   assert.match(ck.stdout, /^AFBEVYCHECK /);
   assert.match(ck.stdout, /cargo not found/);
+});
+
+// ------------------------------------------------- the checksum-pinned MCP bridge (ticket 31)
+
+test('BRP_MCP carries the pinned public crates.io record (never a blind index install)', () => {
+  assert.equal(BRP_MCP.crate, 'bevy_brp_mcp');
+  assert.equal(BRP_MCP.version, '0.23.0');
+  assert.equal(BRP_MCP.sha256, 'a6ec60a2b45471af92bf953372d56f269dbd7a3f7d76a151fda520635255af11');
+  assert.match(BRP_MCP.url('0.23.0'), /^https:\/\/static\.crates\.io\/crates\/bevy_brp_mcp\/bevy_brp_mcp-0\.23\.0\.crate$/);
+});
+
+test('installBrpMcp refuses a crate whose sha256 differs from the pin - cargo never runs', async () => {
+  const calls = path.join(tmp, 'brp-calls.txt');
+  const cargo = stubCargo('cargo-brp', `echo "$@" >> "${calls}"\necho installed\nexit 0`);
+  await assert.rejects(
+    installBrpMcp({ cargo, env: { CARGO_HOME: path.join(tmp, 'brp-home-a') }, log: () => {},
+      fetchImpl: async (url, dest) => writeFileSync(dest, 'tampered crate bytes') }),
+    /checksum mismatch.*refusing to install/s,
+  );
+  assert.equal(existsSync(calls), false, 'the toolchain was never invoked for a bad hash');
+});
+
+test('installBrpMcp installs exactly the verified file: unpack -> sha256 -> cargo install --path', async () => {
+  const calls = path.join(tmp, 'brp2-calls.txt');
+  const cargo = stubCargo('cargo-brp2', `echo "$@" >> "${calls}"\nexit 0`);
+  const src = path.join(tmp, 'brp-build', `bevy_brp_mcp-${BRP_MCP.version}`);
+  mkdirSync(path.join(src, 'src'), { recursive: true });
+  writeFileSync(path.join(src, 'Cargo.toml'), '[package]\nname = "bevy_brp_mcp"\nversion = "0.23.0"\nedition = "2021"\n');
+  writeFileSync(path.join(src, 'src', 'main.rs'), 'fn main() {}\n');
+  const file = path.join(tmp, 'brp.crate');
+  const t = spawnSync('tar', ['czf', file, '-C', path.join(tmp, 'brp-build'), `bevy_brp_mcp-${BRP_MCP.version}`], { encoding: 'utf8' });
+  assert.equal(t.status, 0, t.stderr);
+  const real = createHash('sha256').update(readFileSync(file)).digest('hex');
+  const seen = [];
+  const r = await installBrpMcp({ cargo, env: { CARGO_HOME: path.join(tmp, 'brp-home-b'), ASTRA_CARGO_TARGET_DIR: path.join(tmp, 'target-brp') },
+    log: (s) => seen.push(s), fetchImpl: async (url, dest) => cpSync(file, dest), sha256: real });
+  assert.equal(r.installed, true);
+  assert.equal(r.sha256, real);
+  assert.match(readFileSync(calls, 'utf8'), /install --path .*bevy_brp_mcp-0\.23\.0 --locked/);
+  assert.ok(seen.some((s) => s.includes('verified against the pinned crates.io record')));
+});
+
+test('installBrpMcp: an installed bridge is never re-downloaded', async () => {
+  const home = path.join(tmp, 'brp-home-c');
+  mkdirSync(path.join(brpBinary({ env: { CARGO_HOME: home } }).split('/').slice(0, -1).join('/')), { recursive: true });
+  writeFileSync(brpBinary({ env: { CARGO_HOME: home } }), '#!/bin/sh\n');
+  let fetched = false;
+  const r = await installBrpMcp({ cargo: 'x', env: { CARGO_HOME: home }, log: () => {}, fetchImpl: async () => { fetched = true; } });
+  assert.equal(r.skipped, 'already installed');
+  assert.equal(fetched, false);
+});
+
+// ------------------------------------------------- af_engine routes the new engine (MCP parity)
+
+test('af_engine: bevy creates, registers, detects and sends like any other engine', () => {
+  const home = path.join(tmp, 'engines-home');
+  const env = { ...process.env, ASTRA_ENGINES_HOME: home, ASTRA_CARGO: path.join(tmp, 'no-cargo-here') };
+  const cli = (args) => spawnSync(process.execPath, [path.join(REPO, 'scripts', 'engines', 'af_engine.mjs'), ...args, '--json'], { env, encoding: 'utf8' });
+  const c = cli(['create', '--engine', 'bevy', '--name', 'Probe']);
+  assert.equal(c.status, 0, c.stderr || c.stdout);
+  const created = JSON.parse(c.stdout);
+  assert.equal(created.engine, 'bevy');
+  assert.match(created.path, /Probe_Bevy$/, 'the name convention holds for Bevy too');
+
+  const pkg = path.join(tmp, 'pkg_engine');
+  mkdirSync(pkg, { recursive: true });
+  writeFileSync(path.join(pkg, 'af_bevy.json'), '{"asset_id":"engine_box"}');
+  const s = cli(['send', '--project', 'Probe', pkg]);
+  assert.equal(s.status, 0, s.stderr || s.stdout);
+  const sent = JSON.parse(s.stdout);
+  assert.equal(sent.engine, 'bevy');
+  assert.equal(sent.packages[0].id, 'af_bevy_send_engine_box', 'the pinned task id travels through the shared verb');
+  assert.ok(existsSync(path.join(created.path, 'assets', 'astraforge', 'engine_box', 'af_bevy.json')));
+
+  const st = JSON.parse(cli(['status']).stdout);
+  assert.equal(st.bevy.hasCargo, false, 'status reports the honest absence row');
+  assert.ok(st.projects.some((p) => p.engine === 'bevy' && p.name === 'Probe'), 'the registry holds the bevy project');
 });
