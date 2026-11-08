@@ -14,6 +14,7 @@ import { acquireEngineGpu, freeIfIdle, engineQueue } from './gpu-handover.mjs';
 import { validateGeneratedMesh, maxMeshBytes } from './mesh-validation.mjs';
 import { normalizeGlb } from './glb-normalize.mjs';
 import { gpuInfo, oldDriverText } from './gpu-info.mjs';
+import { ensureRamFor } from './ram-check.mjs';
 
 /**
  * node class -> [percent from, percent to, label]. The ranges follow the measured time shares of a four-view run (243 s on the militia:
@@ -152,6 +153,14 @@ export async function generatePixal3d(o) {
   const card = (deps.gpuInfo || gpuInfo)({ env: deps.env || process.env, spawnFn: deps.spawnFn });
   const refuse = oldDriverText(card, 'Pixal3D');
   if (refuse) throw new Error(refuse);
+  // 0.6.10 wave ticket 21 (the Linux form of the 0.6.8 RAM fix): when host memory looks short,
+  // first make room (idle engines unload their cached models; a busy engine is never touched),
+  // re-read, and only then refuse - up front, with the numbers in the sentence.
+  const room = await (deps.ensureRam || ensureRamFor)({
+    engine: 'pixal3d', env: deps.env || process.env, urls: { pixal3d: cfg.url },
+    fetchFn: deps.fetchFn, sleepFn: deps.sleepFn, onStep: (message) => onProgress?.({ percent: 0, message }),
+  });
+  if (room.refuse) throw new Error(room.refuse);
   await (deps.start || startPixal3dRuntime)({ cfg, signal, onProgress: (message) => onProgress?.({ percent: 0, message }) });
   signal?.throwIfAborted();
 

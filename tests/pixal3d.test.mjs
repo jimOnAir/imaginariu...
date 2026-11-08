@@ -425,7 +425,7 @@ test('generatePixal3d: uploads the cut-outs, queues the graph, follows the progr
     const result = await generatePixal3d({
       images: cutFiles(['front', 'left', 'back', 'right']), seed: 1000, tag: 'ab12cd34', cfg: { url: engine.url, dir: tmp, port: 1 },
       onProgress: (p) => progress.push(p), onPrompt: (id) => { promptSeen = id; }, onWait: (t) => waits.push(t),
-      deps: { start: startOk, acquire: async (name, opts) => { acquired = { name, opts }; return lock; }, free: async () => { freed += 1; }, tickMs: 120 },
+      deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), start: startOk, acquire: async (name, opts) => { acquired = { name, opts }; return lock; }, free: async () => { freed += 1; }, tickMs: 120 },
     });
     assert.equal(acquired.name, 'pixal3d', 'the card is taken for the Pixal3D side of the hand-over');
     assert.equal(acquired.opts.urls.pixal3d, engine.url);
@@ -470,7 +470,7 @@ test('generatePixal3d: a job of another program already on the Pixal3D engine is
   try {
     const result = await generatePixal3d({
       images: cutFiles(['front']), tag: 'queue', cfg: { url: engine.url, dir: tmp, port: 1 }, onWait: (t) => waits.push(t),
-      deps: { start: startOk, acquire: async () => fakeLock(), free: async () => {} },
+      deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), start: startOk, acquire: async () => fakeLock(), free: async () => {} },
     });
     assert.equal(result.promptId, 'p1');
     assert.ok(waits.some((t) => /other jobs/.test(t)), JSON.stringify(waits));
@@ -482,7 +482,7 @@ test('generatePixal3d: one front view builds the single-view graph', async () =>
   try {
     const result = await generatePixal3d({
       images: { ...cutFiles(['front']), left: null }, seed: 5, tag: 'single', cfg: { url: engine.url, dir: tmp, port: 1 },
-      deps: { start: startOk, acquire: async () => fakeLock(), free: async () => {} },
+      deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), start: startOk, acquire: async () => fakeLock(), free: async () => {} },
     });
     assert.deepEqual(result.slots, ['front']);
     assert.equal(engine.state.prompt.prompt['1'].inputs.pixal3d_multiview, false);
@@ -497,7 +497,7 @@ test('generatePixal3d: an out-of-memory error from the engine becomes a clear Ru
   try {
     await assert.rejects(generatePixal3d({
       images: cutFiles(['front', 'back']), tag: 'oom', cfg: { url: engine.url, dir: tmp, port: 1 },
-      deps: { start: startOk, acquire: async () => lock, free: async () => { freed += 1; } },
+      deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), start: startOk, acquire: async () => lock, free: async () => { freed += 1; } },
     }), /Pixal3D ran out of VRAM/);
     assert.equal(lock.released, 1);
     assert.equal(freed, 1);
@@ -511,7 +511,7 @@ test('generatePixal3d: cancelling interrupts the running prompt on the Pixal3D e
     await assert.rejects(generatePixal3d({
       images: cutFiles(['front']), tag: 'stop', cfg: { url: engine.url, dir: tmp, port: 1 }, signal: controller.signal,
       onPrompt: () => setTimeout(() => controller.abort(), 50),
-      deps: { start: startOk, acquire: async () => lock, free: async () => {} },
+      deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), start: startOk, acquire: async () => lock, free: async () => {} },
     }), (e) => e.name === 'AbortError');
     assert.equal(engine.state.interrupts, 1, 'POST /interrupt for the running prompt');
     assert.equal(engine.state.queueDeletes, 0);
@@ -522,8 +522,8 @@ test('generatePixal3d: cancelling interrupts the running prompt on the Pixal3D e
 test('generatePixal3d: without a front view or without an installation it stops before touching the GPU', async () => {
   let acquired = 0;
   const acquire = async () => { acquired += 1; return fakeLock(); };
-  await assert.rejects(generatePixal3d({ images: { left: '/x/l.png' }, deps: { acquire } }), /front view/);
-  await assert.rejects(generatePixal3d({ images: cutFiles(['front']), cfg: { dir: path.join(tmp, 'no-px'), url: DEFAULT_PIXAL3D_URL, port: 8191 }, deps: { acquire } }),
+  await assert.rejects(generatePixal3d({ images: { left: '/x/l.png' }, deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), acquire } }), /front view/);
+  await assert.rejects(generatePixal3d({ images: cutFiles(['front']), cfg: { dir: path.join(tmp, 'no-px'), url: DEFAULT_PIXAL3D_URL, port: 8191 }, deps: { ensureRam: async () => ({ freeMiB: 99999, needMiB: 4096, unloaded: [], busy: [], refuse: null }), acquire } }),
     (e) => e.code === 'pixal3d_not_installed' && /Pixal3D is not installed/.test(e.message));
   assert.equal(acquired, 0);
 });

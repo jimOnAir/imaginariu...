@@ -71,6 +71,7 @@ test('a driver below the floor is refused BEFORE anything is started (the mid-ru
     images: { front: 'f.png' }, tag: 't20',
     deps: {
       start: async () => { started++; },
+      ensureRam: async () => ({ refuse: null }),
       gpuInfo: () => ({ name: 'RTX 4060', vramMiB: 8192, driverVersion: '565.11', driverMajor: 565 }),
     },
   }), /Pixal3D needs NVIDIA driver 570 or newer - this machine reports 565\.11/);
@@ -84,6 +85,7 @@ test('a current driver passes the gate through to the start call', async () => {
     images: { front: 'f.png' }, tag: 't20ok',
     deps: {
       start: async () => { started++; throw new Error('stub stop - the gate already passed'); },
+      ensureRam: async () => ({ refuse: null }),
       gpuInfo: () => ({ name: 'RTX 5070', vramMiB: 12227, driverVersion: '615.71.09', driverMajor: 615 }),
     },
   }), /stub stop/);
