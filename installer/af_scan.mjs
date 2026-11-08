@@ -417,26 +417,30 @@ export function scanComponents(opts = {}) {
   return s;
 }
 
+// «Новое, проба» (ticket 12): components this branch classes as experimental. The flag
+// drives: no preset preselection (profileIds filter + empty presets), the checklist/panel marker,
+// and the install.sh -Profile fallback (its mirror lists omit these ids too). 'skintokens' is
+// listed for the day it lands - ticket 03 kept it out of this branch on license grounds.
+export const EXPERIMENTAL = ['triposg', 'skintokens', 'sound', 'qwenedit'];
+
 /** Checklist rows in the reference ##ITEM semantics; display strings in English (branch policy). */
 export function scanItems(s) {
   const { man, noGpu } = s;
   const items = [];
   const gpuNote = noGpu ? "won't work without an NVIDIA GPU" : '';
-  // the 0.6.0-wave profile rules for TripoSG (ticket 02): 'full' always carries it; the quick
-  // preset on a low-VRAM card (the same ≤9216 MiB seam as the auto rule) trades the two
-  // multi-view Hunyuan models for it. manifest.json stays the Windows pin it is.
-  const lowVram = s.vram > 0 && s.vram <= TRIPOSG_AUTO_MAX_VRAM_MIB;
-  const profileIds = (p) => {
-    let ids = man.profiles[p] || [];
-    if (p === 'full') ids = [...ids, 'triposg'];
-    else if (p === 'quick' && lowVram) ids = [...ids.filter((i) => i !== 'hy2' && i !== 'hymv'), 'triposg'];
-    return ids;
-  };
+  // «Новое, проба» (0.6.x wave ticket 12): experimental components are never preselected by
+  // any preset - the checklist, -Profile installs and the Components window all tick them only by
+  // an explicit click. Upstream's exception (forcing TripoSG into the low-VRAM quick set, ticket
+  // 02's swap rule) stays on the Windows side and is NOT ported - the rule here is unconditional
+  // opt-in, recorded as the ticket's deviation. manifest.json stays the Windows pin it is.
+  const profileIds = (p) => (man.profiles[p] || []).filter((i) => !EXPERIMENTAL.includes(i));
   const profilesOf = (only) => ['quick', 'full', 'lite']
     .filter((p) => only.split(',').filter(Boolean).some((id) => profileIds(p).includes(id))).map((p) => p[0]).join('');
   const add = (id, group, status, have, need, size, name, lic, deps = '', only = '', note = '') => {
     const o = only || id;
-    items.push({ id, group, status, have, need, size: Math.round(size), name, lic: lic || '', presets: profilesOf(o), deps, only: o, note: `${note || ''}`.replace(/[\t\r\n]+/g, ' ').trim() });
+    const exp = o.split(',').filter(Boolean).some((x) => EXPERIMENTAL.includes(x));
+    const txt = `${note || ''}`.replace(/[\t\r\n]+/g, ' ').trim();
+    items.push({ id, group, status, have, need, size: Math.round(size), name, lic: lic || '', presets: profilesOf(o), deps, only: o, exp, note: exp && !/never preselected/.test(txt) ? [txt, 'new in 0.6.x, still a try - no preset preselects it, tick it by hand'].filter(Boolean).join(' - ') : txt });
   };
   add('node', G_P, s.node ? 'installed' : 'missing', s.node ? `${s.nodeVer} · ${s.node}` : '', man.programs.node.version, SIZE.node, 'Node.js', 'MIT');
   add('npm', G_P, s.npmDeps && s.ui ? 'installed' : 'missing', s.npmDeps && s.ui ? 'in the application folder' : '', '', SIZE.npm, 'Studio interface and libraries', 'open-source licenses of npm packages', 'node');

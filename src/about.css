@@ -19,6 +19,7 @@
 .comp-row{display:grid;grid-template-columns:20px minmax(0,1.3fr) minmax(0,1.2fr) 70px;gap:8px;align-items:center;padding:4px 12px;cursor:pointer;font-size:13px}
 .comp-row:hover{background:rgba(255,255,255,.04)}
 .comp-row span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.comp-exp{font-style:normal;font-size:10px;opacity:.75;border:1px solid currentColor;border-radius:8px;padding:0 6px;margin-left:6px}
 .comp-row.installed,.comp-row.unavailable{opacity:.55}
 .comp-row.outdated .comp-state{color:var(--ce8964a)}
 .comp-size{text-align:right;opacity:.8}

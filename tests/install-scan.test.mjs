@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, soundScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB, SOUND_MIN_VRAM_MIB,
+  APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, soundScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB, SOUND_MIN_VRAM_MIB, EXPERIMENTAL,
 } from '../installer/af_scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -80,13 +80,12 @@ test('empty machine with an RTX card: preset letters, dependencies, the mandator
 });
 
 test('the checklist rows match the profiles of installer/manifest.json (the presets field contract)', () => {
-  // TripoSG profile rule (0.6.0 wave ticket 02): 'full' always carries it; a quick preset on a
-  // <=9216 MiB card trades hy2/hymv for it - the expectation below mirrors exactly that.
-  const expected = (vram) => { const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'manifest.json'), 'utf8')); const low = vram > 0 && vram <= TRIPOSG_AUTO_MAX_VRAM_MIB; return {
-      quick: [...(low ? man.profiles.quick.filter((i) => i !== 'hy2' && i !== 'hymv') : man.profiles.quick), ...(low ? ['triposg'] : [])],
-      full: [...man.profiles.full, 'triposg'], lite: man.profiles.lite }; };
+  // The profile rule since ticket 12: presets come from the manifest MINUS the experimental ids
+  // (never preselected) - upstream's low-VRAM TripoSG forcing (ticket 02's swap) is not ported.
+  const expected = () => { const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'manifest.json'), 'utf8')); const no = (a) => a.filter((i) => !EXPERIMENTAL.includes(i)); return {
+      quick: no(man.profiles.quick), full: no(man.profiles.full), lite: no(man.profiles.lite) }; };
   for (const vram of [12288, 8192]) {
-    const prof = expected(vram);
+    const prof = expected();
     for (const it of scanItems(mkS({ vram }))) {
       const only = it.only.split(',').filter(Boolean);
       for (const [p, letter] of [['quick', 'q'], ['full', 'f'], ['lite', 'l']]) {
@@ -218,16 +217,22 @@ test('triposgScan offer gates: no NVIDIA card, or a card under ~4 GB, declines t
   assert.equal(triposgScan(mkS({ ...absent, vram: 4096 })).offer, true, '4 GB is enough to offer the low-VRAM path');
 });
 
-test('the triposg checklist row: full always carries it; a <=9216 MiB card swaps it into quick for hy2/hymv', () => {
-  let items = scanItems(mkS());   // 12288 MiB by default
-  assert.equal(row(items, 'triposg').presets.includes('f'), true);
-  assert.equal(row(items, 'triposg').presets.includes('q'), false, 'big card: quick keeps the multi-view pair');
+test('ticket 12 «новое, проба»: experimental rows are never preselected and say so; regular rows keep their presets', () => {
+  assert.deepEqual(EXPERIMENTAL, ['triposg', 'skintokens', 'sound', 'qwenedit']);
+  let items = scanItems(mkS());   // 12288 MiB
+  for (const it of items) if (it.only.split(',').some((x) => EXPERIMENTAL.includes(x))) {
+    assert.equal(it.presets, '', it.id + ': no preset letter for an experimental component');
+    assert.equal(it.exp, true, it.id + ': the exp flag rides the row');
+    assert.match(it.note, /no preset preselects it, tick it by hand/, it.id + ': the marker text');
+  }
+  assert.equal(row(items, 'qwenedit').presets, '', 'ticket 07 added qwenedit to the manifest full list - the rule still keeps it out of presets');
+  assert.equal(row(items, 'flux2').presets.includes('f'), true, 'regular rows are untouched');
+  assert.ok(!row(items, 'flux2').exp, 'flux2 is not experimental');
   assert.equal(row(items, 'hy2').presets.includes('q'), true);
-  items = scanItems(mkS({ vram: TRIPOSG_AUTO_MAX_VRAM_MIB }));
-  assert.equal(row(items, 'triposg').presets.includes('q'), true);
-  assert.equal(row(items, 'hy2').presets.includes('q'), false);
-  assert.equal(row(items, 'hymv').presets.includes('q'), false);
-  assert.deepEqual(row(items, 'triposg').only.split(','), ['triposg', 'triposgvae', 'triposgdino']);
+  items = scanItems(mkS({ vram: TRIPOSG_AUTO_MAX_VRAM_MIB }));   // a low-VRAM card...
+  assert.equal(row(items, 'triposg').presets.includes('q'), false, '...still gets no forced TripoSG: opt-in only (ticket 02 swap not ported)');
+  assert.equal(row(items, 'hy2').presets.includes('q'), true, 'quick keeps the multi-view pair on every card');
+  assert.equal(row(items, 'hymv').presets.includes('q'), true);
 });
 
 test('the triposg state reaches install.sh (S_TS) and survives the shell eval', () => {

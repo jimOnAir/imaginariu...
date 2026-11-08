@@ -2466,6 +2466,7 @@ export default {
   "components.laterRunning": "Hide - the install keeps going in the background",
   "components.installed": "Installed: {ids}.",
   "components.notify.started": "Downloading {count} item(s) in the background - keep working.",
+  "components.exp": " new - a try",
   "components.notify.installed": "Components installed. Restart the studio (scripts/stop.sh, then scripts/start.sh) so the new models appear in the lists.",
   "components.notify.partial": "Not everything installed: {failed}. You can retry here.",
   "components.notify.log": "see installer/install.log",

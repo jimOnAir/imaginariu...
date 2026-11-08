@@ -71,6 +71,17 @@ Deferred or excluded by decision (Engine + self-learning LoRA, provenance/licens
 updater/telemetry/keys-server, AMD/ROCm, frozen Windows frontends) — the full list with reasons is
 the deviations section of the [0.5.1 acceptance report](product/acceptance-0.5.1.md).
 
+## «Новое, проба» — experimental components are never preselected (0.6.6, ticket 12)
+
+Everything this branch classes as experimental — **TripoSG**, **Sound**, **Qwen-Image-Edit**
+(and **SkinTokens**, the day it lands; ticket 03 kept it out on license grounds) — is listed in
+the checklist and the Studio components window with a «new - a try» badge, but **no preset
+(quick / full / lite) ever ticks it**: `installer/af_scan.mjs` (`EXPERIMENTAL`) filters the
+manifest profiles, and the -Profile fallback in `install.sh` mirrors the same lists. Ticking one
+by hand works exactly like any other row. Upstream's one exception — forcing TripoSG into the
+low-VRAM quick set — stays on the Windows side; on this branch the opt-in is unconditional,
+which supersedes ticket 02's quick-swap rule (recorded as ticket 12's deviation).
+
 ## Quick start (Linux)
 
 ```bash

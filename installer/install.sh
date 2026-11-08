@@ -803,7 +803,7 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
   if [ -n "$n" ]; then ids="$("$n" -e 'try{const m=require(process.argv[1]);process.stdout.write(m.profiles[process.argv[2]].join(" "))}catch(e){}' "$ROOT/installer/manifest.json" "$Profile" 2>/dev/null)"; fi
   [ -n "$ids" ] || case "$Profile" in   # without node the manifest is unreadable: the 0.5.0 lists mirrored
     lite) ids='node npm blender godot clips vfx' ;;
-    full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg' ;;
+    full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;  # «новое, проба» (ticket 12): the triposg* experimental ids are never in a preset
     *)    ids='node npm blender comfy hy2 u2net hymv sdxl mvadapter godot clips' ;;
   esac
   plan=()

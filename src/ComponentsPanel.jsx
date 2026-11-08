@@ -103,7 +103,7 @@ export default function ComponentsPanel({ notify, onDone }) {
       {items.filter((c) => c.group === g).map((c) => <label key={c.id} className={'comp-row ' + c.status}
         title={[c.name, c.license && t('components.license', { license: c.license }), c.have && t('components.found', { have: c.have }), c.note].filter(Boolean).join('\n')}>
         <input type="checkbox" checked={!!checked[c.id]} disabled={running || c.status === 'unavailable'} onChange={() => toggle(c)} />
-        <span className="comp-name">{c.name}</span><span className="comp-state">{statusText(c)}</span>
+        <span className="comp-name">{c.name}{c.exp && <em className="comp-exp">{t('components.exp')}</em>}</span><span className="comp-state">{statusText(c)}</span>
         <span className="comp-size">{c.status === 'installed' || c.status === 'unavailable' || !c.size ? '' : gb(c.size)}</span>
       </label>)}
     </div>)}</div>}

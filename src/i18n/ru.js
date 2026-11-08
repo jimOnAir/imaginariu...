@@ -2464,6 +2464,7 @@ export default {
   "components.laterRunning": "Скрыть - установка идёт в фоне",
   "components.installed": "Установлено: {ids}.",
   "components.notify.started": "Докачиваю {count} шт. в фоне - работать можно дальше.",
+  "components.exp": " новое, проба",
   "components.notify.installed": "Компоненты установлены. Перезапустите студию (scripts/stop.sh, затем scripts/start.sh), чтобы новые модели появились в списках.",
   "components.notify.partial": "Не всё установилось: {failed}. Повторить можно здесь.",
   "components.notify.log": "см. installer/install.log",
