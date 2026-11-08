@@ -1,0 +1,40 @@
+{
+ "format": "astraforge-bevy-package/1",
+ "asset_id": "brass_lantern_demo",
+ "kind": "",
+ "glb": "model.glb",
+ "gltf": null,
+ "clips": [],
+ "default_clip": "",
+ "sockets": [],
+ "collider": {
+  "kind": "box"
+ },
+ "collision_meshes": [],
+ "fx": [],
+ "fx_presets": null,
+ "rig": {
+  "type": "static",
+  "armatures": 0,
+  "bones": 0
+ },
+ "scene": {
+  "size_gltf_m": [
+   1.6098,
+   2.0,
+   0.0432
+  ],
+  "longest_m": 2.0,
+  "tris": 690496,
+  "meshes": 1
+ },
+ "checks": [
+  "glb_copied",
+  "default_clip_resolves",
+  "sockets_unique",
+  "fx_sockets_exist",
+  "fx_presets_known",
+  "collider_kind_valid",
+  "size_sane"
+ ]
+}

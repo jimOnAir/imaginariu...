@@ -35,3 +35,8 @@ data/config.json
 
 # work papers (tickets, scratch)
 .scratch/
+
+# rust build artifacts and regenerable locks
+bevy/*/target/
+bevy/*/Cargo.lock
+ai/skills/astraforge-integrator/templates/bevy/Cargo.lock

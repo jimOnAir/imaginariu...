@@ -1,0 +1,27 @@
+{
+ "format": "astraforge-bevy-package/1",
+ "asset_id": "rigged_actor",
+ "kind": "character",
+ "glb": "model.glb",
+ "gltf": null,
+ "clips": [
+  {"name": "idle-loop", "loop": true, "seconds": 2.467},
+  {"name": "attack", "loop": false, "seconds": 0.633},
+  {"name": "death", "loop": false, "seconds": 1.1}
+ ],
+ "default_clip": "idle-loop",
+ "sockets": [
+  {"name": "socket_fx_gun", "node": "socket_fx_gun", "kind": "fx", "parent": "Body", "parent_bone": "mixamorigSpine1"},
+  {"name": "socket_fx_laser", "node": "socket_fx_laser", "kind": "fx", "parent": "Body", "parent_bone": "mixamorigHead"}
+ ],
+ "collider": {"kind": "hulls"},
+ "collision_meshes": ["COL_Body", "hand-colonly"],
+ "fx": [
+  {"preset": "fire", "socket": "socket_fx_gun", "params": {}},
+  {"preset": "aura", "socket": "socket_fx_laser", "params": {"scale": 0.5}}
+ ],
+ "fx_presets": "fx_presets.json",
+ "rig": {"type": "skinned", "armatures": 1, "bones": 61},
+ "scene": {"size_gltf_m": [0.61, 1.82, 0.34], "longest_m": 1.82, "tris": 41233, "meshes": 2},
+ "checks": ["glb_copied", "clips_found", "default_clip_resolves", "sockets_unique", "fx_sockets_exist", "fx_presets_known", "collider_kind_valid", "size_sane"]
+}
