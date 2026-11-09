@@ -221,9 +221,10 @@ export async function generatePixal3d(o) {
     }
     onProgress?.({ percent: 98, message: 'Fetching and normalizing the GLB' });
     const raw = await downloadGlb(cfg.url, item, signal);
-    validateGeneratedMesh(raw);
+    // Ticket 34: an over-cap result is kept; the job layer simplifies it to the limit.
+    try { validateGeneratedMesh(raw); } catch (e) { if (e.code !== 'oversize') throw e; }
     const normalized = normalizeGlb(raw);
-    validateGeneratedMesh(normalized.buffer);
+    try { validateGeneratedMesh(normalized.buffer); } catch (e) { if (e.code !== 'oversize') throw e; }
     const vram = vramProbe ? await comfyJson(cfg.url + '/af/vram/stop', { method: 'POST', signal: AbortSignal.timeout(3000) }).catch(() => null) : null;
     vramProbe = false;
     return {

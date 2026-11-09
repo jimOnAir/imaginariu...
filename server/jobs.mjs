@@ -8,6 +8,7 @@ import WebSocket from 'ws';
 import { llmChat } from './llm.mjs';
 import { prepareConcept } from './preprocess.mjs';
 import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
+import {acceptOrSimplify,makeBlenderSimplify} from './mesh-salvage.mjs';
 import {acquireEngineGpu} from './gpu-handover.mjs';
 import {pixal3dConfig,pixal3dStatus} from './pixal3d.mjs';
 import {generatePixal3d} from './pixal3d-run.mjs';
@@ -16,6 +17,15 @@ const jobs=new Map();const controllers=new Map();let active=null;let pumping=fal
 // Auto-review (ticket 08): index.mjs installs a listener; a completed shape job is its only caller.
 // The studio's own retry children carry autoreviewOf and must not open a second review.
 export const hooks={onCompleted:null};
+// Ticket 34 (0.6.18 wave): an over-cap but valid generation is simplified to the limit (the
+// branch's own Blender cleanup decimate path) instead of the job failing and the asset being lost.
+const simplifyMesh=makeBlenderSimplify();
+async function validateGlbAsset(buffer,j,file){
+ const {validation,simplifiedBuffer}=await acceptOrSimplify(buffer,{meshLevel:j?.meshLevel??0,simplify:simplifyMesh});
+ if(simplifiedBuffer)await fs.writeFile(file,simplifiedBuffer);
+ return validation;
+}
+const simplifyNote=v=>v.simplifiedFrom?' · simplified from '+(v.simplifiedFrom/1e6).toFixed(1)+' M triangles':'';
 // Startup job load (behavior per ADR-0004, ticket 02): a job file that is empty, truncated,
 // BOM-garbled or otherwise unparseable is moved to jobs/broken/ and skipped instead of taking
 // the whole studio down; a file that parses but is not a job record (no uuid id, not an object)
@@ -42,7 +52,7 @@ const persist=j=>{const next=(writes.get(j.id)||Promise.resolve()).catch(()=>{})
 async function update(j,values){Object.assign(j,values,{updatedAt:new Date().toISOString()});await persist(j);}
 export const allJobs=()=>[...jobs.values()].sort((a,b)=>b.createdAt.localeCompare(a.createdAt));
 export function getJob(id){return jobs.get(id);}
-export async function validateJobMesh(id){const j=jobs.get(id);if(!j?.asset||j.asset.extension!=='.glb')throw new Error('The job has no GLB to validate.');try{const info=await assetInfo(j.asset.id),file=path.join(data,'assets',info.id+info.extension);if((await fs.stat(file)).size>maxMeshBytes)throw new Error('The mesh exceeds 100 MB and was rejected.');const validation=validateGeneratedMesh(await fs.readFile(file));await update(j,{validation});return validation;}catch(e){await update(j,{status:'failed',message:e.message,validation:{accepted:false,reason:e.message}});return j.validation;}}
+export async function validateJobMesh(id){const j=jobs.get(id);if(!j?.asset||j.asset.extension!=='.glb')throw new Error('The job has no GLB to validate.');try{const info=await assetInfo(j.asset.id),file=path.join(data,'assets',info.id+info.extension);const validation=await validateGlbAsset(await fs.readFile(file),j,file);await update(j,{validation});return validation;}catch(e){await update(j,{status:'failed',message:e.message,validation:{accepted:false,reason:e.message}});return j.validation;}}
 export async function createJob(input,config){const j={id:randomUUID(),...input,status:'queued',progress:0,message:'Waiting in the queue',createdAt:new Date().toISOString()};jobs.set(j.id,j);await persist(j);void pump(config);return j;}
 export async function cancelJob(id,config){const j=jobs.get(id);if(!j)return;if(!['queued','running'].includes(j.status))return;controllers.get(id)?.abort();if(j.promptId&&j.engine!=='pixal3d'){const queue=await jsonFetch(config.comfyUrl+'/queue').catch(()=>null);if(queue?.queue_running?.some(item=>item[1]===j.promptId))await fetch(config.comfyUrl+'/interrupt',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{});else await fetch(config.comfyUrl+'/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({delete:[j.promptId]})}).catch(()=>{});}await update(j,{status:'cancelled',message:'Cancelled'});}
 async function pump(config){if(pumping)return;pumping=true;try{for(;;){const j=[...jobs.values()].find(x=>x.status==='queued');if(!j)break;active=j.id;const controller=new AbortController();controllers.set(j.id,controller);try{await run(j,config,controller.signal);}catch(e){if(j.status!=='cancelled')await update(j,{status:'failed',message:e.name==='AbortError'?'Generation aborted':e.message});}finally{controllers.delete(j.id);active=null;if(j.status==='completed'&&j.asset?.extension==='.glb'&&!j.autoreviewOf&&hooks.onCompleted)void Promise.resolve(hooks.onCompleted(j)).catch(()=>{});}}}finally{pumping=false;}}
@@ -62,7 +72,7 @@ async function waitPrompt(j,config,workflow,signal,stage){
   }throw new Error('Generation timed out (60 minutes).');
  }finally{socket.close();await gpu.release();}
 }
-async function downloadOutput(config,item,extension,name){const params=new URLSearchParams({filename:item.filename,subfolder:item.subfolder||'',type:item.type||'output'});const r=await fetch(config.comfyUrl+'/view?'+params,{signal:AbortSignal.timeout(60000)});if(!r.ok)throw new Error('Failed to get the generation result.');if(Number(r.headers.get('content-length'))>maxMeshBytes){await r.body.cancel();throw new Error('The result exceeds 100 MB. Check the surface settings.');}const reader=r.body.getReader(),chunks=[];let length=0;for(;;){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>maxMeshBytes){await reader.cancel();throw new Error('The result exceeds 100 MB.');}chunks.push(Buffer.from(value));}const buffer=Buffer.concat(chunks);if(extension==='.glb')validateGeneratedMesh(buffer);return saveAsset(buffer,extension,name);}
+async function downloadOutput(config,item,extension,name){const params=new URLSearchParams({filename:item.filename,subfolder:item.subfolder||'',type:item.type||'output'});const r=await fetch(config.comfyUrl+'/view?'+params,{signal:AbortSignal.timeout(60000)});if(!r.ok)throw new Error('Failed to get the generation result.');if(Number(r.headers.get('content-length'))>maxMeshBytes){await r.body.cancel();throw new Error('The result exceeds 100 MB. Check the surface settings.');}const reader=r.body.getReader(),chunks=[];let length=0;for(;;){const {done,value}=await reader.read();if(done)break;length+=value.length;if(length>maxMeshBytes){await reader.cancel();throw new Error('The result exceeds 100 MB.');}chunks.push(Buffer.from(value));}const buffer=Buffer.concat(chunks);if(extension==='.glb'){try{validateGeneratedMesh(buffer);}catch(e){if(e.code!=='oversize')throw e;}}return saveAsset(buffer,extension,name);}
 // View-set images -> ComfyUI input. The names depend on the set and its revision: a retry with a different surface level hits the engine cache.
 async function uploadViews(j,config,signal){
  const set=await getViewsService().forJob(j.viewSetId,{signal}),stamp=String(set.rev||'').replace(/[^0-9]/g,'').slice(-12),uploaded={};
@@ -116,8 +126,8 @@ async function runPixal3d(j,config,signal){
   onWait:message=>{if(j.status==='running')void update(j,{message}).catch(()=>{});}});
  signal.throwIfAborted();
  const asset=await saveAsset(result.buffer,'.glb',j.viewSetId?'Pixal3D · from views':'Pixal3D · '+(j.prompt||'from image').slice(0,50));
- const validation=validateGeneratedMesh(result.buffer);
- await update(j,{status:'completed',progress:100,message:'Geometry created · Pixal3D · needs review',asset,validation,pixal3d:{seconds:result.seconds,slots:result.slots,targetFaces:result.targetFaces,vramPeakMb:result.vram?.peak_used_mb??null,vramBaselineMb:result.vram?.baseline_used_mb??null,scale:result.normalization.scale,handover:result.handover}});
+ const validation=await validateGlbAsset(result.buffer,j,path.join(data,'assets',asset.id+asset.extension));
+ await update(j,{status:'completed',progress:100,message:'Geometry created · Pixal3D'+simplifyNote(validation)+' · needs review',asset,validation,pixal3d:{seconds:result.seconds,slots:result.slots,targetFaces:result.targetFaces,vramPeakMb:result.vram?.peak_used_mb??null,vramBaselineMb:result.vram?.baseline_used_mb??null,scale:result.normalization.scale,handover:result.handover}});
 }
 // TripoSG (docs/product/triposg.md): the third shape engine - one concept in, GLB out, through a
 // one-shot venv worker instead of a service (ADR-0004 ticket 01). Same job record as its siblings.
@@ -143,8 +153,8 @@ async function runTripoSG(j,config,signal){
   onWait:message=>{if(j.status==='running')void update(j,{message}).catch(()=>{});}});
  signal.throwIfAborted();
  const asset=await saveAsset(result.buffer,'.glb',('TripoSG · '+(j.prompt||'from image')).slice(0,50));
- const validation=validateGeneratedMesh(result.buffer);
- await update(j,{status:'completed',progress:100,message:'Geometry created · TripoSG · needs review',asset,validation,triposg:{seconds:result.stats.seconds,faces:result.stats.faces,facesTarget:result.stats.facesTarget,seed:result.stats.seed,warnings:result.stats.warnings}});
+ const validation=await validateGlbAsset(result.buffer,j,path.join(data,'assets',asset.id+asset.extension));
+ await update(j,{status:'completed',progress:100,message:'Geometry created · TripoSG'+simplifyNote(validation)+' · needs review',asset,validation,triposg:{seconds:result.stats.seconds,faces:result.stats.faces,facesTarget:result.stats.facesTarget,seed:result.stats.seed,warnings:result.stats.warnings}});
 }
 async function run(j,config,signal){
  if(j.engine==='pixal3d')return runPixal3d(j,config,signal);
@@ -165,5 +175,5 @@ async function run(j,config,signal){
  await update(j,{message:viewImages?'Creating geometry from views · Hunyuan3D-2mv ('+Object.keys(viewImages).length+' views)':'Creating geometry · Hunyuan3D',progress:0});
  const outputs=await waitPrompt(j,config,viewImages?hunyuanMultiViewWorkflow(viewImages,checkpoint,j.quality,j.seed,'astra/'+j.id,j.meshLevel??0):hunyuanWorkflow(geometryImage,checkpoint,j.quality,j.seed,'astra/'+j.id,j.meshLevel??0),signal,viewImages?'Geometry from views':'Geometry');signal.throwIfAborted();
  const item=Object.values(outputs).flatMap(x=>x['3d']||[])[0];if(!item)throw new Error('The engine did not return a GLB.');
- const asset=await downloadOutput(config,item,'.glb',(j.viewSetId?'Hunyuan3D-2mv · from views':'Hunyuan3D · '+j.prompt.slice(0,50)));const validation=validateGeneratedMesh(await fs.readFile(path.join(data,'assets',asset.id+asset.extension)));await update(j,{status:'completed',progress:100,message:'Geometry created · needs review',asset,validation});
+ const asset=await downloadOutput(config,item,'.glb',(j.viewSetId?'Hunyuan3D-2mv · from views':'Hunyuan3D · '+j.prompt.slice(0,50)));const assetFile=path.join(data,'assets',asset.id+asset.extension);const validation=await validateGlbAsset(await fs.readFile(assetFile),j,assetFile);await update(j,{status:'completed',progress:100,message:'Geometry created'+simplifyNote(validation)+' · needs review',asset,validation});
 }
