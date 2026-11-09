@@ -419,16 +419,41 @@ EnsureOllama() {
     say '  No usable Ollama - the model step was skipped. Install Ollama from https://ollama.com, then run this installer again: it will retry the model.'
     return 1
   fi
-  local started=''
+  local started='' answered srv
   for _ in $(seq 30); do
-    curl -sf -m 2 http://127.0.0.1:11434/api/version >/dev/null 2>&1 && return 0
+    answered="$(curl -sf -m 2 http://127.0.0.1:11434/api/version 2>/dev/null || true)"
+    if [ -n "$answered" ]; then
+      # Ticket 36 (Windows 0.6.18 shape): the port can be held by an OLD Ollama while a newer
+      # binary already sits on disk. Pulling against that server fails with "code 1" and the
+      # old installer looped updating forever; here the situation is named once and the step
+      # stops honestly - the user updates/stops the old server.
+      srv="$(printf '%s' "$answered" | grep -Eo '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
+      if [ -n "$srv" ] && ! OllamaVersionAtFloor "$srv"; then
+        say "  Port 11434 is answered by an OLD Ollama (server $srv, below $OllamaMinVersion) - a newer binary on disk does not replace the running server. Stop or update it (a systemd service: sudo systemctl restart ollama; otherwise quit the old 'ollama serve' process), then run this installer again: it will retry the model."
+        return 1
+      fi
+      return 0
+    fi
     if [ "$started" != 1 ]; then "$S_OLLAMA" serve >/dev/null 2>&1 & disown; started=1; ASTRA_SERVE_PID=$!; ASTRA_SERVE_OWNED=1; fi
     sleep 2
   done
   say '  Ollama did not answer on http://127.0.0.1:11434 - the model step was skipped; check this Ollama can serve (ollama --version, ollama serve), then run the installer again.'
   return 1
 }
-PullModel() { PrepareOllamaModels "$(modelBytes "$1")"; EnsureOllama && Run "$S_OLLAMA" "downloading model $1" pull "$1"; }
+# Windows 0.6.13: "Ollama models are retried twice after a dropped connection or a corrupted
+# chunk" - `ollama pull` resumes partial downloads, so three attempts are cheap and save the
+# multi-GB retry a dropped connection used to force. (Ticket 36.)
+PullModel() {
+  PrepareOllamaModels "$(modelBytes "$1")"; EnsureOllama || return 1
+  local try rc=0
+  for try in 1 2 3; do
+    Run "$S_OLLAMA" "downloading model $1 (attempt $try of 3)" pull "$1" && return 0
+    rc=$?
+    [ "$try" -lt 3 ] && say "  model $1: attempt $try failed (a dropped connection or a corrupt chunk happens) - retrying, the download resumes where it stopped"
+  done
+  say "  model $1 could not be downloaded after 3 attempts - check the network and run the installer again: only this model will re-download."
+  return "$rc"
+}
 PullLlm() {
   PullModel "$1" || return 1
   local n; n="$(NodeBin)"
@@ -490,12 +515,20 @@ OllamaReleaseSha() { # <asset file name> - sets OLLAMA_SHA from the release's sh
   [ -n "$OLLAMA_SHA" ]
 }
 
+# True when the version string is at least OllamaMinVersion (ticket 36: shared by the binary
+# probe below and the ANSWERING SERVER's /api/version — an old server holding port 11434 after
+# the user updated the binary is the 0.6.18 failure shape; naming it beats retrying forever).
+OllamaVersionAtFloor() { # <version>
+  local v="$1"
+  [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$OllamaMinVersion" "$v" | sort -V | head -1)" = "$OllamaMinVersion" ]
+}
+
 # True when the binary reports at least OllamaMinVersion: an older Ollama is never used for the
 # model steps, the checksum-verified copy goes into runtime/ollama instead (like a missing one).
 OllamaVersionOk() { # <binary>
   local v
   v="$("$1" --version 2>/dev/null | grep -Eo '[0-9]+\.[0-9]+(\.[0-9]+)?' | head -1)"
-  [ -n "$v" ] && [ "$(printf '%s\n%s\n' "$OllamaMinVersion" "$v" | sort -V | head -1)" = "$OllamaMinVersion" ]
+  OllamaVersionAtFloor "$v"
 }
 
 InstallOllama() {

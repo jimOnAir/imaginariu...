@@ -66,6 +66,23 @@ const SOUND_ENV_DOWNLOAD = 7.0e9;                         // torch cu128 + both 
 // the NVIDIA driver branch that carries working Blackwell support (ticket 20; the same floor
 // as server/gpu-info.mjs - the installer keeps its own copy, like TRIPOSG_AUTO_MAX_VRAM_MIB)
 export const MIN_NVIDIA_DRIVER = 570;
+/**
+ * NVIDIA driver facts from the two sources this branch reads (ticket 36; Windows 0.6.14:
+ * "the installer reads the NVIDIA driver version reliably - it sometimes missed it, hiding
+ * the warning"). `smiDriver` is nvidia-smi's driver_version column ('[N/A]' when it cannot
+ * say); `procText` is /proc/driver/nvidia/version on Linux. `driverUnknown` means a GPU was
+ * found but neither source could read the version - that must be SAID, never treated as new.
+ */
+export function nvidiaDriverFacts(smiDriver, procText, min = MIN_NVIDIA_DRIVER) {
+  let driver = /^\d/.test(String(smiDriver || '').trim()) ? String(smiDriver).trim() : '';
+  if (!driver && procText) {
+    const m = /Kernel Module\s+(\d+(?:\.\d+)*)/.exec(procText);
+    if (m) driver = m[1];
+  }
+  const dm = /^(\d+)/.exec(driver);
+  const driverMajor = dm ? Number(dm[1]) : null;
+  return { driver, driverMajor, driverOld: driverMajor !== null && driverMajor < min, driverUnknown: driver === '' };
+}
 export const SOUND_MIN_VRAM_MIB = 8192;                   // the smallest card both engines fit on
 export const VLM = 'qwen3-vl:8b';
 
@@ -256,6 +273,7 @@ export function p3Scan(s) {
     else if (!s.cc && !/RTX\s*(30|40|50|A\d|PRO)/i.test(s.gpu)) { r.offer = false; r.reason = 'needs an NVIDIA RTX 30/40/50'; }
     else if (s.driverOld) { r.offer = false; r.reason = `needs NVIDIA driver ${MIN_NVIDIA_DRIVER} or newer (this machine reports ${s.driver}) - update the driver, then run the installer again: Pixal3D would not run with it anyway`; }
     else if (s.vram < 10000) r.warn = `video memory is ${Math.round(s.vram / 1024)} GB: several views on 8 GB may fall short of memory, 10+ GB recommended`;
+    if (s.driverUnknown && r.offer && !r.warn) r.warn = `the NVIDIA driver version could not be read (neither nvidia-smi nor /proc/driver/nvidia/version answered) - Pixal3D needs driver ${MIN_NVIDIA_DRIVER} or newer; if it refuses to start, update the driver`;
     if (r.offer) {
       r.diskNeed = (r.engine ? 0 : P3_ENGINE_DISK) + (r.weights ? 0 : r.missingBytes);
       const free = freeOn(path.dirname(r.dir));
@@ -349,9 +367,11 @@ export function scanComponents(opts = {}) {
       const parts = (out.split('\n')[0] || '').split(',').map((x) => x.trim());
       if (parts.length >= 3 && parts[0] && /^\d+(\.\d+)?$/.test(parts[2])) {
         s.gpu = parts[0]; s.vram = parseInt(parts[1], 10) || 0; s.cc = parts[2];
-        s.driver = /^\d/.test(parts[3] || '') ? parts[3] : '';        // [N/A] on old nvidia-smi: stay honest
-        const dm = /^(\d+)/.exec(s.driver); s.driverMajor = dm ? Number(dm[1]) : null;
-        s.driverOld = s.driverMajor !== null && s.driverMajor < MIN_NVIDIA_DRIVER;
+        // [N/A] on old nvidia-smi: /proc/driver/nvidia/version is the second source before
+        // the version counts as unknown (ticket 36; env seam for the tests).
+        let procText = '';
+        if (process.platform !== 'win32') { try { procText = readFileSync(env.ASTRA_NVIDIA_VERSION_FILE || '/proc/driver/nvidia/version', 'utf8'); } catch { procText = ''; } }
+        Object.assign(s, nvidiaDriverFacts(parts[3], procText));
       }
       else s.gpuBroken = `nvidia-smi answered unexpectedly: ${parts.join(', ') || 'no output'}`;
     }
