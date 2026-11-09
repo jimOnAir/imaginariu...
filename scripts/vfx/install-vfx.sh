@@ -24,6 +24,21 @@ NODE_BIN="${ASTRA_NODE:-$(command -v node || true)}"
 [ -n "$NODE_BIN" ] || { echo 'node is required (npm for DisplacementX). Run installer/install.sh first.'; exit 1; }
 NPM_BIN="$("$NODE_BIN" -e 'const p=require("path"),d=require("path").dirname(process.execPath);console.log(p.join(d,process.platform==="win32"?"npm.cmd":"npm"))')"
 
+# NpmBuildTry <label> <dir> <bash-chain> - Windows 0.6.13: "the VFX tools build retries npm
+# downloads". A dropped registry connection mid-install is the usual failure; the chain is
+# re-runnable from its own start and every finished STEP (clone/unpack, built file) is skipped
+# by the callers, so an honest retry loop costs nothing when the network is fine. (Ticket 38.)
+NpmBuildTry() {
+  local label="$1" dir="$2" chain="$3" try
+  export NPM_BIN
+  for try in 1 2 3; do
+    ( cd "$dir" && bash -e -c "$chain" ) && return 0
+    [ "$try" -lt 3 ] && say "    $label: npm hiccup on attempt $try of 3 (a dropped registry download is the usual cause) - retrying the npm steps"
+  done
+  say "  The $label build failed after 3 attempts - run the script again once the network is steady: finished steps are skipped."
+  return 1
+}
+
 LOG="$APP/installer/install.log"   # ticket 16: the fallback/skip/retry lines belong in the install log too
 say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
 # the shared download core (reason table, resume/retry loop, checksums, mirrors)
@@ -87,7 +102,7 @@ BuildAstro() { # <dir> <base> <out>
   if [ -f "$cfg" ] && ! grep -q 'base:' "$cfg"; then
     "$NODE_BIN" -e 'const fs=require("fs");fs.writeFileSync(process.argv[1],fs.readFileSync(process.argv[1],"utf8").replace("integrations:", "base: \x27"+process.argv[2]+"\x27,\n  integrations:"))' "$cfg" "$2"
   fi
-  (cd "$src" && "$NPM_BIN" ci --no-audit --no-fund && "$NPM_BIN" exec -- astro build) || { say '  The DisplacementX build failed'; return 1; }
+  NpmBuildTry 'DisplacementX' "$src" '"$NPM_BIN" ci --no-audit --no-fund && "$NPM_BIN" exec -- astro build' || return 1
   rm -rf "$out"
   mv "$src/dist" "$out"
   rm -rf "$src/node_modules"
@@ -98,9 +113,9 @@ BuildSculptGL() { # <src> <out> - the Sculpt tab (src/SculptPanel.jsx): webpack 
   if [ -f "$out/index.html" ] && grep -q sculptgl-bridge.js "$out/index.html"; then say "    already built: $2"; return 0; fi
   if [ ! -x "$NPM_BIN" ]; then say '    npm not found - SculptGL not built (install Node.js and run the script again).'; return 0; fi
   if [ ! -f "$src/app/index.html" ]; then   # app/ exists after a successful webpack build: a repeated run does not rebuild
-    (cd "$src" && "$NPM_BIN" ci --ignore-scripts --no-audit --no-fund &&
+    NpmBuildTry 'SculptGL' "$src" '"$NPM_BIN" ci --ignore-scripts --no-audit --no-fund &&
       "$NPM_BIN" install --no-save --ignore-scripts --no-audit --no-fund webpack@5.97.1 webpack-cli@4.10.0 &&
-      "$NPM_BIN" exec -- webpack --env release) || { say '  The SculptGL build failed'; return 1; }
+      "$NPM_BIN" exec -- webpack --env release' || return 1
     rm -rf "$src/node_modules"
   fi
   "$NODE_BIN" "$APP/scripts/sculpt/assemble.mjs" "$src" "$out" || { say '  Could not assemble SculptGL (assemble.mjs)'; return 1; }

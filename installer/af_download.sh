@@ -141,6 +141,15 @@ HfMirrorUrl() { # <url> - the hf-mirror.com twin of a huggingface.co URL, '' for
   esac
 }
 
+# LooksLikePage <path> - did the endpoint answer with HTML instead of the artifact? (0.6.13:
+# "when the author's site serves a page instead of the file (PixaFlux does so now), it says
+# exactly that instead of a scary 'file was tampered with'".) Only markup openers count -
+# a real binary, zip or JSON never starts with one, so this never judges content, only shape.
+LooksLikePage() {
+  [ -f "$1" ] || return 1
+  head -c 512 "$1" 2>/dev/null | tr -d ' \t\r\n' | grep -qiE '^(!doctype|<!doctype|<html|<\?xml|<svg)'
+}
+
 DownloadChecked() { # <url> <dst> [size] [sha256]
   local leaf; leaf="$(basename "$2")"
   if FileOk "$2" "${3:-0}"; then
@@ -164,6 +173,15 @@ DownloadChecked() { # <url> <dst> [size] [sha256]
   fi
   [ -n "${4:-}" ] && say "    checking checksum: $leaf"
   if ! FileOk "$2" "${3:-0}" "${4:-}"; then
+    # 0.6.13 honesty (ticket 38): what arrived may not be a damaged binary at all but a web
+    # page (author sites start doing this when a download address changes). Say exactly that -
+    # the tamper-flavored wording was scaring people off a plain site change, and a second
+    # download would only fetch the same page.
+    if LooksLikePage "$2"; then
+      rm -f "$2"
+      say "  The site served a web page instead of the file ($leaf is HTML) - the download address has probably changed or wants a browser; the file was NOT tampered with. Check the author's page for the current link, then run the installer again."
+      return 1
+    fi
     # arrived but damaged (interrupted transfers do this): one FULL re-download from scratch, then truth
     local alt2; alt2="$(HfMirrorUrl "$1")"
     rm -f "$2"
