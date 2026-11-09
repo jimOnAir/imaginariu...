@@ -54,26 +54,38 @@ export async function runWorkflow(url, workflow, { signal, onProgress, timeoutMs
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: workflow }), signal,
   });
   const id = queued.prompt_id;
+  // Ticket 37 (Windows 0.6.15: "on timeout and on Cancel the engine job is actually stopped
+  // (the card used to keep computing)"): stopping the poll is not stopping the job - tell
+  // ComfyUI to interrupt it. Best effort: the studio-facing error below stays the point.
+  const interrupt = () => fetch(url + '/interrupt', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ prompt_id: id }), signal: AbortSignal.timeout(3000),
+  }).then(() => {}).catch(() => {});
   const deadline = Date.now() + timeoutMs;
   let last = '';
-  while (Date.now() < deadline) {
-    signal?.throwIfAborted();
-    const history = await jsonFetch(url + '/history/' + id, { signal });
-    const h = history[id];
-    if (h) {
-      const err = h.status?.messages?.find((m) => m[0] === 'execution_error');
-      if (err) throw new Error(String(err[1]?.exception_message || 'Engine error').slice(0, 900));
-      if (h.status?.status_str === 'error') throw new Error('ComfyUI could not run the job. See data/runtime/comfy.log.');
-      if (h.status?.completed) return { outputs: h.outputs, promptId: id };
-    } else {
-      const q = await comfyQueue(url);
-      const pos = q?.queue_pending?.findIndex((x) => x[1] === id);
-      const text = pos >= 0 ? `engine queue position: ${pos + 1}` : 'running';
-      if (text !== last) { last = text; onProgress?.(text); }
+  try {
+    while (Date.now() < deadline) {
+      signal?.throwIfAborted();
+      const history = await jsonFetch(url + '/history/' + id, { signal });
+      const h = history[id];
+      if (h) {
+        const err = h.status?.messages?.find((m) => m[0] === 'execution_error');
+        if (err) throw new Error(String(err[1]?.exception_message || 'Engine error').slice(0, 900));
+        if (h.status?.status_str === 'error') throw new Error('ComfyUI could not run the job. See data/runtime/comfy.log.');
+        if (h.status?.completed) return { outputs: h.outputs, promptId: id };
+      } else {
+        const q = await comfyQueue(url);
+        const pos = q?.queue_pending?.findIndex((x) => x[1] === id);
+        const text = pos >= 0 ? `engine queue position: ${pos + 1}` : 'running';
+        if (text !== last) { last = text; onProgress?.(text); }
+      }
+      await new Promise((r) => setTimeout(r, 1500));
     }
-    await new Promise((r) => setTimeout(r, 1500));
+    throw new Error('ComfyUI timed out.');
+  } catch (e) {
+    await interrupt(); // the card is freed before the caller hears about the failure
+    throw e;
   }
-  throw new Error('ComfyUI timed out.');
 }
 
 export async function downloadOutput(url, item, dest) {

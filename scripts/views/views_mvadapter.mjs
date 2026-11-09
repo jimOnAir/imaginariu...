@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { SLOT_META } from './views_prompts.mjs';
 import { DATA, DEFAULT_COMFY_URL, requireNodes, uploadImage, runWorkflow, downloadOutput, runPython } from './comfy_client.mjs';
 import { withEngineGpu } from '../../server/gpu-handover.mjs';
+import { isLowVram, currentVramMib, MVA_MAX_WAIT_MS } from '../../server/low-vram.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const MVA_DIR = path.join(DATA, 'models', 'mvadapter');
@@ -72,6 +73,10 @@ export async function generateMvadapterViews(o) {
   const slots = order.filter((s) => s === 'front' || wanted.includes(s));
   const azimuths = slots.map((s) => SLOT_META[s].azimuth);
   let size = safeSize(o.size, slots.length);
+  // Ticket 37 (Windows 0.6.15): on 8 GB-class cards views render at 512 px from the start and
+  // the engine wait is capped at 20 minutes. o.vramMib / o.lowVram override the probe (tests).
+  const lowVram = o.lowVram ?? isLowVram(o.vramMib ?? currentVramMib({ refresh: true }));
+  if (lowVram && size > 512) size = 512;
   const status = await mvadapterStatus(comfyUrl);
   if (!status.ready) throw new Error('Local MV-Adapter is not ready: ' + status.reasons.join('; ') + '.');
   await requireNodes(comfyUrl, ['AstraMVAdapterViews', 'LoadImage', 'SaveImage']);
@@ -86,6 +91,7 @@ export async function generateMvadapterViews(o) {
     const wf = mvadapterWorkflow({ refName, azimuths, size: sz, steps, cfg, seed, prefix: 'astra_views/mva_' + Date.now() });
     const run = await withEngineGpu('hunyuan', () => runWorkflow(comfyUrl, wf, {
       signal: o.signal,
+      timeoutMs: lowVram ? MVA_MAX_WAIT_MS : undefined, // undefined = the 60-minute default of the big cards
       onProgress: (t) => o.onProgress?.('MV-Adapter · ' + t),
     }), { signal: o.signal, failOpen: true, timeoutMs: 60 * 60 * 1000, urls: { hunyuan: comfyUrl }, onWait: () => o.onProgress?.('Waiting for the GPU to become free'), onStep: (t) => o.onProgress?.(t) });
     return run.outputs;

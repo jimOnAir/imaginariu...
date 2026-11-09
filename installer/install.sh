@@ -211,6 +211,13 @@ RecommendLlm() {
   else WantLlm='qwen3:4b'; LlmBytes=2500000000; fi
 }
 
+# Windows 0.6.15 (ticket 37): the 8 GB class. Below 9216 MiB - the same seam as the scan's
+# TRIPOSG_AUTO_MAX_VRAM_MIB; unknown VRAM is never "small" (ticket 33's honesty). The set that
+# does not fit: the Python Pixal3D engine with its weights, the Qwen-Image weights, the
+# qwen3-vl:8b review model.
+Is8gbVram() { [ "${S_VRAM:-0}" -gt 0 ] 2>/dev/null && [ "${S_VRAM:-0}" -lt 9216 ] 2>/dev/null; }
+Is8gbSkip() { case " $1 " in " pixal3d " | " pixal3dw " | " qwenimg " | " vlm "*) return 0 ;; *) return 1 ;; esac; }
+
 # ---------------------------------------------------------------- installing components
 InstallNode() {
   local arch tarname urls=()
@@ -806,6 +813,13 @@ ApplyPreset() {  # tick = (missing|outdated) && (the row is in the preset || man
       case "${IT_PRE[i]}" in *"$letter"*) IT_TICK[i]=1 ;; *) IsMandatory "${IT_ID[i]}" && IT_TICK[i]=1 ;; esac
     fi
   done
+  # Windows 0.6.15 (ticket 37): "Full" on an 8 GB card skips what does not fit.
+  if [ "$letter" = f ] && Is8gbVram; then
+    for i in "${!IT_ID[@]}"; do
+      [ "${IT_TICK[i]}" = 1 ] && Is8gbSkip "${IT_ID[i]}" && IT_TICK[i]=0
+    done
+    say "  8 GB card: 'Full' skips what does not fit - Pixal3D (Python) with its weights, Qwen-Image and the qwen3-vl:8b review model stay unticked; everything else fits."
+  fi
 }
 
 TickDeps() {     # ticking a row pulls in its dependencies that are not installed (the Setup.cs rule)
@@ -936,6 +950,13 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
     full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;  # «новое, проба» (ticket 12): the triposg* experimental ids are never in a preset
     *)    ids='node npm blender comfy hy2 u2net hymv sdxl mvadapter godot clips' ;;
   esac
+  # Windows 0.6.15 (ticket 37): the whole-preset plan obeys the same 8 GB rule as the checklist.
+  if [ "$Profile" = full ] && Is8gbVram; then
+    local kept=''
+    for id in $ids; do Is8gbSkip "$id" || kept="$kept $id"; done
+    ids="${kept# }"
+    say "  8 GB card: 'Full' skips what does not fit - Pixal3D (Python) with its weights, Qwen-Image and the qwen3-vl:8b review model; everything else fits."
+  fi
   plan=()
   for id in $ORDER_IDS; do
     case " $ids " in *" $id "*) plan_add "$id" "$(comp_what "$id")" 0 '' ;; esac

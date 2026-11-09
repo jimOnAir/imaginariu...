@@ -7,6 +7,8 @@
 // An engine that does not answer (not started, not installed) is simply skipped.
 import { acquireGpuLock } from './gpu-lock.mjs';
 import { pixal3dConfig } from './pixal3d.mjs';
+import { isLowVram, currentVramMib } from './low-vram.mjs';
+import { spawnSync } from 'node:child_process';
 
 export const ENGINE_LABELS = { hunyuan: 'Hunyuan3D', pixal3d: 'Pixal3D' };
 export const DEFAULT_HUNYUAN_URL = 'http://127.0.0.1:8190';
@@ -85,14 +87,57 @@ export async function handoverTo(target, o = {}) {
     // ComfyUI runs /free on its worker loop: wait until its torch memory drops (bounded, best effort)
     if (before && before > 512 * 1024 * 1024) {
       const t0 = Date.now();
+      let now = before;
       for (;;) {
         await sleep(500, signal);
-        const now = await torchVram(url, fetchFn);
+        now = await torchVram(url, fetchFn);
         if (now === null || now < before * 0.5 || Date.now() - t0 > settleMs) break;
+      }
+      // Ticket 37 (Windows 0.6.15: "if other programs hold the GPU the studio says so
+      // plainly"): the memory did not come back - name who holds the card.
+      if (now !== null && now >= before * 0.5) {
+        const held = await listGpuHolders(o.holdersProbe);
+        if (held) { report.heldBy = held; onStep?.(`Video memory is still held by: ${held} - close that program (or wait for it to finish) before the next generation`); }
       }
     }
   }
+  // Ticket 37 (Windows 0.6.15): before 3D on an 8 GB card the assistant models step aside too -
+  // a resident Ollama model costs several of the eight gigabytes. Best effort, and only when
+  // something is actually resident.
+  if (o.lowVram ?? isLowVram(o.vramMib ?? currentVramMib({ refresh: true }))) {
+    const unloaded = await unloadOllamaModels(o.ollamaUrl, fetchFn, o.env ?? process.env);
+    if (unloaded.length) { report.ollamaUnloaded = unloaded; onStep?.(`Unloaded the assistant models (${unloaded.join(', ')}) - the card needs the room`); }
+  }
   return report;
+}
+
+/** Process names holding compute memory (nvidia-smi), '' when it cannot be read or nothing runs. */
+export async function listGpuHolders(probe) {
+  try {
+    const run = probe || ((args) => spawnSync('nvidia-smi', args, { encoding: 'utf8', timeout: 5000 })?.stdout || '');
+    const out = String(await run(['--query-compute-apps=process_name,used_memory', '--format=csv,noheader']) || '');
+    return out.trim().split('\n').map((l) => l.trim()).filter(Boolean).join('; ');
+  } catch { return ''; }
+}
+
+/** Ask Ollama to drop its resident models (keep_alive 0 per running model - the documented unload).
+ *  Best effort; resolves with the names it asked about, [] when Ollama does not answer. */
+export async function unloadOllamaModels(url = null, fetchFn = fetch, env = process.env) {
+  const base = url || (env.OLLAMA_HOST ? (/^https?:/.test(env.OLLAMA_HOST) ? env.OLLAMA_HOST : 'http://' + env.OLLAMA_HOST) : 'http://127.0.0.1:11434');
+  let names;
+  try {
+    const res = await fetchFn(base + '/api/ps', { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) return [];
+    names = (await res.json())?.models || [];
+  } catch { return []; }
+  const out = [];
+  for (const m of names) {
+    const name = m?.name || m?.model;
+    if (!name) continue;
+    out.push(name);
+    try { await fetchFn(base + '/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ model: name, keep_alive: 0 }), signal: AbortSignal.timeout(5000) }); } catch { /* best effort per model */ }
+  }
+  return out;
 }
 
 /**
