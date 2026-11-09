@@ -40,8 +40,9 @@ const skipTracked = (p) => p.startsWith('.scratch/') || p.includes('node_modules
 
 // The wave's own files: ADDED on this branch since the release base (files merely touched by the
 // wave keep their pre-existing content and stay in the retroactive scope; their diffs were
-// audited per ticket). a3c959d is the v0.5.0 tip; everything after it is this wave.
-const BASE = 'a3c959d';
+// audited per ticket). The default a3c959d is the v0.5.0 tip (0.5.1-era runs); later waves pass
+// --base with their release tag's commit (0.6.6 wave: 886ca18's predecessor, 0.6.12 wave: 886ca18).
+const BASE = arg('base', 'a3c959d');
 const waveFiles = new Set();
 {
   const log = execFileSync('git', ['log', '--diff-filter=A', '--format=', '--name-only', `${BASE}..HEAD`], { cwd: ROOT, encoding: 'utf8', maxBuffer: 64e6 });

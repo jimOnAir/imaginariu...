@@ -146,3 +146,45 @@ Per-cluster evidence and the full deviations table live in
   behavior facts for 0.6.7–0.6.10; the wave scope did not move on an artifact's arrival alone —
   recorded as an open decision (keep `v0.6.6`, or fold 0.6.7–0.6.10 into a later release when
   their intent is sourced). The branch also skips a Linux 0.6.5 entirely (single folded release).
+
+## Amendment at the 0.6.12 release (deviations actually taken while implementing)
+
+- **Retarget-on-sourced-intent, executed.** The wave ran to `v0.6.10`; `AstraForge-Setup-0.6.12.exe`
+  arrived before closeout *with* the 0.6.11/0.6.12 behavior notes inside the payload — the exact
+  condition the 0.6.6 amendment's "Retarget honesty" row asked for — and the user ordered the
+  release line onto it. Artifact arrival alone still moved nothing; the sourced intent moved it.
+  The delta folded at closeout was scoped honestly: one new ticket (33), two rows proven already
+  covered by shipped code, the rest excluded with reasons.
+- **Notes inside payloads are a channel, with a question attached.** For 0.6.7–0.6.10 (and
+  0.6.11/0.6.12) no public release notes existed; the `installer/notes-<version>.txt` files inside
+  the payloads carried the intent. They flowed through the planner channel into the wave spec only
+  — implementing contexts still never opened the trees — and the author is asked to confirm or
+  publish them (spec Q1).
+- **Closed native blobs are an automatic 🚫.** 0.6.12's speedups ship as `af-mesh.exe` /
+  `af_raster.dll` with no published source, checksum or attribution. Re-deriving their *behavior*
+  is legitimate wave work; shipping or depending on the blobs is not. The slower-but-clean Blender
+  paths stay, and the exclusion is a release headline, not a footnote.
+- **Venv repair is a rebuild.** On Linux the 0.9-row "restore the internal Python link" becomes
+  `uv venv --allow-existing` in place, with the heavy recreation delegated to the installer's
+  component flow; the studio never deletes a venv.
+- **Concurrency via flock.** The Windows exclusive-open installer lock becomes POSIX `flock`;
+  the detached-install + `pid.json`/`status.jsonl` re-attach is this branch's own design.
+- **Phrase-map not ported.** The upstream 530 KB runtime RU→EN dictionary is the opposite of this
+  branch's key-based i18n layer; the behavior (OS-language first run, persistent switch, header +
+  Appearance choosers) was re-derived on the existing layer.
+- **The Bevy passport is this branch's schema.** `af_bevy.json` (`{name,loop,seconds}` clips,
+  `{kind}` collider) is what our ticket-28 step writes and our ticket-29 crate reads; upstream's
+  crate reads a different shape. Both halves living on this branch is the deviation, recorded in
+  `docs/forge/bevy.md`.
+- **Original-code claims are made from ground truth.** The 0.20 API surface the crate and the
+  check harness call was grepped from the vendored crates.io sources rather than guessed, and the
+  live headless check caught (with a recorded reproduction) the one real crate bug the unit tests
+  could not see — the animation player anchors inside the instance, not at the scene root.
+- **Third-party installs stay checksum-pinned.** `bevy_brp_mcp 0.23.0` installs only from the
+  downloaded .crate whose sha256 equals the pinned crates.io record (live-verified); a mismatch
+  refuses before any toolchain runs. Same rule as the model downloads: no unverified fetch is
+  ever executed.
+- **Audit discipline held.** All thirteen implementing tickets (20–31, 33) passed the fresh-context
+  similarity gate with the PASS recorded per ticket; the auditors also corrected their own
+  scanner twice mid-wave (a tokenizer line-attribution defect; CRLF-diff artifacts) and the
+  corrections are on the ticket files.

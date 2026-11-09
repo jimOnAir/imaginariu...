@@ -2,9 +2,11 @@
 
 AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
-Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, and since 0.6.6 the
-Windows 0.6.0 → 0.6.6 line as one release (see the sections below and
-`docs/product/acceptance-0.5.0.md` / `acceptance-0.5.1.md` / `acceptance-0.6.6.md`). This page documents the
+Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, since 0.6.6 the
+Windows 0.6.0 → 0.6.6 line as one release, and since 0.6.12 the Windows 0.6.7 → 0.6.12 patches as
+one folded release (see the sections below and
+`docs/product/acceptance-0.5.0.md` / `acceptance-0.5.1.md` / `acceptance-0.6.6.md` /
+`acceptance-0.6.12.md`). This page documents the
 Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
 ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
 `process.platform` check or lives in Linux-only files, and the Windows frontends
@@ -128,6 +130,40 @@ manifest profiles, and the -Profile fallback in `install.sh` mirrors the same li
 by hand works exactly like any other row. Upstream's one exception — forcing TripoSG into the
 low-VRAM quick set — stays on the Windows side; on this branch the opt-in is unconditional,
 which supersedes ticket 02's quick-swap rule (recorded as ticket 12's deviation).
+
+## 0.6.12 — the Windows 0.6.7 → 0.6.12 patches, folded into one release
+
+The second patch fold: Windows shipped 0.6.7…0.6.12 after our 0.6.6; the installers that arrived
+(0.6.8, 0.6.10, 0.6.12) drove the re-derivation, and 0.6.7/0.6.9/0.6.11 exist in these trees only
+folded (recorded deviation; same honesty as the 0.6.0–0.6.5 fold). Protocol v2 unchanged: notes
+and interface facts through the spec channel, payloads quarantined, every commit gated by a
+fresh-context similarity audit. Full per-ticket evidence:
+[acceptance-0.6.12](product/acceptance-0.6.12.md).
+
+- **Bevy is the fourth export target** (tickets 28–31): profile "Bevy 0.20" ships the same GLB as
+  Godot plus an `af_bevy.json` passport; `bevy/astraforge_bevy/` (branch-original MIT) plays a
+  package in Bevy 0.20 with one `add_astraforge_asset` line — default-clip autostart, blended
+  clips, socket effects, `af_sounds.json` sound banks, hot model reload. With Rust on PATH the
+  step also runs a **headless check** (the crate's `af_bevy_check` proves the passport against the
+  live world and captures `shots/forward.png` + `shots/clip.png`; env `ASTRA_CARGO*`, shared
+  target cache, first check pays the compile); without Rust the export is byte-identical minus
+  the check. `node scripts/engines/bevy.mjs status` tells which half this machine gets.
+- **MCP parity**: `bevy` in the engine enums and every engine verb; `sound_export
+  {engine:"bevy"}` lays the crate-shaped bank; the `bevy_brp_mcp 0.23.0` editor bridge installs
+  ONLY via `engine_mcp_register {installBevyBrp:true}` — download, pinned sha256, verified file
+  only (the supply-chain rule; there is no bare index install).
+- **Self-healing venvs + locale** (25–27): a broken python link is repaired at startup (rebuild,
+  not relink); the UI starts in the OS language (`LC_ALL`→`LC_MESSAGES`→`LANG`), persists only an
+  explicit choice, header RU/EN switch + Appearance chooser on the key-based i18n layer.
+- **Installer honesty and concurrency** (22–24, 33): flock-based single-instance, detached
+  installer re-attach (`pid.json`/`status.jsonl`), Ollama models relocate to a roomy drive, and
+  an unreadable free-space reading is `unknown` — never a false "0.0 GB — not enough space" stop.
+- **Gates before Pixal3D** (20–21): driver 570 floor (unknown driver is never refused), RAM
+  precheck with generator unload so a retry goes through.
+- **What 0.6.12's own speedups are NOT here**: the native mesh simplifier and raster camera
+  fitter ship in the Windows payload as closed binaries with no published source or checksum —
+  excluded with reasons (acceptance report); Blender paths stay, slower. The engine lifeline and
+  the AMD ROCm fallback sit on standing 🚫 exclusions (engine files / AMD).
 
 ## Quick start (Linux)
 
