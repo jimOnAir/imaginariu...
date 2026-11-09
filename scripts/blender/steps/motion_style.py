@@ -23,6 +23,10 @@ params:
   hold_props true      upright held props (staff, banner, spear, bow) stay upright in idle/walk/hit, and
                        no prop tip goes below the floor in any clip
   floor true           leg IK targets never below the rest ankle height
+  posture_check true   measure the arm twist the style adds on every styled clip and rotate the
+                       excess back (ticket 35, Windows 0.6.13 intent: the style may swing the
+                       arms, it must not roll the fighters' shoulders - see _posture_lib);
+                       posture_tol_deg 25   tolerance; death clips are measured but exempt
   floor_tolerance_m 0.02, floor_samples 16, ground_samples 2000
   preview true, preview_cols 6, preview_tile 220
   robe_settle true     a robed body that lies after a procedural death: corrective shape key af_death_settle lowers
@@ -41,10 +45,11 @@ outputs: styled.blend, styled.glb (one glTF animation per clip, same names, "-lo
 See docs/forge/motion_style.md.
 """
 import json
+import math
 import os
 
 import bpy
-from mathutils import Vector
+from mathutils import Quaternion, Vector
 
 import af_common as af
 
@@ -71,6 +76,120 @@ def _under(ob, rig):
             return True
         p = p.parent
     return False
+
+
+# ---------------------------------------------------------------- posture guard (ticket 35, wave 0.6.18)
+# Windows 0.6.13: "retargeting clips and motion style no longer roll the fighters' shoulders
+# back - posture is fixed and checked on every clip". This branch watches the upper-arm TWIST
+# (elbow-crease direction about the upper-arm axis): a style may swing the arms, it may not
+# turn the humerus. Reference = the same clip pre-style, same rig, same hips frame. See
+# steps/_posture_lib.py for the math and the death-clip exemption rationale.
+POSTURE_SIDES = (("l", "LeftArm", "LeftForeArm"), ("r", "RightArm", "RightForeArm"))
+
+
+def _quat_curves(act, bone):
+    want = 'pose.bones["%s"].rotation_quaternion' % bone
+    curves = {}
+    for fc in A.fcurves_of(act):
+        if fc.data_path == want and fc.array_index in (0, 1, 2, 3):
+            curves[fc.array_index] = fc
+    return curves if len(curves) == 4 else None
+
+
+def _kp_at(fc, f):
+    for kp in fc.keyframe_points:
+        if int(round(kp.co[0])) == f:
+            return kp
+    return None
+
+
+def _quat_read(act, bone, f):
+    curves = _quat_curves(act, bone)
+    if not curves:
+        return None
+    vals = []
+    for idx in (0, 1, 2, 3):
+        kp = _kp_at(curves[idx], f)
+        if kp is None:
+            return None
+        vals.append(kp.co[1])
+    return Quaternion((vals[0], vals[1], vals[2], vals[3]))  # w, x, y, z
+
+
+def _quat_write(act, bone, f, q):
+    curves = _quat_curves(act, bone)
+    if not curves:
+        return False
+    for idx, comp in ((0, q.w), (1, q.x), (2, q.y), (3, q.z)):
+        kp = _kp_at(curves[idx], f)
+        if kp is None:
+            return False
+        kp.co[1] = comp
+    for fc in curves.values():
+        fc.update()
+    return True
+
+
+def _posture_sample(R, rig, act):
+    """(twists, frames, start) for one action on the rig, or None when the arm bones are unmapped."""
+    try:
+        from steps import _posture_lib as PL
+    except ImportError:
+        import _posture_lib as PL
+    tr = R.tr
+    sides = []
+    for lbl, up_c, fore_c in POSTURE_SIDES:
+        up, fore = tr.cname.get(up_c), tr.cname.get(fore_c)
+        if up and fore:
+            sides.append((lbl, up, fore))
+    if not sides:
+        return None
+    fr = act.frame_range
+    start, n = int(round(fr[0])), int(round(fr[1] - fr[0])) + 1
+    A.assign_action(rig, act)
+    tw = PL.sample_twists_deg(rig, sides, tr.hips, start, n)
+    return None if tw is None else (tw, n, start)
+
+
+def _posture_guard(R, rig, pre, act, exempt, tol):
+    """Measure + (when needed) correct the style-added arm twist on one clip: `pre` is the
+    reference twist sample taken from the SAME clip before styling (same rig, same hips
+    frame), `act` the styled action. Returns the stats dict for the clip record."""
+    try:
+        from steps import _posture_lib as PL
+    except ImportError:
+        import _posture_lib as PL
+    ref_tw, m, _ = pre
+    cur = _posture_sample(R, rig, act)
+    if cur is None:
+        return None
+    cur_tw, n, start = cur
+    sides = [(lbl, R.tr.cname.get(up_c)) for lbl, up_c, _f in POSTURE_SIDES if R.tr.cname.get(up_c)]
+    stats = {}
+    for lbl, up in sides:
+        ref = [ref_tw[lbl][min(m - 1, round(i * (m - 1) / max(n - 1, 1)))] for i in range(n)]
+        verdict = PL.twist_guard(ref, cur_tw[lbl], tol)
+        fixed = 0
+        if not exempt and verdict["over"]:
+            # rotate each offender back INSIDE the tolerance rim (60% of tol) about the bone's
+            # own Y - the roll DOF - then re-measure once; the remainder is reported, not hidden
+            for f, d in sorted(verdict["over"]):
+                q = _quat_read(act, up, f + start)
+                if q is None:
+                    continue
+                corr = -(d - (0.6 * tol if d > 0 else -0.6 * tol))
+                if _quat_write(act, up, f + start, (q @ Quaternion(Vector((0.0, 1.0, 0.0)), math.radians(corr))).normalized()):
+                    fixed += 1
+            if fixed:
+                cur2 = _posture_sample(R, rig, act)
+                if cur2:
+                    verdict = PL.twist_guard(ref, cur2[0][lbl], tol)
+        stats[lbl] = {"worst_deg": verdict["worst_deg"], "over_frames": [f for f, _ in verdict["over"]],
+                      "fixed_frames": fixed, "exempt": bool(exempt)}
+    worst = max((s["worst_deg"] for s in stats.values() if s["worst_deg"] is not None), default=None)
+    over_all = [f for s in stats.values() for f in s["over_frames"]]
+    return {"worst_deg": worst, "over": over_all, "stats": stats,
+            "fixed": any(s["fixed_frames"] for s in stats.values()), "exempt": bool(exempt)}
 
 
 def _clip_meta(blend_path):
@@ -369,6 +488,12 @@ def run(req):
     clips_param = P.get("clips") or {}
     undead = bool(P.get("undead", False))
     death = SL.death_choice(P, seed, undead)
+    # ticket 35 follow-up: an auto death is built from the first clip's first frame - read it NOW,
+    # while the input actions are still in the file (the styling loop supersedes them, and Blender
+    # frees the unreferenced old ones before the loop's end)
+    auto_death_frames = None
+    if death != "library" and not any(str(rec.get("category", "")) == "death" for rec in meta.values()):
+        auto_death_frames = SL.read_action(R, by_name[names[0]], 1)
     death_blend = float(P.get("death_blend", 1.0))
     if not 0.0 <= death_blend <= 1.0:
         raise ValueError("death_blend must be within 0..1")
@@ -435,20 +560,26 @@ def run(req):
             report.append(rec)
             continue
         st = SL.clip_style(style, cat, over if isinstance(over, dict) else None)
+        # ticket 35: reference twist from the clip BEFORE styling (write_poses recycles the
+        # name, so this is the only moment the input action can still be sampled).
+        pre_tw = _posture_sample(R, rig, act) if bool(P.get("posture_check", True)) else None
         poses, info = SL.style_clip(R, frames, cat, st, loop, locomotion, props, opts)
         new = SL.write_poses(R, gname, poses, loop)
+        # the style may swing the arms but must not roll the shoulders (see _posture_lib);
+        # death clips are measured and exempt.
+        pinfo = _posture_guard(R, rig, pre_tw, new, cat == "death", float(P.get("posture_tol_deg", 25.0))) \
+            if pre_tw else None
         out_actions.append(new)
         rec.update({"mode": "styled", "style": {k: round(float(v), 3) if not isinstance(v, str) else v
                                                  for k, v in st.items()},
                     "frames": info["frames"], "tempo_real": info["tempo_real"],
                     "hips_drop_max_cm": info["hips_drop_max_cm"], "ik_unreached_frames": info["ik_unreached_frames"],
                     "clip_trunk_lean_deg": info["clip_trunk_lean_deg"], "forward_knobs_scale": info["forward_knobs_scale"],
-                    "prop_fixes": info["prop_fixes"], "_src_feet": info["src_feet"]})
+                    "prop_fixes": info["prop_fixes"], "posture": pinfo, "_src_feet": info["src_feet"]})
         report.append(rec)
     if death != "library" and not death_done:
         # no death clip in the input: build one from the first frame of the first clip
-        first = by_name[names[0]]
-        frames = SL.read_action(R, first, 1)
+        frames = auto_death_frames if auto_death_frames is not None else SL.read_action(R, by_name[names[0]], 1)
         start = SL.pose_from_basis(R, frames[0])
         poses, dinfo = SL.make_death(R, start, death, seed if seed is not None else 0, fps, props, gs)
         new = SL.write_poses(R, "death", poses, False)
@@ -476,6 +607,13 @@ def run(req):
         ev = A.evaluate_action(tr, act, n, root_travel=False, hips_travel=False)
         rec["nan"] = ev["nan"]
         checks.append(af.check("no_nan_" + tag, ev["nan"] == 0, ev["nan"], 0))
+        pinfo = rec.get("posture")
+        if pinfo:
+            checks.append(af.check("posture_twist_" + tag, not pinfo["over"], pinfo["worst_deg"],
+                                   float(P.get("posture_tol_deg", 25.0)), severity="warning",
+                                   note="deg the style moved the upper-arm twist past tolerance%s%s"
+                                        % (" (excess was rotated back)" if pinfo["fixed"] else "",
+                                           " - death clips are exempt" if pinfo["exempt"] else "")))
         if rec["loop"]:
             rec["seam_rot_deg"], rec["seam_pos_mm"] = ev["seam_rot_deg"], ev["seam_pos_mm"]
             checks.append(af.check("loop_seam_" + tag, ev["seam_rot_deg"] <= 0.5 and ev["seam_pos_mm"] <= 1.0,
