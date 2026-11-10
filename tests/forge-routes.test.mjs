@@ -325,7 +325,7 @@ test('CLI --direct works without a server', async () => {
   assert.match(noWait.stderr, /--no-wait does not work with --direct/);
   const report = JSON.parse(noWait.stdout);
   assert.equal(report.status, 'failed');
-  assert.match(report.error, /Failed to start Blender/);
+  assert.match(report.error, /Blender was not found/);   // ticket 42: the honest remedy text replaced the raw spawn message
   const record = JSON.parse(await fs.readFile(path.join(env.ASTRA_FORGE_LIBRARY, 'jobs', report.id + '.json'), 'utf8'));
   assert.equal(record.status, 'failed', 'the job record exists and is final');
   const shown = JSON.parse((await runCli(['show', report.assetId, '--direct', '--json'], env)).stdout);

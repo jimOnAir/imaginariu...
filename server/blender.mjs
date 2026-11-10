@@ -407,6 +407,18 @@ export function lastErrorLine(tail = []) {
   return null;
 }
 
+// Ticket 42 (0.7.1 wave, degraded-start honesty): with Blender missing the Forge steps answered
+// the raw errno — `Failed to start Blender (blender): spawn blender ENOENT` — the same class of
+// user-hostile text ticket 25 fixed for the venvs. The honest sentence names what was looked for
+// and the studio's own remedy (the installer row downloads Blender 5.0.1 into runtime/blender;
+// ASTRA_BLENDER/PATH may point at any system 5.x — see docs/linux.md).
+export function blenderSpawnFailText(command, err) {
+  if (err?.code === 'ENOENT') {
+    return `Blender was not found (${command}): the Forge steps need Blender 5.x. Run installer/install.sh -Yes -Only blender to download Blender 5.0.1 into runtime/blender, or point ASTRA_BLENDER at your own Blender 5.x.`;
+  }
+  return `Failed to start Blender (${command}): ${err?.message || 'unknown error'}`;
+}
+
 function spawnAndParse({ step, request, requestPath, logFile, timeoutSec, blender, commandFor, signal, onLog, onProgress, env }) {
   return new Promise((resolve, reject) => {
     if (signal?.aborted) return reject(abortError());
@@ -440,7 +452,7 @@ function spawnAndParse({ step, request, requestPath, logFile, timeoutSec, blende
       });
     } catch (err) {
       log.end();
-      return reject(new BlenderStepError(`Failed to start Blender: ${err.message}`, { code: 'spawn_failed', logFile }));
+      return reject(new BlenderStepError(blenderSpawnFailText(command, err), { code: 'spawn_failed', logFile }));
     }
 
     const handleLine = (raw, stream) => {
@@ -546,7 +558,7 @@ function spawnAndParse({ step, request, requestPath, logFile, timeoutSec, blende
       clearTimeout(timer);
       signal?.removeEventListener('abort', onAbort);
       log.end();
-      reject(new BlenderStepError(`Failed to start Blender (${command}): ${err.message}`, { code: 'spawn_failed', logFile }));
+      reject(new BlenderStepError(blenderSpawnFailText(command, err), { code: 'spawn_failed', logFile }));
     });
     child.on('exit', (code) => {
       // If a grandchild keeps stdout open, do not wait for it forever.
