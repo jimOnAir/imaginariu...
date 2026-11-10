@@ -1,6 +1,6 @@
 {
   "name": "astraforge-local",
-  "version": "0.6.12",
+  "version": "0.7.1",
   "private": true,
   "type": "module",
   "scripts": {

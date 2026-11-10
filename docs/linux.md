@@ -3,10 +3,10 @@
 AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
 Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, since 0.6.6 the
-Windows 0.6.0 → 0.6.6 line as one release, and since 0.6.12 the Windows 0.6.7 → 0.6.12 patches as
+Windows 0.6.0 → 0.6.6 line as one release, and since 0.7.1 the Windows 0.6.7 → 0.7.1 patches as
 one folded release (see the sections below and
 `docs/product/acceptance-0.5.0.md` / `acceptance-0.5.1.md` / `acceptance-0.6.6.md` /
-`acceptance-0.6.12.md`). This page documents the
+`acceptance-0.7.1.md`). This page documents the
 Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
 ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
 `process.platform` check or lives in Linux-only files, and the Windows frontends
@@ -164,6 +164,44 @@ fresh-context similarity audit. Full per-ticket evidence:
   fitter ship in the Windows payload as closed binaries with no published source or checksum —
   excluded with reasons (acceptance report); Blender paths stay, slower. The engine lifeline and
   the AMD ROCm fallback sit on standing 🚫 exclusions (engine files / AMD).
+
+## 0.7.1 — the Windows 0.6.13 → 0.7.1 patches, folded into the same release
+
+The fold kept growing while the closeout stood: 0.6.13–0.6.18 arrived as one installer (tickets
+34–38), then 0.7.0 and 0.7.1 arrived together and the release line moved to **0.7.1** (retargets
+#2/#3, ADR-0004 retarget honesty — the notes ride the payloads). Linux ships once at 0.7.1; no
+v0.6.12/v0.6.18/v0.7.0 tag ever existed. Per-ticket evidence:
+[acceptance-0.7.1](product/acceptance-0.7.1.md) (clusters L–M).
+
+- **Generations are kept, not thrown away** (34): an over-cap GLB is decimated through the
+  `cleanup` path and accepted with the reduction named (live: 115 MB / 5.2 M tris → 67 MB /
+  624 k tris); only a truly irreducible mesh still fails, with the old honest error.
+- **Posture guard on styled clips** (35): humeral TWIST about the upper-arm axis, referenced
+  to the hips SIDE axis (swing-invariant: ±60° swing moves it < 5°, a 40° roll moves it 1:1);
+  offenders rotated back inside the rim, re-measured; death clips exempt.
+- **8 GB honesty** (37, 43): views at 512 px with a 20-minute cap, Cancel/timeout really
+  interrupt the engine, "Full" unticks what does not fit — and the new **paging sentinel**: a
+  ComfyUI step whose progress goes nowhere for 5 minutes means the card is swapping, the job
+  stops at once with the diagnosis, the measured step and the real levers
+  (`ASTRA_VIEWS_STEP_MAX_SEC` tunes it, 0 disables).
+- **`keep_rig` in `replace_part`** (39): opt-in — a rigged body keeps its armature through a
+  part swap; the part, eye spheres and seam band are weighted by barycentric transfer from the
+  removed old surface, and `replaced.glb` exports skinned. Default off: the classic static swap.
+- **Weight reuse** (40): `installer/af_weights.mjs` finds weights a sibling ComfyUI / the HF
+  cache / `ASTRA_WEIGHT_DIRS` already hold, matches name + exact bytes, verifies the pinned
+  sha256 at accept, and connects by a symlink + a `weightLinks` record — never a copy, never a
+  move. The checklist and the Components window show `installed (external)`; `install.sh` offers
+  the found files with the download size saved (`ASTRA_CONNECT_EXISTING=0` opts out).
+- **Honest degraded start** (42): a subsystem that fails at startup never bricks the studio —
+  engine-down is visible live in the status dots and badges, old-card refusals name their
+  reasons in both checklists, and a missing Blender now answers with the installer remedy
+  (`install.sh -Yes -Only blender` / `ASTRA_BLENDER`) instead of `spawn blender ENOENT`.
+- **What 0.7 did NOT bring**: the content studio and node editor are hosted by a **closed Rust
+  core** (`bin/astraforge-rs.exe`/`bin/astraforge-mcp.exe`, no published source/checksum) behind
+  a subscription — the standing exclusions apply (author questions Q11/Q12); the engine-side
+  fp8/eviction machinery is engine files; the `ffmpeg` installer component has no consumer on
+  this branch. The self-learning idle gate has nothing to gate here — this branch's learning is
+  a local journal, no background GPU job (recorded, ticket 41 withdrawn).
 
 ## Quick start (Linux)
 

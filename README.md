@@ -6,23 +6,38 @@
 >
 > - **Free:** [AstraForge-Setup.exe](https://github.com/Snodrod/AstraForge/releases/latest) (0.4.6, *Quick* ≈ 30 GB or *Full* ≈ 95 GB). Personal, educational and other **noncommercial** use only, no updates — [PolyForm Noncommercial 1.0.0](LICENSE-0.4.2.md).
 > - **Subscription — $5/month or $49/year:** use AstraForge and everything you make with it **commercially**, and get every update on release day — [subscription license](COMMERCIAL-LICENSE.md). [Subscribe](https://snodrod.github.io/AstraForge/#subscribe).
-> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.6.12** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
-re-derived behavior of the shipped Windows 0.6.0 → 0.6.12 line — 0.6.6 folded the first seven
-releases into one, this release folds the six patches after it; the parity artifacts that
+> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.1** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
+re-derived behavior of the shipped Windows 0.6.0 → 0.7.1 line — 0.6.6 folded the first seven
+releases into one, this release folds the fourteen patches after it; the parity artifacts that
 actually arrived are **`AstraForge-Setup-0.6.8.exe`** (md5 `8fc2d345501e1abea7637be1a73f3846`),
-**`AstraForge-Setup-0.6.10.exe`** (md5 `49a32878c1bb26918a508e4c0dc6f813`) and
-**`AstraForge-Setup-0.6.12.exe`** (md5 `2a58c9d62e4de282bea244d26f00ae43`) — the 0.6.7, 0.6.9 and
-0.6.11 installers never arrived, their content is observable only folded into those trees
-(recorded deviation). What 0.6.12 adds: **Bevy as the fourth export target** — GLB plus the
+**`AstraForge-Setup-0.6.10.exe`** (md5 `49a32878c1bb26918a508e4c0dc6f813`),
+**`AstraForge-Setup-0.6.12.exe`** (md5 `2a58c9d62e4de282bea244d26f00ae43`),
+**`AstraForge-Setup-0.6.18.exe`** (md5 `458223df82e2b291b089b38dd06e021f`),
+**`AstraForge-Setup-0.7.0.exe`** (md5 `e4213515d8695d042298194b87c9fe5b`) and
+**`AstraForge-Setup-0.7.1.exe`** (md5 `f074a5e56460c6c8262da576f4e5610c`) — the 0.6.7, 0.6.9,
+0.6.11 and 0.6.13–0.6.17 installers never arrived, and no 0.6.19+ artifact or notes file exists
+at all: their content is observable only folded into the trees above (recorded deviations; the
+release line was retargeted twice mid-closeout, both disclosed in the acceptance report).
+Highlights of the folded stretches: **Bevy as the fourth export target** — GLB plus the
 `af_bevy.json` asset passport, a branch-original MIT crate that plays a package with one
 dependency line (autostart, blending, sockets, sounds, hot reload), an optional headless cargo
 check with preview frames, MCP and sound parity, and an editor bridge installable only behind a
-pinned crates.io checksum; venvs that heal themselves; an interface that starts in the machine's
-language with a header RU/EN switch; installer concurrency via flock, detached-run re-attach and
-free-space honesty (an unreadable reading is unknown, never 0.0 GB); real driver and RAM gates
-before Pixal3D. The 0.6.12 native speedups (a Rust mesh simplifier, a raster camera fitter) ship
-in Windows payloads without published source or checksum and are excluded here with reasons —
-see the [0.6.12 acceptance report](docs/product/acceptance-0.6.12.md) (and
+pinned crates.io checksum; **over-cap generations salvaged, not thrown away** (a 115 MB mesh
+came back 67 MB, accepted); a **posture guard** on styled clips (humeral twist, verified by
+re-measure); **the 8 GB card told the truth** — views at 512 px, a step paging for five minutes
+stops the job with the real reason, "Full" unticks what does not fit, and Cancel really frees
+the GPU; **`keep_rig`** — replacing a part of a rigged model keeps the armature, the new
+vertices weighted from the removed surface; **weights other tools already downloaded are
+connected without copying** (checksum-verified links, an `installed (external)` row in the
+Components window); a missing Blender names its installer remedy instead of an errno; venvs
+that heal themselves; an interface that starts in the machine's language with a header RU/EN
+switch; installer concurrency via flock, detached-run re-attach and free-space honesty (an
+unreadable reading is unknown, never 0.0 GB); real driver and RAM gates before Pixal3D.
+Excluded with reasons: the 0.6.12 native speedups (closed binaries, no published source or
+checksum), the textured Pixal3D (C++) component, and **the 0.7.0 closed Rust core** — the host
+of the node editor and content studio, gated on Windows by an active subscription: the
+monetization line and unpublished native code are standing exclusions of this branch. See the
+[0.7.1 acceptance report](docs/product/acceptance-0.7.1.md) (and
 [0.6.6](docs/product/acceptance-0.6.6.md), [0.5.1](docs/product/acceptance-0.5.1.md)) for what
 shipped, what is deliberately excluded and what is unverified here. The `v0.5.0` line (feature set of shipped Windows 0.4.16) was produced under the earlier ADR-0003 bar; the retroactive audit has now run and found that pre-existing body to be verbatim payload material rather than re-derived code — disclosed in full in the [similarity audit](docs/product/similarity-audit-0-5-1.md), with a module-by-module rewrite campaign open; until it lands, the MIT grant above covers the original code of this branch (everything added under ADR-0004, audit-gated per ticket), and the rest stays under the rights holder's terms. See also the [0.5.0 acceptance report](docs/product/acceptance-0.5.0.md). The `master` source stays the older 0.3.0; released Windows installers are distributed under the licenses above.
 

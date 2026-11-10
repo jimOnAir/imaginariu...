@@ -188,3 +188,50 @@ Per-cluster evidence and the full deviations table live in
   similarity gate with the PASS recorded per ticket; the auditors also corrected their own
   scanner twice mid-wave (a tokenizer line-attribution defect; CRLF-diff artifacts) and the
   corrections are on the ticket files.
+
+## Amendment at the 0.7.1 release (deviations actually taken while implementing)
+
+- **Retarget honesty, exercised twice more.** Before any tag was applied, `0.6.18.exe` arrived
+  (record #2 — its payload carries the 0.6.13–0.6.18 notes) and, again mid-closeout,
+  `0.7.0.exe` and `0.7.1.exe` arrived together (record #3 — both notes files ride the payloads).
+  Both moves were user-directed and satisfy the rule's condition: intent is *sourced*, not
+  inferred from an artifact's existence. No v0.6.12, v0.6.18 or v0.7.0 tag ever existed; the
+  `acceptance-0.6.12.md` report became a superseded pointer so no file claims a Linux release
+  under an intermediate target. The 0.6.19+ window has no installer and no notes file — folded
+  as a recorded deviation, not guessed at.
+- **Probe-first withdrew a ticket before implementation.** The 0.7 note "self-learning idle gate"
+  became ticket 41; probing the branch's own `server/forge-learn.mjs` showed a local
+  event-driven journal with no background GPU work — an idle/VRAM/cooldown gate would have
+  nothing to gate (the note governs the engine-side trainer, a standing exclusion). The ticket
+  was withdrawn with the evidence recorded rather than implemented as a fabricated feature.
+- **A closed core is excluded as a body.** 0.7.0 moved the node editor (and the subscription-
+  gated content studio) into `bin/astraforge-rs.exe` — a native binary with no published
+  source, checksum or attribution. The af-mesh rule applies automatically, and with it the
+  observation that the monetization exclusion covers whole product bodies, not only
+  updater/telemetry plumbing: anything whose *host* is a closed binary is excluded with it
+  (author questions Q11/Q12 keep the door open).
+- **Reuse of existing seams over new machinery.** keep_rig (ticket 39) threads the
+  `_mesh_lib.prepare_meshes(keep_armatures=)` flag that already existed unused and transfers
+  weights through `_cloth_lib.transfer_weights` (the cloth lane's idiom) on a points-only
+  carrier; the transform-bake recipe was measured in Blender first (world drift 0.000000 m,
+  deform identical) instead of reasoned about. The branch's `keep_rig` defaults off where
+  upstream's defaults true — recorded: patch waves do not flip existing step defaults.
+- **Weight reuse is a link, never a copy.** The Windows mechanism (hardlinks + folder
+  registration) becomes, on Linux, a symlink into the studio's own `data/models` + a
+  `weightLinks` record in the pre-existing `config/paths.json` layer, sha256-verified at accept
+  against the manifest pin (no pin — no link). The user's folders are never written to, moved
+  through, or relinked; the af_scan row `installed (external)` carries the truth into both the
+  installer checklist and the Components window.
+- **The paging sentinel stays on the branch's side of the boundary.** 0.7's low-VRAM cures are
+  engine-side fp8/eviction machinery (🚫); what this branch owns is the orchestrator fact —
+  a step over five minutes is paging — enforced client-side against ComfyUI's own progress
+  stream (ticket 43). The auditors' line-by-line comparison of the two guards (engine-side
+  Python with Russian strings vs the WS step clock here) is the fold's cleanest boundary demo.
+- **Corpus change recorded.** From 0.7.0 the payloads stopped shipping their JS tests and most
+  product docs (104 files); retroactive-audit false positives shrink accordingly, and newer
+  interface facts come from code shapes only. Container note for future waves: 0.7.x exes carry
+  ~70 KB of resources AFTER the zip EOCD — carve, then truncate to `EOCD + 22 + commentLen`.
+- **Audit discipline held.** Every fold ticket (34–40, 42–43) passed the fresh-context gate
+  with the PASS recorded per ticket; 39 and 40 were audited directly against the payload's
+  same-named implementations (`replace_part` keep_rig, `model-scan.mjs`) and survived
+  line-by-line comparison — longest shared runs 4 and 3 lines respectively, both boilerplate.
