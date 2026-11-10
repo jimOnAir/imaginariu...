@@ -476,3 +476,106 @@ def test_replace_align_none_keeps_part_pose_materials_and_sockets():
             raise AssertionError("no error for part_transform.scale 0")
     finally:
         shutil.rmtree(d, ignore_errors=True)
+
+
+# --------------------------------------------------------------------------- keep_rig (ticket 39)
+
+def _save_rigged_glb(path):
+    """A cone body on two bones (thigh z -0.5..0, shin 0..0.5), skinned, exported with its skin."""
+    af.reset_scene()
+    me = bpy.data.meshes.new("body")
+    bm = bmesh.new()
+    bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=16,
+                          radius1=0.15, radius2=0.08, depth=1.0)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=8, use_grid_fill=True)
+    bm.to_mesh(me)
+    bm.free()
+    ob = bpy.data.objects.new("body", me)
+    bpy.context.scene.collection.objects.link(ob)
+    ad = bpy.data.armatures.new("rig")
+    arm = bpy.data.objects.new("bodyRig", ad)
+    bpy.context.scene.collection.objects.link(arm)
+    bpy.ops.object.select_all(action='DESELECT')
+    arm.select_set(True)
+    bpy.context.view_layer.objects.active = arm
+    bpy.ops.object.mode_set(mode='EDIT')
+    b1 = ad.edit_bones.new("thigh")
+    b1.head, b1.tail = (0, 0, -0.5), (0, 0, 0.0)
+    b2 = ad.edit_bones.new("shin")
+    b2.head, b2.tail = (0, 0, 0.0), (0, 0, 0.5)
+    b2.parent, b2.use_connect = b1, True
+    bpy.ops.object.mode_set(mode='OBJECT')
+    g1 = ob.vertex_groups.new(name="thigh")
+    g2 = ob.vertex_groups.new(name="shin")
+    for v in me.vertices:
+        (g1 if v.co.z < 0.0 else g2).add([v.index], 1.0, "REPLACE")
+    ob.modifiers.new("Armature", "ARMATURE").object = arm
+    ob.parent = arm
+    af.export_glb(path, objects=[ob, arm], animations=False, skins=True)
+    af.reset_scene()
+    return path
+
+
+def _replace_region(d, body, **params):
+    part = _save_mesh(os.path.join(d, "part.glb"),
+                      lambda bm: _add(bm, "box", size=(0.14, 0.14, 0.14), at=(2.0, 2.0, 5.0)), "part")
+    return _run({"mesh": body, "part": part},
+                {"region": {"min": [-0.2, -0.2, 0.65], "max": [0.2, 0.2, 1.0]},
+                 "align": "bbox", "preview": False, **params})
+
+
+def test_keep_rig_default_drops_the_rig():
+    """The behavior the step had before: the rigged input becomes a plain static swap."""
+    d = _tmp()
+    try:
+        body = _save_rigged_glb(os.path.join(d, "body.glb"))
+        res = _replace_region(d, body)
+        assert res["ok"], res
+        assert res["stats"].get("rig") is None
+        assert any("armature" in w and "dropped" in w for w in res["warnings"]), res["warnings"]
+        af.reset_scene()
+        objs = af.import_any(res["outputs"]["glb"])
+        assert not [o for o in objs if o.type == "ARMATURE"], "default export must carry no rig"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_keep_rig_keeps_armature_and_weights_the_new_vertices():
+    """0.7.1 wave ticket 39: keep_rig true - the swap keeps the armature, the untouched vertices
+    keep their weights, and every new vertex (part, seam band) joins the rig weighted."""
+    d = _tmp()
+    try:
+        body = _save_rigged_glb(os.path.join(d, "body.glb"))
+        res = _replace_region(d, body, keep_rig=True)
+        assert res["ok"], res
+        rig = res["stats"]["rig"]
+        assert rig["bones"] == 2 and sorted(rig["vertex_groups"]) == ["shin", "thigh"], rig
+        assert rig["new_vertices_weighted"] > 0, rig
+        assert rig["unweighted_after"] == 0, rig
+        assert _check(res, "rig_parented")["ok"] and _check(res, "rig_weights_complete")["ok"]
+        af.reset_scene()
+        objs = af.import_any(res["outputs"]["glb"])
+        arms = [o for o in objs if o.type == "ARMATURE"]
+        meshes = [o for o in objs if o.type == "MESH"]
+        assert len(arms) == 1 and sorted(b.name for b in arms[0].data.bones) == ["shin", "thigh"], objs
+        assert len(meshes) == 1 and sorted(vg.name for vg in meshes[0].vertex_groups) == ["shin", "thigh"]
+        # every vertex weighted, sums ~1 (glTF normalizes): untouched body verts stayed 1.0-bone
+        ws = np.zeros(len(meshes[0].data.vertices))
+        for v in meshes[0].data.vertices:
+            ws[v.index] = sum(g.weight for g in v.groups)
+        assert (ws > 0.99).all(), (ws.min(), ws.max())
+        assert int((ws > 0.999).sum()) > 0.5 * len(ws), "most (body) vertices keep their exact bone"
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
+def test_keep_rig_on_static_body_warns_and_falls_back():
+    d = _tmp()
+    try:
+        body = _save_mesh(os.path.join(d, "body.glb"), _sphere_man, "man")
+        res = _replace_region(d, body, keep_rig=True)
+        assert res["ok"], res
+        assert res["stats"]["rig"] is None
+        assert any("keep_rig" in w and "no armature" in w for w in res["warnings"]), res["warnings"]
+    finally:
+        shutil.rmtree(d, ignore_errors=True)

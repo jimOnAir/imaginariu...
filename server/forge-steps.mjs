@@ -182,6 +182,7 @@ const STEP_LIST = [
       part_transform: obj(null, 'Part pose', '{location: [x, y, z], rot_deg: [x, y, z] (Euler XYZ) | matrix: 3x3 by rows, scale: s} - applied to the part before everything (a bone_kit hand with its wrist at zero -> to the wrist).'),
       keep_materials: bool(false, 'Own part materials', 'false - without a texture the part gets one flat part_fill material; true - the part\'s materials are kept (gold rings, bone with vertex colors), UVs and color attributes are matched with the body.'),
       cut_part: bool(true, 'Cut the part', 'true - the part is cut by the plane + seam_gap and stitched to the body with a bridge; false - the whole part, the body hole at the plane is closed with a cap (a hand made of separate bones has no neck for a bridge).'),
+      keep_rig: bool(false, 'Keep the rig', 'true - a rigged body keeps its armature: bones, weights of untouched vertices and the ARMATURE modifier survive the swap, the new vertices (part, eyes, seam) are weighted from the removed old surface, the GLB is exported skinned. No armature in the input - the static swap and a warning.'),
       icp_rotation: bool(false, 'ICP with rotation', 'The crop and the body share one camera - no rotation needed.'),
       icp_iters: int(60, 1, 500, 'ICP iterations', ''),
       icp_trim: num(0.85, 0.3, 1, 'Fraction of ICP pairs', ''),

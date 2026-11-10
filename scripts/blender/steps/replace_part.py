@@ -5,7 +5,8 @@ full-body pass (a skull, a hand, a staff head) is generated alone from a high-re
 put back in place of the old geometry.
 
 inputs:
-  mesh | blend    the body (.glb/.gltf/.fbx/.obj/.stl/.blend; all meshes are joined, a rig dropped)
+  mesh | blend    the body (.glb/.gltf/.fbx/.obj/.stl/.blend; all meshes are joined, a rig dropped
+                  unless keep_rig - then the body keeps its armature)
   part            the new part (.glb/...), e.g. a Hunyuan3D result generated from a crop; it must
                   face the same way as the body in the generator frame (front = -Y)
 params:
@@ -36,6 +37,12 @@ params:
   cut_part        true (default): the part is trimmed at the cut plane + seam_gap and bridged to the
                   body; false: the part stays whole and the body opening on the plane is capped (a
                   hand of separate bones has no neck to bridge)
+  keep_rig        false (default): the classic static swap, the rig of the input is dropped. true:
+                  a rigged body keeps its armature through the swap - the armature modifier, bones
+                  and the untouched vertices' skin weights survive, and the new vertices (the part,
+                  the eye spheres, the seam band) get weights transferred from the removed old
+                  surface (the cloth transfer idiom); replaced.glb is exported skinned. A body
+                  without an armature gets the static result and a warning.
   part_tris       triangle budget of the part (default 20000; 0 = keep), part_min_island (0.0005
                   of the part's vertices: crumbs are deleted before decimation), crumb_fraction
                   (0.002: the same after the cut), part_rotate_z_deg
@@ -86,13 +93,14 @@ import mathutils
 import numpy as np
 
 import af_common as af
+from steps import _cloth_lib as CL
 from steps import _mesh_lib as ml
 from steps import _replace_lib as rl
 
 
-def _import_meshes(path, name, warnings, sockets=None):
+def _import_meshes(path, name, warnings, sockets=None, keep_armatures=False):
     objs, helpers = ml.purge_import_helpers(af.import_any(path))
-    objs = ml.prepare_meshes(objs, warnings, sockets=sockets)
+    objs = ml.prepare_meshes(objs, warnings, keep_armatures=keep_armatures, sockets=sockets)
     if not objs:
         raise ValueError("no mesh objects in %s" % path)
     ob = af.join(objs, name=name)
@@ -129,6 +137,37 @@ def _part_transform(spec):
     if s <= 0:
         raise ValueError("part_transform.scale must be > 0")
     return mathutils.Matrix.Translation(loc) @ R.to_4x4() @ mathutils.Matrix.Scale(s, 4)
+
+
+def _weight_missing(joined, src):
+    """keep_rig (0.7.1 wave ticket 39): skin every vertex of `joined` that carries no weight yet
+    (the part, the eye spheres, the bridge band) from the removed old surface `src`. The branch's
+    cloth idiom (CL.transfer_weights): nearest point on the source surface, barycentric blend of
+    its triangle's bone weights. transfer_weights rewrites all of the destination's groups, so it
+    runs on a carrier holding ONLY the unweighted vertices and the result is re-applied by index -
+    the body's own weights are never touched. Returns the number of newly weighted vertices."""
+    un = [v.index for v in joined.data.vertices if not any(g.weight > 1e-5 for g in v.groups)]
+    if not un:
+        return 0
+    co = np.empty(len(joined.data.vertices) * 3)
+    joined.data.vertices.foreach_get("co", co)
+    me = bpy.data.meshes.new("af_weight_carrier")
+    me.from_pydata(co.reshape(-1, 3)[un].tolist(), [], [])
+    carrier = bpy.data.objects.new("af_weight_carrier", me)
+    bpy.context.collection.objects.link(carrier)
+    carrier.matrix_world = joined.matrix_world.copy()
+    CL.transfer_weights(carrier, src)
+    by_bone = {}
+    for cv in carrier.data.vertices:
+        for gw in cv.groups:
+            by_bone.setdefault(carrier.vertex_groups[gw.group].name, []).append((un[cv.index], gw.weight))
+    for bone, rows in by_bone.items():
+        g = joined.vertex_groups.get(bone) or joined.vertex_groups.new(name=bone)
+        for idx, w in rows:
+            g.add([idx], float(w), "REPLACE")
+    bpy.data.objects.remove(carrier, do_unlink=True)
+    bpy.data.meshes.remove(me)
+    return len(un)
 
 
 def _flat_material(name, color_lin):
@@ -190,6 +229,7 @@ def run(req):
         raise ValueError("params.align must be 'icp', 'bbox' or 'none'")
     keep_materials = bool(p.get("keep_materials", False))
     cut_part = bool(p.get("cut_part", True))
+    keep_rig = bool(p.get("keep_rig", False))
     part_T = _part_transform(p.get("part_transform"))
     tex = p.get("texture") or None
     if tex and str(tex.get("mode", "front_projection")) != "front_projection":
@@ -206,12 +246,30 @@ def run(req):
     t0 = time.time()
     af.reset_scene()
     body_socks = []
-    body, helpers = _import_meshes(body_path, "body", warnings, sockets=body_socks)
+    body, helpers = _import_meshes(body_path, "body", warnings, sockets=body_socks, keep_armatures=keep_rig)
+    arm = None
+    if keep_rig:
+        arms = af.armatures()
+        if not arms:
+            warnings.append("keep_rig: the body has no armature - the swap is the static one")
+        else:
+            if len(arms) > 1:
+                warnings.append("keep_rig: the body has %d armatures - keeping the first (%s)"
+                                % (len(arms), arms[0].name))
+            arm = arms[0]
     kept = ml.restore_sockets(body_socks)   # sockets of the body survive (they follow the normalisation)
-    ml.rotate_z([body] + kept, float(p.get("rotate_z_deg") or 0.0))
-    af.normalize([body] + kept, height=p.get("height_m"), ground=p.get("ground", True),
+    ml.rotate_z([body] + ([arm] if arm else []) + kept, float(p.get("rotate_z_deg") or 0.0))
+    af.normalize([body] + ([arm] if arm else []) + kept, height=p.get("height_m"), ground=p.get("ground", True),
                  center=p.get("center", True))
     ml.sockets_unit_scale(kept)
+    if arm is not None:
+        # keep_rig: af.normalize deliberately leaves the transforms unapplied with an armature in
+        # play; bake them here with BOTH root and skinned mesh selected (measured: world positions
+        # drift 0.000000 m, deform identical, bones rest-bake with the mesh) so every later step
+        # sees the local == world geometry it assumes.
+        af.select_only([arm, body])
+        bpy.context.view_layer.objects.active = arm
+        bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
     blo, bhi = af.world_bbox([body])
     h_body = float(bhi.z - blo.z) or 1.0
     merge = p.get("merge_distance")
@@ -454,6 +512,22 @@ def run(req):
     joined.data.name = name
     seam = rl.bridge_seam(joined, plane, gap)
     ml.triangulate_object(joined)
+    rig_stats = None
+    if arm is not None:
+        # the vertices the swap introduced (part, eye spheres, seam band) join the rig here:
+        # weights from the removed old surface, the piece that carried the body's bones through
+        n_weighted = _weight_missing(joined, old)
+        unweighted = sum(1 for v in joined.data.vertices if not any(g.weight > 1e-5 for g in v.groups))
+        checks.append(af.check("rig_parented", joined.parent == arm and
+                               any(m.type == "ARMATURE" and m.object == arm for m in joined.modifiers),
+                               {"parent": joined.parent.name if joined.parent else None,
+                                "modifier": any(m.type == "ARMATURE" and m.object == arm
+                                                for m in joined.modifiers)}, True))
+        checks.append(af.check("rig_weights_complete", unweighted == 0, unweighted, 0,
+                               severity="warning"))
+        rig_stats = {"armature": arm.name, "bones": len(arm.data.bones),
+                     "vertex_groups": sorted(vg.name for vg in joined.vertex_groups),
+                     "new_vertices_weighted": n_weighted, "unweighted_after": unweighted}
     boundary_after = rl.boundary_edge_count(joined)
     seam["boundary_edges_before"] = boundary_before
     seam["boundary_edges_after"] = boundary_after
@@ -525,8 +599,9 @@ def run(req):
     t0 = time.time()
     for ob in (original, old):
         ml.remove_object(ob)
-    outputs["glb"] = af.export_glb(af.out_path(req, "replaced.glb"), objects=[joined] + sockets,
-                                   animations=False, skins=False)
+    outputs["glb"] = af.export_glb(af.out_path(req, "replaced.glb"),
+                                   objects=([joined, arm] if arm is not None else [joined]) + sockets,
+                                   animations=False, skins=arm is not None)
     ml.purge_orphans()
     outputs["blend"] = af.save_blend(af.out_path(req, "replaced.blend"))
     timings["export"] = round(time.time() - t0, 2)
@@ -548,6 +623,7 @@ def run(req):
                  "inner_islands_removed": inner_removed, "trim": trim, "seam_gap_m": gap,
                  "keep_hang_m": keep_hang, "hang_m": hang},
         "alignment": align_stats, "seam": seam, "texture": tex_stats, "eyes": eyes_stats,
+        "rig": rig_stats,
         "old_eyes": old_eyes, "compare": compare, "materials": [m.name for m in
                                                                 joined.data.materials if m],
         "sockets": [s.name for s in sockets], "import_helpers_removed": helpers,
