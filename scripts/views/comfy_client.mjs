@@ -1,6 +1,7 @@
 // Minimal ComfyUI HTTP client shared by the views scripts (the studio server has its own websocket-based one in
 // server/jobs.mjs; scripts must also work with no studio running).
 import { promises as fs, existsSync } from 'node:fs';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { venvSpawnFailText } from '../../server/venv-health.mjs';
@@ -46,12 +47,22 @@ export async function uploadImage(url, file, name) {
 }
 
 /**
- * Queue a workflow and wait for it. Polls /history (no websocket needed).
+ * Queue a workflow and wait for it. Polls /history; a websocket is attached only for the
+ * paging watchdog below (optional - without one every older path still works).
  * onProgress(text) gets coarse status lines. Returns the history `outputs` object.
  */
-export async function runWorkflow(url, workflow, { signal, onProgress, timeoutMs = 60 * 60 * 1000 } = {}) {
+export async function runWorkflow(url, workflow, { signal, onProgress, timeoutMs = 60 * 60 * 1000, stepMaxMs } = {}) {
+  // Ticket 43 (Windows 0.7 low-VRAM post-mortem, docs/forge/views-low-vram.md: on an 8 GB card
+  // ONE step ran 24 minutes and the job waited out its cap having done nothing - "a step over
+  // 5 minutes means the card is paging; stop the job at once with the real reason"). The
+  // watchdog watches ComfyUI's own progress frames: a step that outlives stepMaxMs (default
+  // 300 s, env ASTRA_VIEWS_STEP_MAX_SEC, 0 disables) is interrupted and reported honestly.
+  const stepLimit = stepMaxMs === undefined
+    ? Math.max(0, Number(process.env.ASTRA_VIEWS_STEP_MAX_SEC || 300)) * 1000
+    : (Number(stepMaxMs) || 0);
+  const clientId = randomUUID();
   const queued = await jsonFetch(url + '/prompt', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: workflow }), signal,
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: workflow, client_id: clientId }), signal,
   });
   const id = queued.prompt_id;
   // Ticket 37 (Windows 0.6.15: "on timeout and on Cancel the engine job is actually stopped
@@ -63,9 +74,34 @@ export async function runWorkflow(url, workflow, { signal, onProgress, timeoutMs
   }).then(() => {}).catch(() => {});
   const deadline = Date.now() + timeoutMs;
   let last = '';
+  // the paging watchdog's step clock (null until the engine's first progress frame)
+  let step = null;
+  let ws = null;
+  if (stepLimit > 0 && typeof WebSocket !== 'undefined') {
+    try {
+      ws = new WebSocket(url.replace(/^http/, 'ws') + '/ws?clientId=' + clientId);
+      ws.onmessage = (ev) => {
+        try {
+          const m = JSON.parse(String(ev.data));
+          const d = m.data || {};
+          if (m.type === 'progress' && Number.isFinite(d.value) && Number.isFinite(d.max) && d.max > 0) {
+            // a new step begins when the value restarts, goes backwards, or the total changes
+            if (!step || d.value <= step.n || d.max !== step.of) step = { n: d.value, of: d.max, at: Date.now() };
+            else step.n = d.value;
+          }
+        } catch { /* non-JSON frames: the poll loop is the source of truth anyway */ }
+      };
+      ws.onerror = () => {};
+      ws.onclose = () => { ws = null; };
+    } catch { ws = null; }   // no websocket in this runtime: the outer cap still guards the wait
+  }
   try {
     while (Date.now() < deadline) {
       signal?.throwIfAborted();
+      if (step && Date.now() - step.at > stepLimit) {
+        const mins = Math.round((Date.now() - step.at) / 6000) / 10;
+        throw new Error(`The graphics card is paging: step ${step.n}/${step.of} has run ${mins} minutes without finishing. A healthy step takes seconds, and a card that fits the model never does this - the wait would eat the whole budget for nothing. Fewer views, closing other GPU programs, or a bigger card helps; the job was stopped.`);
+      }
       const history = await jsonFetch(url + '/history/' + id, { signal });
       const h = history[id];
       if (h) {
@@ -85,6 +121,8 @@ export async function runWorkflow(url, workflow, { signal, onProgress, timeoutMs
   } catch (e) {
     await interrupt(); // the card is freed before the caller hears about the failure
     throw e;
+  } finally {
+    try { ws?.close(); } catch { /* already gone */ }
   }
 }
 
