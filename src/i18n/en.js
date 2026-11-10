@@ -2455,6 +2455,7 @@ export default {
   "components.lead": "The studio has checked the computer: what is installed and at which version. Tick what to download or update - everything lands in the application folder, what is already installed is not touched.",
   "components.checking": "Checking components...",
   "components.st.installed": "installed",
+  "components.st.installedExternal": "installed (external, linked not copied)",
   "components.st.outdated": "update",
   "components.st.missing": "missing - download",
   "components.st.unavailable": "unavailable",

@@ -929,6 +929,27 @@ ChecklistFlow() {   # the interactive checklist; returns with a confirmed plan
   done
 }
 
+ConnectExistingWeights() {   # ticket 40 (0.7.1 wave): weights other programs already downloaded
+  # are CONNECTED (symlink after a pinned-sha256 check), never moved or copied; the studio then
+  # sees installed (external) rows and skips those downloads. ASTRA_CONNECT_EXISTING=0 opts out.
+  local n out tot
+  [ "$SCAN_OK" = 1 ] && [ -z "$Only" ] && [ "$DryRun" != 1 ] || return 0
+  [ "${ASTRA_CONNECT_EXISTING:-1}" = 0 ] && return 0
+  n="$(NodeBin)"; [ -n "$n" ] || return 0
+  out="$("$n" "$ROOT/installer/af_weights.mjs" --report 2>/dev/null)" || return 0
+  printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let j;try{j=JSON.parse(s)}catch(e){process.exit(1)}process.exit((j.items||[]).length?0:1)})' 2>/dev/null || return 0
+  say ''
+  say '  Model weights already on this computer (they will be linked, not copied; the pinned sha256 is verified first):'
+  printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{for(const it of JSON.parse(s).items)console.log(`    ${it.file} (${(it.bytes/1e9).toFixed(1)} GB) at ${it.source}`)})'
+  tot="$(printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).total))')"
+  say "  Reusing them saves $(Human "${tot:-0}") of downloads."
+  if Ask 'Connect these weights instead of downloading them again?' y; then
+    out="$("$n" "$ROOT/installer/af_weights.mjs" --connect 2>/dev/null)" || return 0
+    printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);for(const r of j.connected||[])console.log(`    [linked]   ${r.file}`);for(const r of j.failed||[])console.log(`    [skipped]  ${r.file}: ${r.reason}`)})'
+    ScanCore   # the checklist below must show the freshly connected weights
+  fi
+}
+
 OnlyPlan() {   # -Only <ids>: exactly these components, unattended (none = nothing ticked)
   local ids=" ${Only//,/ } " id
   for id in ${ids//,/ }; do
@@ -1015,6 +1036,8 @@ if [ -z "$Only" ] && [ "$SCAN_OK" = 1 ] && [ "$S_NOGPU" = 1 ] && [ "$Profile" !=
     Profile=lite; Lite=1
   fi
 fi
+
+ConnectExistingWeights   # ticket 40: offer to connect weights the machine already has
 
 if [ -n "$Only" ]; then
   if [ "$Only" = none ]; then

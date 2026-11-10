@@ -18,7 +18,7 @@
 //
 // Test hooks: ASTRA_INSTALL_NO_GPU=1 pretends the machine has no NVIDIA card (the Lite branch),
 // ASTRA_INSTALL_SCAN_FAIL=1 makes the check fail - the frontend then installs its preset as a whole.
-import { existsSync, readFileSync, readdirSync, statSync, statfsSync } from 'node:fs';
+import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync, statfsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -148,11 +148,26 @@ function modelDirs(root, comfy, sub) {
 }
 
 /**
+ * A symlink the weight-connector (installer/af_weights.mjs, ticket 40) left behind points outside
+ * the studio's own folders: that file is reused, not owned - say so in the status and the human
+ * column. A real file, or a link into data/ or the configured ComfyUI, is the plain installed.
+ */
+function externLink(f, root, comfy) {
+  try {
+    if (!lstatSync(f).isSymbolicLink()) return '';
+    const real = realpathSync(f);
+    const own = [path.join(root, 'data'), comfy ? path.join(comfy, 'models') : null].filter(Boolean);
+    return own.some((o) => real === o || real.startsWith(o + path.sep)) ? '' : real;
+  } catch { return ''; }
+}
+
+/**
  * installed | outdated | missing for manifest models (the ModelState of Install.ps1): the first id
  * not on disk makes the set missing; a file of another size makes it outdated. u2net is found by
- * name under data/models/background (where both the studio and rembg keep it).
+ * name under data/models/background (where both the studio and rembg keep it). A file that turns
+ * out to be a connector's external link reports extern (the truth for "installed (external)").
  */
-function modelState(root, comfy, man, id) {
+export function modelState(root, comfy, man, id) {
   const m = man.models[id];
   let where = '';
   if (id === 'u2net') {
@@ -168,7 +183,8 @@ function modelState(root, comfy, man, id) {
         else if (e.name === m.file) {
           where = d;
           if (m.size && sizeOf(f) !== m.size) return { st: 'outdated', where };
-          return { st: 'installed', where };
+          const ex = externLink(f, root, comfy);
+          return { st: 'installed', where: ex ? path.dirname(ex) : where, extern: ex };
         }
       }
     }
@@ -183,7 +199,9 @@ function modelState(root, comfy, man, id) {
       break;
     }
   }
-  return where ? { st: 'installed', where } : { st: 'missing', where: '' };
+  if (!where) return { st: 'missing', where: '' };
+  const ex = externLink(path.join(where, m.file), root, comfy);
+  return { st: 'installed', where: ex ? path.dirname(ex) : where, extern: ex };
 }
 const multiState = (root, comfy, man, ids) => {
   let where = '';
@@ -487,7 +505,7 @@ export function scanItems(s) {
   for (const [id, name, group] of [['hy2', 'Hunyuan3D-2: 3D from a picture', G_3D], ['u2net', 'u2net: background removal', G_3D],
     ['hymv', 'Hunyuan3D-2mv: 3D from front and back views', G_3D], ['hy21', 'Hunyuan3D-2.1: a second shape model', G_3D], ['sdxl', 'SDXL: images and views', G_2D]]) {
     const st = s[id];
-    add(id, group, st.st, st.where, '', man.models[id].size, name, man.models[id].license, 'comfy', '', st.st === 'outdated' ? 'file of another version - update' : gpuNote);
+    add(id, group, st.extern ? 'installed (external)' : st.st, st.where, '', man.models[id].size, name, man.models[id].license, 'comfy', '', st.st === 'outdated' ? 'file of another version - update' : gpuNote);
   }
   const mvName = 'MV-Adapter: views from a single picture';
   if (s.mv.ready) add('mvadapter', G_3D, 'installed', 'in the application folder', '', s.mv.bytes, mvName, 'Apache-2.0', 'sdxl,comfy');
@@ -561,7 +579,7 @@ export function scanTable(items) {
   for (const it of items) {
     if (it.group !== group) { group = it.group; out.push(`-- ${group}`); }
     const marks = ['q', 'f', 'l'].map((p) => (it.presets.includes(p) ? p : '-')).join('');
-    const verdict = it.status === 'installed' ? `installed · ${it.have}`
+    const verdict = it.status.startsWith('installed') ? `installed${it.status === 'installed (external)' ? ' (external)' : ''} · ${it.have}`
       : it.status === 'outdated' ? `update (${size(it.size)})${it.have ? `: ${it.have}` : ''}`
       : it.status === 'missing' ? `download ${size(it.size)}${it.need ? `, ${it.need}` : ''}`
       : `unavailable: ${it.note || 'this computer cannot run it'}`;

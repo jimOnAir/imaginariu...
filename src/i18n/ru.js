@@ -2453,6 +2453,7 @@ export default {
   "components.lead": "Студия проверила компьютер: что уже стоит и какой версии. Отметьте, что докачать или обновить, - всё встанет в папку программы, уже установленное не трогается.",
   "components.checking": "Проверяю компоненты...",
   "components.st.installed": "есть",
+  "components.st.installedExternal": "есть (внешний, ссылка вместо копирования)",
   "components.st.outdated": "обновить",
   "components.st.missing": "нет - скачать",
   "components.st.unavailable": "недоступно",

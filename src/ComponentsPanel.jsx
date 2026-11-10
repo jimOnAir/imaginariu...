@@ -15,6 +15,7 @@ const gb = (b) => (b >= 1e9 ? (b / 1e9).toFixed(1) + ' GB' : Math.round(b / 1e6)
 const todo = (c) => c.status === 'missing' || c.status === 'outdated';
 function statusText(c) {
   if (c.status === 'installed') return t('components.st.installed') + (c.have ? ' · ' + c.have : '');
+  if (c.status === 'installed (external)') return t('components.st.installedExternal') + (c.have ? ' · ' + c.have : '');
   if (c.status === 'outdated') return t('components.st.outdated') + (c.have ? ' · ' + c.have : '') + (c.need ? ' → ' + c.need : '');
   if (c.status === 'unavailable') return c.note || t('components.st.unavailable');
   return t('components.st.missing') + (c.need ? ' ' + c.need : '');
