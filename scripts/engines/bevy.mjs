@@ -260,6 +260,14 @@ export function brpBinary({ env = process.env } = {}) {
   return path.join(env.CARGO_HOME || path.join(os.homedir(), '.cargo'), 'bin', name);
 }
 
+/** curl with the pinned argv shape: -o BEFORE `--` (curl treats everything after `--` as a
+ *  URL - the shape from ticket 47's live session read "-o" as a host: "curl: (6) Could not
+ *  resolve host: -o"). Testable against a file:// URL without the network. */
+export function curlDownload(url, dest) {
+  const d = spawnSync('curl', ['-fsSL', '-o', dest, '--', url], { encoding: 'utf8' });
+  if (d.status !== 0) throw new Error(`download failed: ${(d.stderr || d.stdout || 'curl error').trim()}`);
+}
+
 /** Download -> sha256 vs pin -> unpack -> cargo install --path. Any mismatch throws before install. */
 export async function installBrpMcp({ env = process.env, log = () => {}, cargo = findCargo({ env }),
   fetchImpl = null, version = BRP_MCP.version, sha256 = BRP_MCP.sha256 } = {}) {
@@ -270,8 +278,8 @@ export async function installBrpMcp({ env = process.env, log = () => {}, cargo =
     const crateFile = path.join(tmpRoot, `bevy_brp_mcp-${version}.crate`);
     if (fetchImpl) await fetchImpl(BRP_MCP.url(version), crateFile);
     else {
-      const d = spawnSync('curl', ['-fsSL', '--', BRP_MCP.url(version), '-o', crateFile], { encoding: 'utf8' });
-      if (d.status !== 0) throw new Error(`installBrpMcp: download failed: ${(d.stderr || d.stdout || 'curl error').trim()}`);
+      try { curlDownload(BRP_MCP.url(version), crateFile); }
+      catch (e) { throw new Error(`installBrpMcp: ${e.message}`); }
     }
     const got = createHash('sha256').update(readFileSync(crateFile)).digest('hex');
     if (got !== sha256) {

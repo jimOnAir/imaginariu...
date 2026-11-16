@@ -89,6 +89,17 @@ downloaded, its sha256 compared to the crates.io record pinned in the driver, an
 verified file is unpacked and handed to `cargo install --path`. A mismatch refuses and the
 toolchain never runs — the branch's supply-chain rule, never a bare index install.
 
+The running game opens itself to the bridge with bevy's own remote feature
+(`Cargo.toml`: `bevy = { version = "0.20.1", features = ["bevy_remote"] }`):
+`RemotePlugin::default()` registers the verbs and `http::RemoteHttpPlugin::default()` binds
+the socket (15702) — on this bevy the first one alone registers methods but never listens,
+verified in the ticket-47 live session against the real 0.20.1. Component types are named by
+their full path (`bevy_transform::components::transform::Transform`), newtypes take the bare
+value (`bevy_ecs::name::Name: "hero"`). Everything the crate keeps as plain Rust (the
+`AstraPlay` clip queue is not reflected) rides to the agent as one app-defined BRP verb —
+`RemotePlugin::with_method("astraforge/play_clip", …)` that forwards `{"clip": "<name>"}` to
+the queue — the same pattern any game command would use.
+
 ## Deviations recorded (Protocol v2)
 
 - the studio's English wording is this branch's; upstream's runtime phrase-map is not ported;

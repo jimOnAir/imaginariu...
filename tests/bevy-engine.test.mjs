@@ -13,7 +13,7 @@ import path from 'node:path';
 
 import {
   BEVY_VERSION, BEVY_CRATE_DIR, findCargo, bevyStatus, isBevyProject, bevyVersionOf,
-  createBevyProject, installCrate, sendBevy, checkPackage, runCargo, installBrpMcp, brpBinary, BRP_MCP,
+  createBevyProject, installCrate, sendBevy, checkPackage, runCargo, installBrpMcp, brpBinary, BRP_MCP, curlDownload,
 } from '../scripts/engines/bevy.mjs';
 
 const REPO = path.resolve(import.meta.dirname, '..');
@@ -226,6 +226,21 @@ test('installBrpMcp: an installed bridge is never re-downloaded', async () => {
   const r = await installBrpMcp({ cargo: 'x', env: { CARGO_HOME: home }, log: () => {}, fetchImpl: async () => { fetched = true; } });
   assert.equal(r.skipped, 'already installed');
   assert.equal(fetched, false);
+});
+
+test('curlDownload: real curl, the pinned argv shape (-o before `--`) - ticket 47 live-session defect', async (t) => {
+  // curl stops option parsing at `--`: everything after it is a URL. The first shape ran
+  // `curl -fsSL -- <url> -o <file>` and real curl answered "(6) Could not resolve host: -o"
+  // - the unit lane could not see it because every installBrpMcp test injects fetchImpl.
+  if (spawnSync('curl', ['--version'], { encoding: 'utf8' }).status !== 0) { t.skip('curl is not on PATH'); return; }
+  const src = path.join(tmp, 'curl-src.crate');
+  const bytes = Buffer.from('verified crate bytes for the argv shape');
+  writeFileSync(src, bytes);
+  const dst = path.join(tmp, 'curl-dst.crate');
+  curlDownload('file://' + src, dst);
+  assert.ok(readFileSync(dst).equals(bytes), 'the file lands at the -o path');
+  // and the failure path stays an honest throw (no file, no silent zero-byte crate)
+  assert.throws(() => curlDownload('file://' + path.join(tmp, 'no-such-file.crate'), dst + '2'), /download failed/);
 });
 
 // ------------------------------------------------- af_engine routes the new engine (MCP parity)
