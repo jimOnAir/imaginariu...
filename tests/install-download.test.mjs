@@ -32,7 +32,7 @@ const opt = (k) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : null; };
 const out = opt('-o'), err = opt('--stderr'), url = a[a.length - 1];
 const resume = a.includes('-C');
 const log = ${JSON.stringify(path.join(stateDir, 'calls.txt'))};
-fs.appendFileSync(log, JSON.stringify({ url, resume }) + '\\n');
+fs.appendFileSync(log, JSON.stringify({ url, resume, head: a.includes('-I') }) + '\\n');
 const mode = ${JSON.stringify(mode)};
 const say = (t) => { if (err) fs.writeFileSync(err, t); };
 const st = ${JSON.stringify(path.join(stateDir, mode + '.cnt'))};
@@ -73,6 +73,21 @@ if (mode === 'progress') {
   fs.writeFileSync(out, 'x'.repeat(5e6));
   const t0 = Date.now(); while (Date.now() - t0 < 3000) { /* slow link */ }
   fs.writeFileSync(out, 'x'.repeat(10e6)); process.exit(0);
+}
+if (mode === 'hf_gate_recover') {
+  if (a.includes('-I')) {                       // the reachability probe of the HF pair
+    const pf = st + '.probe';
+    const pn = fs.existsSync(pf) ? +fs.readFileSync(pf) + 1 : 1;
+    fs.writeFileSync(pf, String(pn));
+    if (pn > 4) process.exit(0);                // the route lives again from the third probe round
+    say('fake: no route to host'); process.exit(7);
+  }
+  fs.writeFileSync(out, 'payload'); process.exit(0);
+}
+if (mode === 'hf_gate_dead') {
+  if (a.includes('-I')) { say('fake: no route to host'); process.exit(7); }
+  if (url.includes('huggingface.co') || url.includes('hf-mirror.com')) { say('fake: the download stage must never start while both hosts are silent'); process.exit(99); }
+  fs.writeFileSync(out, 'payload'); process.exit(0);
 }
 process.exit(0);`);
   writeFileSync(sh, `#!/usr/bin/env bash\nexec "${process.execPath}" "${js}" "$@"\n`);
@@ -181,6 +196,11 @@ case "${mode}" in
   net2ok)  if [ "$n" -lt 3 ]; then echo "error: Failed to fetch 'torch'"; echo "  Caused by: operation timed out"; exit 1; fi; exit 0 ;;
   netalways) echo "error: Failed to download index"; echo "  Caused by: connection reset by peer"; exit 1 ;;
   nonet)   echo "error: invalid lock file format"; exit 1 ;;
+  r2ok)    case "$*" in
+             *download-r2.pytorch.org*) : > "${stateDir}/r2"; exit 0 ;;
+             *) echo "error: Failed to fetch 'torch'"; echo "  Caused by: operation timed out"; exit 1 ;;
+           esac ;;
+  r2nonet) echo "error: invalid lock file format"; exit 1 ;;
 esac
 `);
   chmodSync(sh, 0o755);
@@ -216,6 +236,72 @@ test('a non-network uv error is not retried', () => {
   assert.equal(r.calls, 1);
   assert.match(r.stdout, /PyTorch - failed \(code 1\): error: invalid lock file format\./);
   assert.doesNotMatch(r.stdout, /pytorch\.org/);
+});
+
+// UvTorch (ticket 55): the same harness, but through the helper - the index argument is what the
+// fake uv reacts to, so the modes key on download.pytorch.org vs its official R2 twin.
+function inUvTorch(mode) {
+  const stateDir = path.join(tmp, `uvt-${mode}-${Math.random().toString(36).slice(2)}`);
+  mkdirSync(stateDir, { recursive: true });
+  const uv = fakeUv(mode, stateDir);
+  const r = spawnSync('bash', ['-c', `
+    say() { printf '%s\\n' "$1"; }
+    source ${JSON.stringify(INSTALL_SH)}
+    UvTorch 'PyTorch' ${JSON.stringify(uv)} /bin/true 'https://download.pytorch.org/whl/cu128' torch torchvision torchaudio; echo RC=$?
+  `], { encoding: 'utf8', timeout: 120000, env: { ...process.env, ASTRA_UV_WAIT: '0' } });
+  return {
+    stdout: r.stdout,
+    calls: existsSync(path.join(stateDir, 'n')) ? +readFileSync(path.join(stateDir, 'n'), 'utf8') : 0,
+    r2: existsSync(path.join(stateDir, 'r2')),
+  };
+}
+
+test('torch wheels: a dead primary index falls through to PyTorchs official R2 backup (ticket 55)', () => {
+  const r = inUvTorch('r2ok');
+  assert.match(r.stdout, /RC=0/);
+  assert.match(r.stdout, /official R2 backup/);
+  assert.ok(r.r2, 'the backup index was actually asked for the same packages');
+  assert.equal(r.calls, 4, 'the primary pass uses its three UvTry tries, the backup needs one call');
+});
+
+test('torch wheels: a uv failure that is not about the network stops after the one honest backup attempt', () => {
+  const r = inUvTorch('r2nonet');
+  assert.match(r.stdout, /RC=1/);
+  assert.equal(r.calls, 2, 'one try per pass - no retry storm on a non-network error');
+});
+
+// HfGate (ticket 55): the HF pair probed once per run; both hosts silent = the reason named once
+// and a periodic re-probe; unattended runs refuse after their cap; other hosts are never probed.
+test('HF fast-fail: the dead route is named once, the probe repeats, the download resumes when a host answers', () => {
+  const dst = path.join(tmp, 'hfgate', 'w.safetensors');
+  const r = inCore('hf_gate_recover',
+    `DownloadChecked ${JSON.stringify('https://huggingface.co/x/w.safetensors')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`,
+    { env: { ASTRA_HF_PROBE_S: '0' } });
+  assert.match(r.stdout, /RC=0/, r.log);
+  assert.equal((r.stdout.match(/Neither huggingface\.co nor hf-mirror\.com/g) || []).length, 1,
+    'the reason is named once for the run, not per model');
+  assert.match(r.stdout, /answers again - continuing/);
+  assert.equal(readFileSync(dst, 'utf8'), 'payload');
+});
+
+test('HF fast-fail, unattended: after the probe cap the step refuses honestly and never starts the download', () => {
+  const r = inCore('hf_gate_dead',
+    `DownloadChecked ${JSON.stringify('https://huggingface.co/x/w.safetensors')} ${JSON.stringify(path.join(tmp, 'hfgate-dead', 'w.safetensors'))} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`,
+    { env: { ASTRA_HF_PROBE_S: '0', ASTRA_UNATTENDED: '1', ASTRA_HF_GATE_TRIES: '2' } });
+  assert.match(r.stdout, /RC=1/);
+  assert.equal((r.stdout.match(/Neither huggingface\.co nor hf-mirror\.com/g) || []).length, 1);
+  assert.match(r.stdout, /still silent after 2 probes - stopping here/);
+  assert.ok(r.calls.length >= 4, 'the probe ran (two hosts) at least twice');
+  assert.ok(r.calls.every((c) => c.head), 'no download attempt while both hosts are silent');
+});
+
+test('the HF gate leaves every non-huggingface URL alone - no probe, no wait', () => {
+  const dst = path.join(tmp, 'hfgate-nonhf', 'godot.zip');
+  const r = inCore('hf_gate_dead',
+    `DownloadChecked ${JSON.stringify('https://github.com/godotengine/godot.zip')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`,
+    { env: { ASTRA_HF_PROBE_S: '0' } });
+  assert.match(r.stdout, /RC=0/, r.log);
+  assert.equal(r.calls.filter((c) => c.head).length, 0, 'not a single reachability probe for a non-HF file');
 });
 
 test('manifest mirrors are rewritten from the pinned Windows archive to this Linux one', () => {
@@ -391,7 +477,9 @@ test('a non-HF URL gets no invented mirror, and a sha-less HF file gets no unver
   const a = inCore('fail6', `HfMirrorUrl https://huggingface.co/a/b; echo; HfMirrorUrl https://files.test/a; echo RC=$?`);
   assert.match(a.stdout, /^https:\/\/hf-mirror\.com\/a\/b$/m, 'the path is kept');
   const b = inCore('hf_fallback', `DownloadChecked ${JSON.stringify('https://huggingface.co/x/y.bin')} ${JSON.stringify(path.join(tmp, 'hf16nosh.bin'))} 7 '' ; echo RC=$?`);
-  assert.equal(b.calls.every((c) => !c.url.includes('hf-mirror.com')), true, 'no checksum = no mirror: a substituted file must not pass');
+  // (ticket 55 made the pair get reachability HEAD probes - those are not the fallthrough this
+  //  assertion is about: without a checksum no mirror download may ever be attempted)
+  assert.equal(b.calls.every((c) => c.head || !c.url.includes('hf-mirror.com')), true, 'no checksum = no mirror: a substituted file must not pass');
   assert.match(b.stdout, /RC=1/);
 });
 

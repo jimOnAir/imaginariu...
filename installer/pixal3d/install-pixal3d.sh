@@ -141,7 +141,7 @@ Engine() { # <dir>
   [ -f "$node/nodes.py" ] || Repo "$(Mv trellis2.url)" "ComfyUI-Trellis2-$(Mv trellis2.commit | cut -c1-8)" "$node" || return 1
   if ! "$py" -c 'import torch' >/dev/null 2>&1; then
     Title 'PyTorch 2.9.1 + CUDA 12.8 (the pair the node ships Linux wheels for)'
-    UvTry 'PyTorch 2.9.1 (multi-GB, slow links allowed)' 3 "$UV_BIN" pip install --python "$py" torch==2.9.1 torchvision torchaudio --index-url "$(Mv linux.torch.index)" || return 1
+    UvTorch 'PyTorch 2.9.1 (multi-GB, slow links allowed)' "$UV_BIN" "$py" "$(Mv linux.torch.index)" torch==2.9.1 torchvision torchaudio || return 1
   fi
   Title 'libraries from PyPI (pinned versions, triton replaces triton-windows, msvc-runtime is Windows-only)'
   local lock="$DL/pixal3d-requirements-linux.txt"

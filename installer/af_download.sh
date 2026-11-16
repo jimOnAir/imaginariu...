@@ -141,6 +141,44 @@ HfMirrorUrl() { # <url> - the hf-mirror.com twin of a huggingface.co URL, '' for
   esac
 }
 
+# HfGate <url> - the Hugging Face pair fast-fail (0.7.9 fold wave ticket 55). When the whole route
+# to huggingface.co is dead, the old shape was every model of a set timing out on its own: four
+# tries, thirty-second connects, the same dead wire each time. Instead: the first HF download
+# probes both hosts once (huggingface.co, then hf-mirror.com) and the run remembers the verdict;
+# while both stay silent the reason is named ONCE and the probe repeats every ASTRA_HF_PROBE_S
+# seconds (60 by default) - files already downloaded are simply not affected. An interactive run
+# waits for the site (Ctrl+C is the exit); an unattended one (the Components window, install.sh
+# -Yes) refuses after ASTRA_HF_GATE_TRIES probe rounds (3) instead of hanging a job nobody sees.
+# Any HTTP answer counts as reachable - this judges the wire, not the file. Non-HF URLs pass
+# through untouched; the fake-curl test hook (ASTRA_INSTALL_CURL) replaces the probe curl too.
+: "${ASTRA_HF_PROBE_S:=60}"
+HF_GATE=''        # '' unknown · 1 a host answers · 0 both silent (the verdict of this run)
+HF_GATE_TRIED=0
+HfProbe() { "$(CurlBin)" -s -m 8 -o /dev/null -I "$1" 2>/dev/null; }   # exit 0 = any HTTP answer
+HfGate() {
+  case "$1" in https://huggingface.co/*) ;; *) return 0 ;; esac
+  [ "$HF_GATE" = 1 ] && return 0
+  local cap="${ASTRA_HF_GATE_TRIES:-$( [ "${ASTRA_UNATTENDED:-}" = 1 ] && echo 3 || echo 0 )}"
+  while :; do
+    if HfProbe https://huggingface.co/ || HfProbe https://hf-mirror.com/; then
+      [ "$HF_GATE" = 0 ] && say '  huggingface.co (or hf-mirror.com) answers again - continuing'
+      HF_GATE=1; return 0
+    fi
+    HF_GATE=0; HF_GATE_TRIED=$((HF_GATE_TRIED+1))
+    if [ "$HF_GATE_TRIED" = 1 ]; then
+      say '  Neither huggingface.co nor hf-mirror.com answers: this network does not let the site through (DNS down or a blocked route).'
+      local wait='  The installer will not time out on every model one by one: it probes again every '"${ASTRA_HF_PROBE_S}"'s and downloads continue the moment a host answers.'
+      [ "${ASTRA_UNATTENDED:-}" = 1 ] || wait+=' Ctrl+C stops the wait.'
+      say "$wait"
+    fi
+    if [ "$cap" != 0 ] && [ "$HF_GATE_TRIED" -ge "$cap" ]; then
+      say "  huggingface.co and hf-mirror.com are still silent after ${HF_GATE_TRIED} probes - stopping here. Run the installer again once the site answers: files already downloaded are not downloaded a second time."
+      return 1
+    fi
+    sleep "${ASTRA_HF_PROBE_S}"
+  done
+}
+
 # LooksLikePage <path> - did the endpoint answer with HTML instead of the artifact? (0.6.13:
 # "when the author's site serves a page instead of the file (PixaFlux does so now), it says
 # exactly that instead of a scary 'file was tampered with'".) Only markup openers count -
@@ -158,6 +196,9 @@ DownloadChecked() { # <url> <dst> [size] [sha256]
     if FileOk "$2" "${3:-0}" "$4"; then say '    matches, no download needed'; return 0; fi
     say "    file $leaf does not match the checksum - downloading again"
   fi
+  # HF pair fast-fail (0.7.9 fold wave ticket 55): probed once per run before the first weight
+  # download - a dead route is named once, not timed out per model
+  HfGate "$1" || return 1
   rm -f "$2"
   if ! Download "$1" "$2" "${3:-0}"; then
     # huggingface.co drops or throttles connections on whole networks (0.6.x wave, ticket 16):
@@ -241,4 +282,21 @@ UvTry() {
     sleep "$wait"
     try=$((try+1))
   done
+}
+
+# UvTorch <label> <uv> <python> <index-url> <packages...> - the PyTorch wheels: the primary index
+# first, and when it cannot deliver them, PyTorch's own official R2 backup (download.pytorch.org
+# → download-r2.pytorch.org, same tree, same files - the simple index of both hosts carries each
+# wheel's sha256 and uv verifies it whichever site answered). The backup is not an invented
+# mirror and not a guess: the same project publishes both hosts, which is exactly what the
+# "no invented mirrors" rule was waiting for (0.7.9 fold wave ticket 55). The backup path only
+# runs after the primary pass failed; a host whose index is not the pytorch one is tried nowhere
+# else. The tries count stays UvTry's own (3, with the growing pause and the error line in the log).
+UvTorch() {
+  local label="$1" uv="$2" py="$3" index="$4"; shift 4
+  if UvTry "$label" 3 "$uv" pip install --python "$py" "$@" --index-url "$index"; then return 0; fi
+  local alt="${index/download.pytorch.org/download-r2.pytorch.org}"
+  [ "$alt" = "$index" ] && return 1
+  say "    the wheels did not come through on the primary index - trying PyTorch's official R2 backup (download-r2.pytorch.org: the same files, the index checksum still decides)"
+  UvTry "$label (R2 backup)" 3 "$uv" pip install --python "$py" "$@" --index-url "$alt"
 }

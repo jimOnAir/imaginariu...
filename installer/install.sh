@@ -318,7 +318,7 @@ InstallComfyDeps() { # <dir> — the venv and PyTorch (CUDA when an NVIDIA GPU w
   local torchIndex='https://download.pytorch.org/whl/cpu'
   [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
   if ! "$py" -c 'import torch' >/dev/null 2>&1; then
-    UvTry 'PyTorch' 3 "$UV_BIN" pip install --python "$py" torch torchvision torchaudio --index-url "$torchIndex" || return 1
+    UvTorch 'PyTorch' "$UV_BIN" "$py" "$torchIndex" torch torchvision torchaudio || return 1
   fi
   UvTry 'ComfyUI libraries' 3 "$UV_BIN" pip install --python "$py" -r "$dir/requirements.txt" || return 1
   UvTry 'AstraForge libraries (background removal, meshing, unwrapping)' 3 \
@@ -516,9 +516,15 @@ InstallClips() {
   n="$(NodeBin)"
   # Ticket 16 (the clips leg of 0.6.x network resilience): the author's site first, then every
   # mirror base listed in installer/manifest.json (clips.mirrors). No public copy of this repack
-  # (retargeted + composed clips) is checksum-verifiable as of 2026-11-08, so the list ships
-  # EMPTY and the step says so when the site is down - inventing an unverified "mirror" would be
-  # the one move worse than a failed download. Add a base the day one exists.
+  # (retargeted + composed clips) is checksum-verifiable, so the list ships EMPTY and the step
+  # says so when the site is down - inventing an unverified "mirror" would be the one move worse
+  # than a failed download. Add a base the day one exists. The 0.7.4 note brought "clips as ONE
+  # sha256-checked archive" upstream; the 0.7.9-fold probe of 2026-11-16 looked for the same
+  # source here and it does not exist yet: actionforge.app serves only per-file .glb (its
+  # library.json carries no hashes and every archive path answers 404), and neither author has a
+  # GitHub repo publishing the repack (searched: actionforge, animation-library + quaternius).
+  # Until a real published archive with a checksum appears, per-file from the author's site stays
+  # the only honest source - the ticket closes as a recorded deviation, not a fake mechanism.
   local bases=("https://actionforge.app/assets/animation-library")
   while IFS= read -r m; do [ -n "$m" ] && bases+=("${m%/}"); done < <(
     "$n" -e 'try{for(const u of require(process.argv[1]).clips.mirrors||[])if(typeof u==="string"&&u)console.log(u)}catch(e){}' "$ROOT/installer/manifest.json")
@@ -631,7 +637,7 @@ TriposgComponent() { # env|code|tf|vae|dino
       local torchIndex='https://download.pytorch.org/whl/cpu'
       [ -n "$S_GPU" ] && torchIndex='https://download.pytorch.org/whl/cu128'
       if ! "$py" -c 'import torch' >/dev/null 2>&1; then
-        UvTry 'TripoSG PyTorch' 3 "$UV_BIN" pip install --python "$py" torch torchvision --index-url "$torchIndex" || return 1
+        UvTorch 'TripoSG PyTorch' "$UV_BIN" "$py" "$torchIndex" torch torchvision || return 1
       fi
       UvTry 'TripoSG libraries' 3 "$UV_BIN" pip install --python "$py" -r "$ROOT/scripts/triposg/requirements.txt" || return 1 ;;
     code)
@@ -704,7 +710,7 @@ SoundComponent() { # code|env|moss|ace
       libs="$("$n" -e 'console.log(require(process.argv[1]).env.libs.join(" "))' "$(SoundManifest)")"
       if ! "$py" -c 'import torch' >/dev/null 2>&1; then
         # shellcheck disable=SC2086
-        UvTry 'Sound PyTorch' 3 "$UV_BIN" pip install --python "$py" --index-url "$torchIndex" $torchlibs || return 1
+        UvTorch 'Sound PyTorch' "$UV_BIN" "$py" "$torchIndex" $torchlibs || return 1
       fi
       # ACE-Step brings its own library set; MOSS-SoundEffect follows with --no-deps and the pinned
       # line below, so the two engines cannot pull each other off the versions they were built on.
