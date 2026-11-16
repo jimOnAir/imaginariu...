@@ -1,0 +1,26 @@
+[package]
+name = "af-mesh-rs"
+version = "0.7.9"
+edition = "2021"
+license = "MIT"
+description = "AstraForge's own GLB decimator on vendored meshoptimizer - the salvage fast path (wave ticket 46)"
+publish = false
+
+[[bin]]
+name = "af-mesh-rs"
+path = "src/main.rs"
+
+# Pinned to the byte age the 7-day supply-chain gate already cleared: gltf 1.4.1 published
+# 2024-05-10 (upstream-ancient), cached in this machine's registry since 2026-11-08; the
+# names + extras features are required so the GLB JSON round trip keeps user names and
+# `extras` fields. import/utils/image stay OFF: the carrier reads raw accessors itself.
+[dependencies]
+gltf = { version = "=1.4.1", default-features = false, features = ["names", "extras"] }
+serde_json = "=1.0.154" # published 2026-10-11, registry-cached since 2026-11-08
+
+[build-dependencies]
+cc = "=1.2.65" # registry-cached since 2026-06-23
+
+[profile.release]
+lto = true
+strip = true

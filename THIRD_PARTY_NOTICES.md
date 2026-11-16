@@ -46,6 +46,14 @@
 | PyMeshLab (нужен узлам Trellis2 при загрузке) | PyPI | GPL-3.0 |
 | Остальные пакеты движка Pixal3D (список и версии: `installer/pixal3d/requirements-lock.txt`): open3d, rembg, onnxruntime-gpu, opencv-python, trimesh, transformers, timm и др. | PyPI | MIT / Apache-2.0 / BSD |
 | Python 3.12.10 (портативная сборка, заголовки из dev.msi) | python.org | PSF License |
+| **meshoptimizer 1.3** — вендоренные исходники редуктора `af-mesh-rs` (`native/af_mesh_rs/vendor/meshoptimizer`) | github.com/zeux/meshoptimizer (тег v1.3, незафиксированных правок нет) | MIT |
+
+**af-mesh-rs (быстрый путь спасения мешей).** В отличие от прочих компонентов, meshoptimizer
+**не скачивается**: три неизменённых upstream-файла (заголовки и `LICENSE.md`, таблица sha256 —
+`native/af_mesh_rs/VENDORING.md`) лежат в репозитории и собираются из исходников крейтом `cc`
+при установке, если в PATH есть cargo; готовый бинарник не скачивается никогда. Без cargo
+`af-mesh-rs` просто не собирается, и все потребители молча остаются на Blender-пути.
+Обёртка `native/af_mesh_rs` (Rust, MIT, код AstraForge) распространяется под MIT этой ветки.
 
 Узел ComfyUI-MVAdapter (github.com/huanngzh/ComfyUI-MVAdapter, Apache-2.0) устанавливается мастером в `data/runtime/custom_nodes/ComfyUI-MVAdapter`: оригинал с GitHub на закреплённом коммите плюс небольшие правки AstraForge (файлы в `installer/mvadapter/patch`, список в `NOTICE-ASTRAFORGE.md`).
 

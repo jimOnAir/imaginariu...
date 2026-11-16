@@ -40,4 +40,5 @@ data/config.json
 # rust build artifacts and regenerable locks
 bevy/*/target/
 bevy/*/Cargo.lock
+native/*/target/
 ai/skills/astraforge-integrator/templates/bevy/Cargo.lock
