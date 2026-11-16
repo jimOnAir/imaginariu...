@@ -51,10 +51,18 @@ test('the Components window speaks in keys and re-renders with the language', ()
   assert.match(app, /useT\(\),lang=useLang\(\)/, 'App subscribes to the language at its top: the whole panel tree re-reads');
   assert.match(app, /<ComponentsPanel/, 'Components is a panel under App (so it re-renders with the switch)');
   const panel = readFileSync(path.join(ROOT, 'src', 'ComponentsPanel.jsx'), 'utf8');
-  let jsx = panel;   // strip every {...} expression (nested: collapse until stable), then look for raw text nodes
+  // Slice from the JSX return first: collapsing the WHOLE file deletes the component body as one
+  // brace region (the fresh-context audit of ticket 50 caught that vacuous shape), so the scan
+  // starts where the JSX starts. Then collapse every {...} expression slot (nested: until stable)
+  // - what can remain between > and < is a raw text node, and a raw text node is a straggler.
+  const start = panel.search(/\breturn\s*[([{<]/);
+  assert.ok(start >= 0, 'the panel has a JSX return');
+  let jsx = panel.slice(start).replace(/=>/g, '    ');
   for (;;) { const n = jsx.replace(/\{[^{}]*\}/g, ''); if (n === jsx) break; jsx = n; }
+  // prose never carries these; a > ... < gap that does is JS code between an arrow and the next
+  // element, not a text node - and a real straggler ("<p>Some raw text</p>") is pure words.
   const texts = [...jsx.matchAll(/>([^<>]+)</g)].map((m) => m[1].replace(/\s+/g, ' ').trim())
-    .filter((x) => x && /[A-Za-zА-Я]/.test(x) && !/^\s*(\/\/|\/\*|\*)/.test(x));
+    .filter((x) => x && /[A-Za-zА-Я]/.test(x) && !/[;{}[\]=&|]/.test(x) && !/^\s*(\/\/|\/\*|\*)/.test(x));
   assert.deepEqual(texts, [], 'no raw JSX text nodes: every display string is a t() key (the scan-core rows are policy EN)');
 });
 
