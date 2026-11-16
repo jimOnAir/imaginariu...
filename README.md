@@ -79,7 +79,7 @@ Then tell Claude Code: **"Install and set up AstraForge for me."** The repositor
    | id | What | Size |
    |---|---|---|
    | `node`, `npm` | Node.js 22 and the UI build (required) | about 0.3 GB |
-   | `blender` | Blender 5.0.1 (required) | about 0.4 GB |
+   | `blender` | Blender 5.2.4 (required) | about 0.4 GB |
    | `comfy` / `comfydeps` | ComfyUI 0.33.2 + Python 3.12 + PyTorch (required) | about 6 GB |
    | `hy2`, `u2net` | Hunyuan3D-2 (image to 3D) and background removal (required) | 4.9 GB + 0.2 GB |
    | `hymv` | Hunyuan3D-2mv: 3D from front and back views | 4.9 GB |

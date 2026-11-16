@@ -222,7 +222,7 @@ studio's own ComfyUI/Pixal3D processes are stopped).
 
 Requirements: NVIDIA GPU with the proprietary driver (`nvidia-smi` visible), Node.js ≥ 22.12 or
 the installer downloads it, ~20–40 GB free disk (about 52 GB more with Pixal3D), system Blender
-5.x or the installer downloads 5.0.1 into `runtime/blender`.
+5.x or the installer downloads 5.2.4 into `runtime/blender`.
 
 ## What differs from Windows
 
@@ -247,7 +247,7 @@ the installer downloads it, ~20–40 GB free disk (about 52 GB more with Pixal3D
   torch/transformers are never upgraded; the "packages added / versions unchanged" line tells
   you it worked.
 - **Blender 5.x minor drift is tolerated**: any 5.x from `ASTRA_BLENDER`/PATH is used
-  (`install.sh` scans it first, the app-local 5.0.1 portable is the fallback);
+  (`install.sh` scans it first, the app-local 5.2.4 portable is the fallback);
   `scripts/forge-smoke.mjs` arbitrates — all generator presets pass on 5.2.2.
 - **Godot 4.7 from distro packages validates fine**, but the forge targets 4.5 semantics;
   the installer's `godot` component unpacks the official 4.5.1 Linux binary into

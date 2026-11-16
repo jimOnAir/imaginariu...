@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Forge end-to-end smoke (not part of npm test): every preset on real inputs with the real Blender
-// 5.0.1 and Godot 4.5.1, through the same in-process pipeline as `node scripts/forge.mjs --direct`.
+// 5.2.4 and Godot 4.5.1, through the same in-process pipeline as `node scripts/forge.mjs --direct`.
 //
 //   node scripts/forge-smoke.mjs [--inputs <dir>] [--root C:/afs] [--only id,id] [--md docs/forge/SMOKE.md] [--json docs/forge/SMOKE.json]
 //

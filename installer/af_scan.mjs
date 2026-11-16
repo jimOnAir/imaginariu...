@@ -41,7 +41,7 @@ const G_SND = 'Sound and music';
 
 // The manifest pins the Windows archives; these are the Linux download sizes (the same numbers
 // install.sh used before the scan core existed).
-const SIZE = { node: 32000000, npm: 250000000, blender: 401000000, comfy: 6000000000, comfydeps: 1000000000, godot: 76685794, gltfpack: 1977681, ollama: 1578217944 };
+const SIZE = { node: 32000000, npm: 250000000, blender: 405779142, comfy: 6000000000, comfydeps: 1000000000, godot: 76685794, gltfpack: 1977681, ollama: 1578217944 };
 // Pixal3D: the engine download/disk estimates of installer/pixal3d/pixal3d.ps1 ($P3EngineDownload,
 // $P3EngineDisk); weights take the sizes of installer/pixal3d/manifest.json + 1.3 GB of slack (DINOv3 copy).
 const P3_ENGINE_DOWNLOAD = 5.5e9;
@@ -411,7 +411,7 @@ export function scanComponents(opts = {}) {
   s.npmDeps = existsSync(path.join(root, 'node_modules', 'express'));
   s.ui = existsSync(path.join(root, 'dist', 'index.html'));
   for (const b of candidates('blender', 'ASTRA_BLENDER', cfg, env,
-    path.join(rt, 'blender', 'blender-5.0.1-linux-x64', 'blender'), path.join(rt, 'blender', 'blender-5.0.1-windows-x64', 'blender.exe'), which('blender'))) {
+    path.join(rt, 'blender', 'blender-5.2.4-linux-x64', 'blender'), path.join(rt, 'blender', 'blender-5.2.4-windows-x64', 'blender.exe'), which('blender'))) {
     if (!isExe(b)) continue;
     const out = spawnText(b, ['--version'], 30000).out.split('\n')[0] || '';
     const m = /Blender\s+(\d+)(\.\d+(?:\.\d+)?)/.exec(out);

@@ -410,11 +410,11 @@ export function lastErrorLine(tail = []) {
 // Ticket 42 (0.7.1 wave, degraded-start honesty): with Blender missing the Forge steps answered
 // the raw errno — `Failed to start Blender (blender): spawn blender ENOENT` — the same class of
 // user-hostile text ticket 25 fixed for the venvs. The honest sentence names what was looked for
-// and the studio's own remedy (the installer row downloads Blender 5.0.1 into runtime/blender;
+// and the studio's own remedy (the installer row downloads Blender 5.2.4 into runtime/blender;
 // ASTRA_BLENDER/PATH may point at any system 5.x — see docs/linux.md).
 export function blenderSpawnFailText(command, err) {
   if (err?.code === 'ENOENT') {
-    return `Blender was not found (${command}): the Forge steps need Blender 5.x. Run installer/install.sh -Yes -Only blender to download Blender 5.0.1 into runtime/blender, or point ASTRA_BLENDER at your own Blender 5.x.`;
+    return `Blender was not found (${command}): the Forge steps need Blender 5.x. Run installer/install.sh -Yes -Only blender to download Blender 5.2.4 into runtime/blender, or point ASTRA_BLENDER at your own Blender 5.x.`;
   }
   return `Failed to start Blender (${command}): ${err?.message || 'unknown error'}`;
 }

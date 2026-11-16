@@ -33,11 +33,11 @@ CFGF="$ROOT/config/paths.json"
 
 NodeVersion='v22.23.3'
 ComfyTag='v0.33.2'
-BlenderTar='https://download.blender.org/release/Blender5.0/blender-5.0.1-linux-x64.tar.xz'
+BlenderTar='https://download.blender.org/release/Blender5.2/blender-5.2.4-linux-x64.tar.xz'
 # Linux archive pins (the manifest pins the Windows archives; these were taken from the official
 # downloads on 2026-11-03 and are verified on every download, mirrors included)
 NodeTarSize=31001304; NodeTarSha='df450af89261115ef9f9e3830c3eeb2cc9213b63c720b1af623cb5dcbe2e02de'
-BlenderTarSize=374154072; BlenderTarSha='8019580ee1b7262e505f4196a00237ccf743c88d205b38d34201510676e60b09'
+BlenderTarSize=385047680; BlenderTarSha='2fd14c50987426897ba60237ee996edf2b4151f4b1a72a460ca20be58c1d2d86'
 GodotZip='https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_linux.x86_64.zip'
 GodotBin='Godot_v4.5.1-stable_linux.x86_64'
 UvTar='https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-unknown-linux-gnu.tar.gz'
@@ -248,13 +248,13 @@ InstallNpm() {
   (cd "$ROOT" && Run "$npm" 'installing dependencies (npm ci)' ci --no-audit --no-fund && Run "$npm" 'building the interface (npm run build)' run build)
 }
 InstallBlender() {
-  local t='blender-5.0.1-linux-x64.tar.xz' urls=()
+  local t='blender-5.2.4-linux-x64.tar.xz' urls=()
   mapfile -t urls < <(ManifestMirrors blender "$t") || true
   [ "${#urls[@]}" -gt 0 ] || urls=("$BlenderTar")
   DownloadMirrors "$DL/$t" "$BlenderTarSize" "$BlenderTarSha" "${urls[@]}" || return 1
   mkdir -p "$RT/blender"
   tar -xf "$DL/$t" -C "$RT/blender" || return 1
-  S_BLENDER="$RT/blender/blender-5.0.1-linux-x64/blender"; CfgSet blender "$S_BLENDER"
+  S_BLENDER="$RT/blender/blender-5.2.4-linux-x64/blender"; CfgSet blender "$S_BLENDER"
 }
 InstallGodot() {
   Download "$GodotZip" "$DL/$GodotBin.zip" || return 1
@@ -868,7 +868,7 @@ plan_add() { plan+=("$1|$2|$3|$4"); }
 comp_what() { case "$1" in
   node) printf 'Node.js %s (into the application folder)' "$NodeVersion" ;;
   npm) printf 'Studio interface and libraries' ;;
-  blender) printf 'Blender 5.0.1 (into the application folder)' ;;
+  blender) printf 'Blender 5.2.4 (into the application folder)' ;;
   comfy) printf 'ComfyUI %s + Python 3.12 + PyTorch' "$ComfyTag" ;;
   comfydeps) printf 'Missing Python libraries for ComfyUI' ;;
   hy2) printf 'Hunyuan3D-2 model (3D from an image)' ;;
