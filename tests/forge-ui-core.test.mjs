@@ -299,7 +299,7 @@ test('forge: presets and batch items', () => {
   const src = sourceBatchItems({ kind: 'humanoid', sources: [{ name: 'Orc', source: { type: 'asset', assetId: 'x' } }], steps: ['cleanup', 'rig_humanoid'] });
   assert.deepEqual(src[0], { name: 'Orc', kind: 'humanoid', source: { type: 'asset', assetId: 'x' }, steps: [{ step: 'cleanup', params: {} }, { step: 'rig_humanoid', params: {} }] });
   const counts = batchCounts([{ status: 'completed' }, { status: 'failed' }, { jobId: 'j' }, {}], { j: { status: 'running' } });
-  assert.deepEqual(counts, { total: 4, done: 1, failed: 1, running: 1, queued: 1 });
+  assert.deepEqual(counts, { total: 4, done: 1, failed: 1, cancelled: 0, running: 1, queued: 1 });
   const merged = batchItemsFrom({ items: [{ assetId: 'a1', status: 'running' }, { assetId: 'a3', status: 'queued' }] }, [{ assetId: 'a1', jobId: 'j1', name: 'One' }, { assetId: 'a2', jobId: 'j2', name: 'Two' }]);
   assert.equal(merged.length, 3);
   assert.deepEqual(merged[0], { assetId: 'a1', jobId: 'j1', name: 'One', status: 'running' });
@@ -492,7 +492,10 @@ test('forge: asset-relative file paths, generator params and labels', () => {
   assert.equal(enumLabel(true), 'Yes');
   assert.equal(enumLabel('bone_child'), 'Child of the bone');
   inRussian(() => assert.equal(enumLabel(true), 'Да'));
-  assert.deepEqual(batchCounts([{ status: 'created' }, { status: 'partial' }]), { total: 2, done: 1, failed: 1, running: 0, queued: 0 });
+  assert.deepEqual(batchCounts([{ status: 'created' }, { status: 'partial' }]), { total: 2, done: 1, failed: 1, cancelled: 0, running: 0, queued: 0 });
+  // ticket 57 (0.7.4 fold wave): a cancelled generation is not counted as a failure
+  assert.deepEqual(batchCounts([{ status: 'cancelled' }, { status: 'cancelled' }, { status: 'failed' }]), { total: 3, done: 0, failed: 1, cancelled: 2, running: 0, queued: 0 });
+  assert.deepEqual(batchCounts([{ jobId: 'c' }, {}], { c: { status: 'cancelled' } }), { total: 2, done: 0, failed: 0, cancelled: 1, running: 0, queued: 1 });
 });
 
 test('forge: marker projection self-calibrates on the joint spheres of markers.png', () => {

@@ -959,6 +959,7 @@ export default {
   "forge.batch.forgetAria": "Убрать пакет из списка",
   "forge.batch.done": "готово {done} из {total}",
   "forge.batch.errors": "ошибок {n}",
+  "forge.batch.cancelled": "отменено {n}",
   "forge.batch.lost": "сервер не знает этот пакет",
   "forge.batch.assets": "Ассеты ({n})",
   "forge.batch.asset": "ассет",

@@ -961,6 +961,7 @@ export default {
   "forge.batch.forgetAria": "Remove the batch from the list",
   "forge.batch.done": "done {done} of {total}",
   "forge.batch.errors": "errors {n}",
+  "forge.batch.cancelled": "cancelled {n}",
   "forge.batch.lost": "the server does not know this batch",
   "forge.batch.assets": "Assets ({n})",
   "forge.batch.asset": "asset",

@@ -3,6 +3,13 @@ import { existsSync,promises as fs } from 'node:fs';
 import path from 'node:path';
 import {root,data,assetInfo,saveAsset,comfyDir,venvPython} from './storage.mjs';
 import {venvSpawnFailText} from './venv-health.mjs';
+// The capability row the concept-prep spawns answer with: 0.7.4 fold wave ticket 57 lets the
+// Pixal3D job ask it UP FRONT (before any wait for a concept), prepareConcept keeps asking it
+// at its own entry. One sentence, one seam - the venv-health text of ticket 25.
+export function conceptPrepPythonCheck(){
+ const python=venvPython(comfyDir());
+ return existsSync(python)?null:venvSpawnFailText(python,'Background removal');
+}
 export async function prepareConcept(imageId,jobId,signal,mode='auto'){
  const comfy=comfyDir();const python=venvPython(comfy);
  if(!existsSync(python))throw new Error(venvSpawnFailText(python,'Background removal'));   // ticket 25: the fix, not the errno

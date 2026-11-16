@@ -6,7 +6,7 @@ import { hunyuanWorkflow,hunyuanMultiViewWorkflow,MV_CHECKPOINT,sdxlWorkflow } f
 import {getViewsService} from './views.mjs';
 import WebSocket from 'ws';
 import { llmChat } from './llm.mjs';
-import { prepareConcept } from './preprocess.mjs';
+import { prepareConcept, conceptPrepPythonCheck } from './preprocess.mjs';
 import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
 import {acceptOrSimplify,makeSalvageSimplify} from './mesh-salvage.mjs';
 import {acquireEngineGpu} from './gpu-handover.mjs';
@@ -98,10 +98,20 @@ async function conceptFromPrompt(j,config,signal,nodes){
   const img=await downloadOutput(config,item,'.png','Concept');await update(j,{concept:img});return img.id;
 }
 // Pixal3D (docs/forge/pixal3d.md): the same job record as Hunyuan, the geometry comes from the separate ComfyUI-Pixal3D on 8191.
-async function runPixal3d(j,config,signal){
- await update(j,{status:'running',message:'Checking the Pixal3D engine',progress:0});
+// 0.7.4 fold wave ticket 57: the up-front capability row every Pixal3D job runs FIRST. The engine
+// install state and the concept-prep python are named here, before any wait for a concept - a
+// missing engine Python used to surface only after the SDXL concept had been generated. The
+// sentences are the engine-state text and the venv-health text of ticket 25; no new strings.
+export async function pixal3dPreflight() {
  const cfg=pixal3dConfig(),state=await pixal3dStatus({cfg});
  if(!state.installed)throw new Error(state.message);
+ const missing=conceptPrepPythonCheck();
+ if(missing)throw new Error(missing);
+ return {cfg,state};
+}
+async function runPixal3d(j,config,signal){
+ await update(j,{status:'running',message:'Checking the Pixal3D engine',progress:0});
+ const {cfg}=await pixal3dPreflight();
  if(j.reextractSourceId)throw new Error('Surface re-extraction is available for Hunyuan3D only.');
  let image=j.imageId;
  if(!image){

@@ -1135,12 +1135,14 @@ export function fileBatchChunks(files, { kind, preset, steps, size = 20 } = {}) 
 }
 
 export function batchCounts(items, jobsById = {}) {
-  const counts = { total: 0, done: 0, failed: 0, running: 0, queued: 0 };
+  const counts = { total: 0, done: 0, failed: 0, cancelled: 0, running: 0, queued: 0 };
   for (const item of items || []) {
     counts.total++;
     const status = item.status || jobsById[item.jobId]?.status || 'queued';
     if (status === 'completed' || status === 'done' || status === 'created') counts.done++;
-    else if (status === 'failed' || status === 'cancelled' || status === 'partial') counts.failed++;
+    // 0.7.4 fold wave ticket 57: a cancelled generation is not an error - its own honest row
+    else if (status === 'cancelled') counts.cancelled++;
+    else if (status === 'failed' || status === 'partial') counts.failed++;
     else if (status === 'running') counts.running++;
     else counts.queued++;
   }

@@ -262,7 +262,8 @@ function BatchCard({ batch, onForget }) {
   const t = useT();
   const { openAsset, notify } = useForge();
   const counts = batchCounts(batch.items);
-  const pct = counts.total ? Math.round(((counts.done + counts.failed) / counts.total) * 100) : 0;
+  // a cancelled job is settled, not an error (ticket 57): it fills the bar but never the errors row
+  const pct = counts.total ? Math.round(((counts.done + counts.failed + counts.cancelled) / counts.total) * 100) : 0;
   return (
     <div className="forge-batch">
       <div className="forge-job-head">
@@ -274,6 +275,7 @@ function BatchCard({ batch, onForget }) {
       <small className="forge-job-meta">
         {formatDate(batch.createdAt)} · {t('forge.batch.done', { done: counts.done, total: counts.total })}
         {counts.failed ? ' · ' + t('forge.batch.errors', { n: counts.failed }) : ''}
+        {counts.cancelled ? ' · ' + t('forge.batch.cancelled', { n: counts.cancelled }) : ''}
         {batch.lost ? ' · ' + t('forge.batch.lost') : ''}
       </small>
       {!batch.done && <ProgressBar value={pct} />}
