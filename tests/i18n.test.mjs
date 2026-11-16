@@ -88,3 +88,30 @@ test('i18n: no .js/.jsx file under src/ contains Cyrillic outside the Russian di
   }
   assert.deepEqual(offenders, [], `Cyrillic outside src/i18n/ru.js:\n${offenders.slice(0, 40).join('\n')}`);
 });
+
+// The language policy of the installer surfaces, recorded by 0.7.9 fold wave ticket 50: the
+// scan core, the install log and the components bridge are EN-ALWAYS, not studio-language.
+// The reasons are structural: install.sh runs standalone before the studio or its language
+// setting exist, its log gets pasted into bug reports across languages, and the ##ITEM rows
+// are a machine contract (the 0.4.16 Setup.cs parser shape). Inside the app every label the
+// branch owns goes through t(); the scan rows ride the EN policy on purpose. Cyrillic is
+// allowed in COMMENTS only (the «новое, проба» policy notes) - a display string in these
+// files is exactly the straggler this guard catches.
+const EN_DISPLAY_SURFACES = [
+  ['installer/af_scan.mjs', 'js'],
+  ['installer/install.sh', 'sh'],
+  ['server/components.mjs', 'js'],
+];
+test('i18n: the installer and component surfaces keep Cyrillic inside comments (EN display policy)', () => {
+  const offenders = [];
+  for (const [rel, kind] of EN_DISPLAY_SURFACES) {
+    const lines = fs.readFileSync(path.join(root, rel), 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      const cyr = line.search(/[Ѐ-ӿ]/);
+      if (cyr < 0) return;
+      const cmt = kind === 'sh' ? line.search(/(^|\s)#/) : line.indexOf('//');
+      if (cmt < 0 || cyr < cmt) offenders.push(`${rel}:${i + 1}: ${line.trim().slice(0, 80)}`);
+    });
+  }
+  assert.deepEqual(offenders, [], `Cyrillic outside a comment on an EN-display surface:\n${offenders.join('\n')}`);
+});

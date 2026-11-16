@@ -43,6 +43,21 @@ test('the component: named LangSwitch, both languages pressed through aria, one 
   assert.match(body[0], /role="group" aria-label=\{t\('lang\.switch'\)\}/, 'accessible group in the current language');
 });
 
+// Ticket 50 (0.7.9 fold wave): switching language re-reads the Components list. It does because
+// App itself subscribes (useLang at its top) so every panel under it re-renders, and the panel
+// owns no label outside t() - the scan-core rows ride the EN display policy of the installer.
+test('the Components window speaks in keys and re-renders with the language', () => {
+  const app = readFileSync(path.join(ROOT, 'src', 'App.jsx'), 'utf8');
+  assert.match(app, /useT\(\),lang=useLang\(\)/, 'App subscribes to the language at its top: the whole panel tree re-reads');
+  assert.match(app, /<ComponentsPanel/, 'Components is a panel under App (so it re-renders with the switch)');
+  const panel = readFileSync(path.join(ROOT, 'src', 'ComponentsPanel.jsx'), 'utf8');
+  let jsx = panel;   // strip every {...} expression (nested: collapse until stable), then look for raw text nodes
+  for (;;) { const n = jsx.replace(/\{[^{}]*\}/g, ''); if (n === jsx) break; jsx = n; }
+  const texts = [...jsx.matchAll(/>([^<>]+)</g)].map((m) => m[1].replace(/\s+/g, ' ').trim())
+    .filter((x) => x && /[A-Za-zА-Я]/.test(x) && !/^\s*(\/\/|\/\*|\*)/.test(x));
+  assert.deepEqual(texts, [], 'no raw JSX text nodes: every display string is a t() key (the scan-core rows are policy EN)');
+});
+
 test('both surfaces exist and share the component: the header and Settings → Appearance', () => {
   const app = readFileSync(path.join(ROOT, 'src', 'App.jsx'), 'utf8');
   assert.match(app, /<ThemeSwitch\/><ModeSwitch\/><LangSwitch\/>/, 'the header renders <LangSwitch/> beside the theme switch');

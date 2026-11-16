@@ -79,6 +79,18 @@ test('empty machine with an RTX card: preset letters, dependencies, the mandator
   assert.ok(!items.some((it) => /NVIDIA/i.test(it.note)), items.map((it) => it.note).join('|'));
 });
 
+// The display contract of ticket 50: every field a Components row renders (group header, status,
+// the found/need columns, name, license, note/reason) answers in English on every machine shape -
+// the functional sibling of the comment-policy guard in tests/i18n.test.mjs.
+test('every display field of the checklist rows speaks English (ticket 50 language parity)', () => {
+  for (const s of [mkS(), mkS({ vram: 8192, gpu: 'Mesa Intel Graphics', cc: '', noGpu: true }), mkS({ vram: 24576 })]) {
+    for (const it of scanItems(s)) {
+      const text = [it.group, it.status, it.have, it.need, it.name, it.license, it.note].filter(Boolean).join(' ');
+      assert.doesNotMatch(text, /[\u0400-\u04ff]/, `${it.id}: ${text}`);
+    }
+  }
+});
+
 test('the checklist rows match the profiles of installer/manifest.json (the presets field contract)', () => {
   // The profile rule since ticket 12: presets come from the manifest MINUS the experimental ids
   // (never preselected) - upstream's low-VRAM TripoSG forcing (ticket 02's swap) is not ported.
