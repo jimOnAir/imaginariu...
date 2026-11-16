@@ -238,7 +238,7 @@ CLI `--direct`.
 диапазоны, слоты входов, ключи выходов, таймауты. Главное:
 - `cleanup`, `separate` — слоты `mesh, blend` (чистый GLB предпочтительнее .blend со служебными объектами;
   после шага, давшего только .blend или FBX, берётся он), `convert` — `blend, mesh`; у `cleanup` добавлены
-  `planar_angle_deg`, `decimate_stage_ratio`, `seam_weight`, `bake_samples/normal/emission/extrusion_m/ray_m`,
+  `planar_angle_deg`, `decimate_stage_ratio`, `planar_wait_above_tris`, `seam_weight`, `bake_samples/normal/emission/extrusion_m/ray_m`,
   `smart_uv_angle_deg`, `preview(_size)`; у `convert` — `name`, `ground/center` (пусто — по росту/Mixamo),
   `mixamo_*`, `texture_max`; у `separate` — нормализация до разделения, `regions: [{name, min:[x,y,z],
   max:[x,y,z]}]` в метрах после нормализации (не доли высоты; проверяется до запуска), `names`, `drop_small`,

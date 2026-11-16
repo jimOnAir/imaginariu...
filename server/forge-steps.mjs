@@ -96,6 +96,7 @@ const STEP_LIST = [
       target_tris: int(null, 500, 2000000, 'Triangles', 'Target budget; empty - no simplification.', opt),
       symmetry: oneOf(['X', 'Y', 'Z', null], null, 'Symmetry', 'Symmetric simplification along an axis.'),
       planar_angle_deg: num(0.5, 0, 10, 'Flat pre-pass, deg', 'Angle of the flat pass before collapse (budget only); 0 - off.'),
+      planar_wait_above_tris: int(120000, 0, 20000000, 'Flat pass up to, tris', 'Above this count collapse runs first and the flat pass only polishes the smaller mesh (the pathological slow case); 0 - legacy order, flat first at any size.'),
       decimate_stage_ratio: num(0.3, 0.05, 0.95, 'Fraction per step', 'Minimum fraction of triangles that one collapse step keeps.'),
       seam_weight: num(null, 0, 1, 'UV seam protection', 'Extra seam weight during simplification; empty - off (measured to be worse).', opt),
       voxel_remesh_m: num(null, 0, 1, 'Voxel remesh, m', 'Voxel size (about 0.0033 x height); empty or 0 - no remesh.', opt),

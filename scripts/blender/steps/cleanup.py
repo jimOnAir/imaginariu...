@@ -17,6 +17,11 @@ params (all optional):
                          min(own tris, 64), so low-poly pieces are left whole
   symmetry               'X' | 'Y' | 'Z' | null — symmetric collapse
   planar_angle_deg       planar pre-pass angle (default 0.5; 0 = off), only with target_tris
+  planar_wait_above_tris above this triangle count the collapse stages run FIRST and the planar
+                         pass only polishes the smaller mesh (default 120000; 0 = legacy order,
+                         planar first at any size - the pathological slow case: the 0.7.3 public
+                         note says the flat pass on "hundreds of thousands of triangles" used to
+                         take up to 20 minutes)
   decimate_stage_ratio   minimum kept share per collapse stage (default 0.3)
   seam_weight            0..1 extra seam protection through a vertex group (default off; see
                          _mesh_lib.decimate_to for why)
@@ -152,6 +157,7 @@ def run(req):
     recalc = bool(p.get("recalc_normals", True))
     smooth = p.get("shade_auto_smooth_deg", 40)
     stage_ratio = float(p.get("decimate_stage_ratio", 0.3))
+    planar_wait_above_tris = int(p.get("planar_wait_above_tris", 120000))
     stages = []
     budgets = None
     bake_info = None
@@ -260,7 +266,8 @@ def run(req):
         for ob, share in zip(objs, budgets):
             stages += ml.decimate_to(ob, share, symmetry=symmetry,
                                      planar_deg=float(p.get("planar_angle_deg", 0.5)),
-                                     seam_weight=p.get("seam_weight"), stage_ratio=stage_ratio)
+                                     seam_weight=p.get("seam_weight"), stage_ratio=stage_ratio,
+                                     planar_wait_above_tris=planar_wait_above_tris)
         lap("decimate", t0)
         if highs:
             shading = "smooth (bake_normal)"

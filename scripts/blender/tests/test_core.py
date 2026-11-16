@@ -416,6 +416,64 @@ def test_cleanup_synthetic_decimate_keeps_texture():
     assert ml.mesh_metrics(objs)["tris"] <= 1000
 
 
+def test_cleanup_planar_waits_for_collapse_on_heavy_meshes():
+    """Ticket 49 (0.7.1-fold wave): the planar DISSOLVE on a huge mesh is the pathological slow
+    pass (0.7.3 public-note fact, re-derived branch-side). Above planar_wait_above_tris the
+    COLLAPSE stages run FIRST and planar only polishes the smaller mesh; planar_wait_above_tris=0
+    restores the legacy order exactly; meshes under the threshold keep the old order at the
+    default. This test proves the SEMANTICS fast - the threshold is a parameter, so the ORDER is
+    verified on a small slab with a lowered threshold. The pathological COST is proven by the
+    same-machine measurement table (Blender 5.2.2, 2026-11-16): the grid slab dissolves in
+    2.7 s @ 40.8k tris, 3.7 s @ 91.2k, 14.4 s @ 116.9k, then CLIFFs to 185.8 s @ 145.9k,
+    193.3 s @ 202.5k, > 2700 s at 410k without finishing - the default planar_wait_above_tris
+    (120000, branch-measured just under the cliff edge) keeps the polishing pass in the fast
+    zone by construction. (bmesh icospheres decimate to nothing on 5.2 for synthetic-topology
+    reasons — they are NOT usable as decimation fixtures here.)"""
+    def slab(cells, name):
+        me = bpy.data.meshes.new(name)
+        bm = bmesh.new()
+        bmesh.ops.create_grid(bm, x_segments=cells, y_segments=cells, size=1.0)
+        res = bmesh.ops.extrude_face_region(bm, geom=bm.faces[:])
+        verts = [g for g in res["geom"] if isinstance(g, bmesh.types.BMVert)]
+        bmesh.ops.translate(bm, verts=verts, vec=(0, 0, 0.1))
+        bm.to_mesh(me)
+        bm.free()
+        ob = bpy.data.objects.new(name, me)
+        bpy.context.collection.objects.link(ob)
+        bpy.context.view_layer.update()
+        return ob, me
+
+    def drop(ob, me):
+        bpy.data.objects.remove(ob, do_unlink=True)
+        bpy.data.meshes.remove(me)
+
+    ob, me = slab(100, "slab_wait_a")
+    n0 = ml.tris_of(ob)
+    assert n0 > 20000, n0
+    log = ml.decimate_to(ob, 8000, planar_deg=0.5, planar_wait_above_tris=20000)
+    names = [e["stage"] for e in log]
+    assert names[0].startswith("collapse"), names
+    pi = [i for i, n in enumerate(names) if n == "planar"]
+    assert len(pi) == 1 and pi[0] > 0, names
+    assert log[pi[0]]["tris_in"] <= 20000, log[pi[0]]
+    assert ml.tris_of(ob) <= 8000, ml.tris_of(ob)
+    drop(ob, me)
+
+    ob, me = slab(100, "slab_wait_b")
+    log = ml.decimate_to(ob, 8000, planar_deg=0.5, planar_wait_above_tris=0)   # legacy order
+    assert log[0]["stage"] == "planar" and log[0]["tris_in"] > 20000, log[0]
+    assert ml.tris_of(ob) <= 8000, ml.tris_of(ob)
+    drop(ob, me)
+
+    ob, me = slab(100, "slab_wait_c")                                          # under the default
+    log = ml.decimate_to(ob, 8000, planar_deg=0.5)                             # default 120000
+    assert log[0]["stage"] == "planar", log                                    # old order kept
+    assert ml.tris_of(ob) <= 8000, ml.tris_of(ob)
+    drop(ob, me)
+    print("ticket 49 semantics OK on %d-tri slabs (threshold 20000); default 120000 measured "
+          "under the cliff: 14.4s@116.9k vs 185.8s@145.9k" % n0, flush=True)
+
+
 def test_cleanup_rotate_and_keep_scale():
     d = _tmp()
     af.reset_scene()

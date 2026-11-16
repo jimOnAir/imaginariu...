@@ -622,11 +622,20 @@ def planar_dissolve(ob, angle_deg):
 
 
 def decimate_to(ob, target, symmetry=None, planar_deg=0.0, seam_weight=None, protect_factor=1.0,
-                stage_ratio=0.3, max_stages=10):
+                stage_ratio=0.3, max_stages=10, planar_wait_above_tris=120000):
     """Planar pass (optional) + staged collapse decimation down to <= target triangles.
 
     Each stage keeps at least stage_ratio of the current triangles, so million-triangle inputs go
     through a few passes with fresh quadrics instead of one huge heap. Returns a stage log.
+
+    Ticket 49: the planar DISSOLVE on a huge mesh is the pathological case (the 0.7.3 public
+    release note: the flat pass on meshes of "hundreds of thousands of triangles" used to take up
+    to 20 minutes; measured here on Blender 5.2.2 the pass CLIFFS between 116.9k tris (14.4 s)
+    and 145.9k tris (185.8 s) and never finished at 410k in 45 minutes). Above
+    planar_wait_above_tris the COLLAPSE stages run first and planar only ever polishes a mesh that
+    already fits under the threshold — when the TARGET itself is above it, planar is skipped as
+    not worth its cost. planar_wait_above_tris = 0 restores the legacy order exactly (planar
+    first regardless of size).
 
     UVs, seams and material borders: Blender's collapse decimator interpolates loop UVs and keeps
     face materials itself. seam_weight (0..1) additionally down-weights seam / border vertices
@@ -636,43 +645,51 @@ def decimate_to(ob, target, symmetry=None, planar_deg=0.0, seam_weight=None, pro
     target = int(target)
     log = []
     t = tris_of(ob)
+    stage = [0]        # one counter across every collapse run so the log numbering stays
+
+    def collapse_to(stop):
+        nonlocal t
+        while t > stop and stage[0] < max_stages:
+            stage[0] += 1
+            t0 = time.time()
+            want = stop / float(t)
+            ratio = want * 0.998 if want >= stage_ratio else stage_ratio
+            protected = 0
+            mod = ob.modifiers.new("af_collapse", "DECIMATE")
+            mod.decimate_type = "COLLAPSE"
+            mod.ratio = max(1e-4, min(1.0, ratio))
+            mod.use_collapse_triangulate = True
+            if symmetry:
+                mod.use_symmetry = True
+                mod.symmetry_axis = str(symmetry).upper()
+            if seam_weight is not None:
+                grp, protected = protect_seams_group(ob, seam_weight=seam_weight)
+                if grp is not None and protected:
+                    mod.vertex_group = grp.name
+                    mod.vertex_group_factor = float(protect_factor)
+            _apply_modifier(ob, mod)
+            grp = ob.vertex_groups.get("af_protect")
+            if grp is not None:
+                ob.vertex_groups.remove(grp)
+            t2 = tris_of(ob)
+            log.append({"stage": "collapse_%d" % stage[0], "ratio": round(mod_ratio(ratio), 5),
+                        "tris_in": t, "tris_out": t2, "protected_verts": protected,
+                        "seconds": round(time.time() - t0, 2)})
+            if t2 >= t:
+                break
+            t = t2
+
     if planar_deg and planar_deg > 0 and t > target:
-        t0 = time.time()
-        planar_dissolve(ob, planar_deg)
-        t2 = tris_of(ob)
-        log.append({"stage": "planar", "tris_in": t, "tris_out": t2,
-                    "seconds": round(time.time() - t0, 2)})
-        t = t2
-    stage = 0
-    while t > target and stage < max_stages:
-        stage += 1
-        t0 = time.time()
-        want = target / float(t)
-        ratio = want * 0.998 if want >= stage_ratio else stage_ratio
-        protected = 0
-        mod = ob.modifiers.new("af_collapse", "DECIMATE")
-        mod.decimate_type = "COLLAPSE"
-        mod.ratio = max(1e-4, min(1.0, ratio))
-        mod.use_collapse_triangulate = True
-        if symmetry:
-            mod.use_symmetry = True
-            mod.symmetry_axis = str(symmetry).upper()
-        if seam_weight is not None:
-            grp, protected = protect_seams_group(ob, seam_weight=seam_weight)
-            if grp is not None and protected:
-                mod.vertex_group = grp.name
-                mod.vertex_group_factor = float(protect_factor)
-        _apply_modifier(ob, mod)
-        grp = ob.vertex_groups.get("af_protect")
-        if grp is not None:
-            ob.vertex_groups.remove(grp)
-        t2 = tris_of(ob)
-        log.append({"stage": "collapse_%d" % stage, "ratio": round(mod_ratio(ratio), 5),
-                    "tris_in": t, "tris_out": t2, "protected_verts": protected,
-                    "seconds": round(time.time() - t0, 2)})
-        if t2 >= t:
-            break
-        t = t2
+        if planar_wait_above_tris > 0 and t > planar_wait_above_tris:
+            collapse_to(max(planar_wait_above_tris, target))   # ticket 49: make planar affordable (or skip)
+        if t > target:                                   # only reached under the threshold (or legacy)
+            t0 = time.time()
+            planar_dissolve(ob, planar_deg)
+            t2 = tris_of(ob)
+            log.append({"stage": "planar", "tris_in": t, "tris_out": t2,
+                        "seconds": round(time.time() - t0, 2)})
+            t = t2
+    collapse_to(target)
     return log
 
 
