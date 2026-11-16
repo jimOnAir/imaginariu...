@@ -129,9 +129,12 @@ export function createArt2dService({ root = defaultRunner.ART2D_ROOT, runner = d
         engine = 'qwenedit';
       } else if (engine === 'auto') {
         // the edit recipes can only be drawn by the reference engines; plain concepts may use any
+        // the edit recipes can only be drawn by the reference engines; plain concepts may use any -
+        // except the non-commercial opt-ins (ticket 52): auto never borrows the klein 9B's files,
+        // that engine is picked by an explicit click only, so its absence is not something to route around
         const wantEdit = !!RECIPES[o.recipe]?.edit;
         const order = wantEdit ? ['qwenedit', 'flux2'] : ['qwenedit', 'flux2', 'qwen', 'sdxl'];
-        engine = order.find((k) => st.engines[k]?.ready) || Object.keys(st.engines).find((k) => st.engines[k]?.ready) || 'flux2';
+        engine = order.find((k) => st.engines[k]?.ready) || Object.keys(st.engines).find((k) => st.engines[k]?.ready && st.engines[k].commercial !== false) || 'flux2';
         engineNote = `auto: ${ENGINES[engine]?.label || engine} - Qwen-Image-Edit unavailable (${qe?.reasons?.[0] || 'not checked'})`;
       } else if (styleBible) {
         engineNote = `style drawn by ${ENGINES.flux2.label} - ${qe?.reasons?.[0] || 'Qwen-Image-Edit unavailable'}`;

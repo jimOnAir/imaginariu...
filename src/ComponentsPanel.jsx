@@ -73,6 +73,8 @@ export default function ComponentsPanel({ notify, onDone }) {
   const items = scan?.items || [];
   const toggle = (c) => {
     if (c.status === 'unavailable') return;
+    // ticket 52: non-commercial weights are ticked only after a spoken confirm of the licence
+    if (!checked[c.id] && /non-commercial/i.test(c.license || '') && !window.confirm(t('components.confirmNc', { name: c.name, license: c.license }))) return;
     setChecked((v) => {
       const on = !v[c.id];
       const n = { ...v, [c.id]: on };

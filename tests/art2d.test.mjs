@@ -268,3 +268,45 @@ test('the style bible rides the set: picture copies, engine choice with a note, 
   const files = []; // resolveRefs is internal - check through createSet's record that shots resolve bible refs
   assert.equal(set.refs.styleBible.length, 1);
 });
+
+// ---------------------------------------------------------------- ticket 52: the klein 9B is explicit-only
+test('the klein 9B engine: the same klein wiring on its own pinned files', () => {
+  assert.equal(ENGINES.flux9b.commercial, false, 'the non-commercial flag that keeps every auto path off it');
+  assert.equal(ENGINES.flux9b.license, 'FLUX Non-Commercial');
+  const wf = buildWorkflow('flux9b', { prompt: 'robot', seed: 7 });
+  const g = JSON.stringify(wf);
+  assert.match(g, /flux-2-klein-base-9b-Q5_K_M\.gguf/);
+  assert.match(g, /qwen_3_8b_fp8mixed\.safetensors/);
+  assert.ok(!g.includes('flux-2-klein-base-4b') && !g.includes('qwen_3_4b_fp4'), 'the 9B graph carries only 9B files');
+  assert.notEqual(JSON.stringify(buildWorkflow('flux2', { prompt: 'robot', seed: 7 })), g, 'the 4B graph keeps its own files');
+});
+
+test('engine choice: the default is 4B, 9B is explicit, auto never borrows it', async () => {
+  assert.equal(createSchema.parse({ recipe: 'concept', prompt: 'x' }).engine, 'flux2', 'the 2D tab default stays the Apache 4B');
+  assert.ok(createSchema.safeParse({ recipe: 'concept', prompt: 'x', engine: 'flux9b' }).success, '9B is a real explicit choice');
+  const root = tmp();
+  await fs.writeFile(path.join(root, uid(1) + '.png'), PNG);
+  const only9b = {
+    online: true, ready: true,
+    engines: {
+      flux2: { label: 'FLUX.2 klein 4B', commercial: true, ready: false, reasons: ['no weights flux-2-klein-base-4b-Q4_K_M.gguf'] },
+      flux9b: { label: 'FLUX.2 klein 9B', commercial: false, ready: true, reasons: [] },
+    },
+  };
+  const fake = { ...runner, art2dStatus: async () => only9b, runSet: async (dir) => runner.loadSet(dir) };
+  const svc = createArt2dService({ root, runner: fake, getAsset: async (id) => id === uid(1) ? { id: uid(1), extension: '.png', name: 'hero.png' } : null, assetFile: (i) => path.join(root, i.id + i.extension) });
+  const s = await svc.create({ recipe: 'concept', prompt: 'robot', engine: 'auto' });
+  assert.equal(s.engine, 'flux2', 'auto lands on the named 4B even while it is absent - it never quietly draws on the non-commercial 9B');
+  assert.match(s.engineNote, /unavailable/);
+});
+
+test('runSet demands the engine weights up front by name (ticket 52: the honest missing-files sentence)', async () => {
+  const nodes = ['UnetLoaderGGUF', 'CLIPLoader', 'VAELoader', 'ReferenceLatent', 'EmptyFlux2LatentImage', 'Flux2Scheduler', 'CFGGuider', 'SamplerCustomAdvanced'];
+  const info = (unet) => Object.fromEntries(nodes.map((n) => [n, n === 'UnetLoaderGGUF' ? { input: { required: { unet_name: [unet] } } }
+    : n === 'CLIPLoader' ? { input: { required: { clip_name: ['qwen_3_8b_fp8mixed.safetensors'] } } }
+      : n === 'VAELoader' ? { input: { required: { vae_name: ['flux2-vae.safetensors'] } } } : {}]));
+  const serve = (body) => async () => ({ ok: true, json: async () => body });
+  await assert.rejects(runner.assertEngineWeights('flux9b', 'http://x', serve(info('someone-elses.gguf'))),
+    /no weights flux-2-klein-base-9b-Q5_K_M\.gguf/);
+  await runner.assertEngineWeights('flux9b', 'http://x', serve(info('flux-2-klein-base-9b-Q5_K_M.gguf')));
+});

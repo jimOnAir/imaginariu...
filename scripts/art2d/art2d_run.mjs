@@ -45,10 +45,10 @@ export async function saveSet(dir, set) {
 /** {ready, engines:{flux2:{ready,reasons}, ...}} - what is usable right now on the given ComfyUI.
  *  vramMiB (optional): engines carrying a gateMiB (qwenedit, ticket 07) reason themselves out
  *  honestly on a small card - below the gate the style series are drawn by FLUX.2 klein. */
-export async function art2dStatus(comfyUrl = DEFAULT_COMFY_URL, { vramMiB = 0 } = {}) {
+export async function art2dStatus(comfyUrl = DEFAULT_COMFY_URL, { vramMiB = 0, fetchFn = fetch } = {}) {
   let info = null;
   try {
-    const r = await fetch(comfyUrl + '/object_info', { signal: AbortSignal.timeout(15000) });
+    const r = await fetchFn(comfyUrl + '/object_info', { signal: AbortSignal.timeout(15000) });
     if (r.ok) info = await r.json();
   } catch { /* offline */ }
   const engines = {};
@@ -172,6 +172,19 @@ async function refSize(file) {
  * Generate the pending shots (or `only` keys, re-drawing them), then post-process and assemble.
  * Re-running a set continues where it stopped; finished shots are kept.
  */
+/**
+ * 0.7.9 fold wave ticket 52: the set was recorded with an engine - demand that engine's OWN
+ * weight files up front, by name. A missing file is said honestly ('no weights <file>'), the run
+ * never fails cryptically inside ComfyUI mid-draw, and never answers by borrowing another
+ * klein's files: the video-memory gate reason is deliberately NOT a refusal here, because an
+ * explicit pick on a small card stays the user's call (ticket 07). fetchFn is the test seam.
+ */
+export async function assertEngineWeights(engine, comfyUrl = DEFAULT_COMFY_URL, fetchFn = fetch) {
+  const st = await art2dStatus(comfyUrl, { fetchFn });
+  const reasons = (st.engines[engine]?.reasons || []).filter((r) => !/video memory/.test(r));
+  if (reasons.length) throw new Error(`${ENGINES[engine]?.label || engine}: ${reasons.join('; ')}`);
+}
+
 export async function runSet(dir, { comfyUrl = DEFAULT_COMFY_URL, signal, onProgress = () => {}, only = null, newSeed = false } = {}) {
   let set = await loadSet(dir);
   if (!set) throw new Error('2D set not found: ' + dir);
@@ -179,6 +192,8 @@ export async function runSet(dir, { comfyUrl = DEFAULT_COMFY_URL, signal, onProg
   await requireNodes(comfyUrl, e.nodes).catch((err) => {
     throw new Error(err.message.includes('UnetLoaderGGUF') ? 'The studio engine has no GGUF node. Restart the studio (stop.sh -> start.sh) so ComfyUI-GGUF attaches.' : err.message);
   });
+  // ticket 52: the engine's own weights are demanded by name before the first upload
+  await assertEngineWeights(set.engine, comfyUrl);
   await fs.mkdir(path.join(dir, 'raw'), { recursive: true });
   const todo = set.shots.map((s, i) => [s, i]).filter(([s]) => (only ? only.includes(s.key) : s.status !== 'done'));
   if (only) for (const [s] of todo) { s.status = 'pending'; if (newSeed) s.seed = Math.floor(Math.random() * 1e9); }

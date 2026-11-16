@@ -91,6 +91,35 @@ test('every display field of the checklist rows speaks English (ticket 50 langua
   }
 });
 
+// Ticket 52 (0.7.9 fold wave): the klein 9B is back as an explicit non-commercial opt-in.
+test('the klein 9B pins: the licence travels with every pin, hashes and sizes are real', () => {
+  const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'manifest.json'), 'utf8'));
+  for (const id of ['flux9b', 'flux9bte']) {
+    const p = man.models[id];
+    assert.ok(p, `${id} pinned in manifest.models`);
+    assert.match(p.license, /Non-Commercial/, `${id}: the licence rides the pin`);
+    assert.match(p.sha256, /^[0-9a-f]{64}$/, `${id}: sha256 pinned`);
+    assert.ok(Number.isInteger(p.size) && p.size > 1e9, `${id}: size pinned`);
+    assert.match(p.url, /^https:\/\/huggingface\.co\/(unsloth|Comfy-Org)\//, `${id}: the official repos only`);
+  }
+  for (const p of ['quick', 'full', 'lite']) assert.ok(!man.profiles[p].includes('flux9b'), `${p}: no preset carries the 9B`);
+});
+
+test('the klein 9B row: no preset, marked as a try, refuses on no-GPU; the 4B note tells the truth about installed files', () => {
+  const r = row(scanItems(mkS()), 'flux9b');
+  assert.ok(r, 'the row exists');
+  assert.equal(r.presets, '', 'no preset preselects the non-commercial 9B');
+  assert.equal(r.exp, true, 'carries the «новое, проба» marker');
+  assert.match(r.note, /never falls back/, 'the licence sentence tells the user the 4B stays the default');
+  assert.equal(row(scanItems(mkS({ noGpu: true })), 'flux9b').status, 'unavailable');
+  // the flux2 row's "previous 9B is kept and unused" note (ticket 09): true while nobody opted in,
+  // a lie once the 9B set is installed - the rewrite must go exactly with that switch
+  const s2 = mkS({ gguf: true, flux2old: [{ name: 'flux-2-klein-base-9b-Q5_K_M.gguf', size: 7e9 }] });
+  assert.match(row(scanItems({ ...s2, flux9b: { st: 'missing', where: '' } }), 'flux2').note, /the previous klein 9B/);
+  assert.doesNotMatch(row(scanItems({ ...s2, flux9b: { st: 'installed', where: '/c/models/unet/flux-2-klein-base-9b-Q5_K_M.gguf' } }), 'flux2').note,
+    /the previous klein 9B/, 'an opted-in 9B is in use, not "kept and unused"');
+});
+
 test('the checklist rows match the profiles of installer/manifest.json (the presets field contract)', () => {
   // The profile rule since ticket 12: presets come from the manifest MINUS the experimental ids
   // (never preselected) - upstream's low-VRAM TripoSG forcing (ticket 02's swap) is not ported.
@@ -239,7 +268,7 @@ test('triposgScan offer gates: no NVIDIA card, or a card under ~4 GB, declines t
 });
 
 test('ticket 12 «новое, проба»: experimental rows are never preselected and say so; regular rows keep their presets', () => {
-  assert.deepEqual(EXPERIMENTAL, ['triposg', 'skintokens', 'sound', 'qwenedit']);
+  assert.deepEqual(EXPERIMENTAL, ['triposg', 'skintokens', 'sound', 'qwenedit', 'flux9b'], 'ticket 52: the non-commercial 9B joins the opt-in rule');
   let items = scanItems(mkS());   // 12288 MiB
   for (const it of items) if (it.only.split(',').some((x) => EXPERIMENTAL.includes(x))) {
     assert.equal(it.presets, '', it.id + ': no preset letter for an experimental component');

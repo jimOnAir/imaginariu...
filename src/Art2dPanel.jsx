@@ -50,7 +50,7 @@ export default function Art2dPanel({notify, reference, active, onConcept}) {
 
   // a subscriber of the Windows build may have no FLUX.2 weights: pick the first installed engine right away,
   // otherwise "Draw" is silently grey
-  useEffect(() => { api('/art2d/status').then(s => { setStatus(s); const first = Object.entries(s?.engines || {}).find(([, e]) => e.ready)?.[0]; if (first && !s.engines[engine]?.ready) setEngine(first); }).catch(e => notify(t('art2d.loadFail') + e.message, true)); refreshList(); api('/styles').then(setBibles).catch(() => setBibles([])); }, []);
+  useEffect(() => { api('/art2d/status').then(s => { setStatus(s); const first = Object.entries(s?.engines || {}).find(([, e]) => e.ready && e.commercial !== false)?.[0]; if (first && !s.engines[engine]?.ready) setEngine(first); }).catch(e => notify(t('art2d.loadFail') + e.message, true)); refreshList(); api('/styles').then(setBibles).catch(() => setBibles([])); }, []);
   useEffect(() => { if (reference && !character) setCharacter(reference); }, [reference]);
   useEffect(() => { setHost(active ? document.getElementById('art2d-stage-host') : null); }, [active]);
   // while the set generates - refresh every 2.5 s

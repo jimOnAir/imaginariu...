@@ -2461,6 +2461,7 @@ export default {
   "components.st.missing": "missing - download",
   "components.st.unavailable": "unavailable",
   "components.license": "License: {license}",
+  "components.confirmNc": "\"{name}\" comes under {license}: not for commercial use. Install it anyway?",
   "components.found": "Found: {have}",
   "components.preset.quick": "Quick",
   "components.preset.full": "Full - everything",

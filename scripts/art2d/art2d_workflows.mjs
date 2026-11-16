@@ -4,12 +4,23 @@
 //   flux2 - FLUX.2 [klein] 4B base GGUF (Apache-2.0 since the 0.6.6 swap) + Qwen3-4B fp4 text encoder.
 //           Text-to-image AND editing by up to 4 reference
 //           images (ReferenceLatent chain, the wiring of ComfyUI's own "Image Edit (Flux.2 Klein)" template).
+//   flux9b - the same klein wiring on the 9B base (ticket 52): FLUX Non-Commercial weights, explicit
+//           pick only - the default and every auto chain stay on 4B.
 //   qwen  - Qwen-Image GGUF, text-to-image only (Apache-2.0, commercial use OK). Best with readable text.
 //   sdxl  - SDXL base 1.0: fast drafts, text-to-image and image-to-image (denoise) (OpenRAIL++, commercial OK).
 export const ENGINES = {
   flux2: {
     label: 'FLUX.2 klein 4B', license: 'Apache-2.0', commercial: true, edit: true, maxRefs: 4,
     unet: 'flux-2-klein-base-4b-Q4_K_M.gguf', clip: 'qwen_3_4b_fp4_flux2.safetensors', clipType: 'flux2', vae: 'flux2-vae.safetensors',
+    steps: 20, cfg: 5, nodes: ['UnetLoaderGGUF', 'CLIPLoader', 'VAELoader', 'ReferenceLatent', 'EmptyFlux2LatentImage', 'Flux2Scheduler', 'CFGGuider', 'SamplerCustomAdvanced'],
+  },
+  // 0.7.9 fold wave ticket 52: the 9B comes back as an explicit opt-in only - same klein wiring,
+  // heavier weights, FLUX Non-Commercial licence. The studio never picks it automatically: the
+  // 2D tab default stays flux2, the auto chain never lists it, and ticking it in Components asks
+  // for a licence confirm first. Files and defaults are the pinned pre-0.6.6 era of this branch.
+  flux9b: {
+    label: 'FLUX.2 klein 9B', license: 'FLUX Non-Commercial', commercial: false, edit: true, maxRefs: 4,
+    unet: 'flux-2-klein-base-9b-Q5_K_M.gguf', clip: 'qwen_3_8b_fp8mixed.safetensors', clipType: 'flux2', vae: 'flux2-vae.safetensors',
     steps: 20, cfg: 5, nodes: ['UnetLoaderGGUF', 'CLIPLoader', 'VAELoader', 'ReferenceLatent', 'EmptyFlux2LatentImage', 'Flux2Scheduler', 'CFGGuider', 'SamplerCustomAdvanced'],
   },
   qwenedit: {
@@ -47,8 +58,8 @@ export const REF_MEGAPIXELS = [0.6, 0.35, 0.35, 0.35];
  * Each reference is scaled to its megapixel budget, VAE-encoded and attached to BOTH positive and negative
  * conditioning (as in ComfyUI's own template).
  */
-export function flux2Workflow({ prompt, negative = '', refs = [], width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/flux2', refMegapixels = REF_MEGAPIXELS }) {
-  const e = ENGINES.flux2;
+export function flux2Workflow({ prompt, negative = '', refs = [], width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/flux2', refMegapixels = REF_MEGAPIXELS, engine = 'flux2' }) {
+  const e = ENGINES[engine] || ENGINES.flux2;
   if (refs.length > e.maxRefs) throw new Error(`FLUX.2 takes at most ${e.maxRefs} references.`);
   const wf = {
     1: { class_type: 'UnetLoaderGGUF', inputs: { unet_name: e.unet } },
@@ -171,6 +182,7 @@ export function sdxlWorkflow({ prompt, negative = '', width = 1024, height = 102
 /** One entry point for the runner: picks the builder by engine. */
 export function buildWorkflow(engine, o) {
   if (engine === 'flux2') return flux2Workflow(o);
+  if (engine === 'flux9b') return flux2Workflow({ ...o, engine });   // the same klein wiring (ticket 52)
   if (engine === 'qwenedit') return qwenEditWorkflow(o);
   if (engine === 'qwen') return qwenWorkflow(o);
   if (engine === 'sdxl') return sdxlWorkflow({ ...o, init: o.refs?.[0] || null });

@@ -52,6 +52,11 @@ Flux2TeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_
 Flux2TeSha='3eab03a77adb0ee5304a4e677d5c10ac22f9049c1d7c894adca4f8bb39206ca8'
 Flux2VaeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-4B/resolve/main/split_files/vae/flux2-vae.safetensors'
 Flux2VaeSha='868fe7b343cc8f3a19dbcfcafbc3d5f888802be3f89bd81b65b3621a066ce8f3'
+# the 9B opt-in (0.7.9 fold wave ticket 52): the pre-0.6.6 pins of this branch, unchanged
+Flux9bUnetUrl='https://huggingface.co/unsloth/FLUX.2-klein-base-9B-GGUF/resolve/main/flux-2-klein-base-9b-Q5_K_M.gguf'
+Flux9bUnetSha='6194deb13cfeb2584f7fcf36e85b1713cc30af6551dab74cbe18a4b8c96527ef'
+Flux9bTeUrl='https://huggingface.co/Comfy-Org/Flux-2-Klein-9B/resolve/main/split_files/text_encoders/qwen_3_8b_fp8mixed.safetensors'
+Flux9bTeSha='abad16806e0cbabc54e0325d6565847443fe396d5f0be38bb3cd3fe75a1201d6'
 QwenUnetUrl='https://huggingface.co/city96/Qwen-Image-gguf/resolve/main/qwen-image-Q4_K_M.gguf'
 QwenUnetSha='c6f49103603b9a4927502549fb615c910386cfc675b1466325930ba10d2a11f4'
 QwenTeUrl='https://huggingface.co/Comfy-Org/Qwen-Image/resolve/main/split_files/text_encoders/qwen_2.5_vl_7b_fp8_scaled.safetensors'
@@ -358,13 +363,28 @@ InstallGgufNode() {
 InstallFlux2() {
   InstallGgufNode || return 1
   # the 9B era left weights here; they are the user's files, kept, but said out loud (ticket 09)
+  # the sentence only fits while the 9B is nobody's component (ticket 52 made it opt-in): an
+  # installed flux9b set means those files are in use, not kept-aside
+  if [ "${S_FLUX9BW:-}" != installed ]; then
   for old in "$S_COMFY"/models/unet/flux-2-klein*9b*.gguf; do
     [ -e "$old" ] && say "  Note: the previous FLUX.2 klein 9B is still on disk ($(du -h "$old" | cut -f1)): $(basename "$old"). It is not used or touched; delete it yourself when you want the space."
   done
+  fi
   DownloadChecked "$Flux2UnetUrl" "$S_COMFY/models/unet/flux-2-klein-base-4b-Q4_K_M.gguf" 2422055488 "$Flux2UnetSha" || return 1
   DownloadChecked "$Flux2TeUrl" "$S_COMFY/models/text_encoders/qwen_3_4b_fp4_flux2.safetensors" 3848213998 "$Flux2TeSha" || return 1
   DownloadChecked "$Flux2VaeUrl" "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292 "$Flux2VaeSha" || return 1
   S_FLUX2=yes
+}
+# FLUX.2 klein 9B (0.7.9 fold wave ticket 52): explicit opt-in only - no preset lists it and the
+# Components panel confirms the FLUX Non-Commercial licence before the row can be ticked. Pins are
+# this branch's pre-0.6.6 ones (manifest models flux9b/flux9bte); the VAE is the 4B's Apache file,
+# reused when present, downloaded here when the user opted for 9B without 4B.
+InstallFlux9b() {
+  InstallGgufNode || return 1
+  DownloadChecked "$Flux9bUnetUrl" "$S_COMFY/models/unet/flux-2-klein-base-9b-Q5_K_M.gguf" 7017126176 "$Flux9bUnetSha" || return 1
+  DownloadChecked "$Flux9bTeUrl" "$S_COMFY/models/text_encoders/qwen_3_8b_fp8mixed.safetensors" 8664848742 "$Flux9bTeSha" || return 1
+  [ -f "$S_COMFY/models/vae/flux2-vae.safetensors" ] || DownloadChecked "$Flux2VaeUrl" "$S_COMFY/models/vae/flux2-vae.safetensors" 336211292 "$Flux2VaeSha" || return 1
+  S_FLUX9B=yes
 }
 # the style engine (ticket 07): the edit model rides the SAME text encoder and VAE pins as qwenimg,
 # so it downloads them if absent but never the plain t2i unet - 13 GB of picture belongs to its own row.
@@ -796,6 +816,7 @@ comp_what() { case "$1" in
   soundace) printf 'Sound: ACE-Step 1.5 weights (music loops)' ;;
   gguf) printf 'ComfyUI-GGUF node' ;;
   flux2) printf 'FLUX.2 klein 4B GGUF + text encoder + VAE' ;;
+  flux9b) printf 'FLUX.2 klein 9B GGUF + text encoder (FLUX Non-Commercial - explicit opt-in)' ;;
   qwenimg) printf 'Qwen-Image GGUF + text encoder + VAE' ;;  qwenedit) printf 'Qwen-Image-Edit 2511 GGUF + lightning LoRA (reuses the Qwen-Image encoder and VAE)' ;;
   *) printf '%s' "$1" ;;
 esac; }
@@ -803,6 +824,7 @@ esac; }
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
 ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundaceflux2 qwenimg qwenedit sound soundmoss soundace'
 ORDER_IDS=${ORDER_IDS/godot /godot gltfpack }   # gltfpack (ticket 56) installs right after godot
+ORDER_IDS=${ORDER_IDS/flux2 qwenimg/flux2 flux9b qwenimg}   # flux9b (ticket 52) rides -Only, never a preset
 
 # ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
 declare -a IT_ID IT_GRP IT_ST IT_HAVE IT_NEED IT_SIZE IT_NAME IT_LIC IT_PRE IT_DEPS IT_ONLY IT_NOTE IT_TICK
@@ -1141,6 +1163,7 @@ for e in "${plan[@]}"; do
     soundace) SoundWeights "$(SoundDir)" ace || err=$? ;;
     gguf) InstallGgufNode || err=$? ;;
     flux2) InstallFlux2 || err=$? ;;
+    flux9b) InstallFlux9b || err=$? ;;
     qwenimg) InstallQwen || err=$? ;;    qwenedit) InstallQwenEdit || err=$? ;;
     *) say "  not implemented yet: $id"; err=1 ;;
   esac

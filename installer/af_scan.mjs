@@ -30,7 +30,7 @@ export const APP_ROOT = path.resolve(HERE, '..');
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
 export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'sdxl',
-  'mvadapter', 'godot', 'gltfpack', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg', 'qwenedit', 'qweneditlora',
+  'mvadapter', 'godot', 'gltfpack', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'flux9b', 'qwenimg', 'qwenedit', 'qweneditlora',
   'sound', 'soundmoss', 'soundace'];
 
 const G_P = 'Programs';
@@ -444,6 +444,9 @@ export function scanComponents(opts = {}) {
   for (const id of ['hy2', 'hymv', 'hy21', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
   s.flux2 = multiState(root, s.comfy, man, ['flux2', 'flux2te', 'flux2vae']);
+  // ticket 52: the opt-in 9B set; a manifest without the pin (test fixtures of a partial manifest)
+  // answers the honest absence row, modelState is never probed for a pin that does not exist
+  s.flux9b = man.models.flux9b ? multiState(root, s.comfy, man, ['flux9b', 'flux9bte', 'flux2vae']) : { st: 'missing', where: '' };
   s.qwenedit = multiState(root, s.comfy, man, ['qwenedit', 'qweneditlora', 'qwente', 'qwenvae']);
   // replaced-but-retained weights (ticket 09): the klein 9B era's files, kept as the user's property
   s.flux2old = (() => {
@@ -474,7 +477,7 @@ export function scanComponents(opts = {}) {
 // drives: no preset preselection (profileIds filter + empty presets), the checklist/panel marker,
 // and the install.sh -Profile fallback (its mirror lists omit these ids too). 'skintokens' is
 // listed for the day it lands - ticket 03 kept it out of this branch on license grounds.
-export const EXPERIMENTAL = ['triposg', 'skintokens', 'sound', 'qwenedit'];
+export const EXPERIMENTAL = ['triposg', 'skintokens', 'sound', 'qwenedit', 'flux9b'];   // ticket 52: the non-commercial 9B is opt-in by the same rule
 
 /** Checklist rows in the reference ##ITEM semantics; display strings in English (branch policy). */
 export function scanItems(s) {
@@ -560,6 +563,28 @@ export function scanItems(s) {
     }
     add(id, G_2D, status, ms.where, '', sumSizes(man, ids), name, man.models[ids[0]].license, 'comfy', '', note);
   }
+  // FLUX.2 klein 9B (0.7.9 fold wave ticket 52): the heavy non-commercial sibling of the 4B -
+  // in NO preset, carrying the «новое, проба» marker (EXPERIMENTAL), and the Components panel
+  // asks a licence confirm before it lets the row be ticked. Nothing in the studio ever
+  // auto-picks it: the 4B is the default and stays the fallback.
+  {
+    const ms = s.flux9b || { st: 'missing', where: '' };
+    let status = ms.st;
+    if (status !== 'missing' && !s.gguf) status = 'outdated';
+    let note = noGpu ? 'needs an NVIDIA graphics card'
+      : status === 'outdated' ? 'another file version or no GGUF loader - update'
+        : 'FLUX Non-Commercial License - not for a commercial game; the studio never falls back to it, the 4B stays the default';
+    if (noGpu && status !== 'installed') status = 'unavailable';
+    add('flux9b', G_2D, status, ms.where, '', sumSizes(man, ['flux9b', 'flux9bte', 'flux2vae']),
+      'FLUX.2 klein 9B: the same klein, heavier (non-commercial)',
+      man.models.flux9b?.license || 'FLUX Non-Commercial License', 'comfy', '', note);   // the licence is a constant fact: partial test manifests must not blank it
+    if (ms.st === 'installed') {
+      // the flux2 row's "previous klein 9B is kept and unused" sentence (ticket 09) is a lie for
+      // an opted-in 9B set - those files are in use now, drop it
+      const f2 = items.find((i) => i.id === 'flux2');
+      if (f2) f2.note = f2.note.replace(/; the previous klein 9B.*$/, '');
+    }
+  }
   add('ollama', G_AI, s.ollama ? 'installed' : 'missing', s.ollama || '', '', SIZE.ollama, 'Ollama (local AI models)', 'MIT');
   const llm = recommendLlm(man, s.vram);
   add('llm', G_AI, s.llms.includes(llm.model) ? 'installed' : 'missing', s.llms.length ? `have: ${s.llms.join(', ')}` : '', llm.model, llm.size,
@@ -610,6 +635,7 @@ export function stateLines(s) {
     S_VFXDIR: s.vfxDir, S_VFXOK: s.vfxOk ? 'yes' : '', S_OLLAMA: s.ollama, S_LLMS_STR: s.llms.join(' '), S_VLM: s.vlm ? 'yes' : '',
     S_HY2: st(s.hy2), S_HYMV: st(s.hymv), S_HY21: st(s.hy21), S_SDXL: st(s.sdxl), S_U2NET: st(s.u2net),
     S_FLUX2W: st(s.flux2), S_QWENW: st(s.qwenimg), S_QWENEDITW: st(s.qwenedit),
+    S_FLUX9BW: st(s.flux9b),
     S_MV: s.mv.ready ? 'yes' : '', S_MV_NODE: s.mv.node ? 'yes' : '', S_MV_WEIGHTS: s.mv.weights ? 'yes' : '', S_MV_CONFIG: s.mv.config ? 'yes' : '',
     S_MV_PKGS: s.mv.pkgs ? 'yes' : '', S_MV_BYTES: s.mv.bytes, S_MV_REASON: s.mv.reason, S_MV_WARN: s.mv.warn,
     S_TS: s.ts.complete ? 'yes' : '', S_TS_ENV: s.ts.env ? 'yes' : '', S_TS_CODE: s.ts.code ? 'yes' : '', S_TS_WEIGHTS: s.ts.weights ? 'yes' : '',
