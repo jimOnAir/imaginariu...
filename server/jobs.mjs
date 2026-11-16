@@ -8,7 +8,7 @@ import WebSocket from 'ws';
 import { llmChat } from './llm.mjs';
 import { prepareConcept } from './preprocess.mjs';
 import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
-import {acceptOrSimplify,makeBlenderSimplify} from './mesh-salvage.mjs';
+import {acceptOrSimplify,makeSalvageSimplify} from './mesh-salvage.mjs';
 import {acquireEngineGpu} from './gpu-handover.mjs';
 import {pixal3dConfig,pixal3dStatus} from './pixal3d.mjs';
 import {generatePixal3d} from './pixal3d-run.mjs';
@@ -19,7 +19,9 @@ const jobs=new Map();const controllers=new Map();let active=null;let pumping=fal
 export const hooks={onCompleted:null};
 // Ticket 34 (0.6.18 wave): an over-cap but valid generation is simplified to the limit (the
 // branch's own Blender cleanup decimate path) instead of the job failing and the asset being lost.
-const simplifyMesh=makeBlenderSimplify();
+// Ticket 46 (0.7.9 performance wave): the chain prefers af-mesh-rs (seconds, attributes carried)
+// and keeps Blender as the fallback and the ASTRA_SALVAGE=blender forced route.
+const simplifyMesh=makeSalvageSimplify();
 async function validateGlbAsset(buffer,j,file){
  const {validation,simplifiedBuffer}=await acceptOrSimplify(buffer,{meshLevel:j?.meshLevel??0,simplify:simplifyMesh});
  if(simplifiedBuffer)await fs.writeFile(file,simplifiedBuffer);

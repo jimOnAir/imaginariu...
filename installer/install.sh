@@ -1150,6 +1150,26 @@ if [ -n "$S_COMFY" ] && [ -z "$(CfgGet comfyDir)" ]; then CfgSet comfyDir "$S_CO
 if [ -n "$S_BLENDER" ] && [ -z "$(CfgGet blender)" ]; then CfgSet blender "$S_BLENDER"; fi
 if [ -n "$S_GODOT" ] && [ -z "$(CfgGet godot)" ]; then CfgSet godot "$S_GODOT"; fi
 if [ -n "$S_NODE" ] && [ -z "$(CfgGet node)" ]; then CfgSet node "$S_NODE"; fi
+# ---------------------------------------------------------------- af-mesh-rs (0.7.9 performance wave ticket 46)
+# The studio's own GLB decimator (native/af_mesh_rs: Rust over vendored pinned meshoptimizer) is
+# the salvage fast path. It is BUILT from source, never downloaded: when cargo is on PATH the
+# release binary is compiled (shared target cache, ASTRA_CARGO_TARGET_DIR) and recorded in
+# config/paths.json (key afMesh); without cargo it simply does not exist and mesh salvage keeps
+# the Blender route exactly as before the ticket (the ticket-30 absence posture).
+AfMeshBuild() {
+  local cargo tgt bin
+  cargo="$(command -v cargo || true)"
+  if [ -z "$cargo" ]; then say '  af-mesh-rs: cargo not found - the fast mesh-salvage path stays off (the Blender path is untouched)'; return 0; fi
+  tgt="${ASTRA_CARGO_TARGET_DIR:-$ROOT/native/af_mesh_rs/target}"
+  say '  af-mesh-rs: building native/af_mesh_rs (release, from vendored sources)'
+  if ( cd "$ROOT/native/af_mesh_rs" && CARGO_TARGET_DIR="$tgt" "$cargo" build --release ) >>"$LOG" 2>&1; then
+    bin="$tgt/release/af-mesh-rs"
+    if [ -x "$bin" ]; then CfgSet afMesh "$bin"; say "  af-mesh-rs: $bin"; else say '  af-mesh-rs: the build produced no binary - mesh salvage stays on the Blender path'; fi
+  else
+    say '  af-mesh-rs: build failed (see install.log) - mesh salvage stays on the Blender path'
+  fi
+}
+AfMeshBuild
 Title 'Post-install check'
 ScanCore && ScanTable
 if [ "${S_P3:-}" = yes ] && [ -z "$(CfgGet pixal3dDir)" ]; then CfgSet pixal3dDir "$S_P3_DIR"; fi

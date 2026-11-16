@@ -1,6 +1,7 @@
 {
   "_comment": "AstraForge installer manifest: every download of installer/Install.ps1 in one place (URL, size in bytes, sha256 where the publisher gives one). Pixal3D and MV-Adapter have their own manifests next to this one. Sizes of Hugging Face files come from the file listing (lfs.oid = sha256), checked 27.10.2026. Licences: THIRD_PARTY_NOTICES.md and docs/product/licenses-audit.md.",
   "generated": "2026-10-27",
+  "_afmesh": "af-mesh-rs (native/af_mesh_rs, the salvage fast path of ticket 46) is NOT in this manifest: it is never downloaded. It is built from source at install time from the vendored, pinned meshoptimizer v1.3 (MIT) sources — see native/af_mesh_rs/VENDORING.md, THIRD_PARTY_NOTICES.md and the AfMeshBuild step of installer/install.sh.",
   "profiles": {
     "_comment": "What the automatic installer (Install.ps1 -Auto -Profile <name>) installs without asking. Components already present are skipped. 'quick' = everything needed to work, with local views; 'full' adds the second shape engine, the local assistant, the VFX generators and the 2D engines FLUX.2 klein and Qwen-Image (tab 2D); 'lite' = for a PC without an NVIDIA card: no ComfyUI, no shape and image models (they need CUDA), only Blender, rig, animations, sprites, VFX and Godot.",
     "quick": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "sdxl", "mvadapter", "godot", "clips"],
