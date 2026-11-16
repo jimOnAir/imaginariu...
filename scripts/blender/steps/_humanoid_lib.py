@@ -1865,6 +1865,12 @@ class Landmarks:
         info = {"armpit_z": round(ztop, 4)}
         if not (self.neck_z - 0.25 < ztop < self.neck_z - 0.04):
             info["reason"] = "chain top is not an armpit (sleeve or prop hides the upper arm)"
+            if ztop < self.neck_z - 0.25:     # the chain STOPS below the armpit band: burial
+                buried = self._buried_shoulder(ch, side)
+                if buried is not None:
+                    info.pop("reason")
+                    info.update(buried[1])
+                    return buried[0], info
             return None, info
         line = ch["line"]
         pts = np.array([l_[1] for l_ in line])
@@ -1898,6 +1904,39 @@ class Landmarks:
         info.update({"offset": round(off, 4), "arm_radius": round(rad, 4), "x": round(dx, 4),
                      "z": round(z, 4), "x_axis_line": round(x_axis, 4)})
         return np.array([X0 + s * dx, y, z]), info
+
+    def _buried_shoulder(self, ch, side):
+        """Interior pass for an arm hanging fused inside the torso silhouette (0.7.1-fold
+        wave ticket 48): the free chain STOPS below the armpit band because the upper arm
+        never breaks the outline - ticket-35's recorded widened-torso probe, a wide coat, a
+        mail hauberk. The band's INTERIOR still implies the arm: a hanging arm is straight,
+        so the visible chain's fitted axis, extrapolated up to the shoulder height, is the
+        best interior candidate - no lateral extreme exists to find there (that is the whole
+        failure). Lateral acceptance follows the visible-arm shoulder band; confidence rides
+        on S_src "interior" (it beats a prior shoulder, loses to a measured one) and the
+        markers fallback stays the final safety net. Returns (joint | None, info)."""
+        s, X0 = self.side_sign(side), self.X0
+        pts = np.array([l_[1] for l_ in ch["line"]])
+        if len(pts) < 5 or float(np.ptp(pts[:, 2])) < 0.04:
+            return None, {"reason": "buried chain too short to extrapolate"}
+        c, d, _, resid = _line_fit(pts)
+        theta = math.degrees(math.acos(float(np.clip(d[2], -1.0, 1.0))))
+        if theta > 35 or float(resid.mean()) > 0.008:
+            return None, {"reason": "buried chain is not a straight hanging arm"}
+        if float(((pts[:, 0] - X0) * s).mean()) < 0.05:
+            return None, {"reason": "buried chain hugs the midline (a robe, not an arm)"}
+        z = self.shoulder_z
+        q = c + d * ((z - c[2]) / d[2])
+        dx = float((q[0] - X0) * s)
+        if not (0.05 <= dx <= 0.20):
+            return None, {"reason": "extrapolated arm axis leaves the shoulder band"}
+        y = self.mid_y(X0 + s * dx, z, r=0.025)
+        self.warn.append("%s arm hangs inside the torso silhouette: shoulder taken from the "
+                         "visible lower arm's axis extrapolated through the band (interior "
+                         "confidence; params.markers override)" % side.lower())
+        return np.array([X0 + s * dx, y, z]), {"interior": "axis-extrapolated",
+                                               "x": round(dx, 4), "z": round(z, 4),
+                                               "axis_theta_deg": round(theta, 1)}
 
     def _plate_prop(self, centre, near=0.20):
         """The straight prop whose axis (over its extent) passes within `near` of a plate centre: a banner or a
@@ -1974,7 +2013,9 @@ class Landmarks:
                 self.info["shoulders"][side] = sinfo
                 if S2 is not None:
                     Sj = S2
-                    res["S"], res["S_src"] = Sj, "arm"
+                    # ticket 48: an interior (extrapolated) shoulder is above a prior and
+                    # below a measured one - the ranking the symmetry step reads
+                    res["S"], res["S_src"] = Sj, ("interior" if sinfo.get("interior") else "arm")
             elif line is not None and res["mode"] == "tpose":
                 Sj = np.array([X0 + s * self.shoulder_x, self.spine_y(self.shoulder_z) - 0.005,
                                self.shoulder_z])
@@ -2305,11 +2346,13 @@ class Landmarks:
                 j[side + n] = p
         # symmetric shoulders and hip joints (a crooked rest pose leaks into every clip); a shoulder
         # measured on the visible arm wins over a prior one
+        # ticket 48: an interior (extrapolated) shoulder ranks between the two
+        rank = {"arm": 2, "interior": 1, "prior": 0}
         srcL, srcR = self.arm["Left"].get("S_src"), self.arm["Right"].get("S_src")
         for a_, b_ in (("LeftArm", "RightArm"), ("LeftUpLeg", "RightUpLeg")):
             pa, pb = j[a_], j[b_]
-            if a_ == "LeftArm" and (srcL == "arm") != (srcR == "arm"):
-                pa = pb = (pa if srcL == "arm" else pb)
+            if a_ == "LeftArm" and rank.get(srcL, 0) != rank.get(srcR, 0):
+                pa = pb = (pa if rank.get(srcL, 0) > rank.get(srcR, 0) else pb)
             dx = (abs(pa[0] - X0) + abs(pb[0] - X0)) * 0.5
             y = (pa[1] + pb[1]) * 0.5
             z = (pa[2] + pb[2]) * 0.5
@@ -4518,7 +4561,7 @@ def _prim_ellipsoid(bm, c, radii, seg=20):
 
 
 def make_mannequin(pose="A", height=1.8, staff=False, robe=False, legless=False, voxel=0.012,
-                   name="Mannequin", sword=False, bow=False, quiver=False):
+                   name="Mannequin", sword=False, bow=False, quiver=False, torso_widen=1.0):
     """Procedural humanoid made of capsules/ellipsoids, voxel-remeshed into one surface, facing
     -Y, feet on z=0, scaled to `height`. staff: a 1.95 m staff through the left fist; sword: a
     0.9 m blade hanging DOWN from the right fist (hilt + crossguard above/at the fist); sword="oblique": a flat
@@ -4526,7 +4569,9 @@ def make_mannequin(pose="A", height=1.8, staff=False, robe=False, legless=False,
     crosses every horizontal/vertical slicing obliquely and is wider there than a shaft); bow: a 1.3 m
     bow held in the left fist beside the body (limb bulging 6 cm outward, string through the fist,
     both in the frontal plane); quiver: a quiver with three arrows on the back. Returns (object,
-    ground-truth joints in metres)."""
+    ground-truth joints in metres). torso_widen multiplies the three body ellipsoids' x/y radii
+    (the hidden-arms fixture of ticket 48: the hanging arms sink inside the torso silhouette;
+    1.0 changes nothing)."""
     ang = {"down": 10.0, "A": 45.0, "T": 90.0}[pose]
     j = {}
     lift = 0.55 if legless else 0.0
@@ -4549,6 +4594,10 @@ def make_mannequin(pose="A", height=1.8, staff=False, robe=False, legless=False,
     _prim_ellipsoid(bm, P(0, 0, 0.96), (0.17, 0.11, 0.13))
     _prim_ellipsoid(bm, P(0, 0, 1.13), (0.15, 0.10, 0.14))
     _prim_ellipsoid(bm, P(0, 0, 1.32), (0.19, 0.12, 0.15))
+    if torso_widen != 1.0:      # hidden-arms fixture (ticket 48): the bm holds only the three
+        for v in bm.verts:      # body ellipsoids here - scale their x/y about the body axis
+            v.co.x *= torso_widen
+            v.co.y *= torso_widen
     _prim_capsule(bm, P(0, 0, 1.42), P(0, 0, 1.58), 0.055)
     _prim_ellipsoid(bm, P(0, -0.01, 1.685), (0.085, 0.10, 0.115))
     for s, sg in (("Left", 1.0), ("Right", -1.0)):

@@ -107,6 +107,34 @@ def test_landmarks_mannequin_poses():
         shutil.rmtree(d, ignore_errors=True)
 
 
+def test_landmarks_hidden_arms():
+    """0.7.1-fold wave ticket 48: a hanging arm fused inside the torso silhouette - the
+    ticket-35 probe recorded arm joints drifting 0.081-0.118 m there (the height band
+    finds no lateral extreme when the arm never breaks the outline). The interior pass
+    extrapolates the visible lower arm's axis through the band; the drift must land back
+    inside the normal budgets with the honest interior source, and the normal-arms cases
+    above stay the byte-unchanged no-change witnesses."""
+    d = _tmp()
+    try:
+        for widen in (1.55, 1.75):
+            path, gt = _mannequin_glb(d, "down", torso_widen=widen)
+            lm, _, _ = _detect(path)
+            assert lm.pose == "arms_down" and lm.fail is None, (widen, lm.pose, lm.fail)
+            assert lm.overall > 0.5, (widen, lm.overall)
+            for side in ("Left", "Right"):
+                assert lm.info["shoulders"][side].get("interior") == "axis-extrapolated", \
+                    (widen, side, lm.info["shoulders"][side])
+            J = lm.joints_m()
+            for k in ("LeftForeArm", "RightForeArm", "LeftHand", "RightHand"):
+                err = float(np.linalg.norm(J[k] - gt[k]))
+                assert err < 0.05, (widen, k, err)
+            for k in ("LeftArm", "RightArm"):
+                err = float(np.linalg.norm(J[k] - gt[k]))
+                assert err < 0.07, (widen, k, err)
+    finally:
+        shutil.rmtree(d, ignore_errors=True)
+
+
 def test_facing_detection_rotated():
     d = _tmp()
     try:
