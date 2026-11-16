@@ -258,6 +258,23 @@ InstallGodot() {
   chmod +x "$RT/Godot/$GodotBin"
   S_GODOT="$RT/Godot/$GodotBin"; CfgSet godot "$S_GODOT"
 }
+# gltfpack (0.7.9 fold wave ticket 56): the official zeux/meshoptimizer v1.3 Linux binary - the
+# same release whose sources native/af_mesh_rs vendors. 2 MB, sha256-pinned from the manifest:
+# the convert step's LOD fallback and the EXT_meshopt_compression (compact.glb) writer. Without
+# it convert still writes plain LODs through af-mesh-rs and simply reports the missing tool.
+InstallGltfpack() {
+  local n leaf url size sha
+  n="$(NodeBin)"
+  [ -n "$n" ] || { say '  node is needed to read the manifest for gltfpack'; return 1; }
+  read -r leaf url size sha <<<"$("$n" -e 'const p=require(process.argv[1]).programs.gltfpack;console.log(require("path").basename(p.url),p.url,p.size,p.sha256)' "$ROOT/installer/manifest.json")"
+  [ -n "$url" ] && [ -n "$sha" ] || { say '  the gltfpack entry is missing from installer/manifest.json'; return 1; }
+  DownloadChecked "$url" "$DL/$leaf" "$size" "$sha" || return 1
+  mkdir -p "$RT/gltfpack"
+  unzip -o -q "$DL/$leaf" -d "$RT/gltfpack" || return 1
+  [ -f "$RT/gltfpack/gltfpack" ] || { say '  the gltfpack archive did not contain the binary'; return 1; }
+  chmod +x "$RT/gltfpack/gltfpack"
+  S_GLTFPACK="$RT/gltfpack/gltfpack"; CfgSet gltfpack "$S_GLTFPACK"
+}
 Uv() {
   if command -v uv >/dev/null; then
     UV_BIN="$(command -v uv)"
@@ -762,6 +779,7 @@ comp_what() { case "$1" in
   u2net) printf 'u2net background-removal model' ;;
   mvadapter) printf 'MV-Adapter: node, weights, Python packages' ;;
   godot) printf 'Godot 4.5.1' ;;
+  gltfpack) printf 'gltfpack v1.3 (LOD levels and compact GLB for the convert step)' ;;
   clips) printf 'Quaternius / ActionForge animations (CC0)' ;;
   vfx) printf 'VFX texture generators' ;;
   ollama) printf 'Ollama' ;;
@@ -784,6 +802,7 @@ esac; }
 
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
 ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundaceflux2 qwenimg qwenedit sound soundmoss soundace'
+ORDER_IDS=${ORDER_IDS/godot /godot gltfpack }   # gltfpack (ticket 56) installs right after godot
 
 # ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
 declare -a IT_ID IT_GRP IT_ST IT_HAVE IT_NEED IT_SIZE IT_NAME IT_LIC IT_PRE IT_DEPS IT_ONLY IT_NOTE IT_TICK
@@ -971,6 +990,8 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
     full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;  # «новое, проба» (ticket 12): the triposg* experimental ids are never in a preset
     *)    ids='node npm blender comfy hy2 u2net hymv sdxl mvadapter godot clips' ;;
   esac
+  # gltfpack (ticket 56) rides every preset; the manifest already lists it, the mirrored lists above not
+  case " $ids " in *" gltfpack "*) ;; *) ids="${ids/godot /godot gltfpack }" ;; esac
   # Windows 0.6.15 (ticket 37): the whole-preset plan obeys the same 8 GB rule as the checklist.
   if [ "$Profile" = full ] && Is8gbVram; then
     local kept=''
@@ -1100,6 +1121,7 @@ for e in "${plan[@]}"; do
     sdxl) Model 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors' 'sd_xl_base_1.0.safetensors' || err=$? ;;
     u2net) Download 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx' "$ROOT/data/models/background/models/u2net/u2net.onnx" || err=$? ;;
     godot) InstallGodot || err=$? ;;
+    gltfpack) InstallGltfpack || err=$? ;;
     clips)
       if [ -z "$S_BLENDER" ]; then say '  Blender is required - install it in the same run.'; err=1
       else CfgSet library "$S_LIBRARY"; InstallClips || err=$?; fi ;;
@@ -1149,6 +1171,7 @@ if [ -z "$(CfgGet forgeRuntime)" ] && [ -z "${ASTRA_FORGE_RUNTIME:-}" ]; then Cf
 if [ -n "$S_COMFY" ] && [ -z "$(CfgGet comfyDir)" ]; then CfgSet comfyDir "$S_COMFY"; fi
 if [ -n "$S_BLENDER" ] && [ -z "$(CfgGet blender)" ]; then CfgSet blender "$S_BLENDER"; fi
 if [ -n "$S_GODOT" ] && [ -z "$(CfgGet godot)" ]; then CfgSet godot "$S_GODOT"; fi
+if [ -n "${S_GLTFPACK:-}" ] && [ -z "$(CfgGet gltfpack)" ]; then CfgSet gltfpack "$S_GLTFPACK"; fi
 if [ -n "$S_NODE" ] && [ -z "$(CfgGet node)" ]; then CfgSet node "$S_NODE"; fi
 # ---------------------------------------------------------------- af-mesh-rs (0.7.9 performance wave ticket 46)
 # The studio's own GLB decimator (native/af_mesh_rs: Rust over vendored pinned meshoptimizer) is

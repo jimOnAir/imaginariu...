@@ -30,7 +30,7 @@ export const APP_ROOT = path.resolve(HERE, '..');
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
 export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'sdxl',
-  'mvadapter', 'godot', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg', 'qwenedit', 'qweneditlora',
+  'mvadapter', 'godot', 'gltfpack', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'qwenimg', 'qwenedit', 'qweneditlora',
   'sound', 'soundmoss', 'soundace'];
 
 const G_P = 'Programs';
@@ -41,7 +41,7 @@ const G_SND = 'Sound and music';
 
 // The manifest pins the Windows archives; these are the Linux download sizes (the same numbers
 // install.sh used before the scan core existed).
-const SIZE = { node: 32000000, npm: 250000000, blender: 401000000, comfy: 6000000000, comfydeps: 1000000000, godot: 76685794, ollama: 1578217944 };
+const SIZE = { node: 32000000, npm: 250000000, blender: 401000000, comfy: 6000000000, comfydeps: 1000000000, godot: 76685794, gltfpack: 1977681, ollama: 1578217944 };
 // Pixal3D: the engine download/disk estimates of installer/pixal3d/pixal3d.ps1 ($P3EngineDownload,
 // $P3EngineDisk); weights take the sizes of installer/pixal3d/manifest.json + 1.3 GB of slack (DINOv3 copy).
 const P3_ENGINE_DOWNLOAD = 5.5e9;
@@ -372,7 +372,7 @@ export function scanComponents(opts = {}) {
   const pyRel = process.platform === 'win32' ? path.join('.venv', 'Scripts', 'python.exe') : path.join('.venv', 'bin', 'python');
   const s = { root, rt, env, cfg, man, pyRel, gpu: '', vram: 0, cc: '', adapters: [], gpuBroken: '',
     node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '', comfy: '', comfyVer: '', comfyDeps: false, driver: '', driverMajor: null, driverOld: false,
-    gguf: false, godot: '', godotVer: '', clips: 0, library: '', vfxDir: '', vfxOk: false, ollama: '', llms: [], vlm: false };
+    gguf: false, godot: '', godotVer: '', gltfpack: '', gltfpackVer: '', clips: 0, library: '', vfxDir: '', vfxOk: false, ollama: '', llms: [], vlm: false };
 
   // --- GPU: name/VRAM/compute capability from nvidia-smi; lspci only names the cards in the warning
   if (env.ASTRA_INSTALL_NO_GPU || opts.noGpu) {
@@ -436,6 +436,11 @@ export function scanComponents(opts = {}) {
     const out = spawnText(s.godot, ['--version'], 15000).out.split('\n')[0] || '';
     s.godotVer = verOf(out) || verOf(path.basename(s.godot));
   }
+  // gltfpack (0.7.9 fold wave ticket 56): the LOD fallback and the compact.glb writer of the
+  // convert step; the installer unpacks the pinned official release into runtime/gltfpack
+  s.gltfpack = candidates('gltfpack', 'ASTRA_GLTFPACK', cfg, env,
+    path.join(rt, 'gltfpack', 'gltfpack'), which('gltfpack')).find((g) => isExe(g)) || '';
+  s.gltfpackVer = s.gltfpack ? String(man.programs.gltfpack.version || '') : '';
   for (const id of ['hy2', 'hymv', 'hy21', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
   s.flux2 = multiState(root, s.comfy, man, ['flux2', 'flux2te', 'flux2vae']);
@@ -494,6 +499,9 @@ export function scanItems(s) {
   add('npm', G_P, s.npmDeps && s.ui ? 'installed' : 'missing', s.npmDeps && s.ui ? 'in the application folder' : '', '', SIZE.npm, 'Studio interface and libraries', 'open-source licenses of npm packages', 'node');
   add('blender', G_P, s.blender ? 'installed' : 'missing', s.blender ? `${s.blenderVer} · ${s.blender}` : '', man.programs.blender.version, SIZE.blender, 'Blender', 'GPL-3.0');
   add('godot', G_P, s.godot ? 'installed' : 'missing', s.godot ? `${s.godotVer} · ${s.godot}` : '', '4.5.1', SIZE.godot, 'Godot 4.5 (game package validation)', 'MIT');
+  add('gltfpack', G_P, s.gltfpack ? 'installed' : 'missing', s.gltfpack || '', 'v1.3', SIZE.gltfpack,
+    'gltfpack (LOD levels and compact GLB)', man.programs.gltfpack.license, '', '',
+    'the convert step writes LOD files and compact.glb with it (af-mesh-rs stays primary for LODs)');
   add('clips', G_P, s.clips > 0 ? 'installed' : 'missing', s.clips > 0 ? `${s.clips} clips` : '', '', man.clips.size, 'Quaternius / ActionForge animations', man.clips.license, 'blender');
   add('vfx', G_P, s.vfxOk ? 'installed' : 'missing', s.vfxOk ? s.vfxDir : '', '', man.vfx.size, 'VFX texture generators', man.vfx.license);
   const cNeed = String(man.programs.comfy.version).replace(/^v/, '');
@@ -598,7 +606,7 @@ export function stateLines(s) {
     S_DRIVER: s.driver || '', S_DRIVER_OLD: s.driverOld ? '1' : '',
     S_NODE: s.node, S_NODEVER: s.nodeVer, S_NPM: s.npmDeps ? 'yes' : '', S_UI: s.ui ? 'yes' : '',
     S_BLENDER: s.blender, S_BLENDER_VER: s.blenderVer, S_COMFY: s.comfy, S_COMFYVER: s.comfyVer, S_COMFYDEPS: s.comfyDeps ? 'yes' : '',
-    S_GGUF: s.gguf ? 'yes' : '', S_GODOT: s.godot, S_GODOT_VER: s.godotVer, S_LIBRARY: s.library, S_CLIPS: s.clips,
+    S_GGUF: s.gguf ? 'yes' : '', S_GODOT: s.godot, S_GODOT_VER: s.godotVer, S_GLTFPACK: s.gltfpack || '', S_LIBRARY: s.library, S_CLIPS: s.clips,
     S_VFXDIR: s.vfxDir, S_VFXOK: s.vfxOk ? 'yes' : '', S_OLLAMA: s.ollama, S_LLMS_STR: s.llms.join(' '), S_VLM: s.vlm ? 'yes' : '',
     S_HY2: st(s.hy2), S_HYMV: st(s.hymv), S_HY21: st(s.hy21), S_SDXL: st(s.sdxl), S_U2NET: st(s.u2net),
     S_FLUX2W: st(s.flux2), S_QWENW: st(s.qwenimg), S_QWENEDITW: st(s.qwenedit),

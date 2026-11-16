@@ -862,6 +862,140 @@ def test_convert_mixamo_fbx():
     assert res["stats"]["welded_verts"] > 0
 
 
+def _rigged_clipped_glb(path, height=1.7):
+    """Skinned cylinder (2 bones) plus one keyframed clip "wave": the ticket-56 LOD fixture -
+    every LOD must carry both the skin and the clip."""
+    af.reset_scene()
+    body = _cylinder("Body", radius=0.15, height=height, segments=16, rings=12)
+    bm = bmesh.new()
+    bm.from_mesh(body.data)
+    bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=2, use_grid_fill=True)
+    bm.to_mesh(body.data)
+    bm.free()
+    arm_data = bpy.data.armatures.new("Armature")
+    arm = bpy.data.objects.new("Armature", arm_data)
+    bpy.context.scene.collection.objects.link(arm)
+    af.select_only([arm])
+    bpy.ops.object.mode_set(mode="EDIT")
+    hips = arm_data.edit_bones.new("hips")
+    hips.head, hips.tail = (0, 0, 0), (0, 0, height / 2)
+    chest = arm_data.edit_bones.new("chest")
+    chest.head, chest.tail = (0, 0, height / 2), (0, 0, height)
+    chest.parent = hips
+    bpy.ops.object.mode_set(mode="OBJECT")
+    g_hips, g_chest = body.vertex_groups.new(name="hips"), body.vertex_groups.new(name="chest")
+    for v in body.data.vertices:
+        w = min(1.0, max(0.0, v.co.z / height))
+        g_hips.add([v.index], 1.0 - w, "REPLACE")
+        g_chest.add([v.index], w, "REPLACE")
+    body.parent = arm
+    body.modifiers.new("Armature", "ARMATURE").object = arm
+    act = bpy.data.actions.new("wave")
+    arm.animation_data_create()
+    arm.animation_data.action = act
+    pb = arm.pose.bones["hips"]
+    pb.rotation_euler = (0.0, 0.0, 0.0)
+    pb.keyframe_insert("rotation_euler", frame=1)
+    pb.rotation_euler = (math.radians(20), 0.0, 0.0)
+    pb.keyframe_insert("rotation_euler", frame=12)
+    bpy.context.scene.frame_start, bpy.context.scene.frame_end = 1, 12
+    return af.export_glb(path, objects=None, animations=True, skins=True)
+
+
+def test_convert_lods_and_compact():
+    """0.7.9 fold wave ticket 56: lods -> <name>_lodN.glb (af-mesh-rs hits the exact fraction,
+    gltfpack -si approximates as the no-af-mesh fallback), compress -> <name>.compact.glb with
+    EXT_meshopt_compression. Main and LOD files stay PLAIN GLB (Godot opens them) and every
+    LOD carries the skin and the clip; stats.lods/compact carry the tool provenance."""
+    conv = importlib.import_module("steps.convert")
+    af_mesh, gltf = conv._af_mesh_rs(), conv._gltfpack()
+    if not af_mesh and not gltf:
+        print("SKIP convert lods: neither af-mesh-rs nor gltfpack found")
+        return
+
+    def gj(path):
+        g = conv._glb_json(path)  # the step's own GLB reader: the files must parse with it too
+        assert g is not None, path
+        return g
+
+    def tris(g):
+        return conv._glb_tris(g)
+
+    d = _tmp()
+    src = _rigged_clipped_glb(os.path.join(d, "hero_src.glb"))
+    res = _run("convert", {"mesh": src},
+               {"format": "glb", "name": "hero", "lods": [0.5, 0.2], "compress": True},
+               os.path.join(d, "main"))
+    assert res["ok"], (res.get("error"), res["checks"])
+    st, main = res["stats"], res["outputs"]["glb"]
+    assert os.path.basename(main) == "hero.glb"
+    main_tris = tris(gj(main))
+    assert "EXT_meshopt_compression" not in (gj(main).get("extensionsUsed") or [])
+    rows = st["lods"]
+    assert [r["file"] for r in rows] == ["hero_lod1.glb", "hero_lod2.glb"], rows
+    for r, frac in zip(rows, (0.5, 0.2)):
+        g = gj(os.path.join(os.path.dirname(main), r["file"]))
+        t = tris(g)
+        assert t == r["tris"], (r, t)
+        if af_mesh:  # the exact-fraction contract of the ticket (meshopt can be 1 triangle off)
+            assert abs(t - r["target_tris"]) <= 1, r
+            assert abs(t - main_tris * frac) <= max(2, 0.01 * main_tris * frac), (r, main_tris)
+        else:  # the sanctioned no-af-mesh approximation (provenance says so)
+            assert abs(t - main_tris * frac) <= max(4, 0.25 * main_tris * frac), (r, main_tris)
+            assert r["tool"].startswith("gltfpack"), r
+        assert len(g.get("skins", [])) == 1, r["file"]  # bones carried
+        assert "wave" in [a["name"] for a in g.get("animations", [])], (r["file"], g.get("animations"))
+        assert "EXT_meshopt_compression" not in (g.get("extensionsUsed") or [])
+    if gltf:
+        comp = res["outputs"]["compact"]
+        assert os.path.basename(comp) == "hero.compact.glb"
+        used = set((gj(comp).get("extensionsUsed") or []) + (gj(comp).get("extensionsRequired") or []))
+        assert "EXT_meshopt_compression" in used, used
+        assert "KHR_mesh_quantization" in used, used  # quantize defaults to on
+        assert st["compact"]["quantize"] is True and st["compact"]["bytes"] == os.path.getsize(comp)
+        # quantize off: meshopt compression without KHR_mesh_quantization (gltfpack -noq)
+        res2 = _run("convert", {"mesh": src},
+                    {"format": "glb", "name": "hero", "compress": True, "quantize": False},
+                    os.path.join(d, "noq"))
+        used2 = set((gj(res2["outputs"]["compact"]).get("extensionsUsed") or [])
+                    + (gj(res2["outputs"]["compact"]).get("extensionsRequired") or []))
+        assert "EXT_meshopt_compression" in used2, used2
+        assert "KHR_mesh_quantization" not in used2, used2
+    else:  # the honest absence row: a warning, the plain output untouched
+        assert "compact" not in res["outputs"]
+        assert any("gltfpack not found" in w for w in res["warnings"]), res["warnings"]
+    # af-mesh-rs absent (but gltfpack present): the LOD falls back and says so in provenance
+    if af_mesh and gltf:
+        keep = conv._af_mesh_rs
+        conv._af_mesh_rs = lambda: None
+        try:
+            res3 = _run("convert", {"mesh": src}, {"format": "glb", "name": "hero", "lods": [0.5]},
+                        os.path.join(d, "fallback"))
+        finally:
+            conv._af_mesh_rs = keep
+        assert res3["ok"], (res3.get("error"), res3["checks"])
+        r3 = res3["stats"]["lods"][0]
+        assert r3["tool"].startswith("gltfpack"), r3
+        g3 = gj(res3["outputs"]["lod1"])
+        assert abs(tris(g3) - r3["target_tris"]) <= max(4, 0.25 * r3["target_tris"]), (g3, r3)
+        assert _check(res3, "lod1_tris")["ok"]
+    # the plain outputs open in Godot (main + lod1) - the reason compact is a SEPARATE file
+    from steps import _export_lib as _xl
+    godot = _xl.find_godot()
+    if godot:
+        import shutil
+        proj = _xl.make_check_project(os.path.join(d, "godot_smoke"))
+        shutil.copy(main, proj)
+        shutil.copy(os.path.join(os.path.dirname(main), "hero_lod1.glb"), proj)
+        _code, out, _sec = _xl.run_godot(godot, proj, ["--import"], 300)
+        bad = [ln for ln in out.splitlines() if "ERROR" in ln and "hero" in ln]
+        assert not bad, bad or out[-1500:]
+        imported = os.path.join(proj, ".godot", "imported")
+        files = os.listdir(imported) if os.path.isdir(imported) else []
+        assert any(f.startswith("hero.glb-") for f in files), files
+        assert any(f.startswith("hero_lod1.glb-") for f in files), files
+
+
 # --------------------------------------------------------------------------- separate
 
 def test_separate_regions_union_and_rest():

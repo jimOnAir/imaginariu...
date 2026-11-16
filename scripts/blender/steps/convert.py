@@ -20,14 +20,30 @@ params:
   mixamo_center   'bbox' (default) | 'head' — X centre on the head column, for props on one side
   texture_max     max texture side for the Mixamo FBX (default 2048, halves if the file is
                   over 10 MB, down to 512)
+  lods            triangle-fraction list, e.g. [0.5, 0.2] -> extra <name>_lodN.glb at that share
+                  of the main file's triangles (glb output only). The files stay PLAIN GLB that
+                  Godot opens; the skin and every clip are carried. af-mesh-rs builds them at the
+                  exact fraction; without it gltfpack -si approximates (provenance in stats.lods)
+  compress        true -> extra <name>.compact.glb with EXT_meshopt_compression (gltfpack -c, for
+                  three.js / Babylon / Unity glTFast). The main file stays plain on purpose:
+                  Godot 4.5.1 cannot read the compressed form
+  quantize        with compress: apply KHR_mesh_quantization on top (default true, smaller;
+                  false -> -noq, meshopt compression without quantization)
 
 outputs: glb|fbx|obj, blend (converted.blend), textures (FBX/OBJ: the maps written next to it).
+         lods/compress (glb only) write additionally lod1..lod3 and compact.
 checks: round-trip re-import of the written file (triangles, mesh count, height, base colour,
 armature); with height_m also height_matches (round trip vs params.height_m, 1e-3 relative)
 and grounded (round-trip z_min = 0) when grounding is on.
+         lodN_tris (af-mesh-rs exact, gltfpack approximate as a warning) and
+         compact_meshopt_ext run when those params did.
 """
+import json
 import math
 import os
+import shutil
+import struct
+import subprocess
 
 import bpy
 
@@ -35,6 +51,57 @@ import af_common as af
 from steps import _mesh_lib as ml
 
 MIXAMO_UPLOAD_LIMIT = 10_000_000
+REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                          "..", "..", ".."))
+
+
+def _external_tool(env_name, cfg_key, own):
+    """An external binary resolved the way server/af-mesh.mjs resolves af-mesh-rs (ticket 46):
+    the explicit ASTRA_* env, then config/paths.json (the installer-written key), then the
+    in-repo build. An env override pointing at a missing file is an honest absence, never a
+    silent fallback (0.7.9 fold wave ticket 56)."""
+    forced = (os.environ.get(env_name) or "").strip()
+    if forced:
+        return forced if os.path.isfile(forced) else None
+    try:
+        with open(os.path.join(REPO_ROOT, "config", "paths.json")) as fh:
+            cfg = json.load(fh)
+    except (OSError, ValueError):
+        cfg = {}
+    p = str(cfg.get(cfg_key) or "").strip()
+    if p:
+        return p if os.path.isfile(p) else None
+    return own if own and os.path.isfile(own) else None
+
+
+def _af_mesh_rs():
+    return _external_tool("ASTRA_AF_MESH", "afMesh",
+                          os.path.join(REPO_ROOT, "native", "af_mesh_rs", "target",
+                                       "release", "af-mesh-rs"))
+
+
+def _gltfpack():
+    return _external_tool("ASTRA_GLTFPACK", "gltfpack", None) or shutil.which("gltfpack")
+
+
+def _glb_json(path):
+    """The JSON chunk of a GLB as a dict, None when it does not parse: what the LOD and
+    compact checks read without a Blender re-import."""
+    try:
+        with open(path, "rb") as fh:
+            head = fh.read(20)
+            # GLB: 12-byte header, then the chunk - length at 12:16, type ("JSON") at 16:20
+            if len(head) < 20 or head[16:20] != b"JSON":
+                return None
+            n = struct.unpack("<I", head[12:16])[0]
+            return json.loads(fh.read(n).decode("utf-8"))
+    except (OSError, ValueError, KeyError, struct.error):
+        return None
+
+
+def _glb_tris(g):
+    return sum(g["accessors"][p["indices"]]["count"] // 3
+               for m in g.get("meshes", []) for p in m.get("primitives", []) if "indices" in p)
 
 
 def _head_center_x(ob):
@@ -160,6 +227,108 @@ def _limit_textures(objs, size):
     return changed
 
 
+def _build_lods(out, name, lods, tris_in, req, outputs, stats, warnings, checks):
+    """<name>_lodN.glb at the requested triangle fractions (0.7.9 fold wave ticket 56).
+    af-mesh-rs is primary - measured: it hits the fraction exactly on UV-seamed painted
+    meshes and carries skins, clips and weights bit-exact (glb.rs, ticket 46); gltfpack
+    -si -sp -noq -ac is the no-af-mesh fallback and lands NEAR the fraction, not on it.
+    stats["lods"] is the provenance row: file, target, tool that actually built it."""
+    af_mesh, gltf = _af_mesh_rs(), _gltfpack()
+    stats["lods"] = []
+    if not af_mesh and not gltf:
+        warnings.append("lods: neither af-mesh-rs nor gltfpack found (installer components, or "
+                        "ASTRA_AF_MESH / ASTRA_GLTFPACK) - no LOD files were written")
+        checks.append(af.check("lods_written", False, "no LOD tool present", severity="warning"))
+        return
+    for i, frac in enumerate(lods, 1):
+        target = max(1, int(round(tris_in * frac)))
+        row = {"file": "%s_lod%d.glb" % (name, i), "fraction": frac, "target_tris": target}
+        out_lod = af.out_path(req, row["file"])
+        if target >= tris_in:
+            row["error"] = "fraction %s of %d triangles leaves nothing to remove" % (frac, tris_in)
+            warnings.append("lods: " + row["error"])
+            stats["lods"].append(row)
+            continue
+        if af_mesh:
+            info = {}
+            try:
+                r = subprocess.run([af_mesh, "simplify", "--in", out, "--out", out_lod,
+                                    "--tris", str(target), "--json"],
+                                   capture_output=True, text=True, timeout=600)
+                if r.returncode == 0:
+                    info = json.loads(r.stdout or "{}")
+            except (OSError, ValueError, subprocess.TimeoutExpired):
+                info = {}
+            if info.get("mode") == "simplify" and os.path.isfile(out_lod):
+                row["tris"] = int(info["trianglesAfter"])
+                row["tool"] = "af-mesh-rs"
+        if "tool" not in row:
+            if not gltf:
+                row["error"] = ("af-mesh-rs %s and gltfpack is not installed"
+                                % ("unavailable" if not af_mesh else "refused"))
+                warnings.append("lods: %s - %s skipped" % (row["error"], row["file"]))
+                stats["lods"].append(row)
+                continue
+            try:
+                r = subprocess.run([gltf, "-i", out, "-o", out_lod, "-si", repr(frac),
+                                    "-sp", "-noq", "-ac"], capture_output=True, timeout=600)
+                ok = r.returncode == 0 and os.path.isfile(out_lod)
+            except (OSError, subprocess.TimeoutExpired):
+                ok = False
+            if not ok:
+                row["error"] = "both LOD tools failed on %s" % row["file"]
+                warnings.append("lods: " + row["error"])
+                stats["lods"].append(row)
+                continue
+            g = _glb_json(out_lod)
+            row["tris"] = _glb_tris(g) if g else None
+            row["tool"] = "gltfpack -si %s -sp -noq -ac (approx)" % frac
+            if af_mesh:
+                warnings.append("lods: af-mesh-rs refused %s - the gltfpack approximation was "
+                                "written instead" % row["file"])
+        got = row.get("tris")
+        if got == target:
+            checks.append(af.check("lod%d_tris" % i, True, got, target, note=row["tool"]))
+        else:
+            near = got is not None and abs(got - target) <= max(4, 0.25 * target)
+            checks.append(af.check("lod%d_tris" % i, near, got, target, severity="warning",
+                                   note=row["tool"]))
+        outputs["lod%d" % i] = os.path.abspath(out_lod)
+        stats["lods"].append(row)
+
+
+def _build_compact(out, name, quantize, req, outputs, stats, warnings, checks):
+    """<name>.compact.glb with EXT_meshopt_compression for three.js / Babylon / Unity glTFast
+    (0.7.9 fold wave ticket 56). gltfpack is the only tool for this and the MAIN file stays
+    plain: Godot 4.5.1 cannot read the compressed form - that is why this is a separate file.
+    quantize false drops KHR_mesh_quantization (the meshopt compression stays)."""
+    g = _gltfpack()
+    if not g:
+        warnings.append("compress: gltfpack not found (installer component gltfpack, or "
+                        "ASTRA_GLTFPACK) - no compact file written, the plain output is untouched")
+        checks.append(af.check("compact_written", False, "gltfpack missing", severity="warning"))
+        return
+    out_c = af.out_path(req, "%s.compact.glb" % name)
+    cmd = [g, "-i", out, "-o", out_c, "-c", "-ac"] + ([] if quantize else ["-noq"])
+    try:
+        r = subprocess.run(cmd, capture_output=True, timeout=600)
+        ok = r.returncode == 0 and os.path.isfile(out_c)
+    except (OSError, subprocess.TimeoutExpired):
+        ok = False
+    if not ok:
+        warnings.append("compress: gltfpack failed - no compact file written")
+        checks.append(af.check("compact_written", False, "gltfpack failed", severity="warning"))
+        return
+    gj = _glb_json(out_c) or {}
+    used = sorted(set((gj.get("extensionsUsed") or []) + (gj.get("extensionsRequired") or [])))
+    stats["compact"] = {"file": os.path.basename(out_c), "bytes": os.path.getsize(out_c),
+                        "tool": "gltfpack -c -ac" + ("" if quantize else " -noq"),
+                        "quantize": bool(quantize), "extensions": used}
+    outputs["compact"] = os.path.abspath(out_c)
+    checks.append(af.check("compact_meshopt_ext", "EXT_meshopt_compression" in used,
+                           used, "EXT_meshopt_compression"))
+
+
 def run(req):
     p = req["params"]
     warnings = []
@@ -169,6 +338,10 @@ def run(req):
     if fmt not in ("glb", "fbx", "obj"):
         raise ValueError("params.format must be glb, fbx or obj, got %r" % fmt)
     name = ml.safe_name(p.get("name") or "model", "model")
+    lods = p.get("lods") or []
+    if not isinstance(lods, (list, tuple)) or any(
+            not isinstance(f, (int, float)) or not 0 < float(f) < 1 for f in lods):
+        raise ValueError("params.lods must be a list of fractions in (0, 1), got %r" % (lods,))
 
     src_path = ml.input_path(req)
     af.reset_scene()
@@ -274,6 +447,17 @@ def run(req):
     if stats["input"]["armatures"] and fmt != "obj" and not mixamo:
         checks.append(af.check("roundtrip_armature", len(af.armatures(back)) >= 1,
                                len(af.armatures(back)), 1))
+    if lods or p.get("compress"):
+        if fmt != "glb":
+            warnings.append("lods and compress apply to the glb output; format=%s wrote none" % fmt)
+        else:
+            stats["tools"] = {"af_mesh_rs": _af_mesh_rs() or "", "gltfpack": _gltfpack() or ""}
+            if lods:
+                _build_lods(out, name, [float(f) for f in lods], want_tris, req, outputs,
+                            stats, warnings, checks)
+            if p.get("compress"):
+                _build_compact(out, name, bool(p.get("quantize", True)), req, outputs, stats,
+                               warnings, checks)
     stats["format"] = fmt
     stats["mixamo"] = mixamo
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}

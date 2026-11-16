@@ -121,7 +121,7 @@ const STEP_LIST = [
     step: 'convert', module: 'core', title: 'Format conversion',
     help: 'GLB <-> FBX <-> OBJ, optionally FBX for upload to Mixamo. Rig and animation are kept (except for OBJ and Mixamo).',
     kinds: ALL_KINDS, inputs: { slots: ['blend', 'mesh'], required: true, formats: MESH_FORMATS },
-    outputs: ['glb', 'fbx', 'obj', 'blend', 'textures'],
+    outputs: ['glb', 'fbx', 'obj', 'blend', 'textures', 'lod1', 'lod2', 'lod3', 'compact'],
     params: {
       format: oneOf(['glb', 'fbx', 'obj'], 'glb', 'Format', 'Target format (mixamo is always fbx).'),
       name: str('model', 'File name', 'Output file name without extension.'),
@@ -129,6 +129,9 @@ const STEP_LIST = [
       rotate_z_deg: num(0, -360, 360, 'Rotation around Z, deg', ''),
       ground: bool(null, 'Put on the floor', 'Empty - yes if a height is set or Mixamo is on, otherwise keep the position as is.'),
       center: bool(null, 'Center', 'Empty - yes if a height is set or Mixamo is on, otherwise keep the position as is.'),
+      lods: list(null, 'LOD levels (triangle shares)', "Example: [0.5, 0.2] - model_lod1.glb / model_lod2.glb with this share of the main file's triangles, rig and all clips inside, plain GLB (Godot opens them). Only for the glb format.", { items: { type: 'number', min: 0.01, max: 0.99 }, maxItems: 3 }),
+      compress: bool(false, 'Also compact.glb', 'A separate file with EXT_meshopt_compression: Babylon, three.js and Unity glTFast read it, Godot does not - so the main file stays plain.'),
+      quantize: bool(true, 'Quantize the compact file', 'KHR_mesh_quantization on top (smaller). Off - meshopt compression without quantization.'),
       mixamo: bool(false, 'For Mixamo', 'One welded mesh without a rig, facing -Y, feet at 0, centimeters, textures embedded, up to 10 MB.'),
       mixamo_max_tris: int(50000, 1000, 500000, 'Triangles for Mixamo', 'Mesh simplification budget for Mixamo.'),
       mixamo_weld_m: num(0.0001, 0, 0.01, 'Weld for Mixamo, m', 'Mixamo auto-skinning fails on meshes cut along UV seams.'),

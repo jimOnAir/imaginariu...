@@ -4,9 +4,9 @@
   "_afmesh": "af-mesh-rs (native/af_mesh_rs, the salvage fast path of ticket 46) is NOT in this manifest: it is never downloaded. It is built from source at install time from the vendored, pinned meshoptimizer v1.3 (MIT) sources — see native/af_mesh_rs/VENDORING.md, THIRD_PARTY_NOTICES.md and the AfMeshBuild step of installer/install.sh.",
   "profiles": {
     "_comment": "What the automatic installer (Install.ps1 -Auto -Profile <name>) installs without asking. Components already present are skipped. 'quick' = everything needed to work, with local views; 'full' adds the second shape engine, the local assistant, the VFX generators and the 2D engines FLUX.2 klein and Qwen-Image (tab 2D); 'lite' = for a PC without an NVIDIA card: no ComfyUI, no shape and image models (they need CUDA), only Blender, rig, animations, sprites, VFX and Godot.",
-    "quick": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "sdxl", "mvadapter", "godot", "clips"],
-    "lite": ["node", "npm", "blender", "godot", "clips", "vfx"],
-    "full": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "hy21", "sdxl", "mvadapter", "godot", "clips", "ollama", "llm", "vlm", "vfx", "pixal3d", "pixal3dw", "flux2", "qwenimg", "qwenedit"]
+    "quick": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "sdxl", "mvadapter", "godot", "gltfpack", "clips"],
+    "lite": ["node", "npm", "blender", "godot", "gltfpack", "clips", "vfx"],
+    "full": ["node", "npm", "blender", "comfy", "hy2", "u2net", "hymv", "hy21", "sdxl", "mvadapter", "godot", "gltfpack", "clips", "ollama", "llm", "vlm", "vfx", "pixal3d", "pixal3dw", "flux2", "qwenimg", "qwenedit"]
   },
   "programs": {
     "node": { "version": "v22.23.3", "url": "https://nodejs.org/dist/v22.23.3/node-v22.23.3-win-x64.zip", "mirrors": ["https://cdn.npmmirror.com/binaries/node/v22.23.3/node-v22.23.3-win-x64.zip", "https://mirrors.huaweicloud.com/nodejs/v22.23.3/node-v22.23.3-win-x64.zip", "https://mirrors.tencent.com/nodejs-release/v22.23.3/node-v22.23.3-win-x64.zip", "https://mirrors.aliyun.com/nodejs-release/v22.23.3/node-v22.23.3-win-x64.zip"], "size": 35574076, "sha256": "2b0ff57b049cda1bbcea2240eec20467018713c1efe1f7360c2681859b90ed71", "license": "MIT", "name": "Node.js" },
@@ -15,6 +15,7 @@
     "gguf": { "version": "b6016439", "url": "https://github.com/molbal/ComfyUI-GGUF/archive/b6016439f135342819461256ec5f03fbb4003a8b.zip", "size": 100000, "sha256": null, "license": "Apache-2.0", "name": "ComfyUI-GGUF (fork molbal of city96, same commit as the owner's working studio; loads GGUF weights of FLUX.2 and Qwen-Image)", "pip": ["gguf>=0.13.0", "sentencepiece", "protobuf"] },
     "uv": { "version": "latest", "url": "https://github.com/astral-sh/uv/releases/latest/download/uv-x86_64-pc-windows-msvc.zip", "size": 20000000, "sha256": null, "license": "MIT / Apache-2.0", "name": "uv" },
     "godot": { "version": "4.5.1-stable", "url": "https://github.com/godotengine/godot/releases/download/4.5.1-stable/Godot_v4.5.1-stable_win64.exe.zip", "size": 76685794, "sha256": null, "license": "MIT", "name": "Godot" },
+    "gltfpack": { "version": "v1.3", "url": "https://github.com/zeux/meshoptimizer/releases/download/v1.3/gltfpack-ubuntu.zip", "size": 1977681, "sha256": "0666d9dc40d60fe5b9a45f3fc24f8e6ca87112974bd5de9ca57152aa13d06017", "license": "MIT", "name": "gltfpack (LOD levels and compact GLB)", "_note": "the official GitHub release of the same meshoptimizer v1.3 that native/af_mesh_rs vendors; Linux x64 binary - the LOD fallback and the EXT_meshopt_compression writer of the convert step (0.7.9 fold wave ticket 56)" },
     "ollama": { "version": "current", "url": "https://ollama.com/download/OllamaSetup.exe", "size": 1578217944, "sha256": null, "license": "MIT", "name": "Ollama" },
     "torchIndexCuda": "https://download.pytorch.org/whl/cu128",
     "torchIndexCpu": "https://download.pytorch.org/whl/cpu"
