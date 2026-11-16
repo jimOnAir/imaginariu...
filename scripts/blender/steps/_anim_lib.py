@@ -1114,7 +1114,11 @@ def find_target_rig(objects=None):
         if best is None or len(amap) > len(best[2]):
             best = (o, scheme, amap)
     if best is None:
-        raise RuntimeError("no humanoid armature with a Hips-like bone found")
+        # 0.7.9 fold wave ticket 60 item 4: name the remedy, not just the class - a bare
+        # "no humanoid armature" on a mesh the studio just generated reads like a dead end,
+        # while the actual next click is the rig step.
+        raise RuntimeError('no humanoid armature with a Hips-like bone found: this mesh has no skeleton yet '
+                           '- run rig_humanoid first (or attach an armature), then retarget')
     return best
 
 

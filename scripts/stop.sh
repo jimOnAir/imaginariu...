@@ -5,7 +5,9 @@
 # the pixal3d-temp marker (pixal3d.pid). A ComfyUI on 8188 or Ollama you run yourself is never touched.
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-URL='http://127.0.0.1:3210'
+# ticket 60 item 2: the studio may have taken another port at start - stop the address it
+# actually answered on; without node (or before the first start) the usual 3210 still applies.
+URL="http://127.0.0.1:$(command -v node >/dev/null 2>&1 && node "$ROOT/scripts/studio-port.mjs" 2>/dev/null || echo 3210)"
 
 owned_cmdline() { # <pid> <marker...> — is the process alive and does its command line contain every marker?
   local pid="$1"; shift

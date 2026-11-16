@@ -412,6 +412,12 @@ InstallQwen() {
 # same key (server/ollama-run.mjs). A model folder that ALREADY has models is never switched or
 # hidden: that would make the user's existing models disappear from `ollama list`, so we keep them
 # and, if the drive is genuinely short, only note how much a manual move would free.
+# The 0.7.9 fold wave ticket 60 item 3 (the 0.7.8 note) extends exactly that situation: when the
+# drive under the existing models is genuinely short AND the studio's drive has room for the
+# models plus the download ahead, the move is OFFERED - interactively only (Ask answers defaults
+# for every unattended run), never forced - through a copy verified file by file before a single
+# original is deleted (MoveOllamaModels). Declining keeps the sentence and the behavior above
+# word for word.
 ollamaDefaultHome() { printf '%s' "${OLLAMA_MODELS:-$HOME/.ollama/models}"; }
 # expected download size of a model name, from installer/manifest.json (empty when unknown)
 modelBytes() { local n out=''; n="$(NodeBin)"; if [ -n "$n" ]; then
@@ -423,6 +429,52 @@ modelBytes() { local n out=''; n="$(NodeBin)"; if [ -n "$n" ]; then
 fi; printf '%s' "$out"; }
 # The device a path lives on (df's source column); '' when df cannot say.
 deviceOf() { df -P "$1" 2>/dev/null | awk 'NR==2{print $1}'; }
+# MoveOllamaModels <src> <dst> - the verified move behind the offer below (ticket 60 item 3).
+# Never destructive before verified: the copy lands in a staging folder first, every file there is
+# checked, and only THEN the originals go away. The check is stronger than sizes: Ollama names
+# every model blob after its own checksum (models/blobs/sha256-<hex> - the name is the publisher's
+# word for the bytes, Ollama verified it on download), so each copied blob is re-hashed against
+# its name; the few files that are not blobs (the JSON manifests) are byte-compared against the
+# source, which still exists at that moment. Any mismatch: the copy is discarded, the originals
+# are not touched, nothing is recorded - the caller keeps the ticket-22 placement. A folder that
+# refuses to delete after a verified move is said out loud: nothing was lost, disk just shows both.
+MoveOllamaModels() {
+  local src="$1" dst="$2" f rel want got bad=''
+  local stage="$dst.tmp-$$"
+  mkdir -p "$stage" || return 1
+  if ! cp -a "$src/." "$stage/" 2>/dev/null; then
+    say '  move: the copy did not go through - the models stay exactly where they are'
+    rm -rf "$stage" 2>/dev/null
+    return 1
+  fi
+  while IFS= read -r -d '' f; do
+    rel="${f#"$stage"/}"
+    case "${f##*/}" in
+      sha256-*)
+        want="${f##*/sha256-}"
+        got="$(sha256sum "$f" 2>/dev/null | cut -d' ' -f1)"
+        [ "$got" = "$want" ] || { bad="$rel (its own name-checksum)"; break; } ;;
+      *)
+        cmp -s "$f" "$src/$rel" || { bad="$rel (byte compare)"; break; } ;;
+    esac
+  done < <(find "$stage" -type f -print0)
+  if [ -n "$bad" ]; then
+    say "  move: $bad failed verification - the copy is discarded, the originals are not touched"
+    rm -rf "$stage" 2>/dev/null
+    return 1
+  fi
+  mkdir -p "$dst" || { rm -rf "$stage" 2>/dev/null; return 1; }
+  if ! find "$stage" -mindepth 1 -maxdepth 1 -exec mv -t "$dst" {} + 2>/dev/null || [ -n "$(ls -A "$stage" 2>/dev/null)" ]; then
+    say "  move: the verified copy waits at $stage but could not take its place in $dst - nothing was deleted; clear the way and move it yourself, or run this installer again"
+    return 1
+  fi
+  rmdir "$stage" 2>/dev/null
+  rm -rf "$src" 2>/dev/null
+  if [ -e "$src" ]; then
+    say '  move: the originals could not be deleted (permissions?) - the studio uses the verified copy; the old folder can go by hand when convenient'
+  fi
+  return 0
+}
 # Decide and export OLLAMA_MODELS for this run. Idempotent. Answers a short human line.
 PrepareOllamaModels() { # <model-bytes-expected> - used only to judge whether the home drive is short
   local def need defdev homedir homedev studioplace stated
@@ -439,8 +491,29 @@ PrepareOllamaModels() { # <model-bytes-expected> - used only to judge whether th
     export OLLAMA_MODELS="$stated"
     say "  model placement: models go to the studio folder from config/paths.json ($stated)"
   elif [ -n "$(ls -A "$def" 2>/dev/null)" ]; then
-    local have; have="$(du -sb "$def" 2>/dev/null | cut -f1)"; have="${have:-0}"
-    say "  model placement: you already have models in $def ($(Gb "$have") used) - they stay exactly where they are, nothing is hidden; moving them to the studio's drive would free that much"
+    local have homefree studfree keep moved=''
+    have="$(du -sb "$def" 2>/dev/null | cut -f1)"; have="${have:-0}"
+    keep="  model placement: you already have models in $def ($(Gb "$have") used) - they stay exactly where they are, nothing is hidden; moving them to the studio's drive would free that much"
+    # the offer (ticket 60 item 3): the models' drive must be short for the download ahead, the
+    # studio must live on a different device, and that device must fit the models AND the download
+    # - a move that would only swap one full drive for another is not offered, and no unattended
+    # run ever sees the question (Ask answers its default when -Yes is in force).
+    need="${1:-6000000000}"
+    studioplace="$RT/models/ollama"
+    homedir="$(dirname "$def")"; while [ ! -d "$homedir" ] && [ "$homedir" != "/" ]; do homedir="$(dirname "$homedir")"; done
+    homefree="$(FreeOn "$homedir")"; studfree="$(FreeOn "$RT")"
+    if FreeUnder "$homefree" "$need" && [ -n "$studfree" ] && ! FreeUnder "$studfree" "$((have + need))" \
+       && [ -n "$(deviceOf "$homedir")" ] && [ "$(deviceOf "$homedir")" != "$(deviceOf "$RT")" ] \
+       && Ask "  Move your Ollama models from $def to the studio folder $studioplace? That frees $(Gb "$have") on $(deviceOf "$homedir"); every copied file is verified before the originals are deleted." n; then
+      if MoveOllamaModels "$def" "$studioplace"; then
+        CfgSet ollamaModels "$studioplace" || true
+        export OLLAMA_MODELS="$studioplace"
+        moved=1
+        say "  model placement: models moved to $studioplace - every file verified, $(Gb "$have") freed where they were; config/paths.json records the new home (the studio's own Ollama serve reads it)."
+        say '  If you start `ollama serve` yourself (a systemd service, for instance), restart it pointing at OLLAMA_MODELS='"$studioplace"' so it goes on seeing your models.'
+      fi
+    fi
+    [ -n "$moved" ] || say "$keep"
   else
     need="${1:-6000000000}"
     homedir="$(dirname "$def")"; while [ ! -d "$homedir" ] && [ "$homedir" != "/" ]; do homedir="$(dirname "$homedir")"; done

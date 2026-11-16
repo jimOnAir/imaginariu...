@@ -28,6 +28,11 @@
 .comp-job{display:grid;grid-template-columns:16px 1fr;gap:6px 8px;align-items:center;font-size:13px}
 .comp-bar{grid-column:1/-1;height:6px;border-radius:3px;background:rgba(255,255,255,.08);overflow:hidden}
 .comp-bar i{display:block;height:100%;background:var(--accent,var(--c4d86ff))}
+/* ticket 60 item 1 (0.7.9 fold wave): a step without a denominator (unknown-size download, a
+   blender/ollama stage) shows a moving stripe instead of a frozen bar - "working" must never
+   read as "stuck at 0%". */
+.comp-bar.indet i{width:40%;animation:comp-indet 1.6s ease-in-out infinite alternate}
+@keyframes comp-indet{from{transform:translateX(-30%)}to{transform:translateX(210%)}}
 /* Learning section (ticket 20): the local journaling switch, About -> Learning. */
 .about-learning{margin-top:18px;display:flex;flex-direction:column;gap:6px}
 .about-heading{display:flex;align-items:center;gap:6px;margin:0 0 2px;font-size:13px}

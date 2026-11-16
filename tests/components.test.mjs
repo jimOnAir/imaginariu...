@@ -152,6 +152,7 @@ test('install: the detached run reports through the status file; progress, done,
   const mid = (await c.state()).job;
   assert.equal(mid.progress, 12);
   assert.equal(mid.text, 'downloaded 5 MB of 40 MB');
+  assert.equal(typeof mid.at, 'string', 'ticket 60 item 1: the panel gets the time of the last line, so a stalled step can say how long ago it was');
   assert.equal((await c.state()).busy, true);
   child().status(100, 'done', { code: 0 });
   child().finish(0);
@@ -233,6 +234,7 @@ test('studio restart mid-install: the panel re-attaches to the surviving run - p
   assert.equal(s.job.code, null, 'still running - the dead studio changed nothing');
   assert.equal(s.job.progress, 55);
   assert.equal(s.job.text, 'downloaded 9 GB of 16 GB');
+  assert.match(String(s.job.at), /2026-11-08/, 'ticket 60 item 1: the survivor\'s last-line time rides the re-attach');
   assert.deepEqual(s.job.ids, ['pixal3d', 'pixal3dw']);
   // and asking for an install now joins the survivor, never spawns a second one:
   const s2 = await c.install(['clips']);
@@ -285,4 +287,24 @@ test('the real flock probe: a live holder is busy, the same lock free again is n
   } finally { try { process.kill(holder.pid); } catch { /* already gone */ } }
   await tick(300);
   assert.equal((await c.state()).busy, false, 'the lock is off again - installs are open');
+});
+// The progress TRUTH of the panel (0.7.9 fold wave ticket 60 item 1, the 0.7.8 note): a percent is
+// a promise about a denominator. Downloads of unknown size and every blender/ollama step have
+// none - the row must show the moving indeterminate bar instead of a frozen "0%", and a step that
+// stopped writing lines must say how long ago the last one was. The server half (the last-line
+// time riding the job) is asserted in the flow tests above; these lock the panel and the style.
+test('the Components progress row never freezes at 0%: percent needs a denominator, else the moving bar (ticket 60 item 1)', () => {
+  const comp = readFileSync(path.join(APP, 'src', 'ComponentsPanel.jsx'), 'utf8');
+  assert.match(comp, /job\.progress > 0 \? ` — \$\{job\.progress\}%` : ''/,
+    'the percent prints only when there is one - the frozen "— 0%" is gone');
+  assert.match(comp, /'comp-bar' \+ \(job\.progress > 0 \? '' : ' indet'\)/, 'without a denominator the bar takes the indeterminate class');
+  assert.match(comp, /job\.at \? Date\.parse\(job\.at\)/, 'elapsed comes from the last line the installer wrote, not from job start');
+  assert.match(comp, /t\('components\.stalled'/, 'a step without new lines says so, with the seconds count');
+  const css = readFileSync(path.join(APP, 'src', 'about.css'), 'utf8');
+  assert.match(css, /\.comp-bar\.indet i\{[^}]*animation:comp-indet/, 'the indeterminate stripe is a real animation, not a static gray bar');
+  assert.match(css, /@keyframes comp-indet/, 'and the keyframes exist');
+  for (const loc of ['en', 'ru']) {
+    const dict = readFileSync(path.join(APP, 'src', 'i18n', `${loc}.js`), 'utf8');
+    assert.match(dict, /"components\.stalled": "[^"]*\{n\}[^"]*"/, `${loc}: the stall note counts seconds`);
+  }
 });

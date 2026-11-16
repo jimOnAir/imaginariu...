@@ -68,6 +68,13 @@ params (all optional):
                           (paint_camera.json of an earlier run)
   yaw_range_deg null      +- search around the model front (-Y); null: 60, creatures (asset kind) 180
   yaw_step_deg 5, pitch_range_deg 15
+  front_lock true         a body whose shoulder band mirrors itself is also fitted with the yaw pinned
+                          to the front, and that camera wins within front_lock_margin of the free fit:
+                          a cloak / tail / one-side weapon can no longer drag the paint off centre,
+                          while a genuinely angled concept keeps its fitted yaw (angled still paints
+                          angled); asymmetric bodies (the creature's own tail) keep the whole search
+  front_lock_margin 0.02  IoU the front camera may give the free fit and still take the camera
+  front_lock_symmetry 0.015  shoulder-band mirror distance (fraction of the height) counting as symmetric
   perspective true        last fit stage adds the camera distance (kept when the IoU gains >= 0.005)
   concept_back_file null  back reference (CLI; the server passes inputs.concept_back)
   camera_back "fit"       "fit" or an explicit camera dict (paint_camera_back.json)
@@ -362,6 +369,33 @@ def run(req):
         cam, iou_fit, cam_info = pl.fit_camera(
             pts, fit_mask, yaw_range=yaw_range, yaw_step=float(p.get("yaw_step_deg", 5)),
             pitch_range=float(p.get("pitch_range_deg", 15)), perspective=bool(p.get("perspective", True)))
+        # front lock (0.7.9 fold wave ticket 60 item 5): a body whose shoulder band mirrors itself
+        # has no reason to look 20 deg aside unless the CONCEPT is angled - yet a cloak, a tail or a
+        # one-side weapon shifts the model silhouette against the concept and drags the free IoU fit
+        # off centre, and the paint lands sheared across the face. So for a symmetric body the exact-
+        # front camera (yaw pinned) is fitted too, and wins whenever it is within front_lock_margin
+        # of the free fit: the shift then belongs to the attachments, not to the pose. A genuinely
+        # angled concept loses the margin by far and keeps its fitted yaw - angled concepts still
+        # paint angled. Asymmetric bodies (a creature's own tail) keep the whole search untouched.
+        if bool(p.get("front_lock", True)):
+            sym = pl.band_symmetry(V_all)
+            lim = float(p.get("front_lock_symmetry", 0.015))
+            margin = float(p.get("front_lock_margin", 0.02))
+            lock = {"symmetry": round(float(sym), 4), "symmetry_limit": lim, "margin": margin}
+            if sym <= lim:
+                fcam, fiou, _finfo = pl.fit_camera(
+                    pts, fit_mask, yaw_fixed=True, yaw_step=float(p.get("yaw_step_deg", 5)),
+                    pitch_range=float(p.get("pitch_range_deg", 15)), perspective=bool(p.get("perspective", True)))
+                lock.update({"iou_fitted": round(float(iou_fit), 4), "iou_front": round(float(fiou), 4),
+                             "yaw_fitted_deg": round(float(cam.yaw), 2)})
+                if fiou >= iou_fit - margin:
+                    cam, iou_fit = fcam, fiou
+                    lock["kept"] = "front"
+                else:
+                    lock["kept"] = "fitted"
+            else:
+                lock["kept"] = "asymmetric"
+            cam_info["front_lock"] = lock
     lap("camera")
     u_all, v_all, z_all = cam.project(V_all)
     zb, piece_buf = pl.zbuffer(u_all, v_all, z_all, T_all, Wc, Hc, tri_label=tri_piece)
@@ -961,6 +995,7 @@ def run(req):
         "mask": mask_info, "camera": cam.to_dict(), "camera_search": cam_info.get("coarse") if isinstance(cam_info, dict) else None,
         "camera_refine": cam_info.get("refine") if isinstance(cam_info, dict) else None,
         "camera_perspective": cam_info.get("perspective") if isinstance(cam_info, dict) else None,
+        "camera_front_lock": cam_info.get("front_lock") if isinstance(cam_info, dict) else None,
         "iou_fit": iou_fit, "iou": round(iou, 4), "iou_aligned": iou_aligned, "height_m": round(H, 4),
         "targets": [o.name for o in targets], "kept_meshes": [o.name for o in meshes if o not in targets],
         "uv": uv_infos, "texels": tex_stats, "fill": fill_info, "emission": emi_info, "delight": delight_info,

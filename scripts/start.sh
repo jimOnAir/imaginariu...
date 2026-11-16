@@ -20,11 +20,39 @@ fail() { # $1 = reason in Russian, $2 = reason in English
 }
 
 health() { curl -sf -m 2 "$URL/api/health" 2>/dev/null || true; }
-H="$(health)"
-if printf '%s' "$H" | grep -q '"app":"AstraForge"'; then
-  [ "$NO_BROWSER" = 0 ] && command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 & exit 0
-fi
-[ -n "$H" ] && { echo "Порт $PORT занят другим приложением. / Port $PORT is in use by another application." >&2; exit 1; }
+# 0.7.9 fold wave ticket 60 item 2 (port-busy resilience, the 0.7.5 note). The old shape gave up on
+# a busy 3210: our own second launch got "port in use" instead of its window, any other listener
+# got the same sentence, and a non-HTTP listener got silence while the server died on EADDRINUSE.
+# Now: our studio answers - open its window (the behavior it already had); anything else holding
+# the port gets NAMED (the owning process when ss may see it) and the studio takes the next free
+# port. The server records the real port in data/runtime/port.json; scripts/studio-port.mjs is the
+# one question every consumer (stop.sh, forge.mjs, ai/mcp) asks afterwards.
+port_listening() { (exec 3<>"/dev/tcp/127.0.0.1/$1") 2>/dev/null; }   # bash builtin, no ss needed to detect
+port_holder() { ss -ltnp 2>/dev/null | awk -v p=":$PORT\$" '$4 ~ p {print $NF; exit}'; }   # the owning program, when permitted to see it
+take_port() {
+  local i h holder
+  for i in $(seq 20); do
+    if port_listening "$PORT"; then
+      h="$(health)"
+      if printf '%s' "$h" | grep -q '"app":"AstraForge"'; then
+        [ "$NO_BROWSER" = 0 ] && command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 & exit 0
+      fi
+      holder="$(port_holder)"
+      if [ -n "$holder" ]; then
+        echo "Порт $PORT занят ($holder). / Port $PORT is in use by $holder." >&2
+      else
+        echo "Порт $PORT занят другим приложением. / Port $PORT is in use by another application." >&2
+      fi
+      echo "Беру следующий порт. / Taking the next port." >&2
+      PORT=$((PORT + 1)); URL="http://127.0.0.1:$PORT"
+    else
+      return 0
+    fi
+  done
+  echo "Ни один порт не свободен - 3210 и порты после него заняты. / No free port: 3210 and the ports after it are held. Stop what holds them and run this again." >&2
+  exit 1
+}
+take_port
 
 PATHS="$ROOT/config/paths.json"
 # Any node on PATH can parse the config; a missing one is the installer's job to provide.

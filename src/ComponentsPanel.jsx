@@ -103,7 +103,16 @@ export default function ComponentsPanel({ notify, onDone }) {
   const groups = [...new Set(items.map((c) => c.group))];
   return <div className="comp-panel">
     <p className="field-note">{t('components.lead')}</p>
-    {running && <div className="comp-job"><Loader2 className="spin" size={14} /><span>{job.text} — {job.progress}%</span><div className="comp-bar"><i style={{ width: job.progress + '%' }} /></div></div>}
+    {running && (() => {
+      // Ticket 60 item 1 (0.7.9 fold wave) - the progress truth: a percent is a promise about a
+      // denominator, and downloads of unknown size (and every blender/ollama step between them)
+      // have none, so they must not sit at a frozen "0%": no denominator shows the indeterminate
+      // bar (the stripe moves, the job visibly works), and a step that stopped writing lines says
+      // how long ago the last one was - elapsed instead of a lie. Polls every 1.5 s, so it ticks.
+      const since = job.at ? Date.parse(job.at) : (job.startedAt ? Date.parse(job.startedAt) : 0);
+      const secs = since ? Math.max(0, Math.round((Date.now() - since) / 1000)) : 0;
+      return <div className="comp-job"><Loader2 className="spin" size={14} /><span>{job.text}{job.progress > 0 ? ` — ${job.progress}%` : ''}{secs > 90 ? ` ${t('components.stalled', { n: secs })}` : ''}</span><div className={'comp-bar' + (job.progress > 0 ? '' : ' indet')}><i style={job.progress > 0 ? { width: job.progress + '%' } : undefined} /></div></div>;
+    })()}
     {running && job.external && <p className="field-note"><Download size={12} /> {t('components.job.reattached')}</p>}
     {foreign && !running && <p className="field-note"><Loader2 className="spin" size={12} /> {t('components.foreign')}</p>}
     {job && !running && job.external && job.code === -1 && <p className="field-note views-warn">{t('components.job.lost')}</p>}

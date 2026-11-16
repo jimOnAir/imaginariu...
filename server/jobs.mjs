@@ -5,7 +5,7 @@ import { data,readJson,writeJson,assetInfo,saveAsset,isId } from './storage.mjs'
 import { hunyuanWorkflow,hunyuanMultiViewWorkflow,MV_CHECKPOINT,sdxlWorkflow } from './schema.mjs';
 import {getViewsService} from './views.mjs';
 import WebSocket from 'ws';
-import { llmChat } from './llm.mjs';
+import { conceptEnglishText } from './concept-llm.mjs';   // ticket 60 item 6: the no-assistant fallback lives there
 import { prepareConcept, conceptPrepPythonCheck } from './preprocess.mjs';
 import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
 import {acceptOrSimplify,makeSalvageSimplify} from './mesh-salvage.mjs';
@@ -87,10 +87,9 @@ async function conceptFromPrompt(j,config,signal,nodes){
   let englishPrompt=j.prompt;
   if(/[^\x00-\x7F]/.test(j.prompt)){
    await update(j,{message:'Translating the concept with the local LLM',progress:0});
-   const response=await llmChat({...config,provider:'ollama'},{message:'Translate the concept description into English for SDXL, keeping the meaning. Return a concept action with the English prompt. Description: '+j.prompt,context:'',history:[]});
-   signal.throwIfAborted();englishPrompt=response.actions.find(a=>a.type==='concept')?.prompt;
-   if(!englishPrompt)throw new Error('The local LLM did not return an English concept. Click "Refine with AI" or use an English description.');
-   await update(j,{englishPrompt});
+   // a missing assistant draws the concept from the text as written and says so (concept-llm.mjs)
+   const tr=await conceptEnglishText(j.prompt,{config,signal,note:async(message)=>{await update(j,{conceptNote:message});}});signal.throwIfAborted();
+   englishPrompt=tr.english;if(!tr.untranslated)await update(j,{englishPrompt});
   }
   await update(j,{message:'Creating the concept image · SDXL',progress:0});
   const outputs=await waitPrompt(j,config,sdxlWorkflow(englishPrompt,config.imageCheckpoint,j.seed,'astra/'+j.id),signal,'Concept image');

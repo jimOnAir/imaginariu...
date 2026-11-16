@@ -539,14 +539,16 @@ def nelder_mead(f, x0, steps, iters=300, ftol=1e-5):
 
 
 def fit_camera(points, mask, yaw_range=35.0, yaw_step=5.0, pitch_range=10.0, work_h=(200, 400),
-               yaw_center=0.0, perspective=True, min_gain=0.005, log=None):
+               yaw_center=0.0, perspective=True, min_gain=0.005, log=None, yaw_fixed=False):
     """Camera whose silhouette of the surface samples `points` best matches `mask` (bool, concept
     resolution). Coarse grid over yaw (yaw_center +- yaw_range) and pitch with a 2D similarity alignment
     (silhouette area + centroid), then Nelder-Mead on [yaw, pitch, ln scale, tx, ty] (orthographic) at
     the working heights for the two best distinct starts; finally, with perspective, Nelder-Mead adds the
     inverse distance k (concept renders are perspective: a shield held forward looks bigger) and keeps it
-    only when the IoU gains >= min_gain. Returns (camera at the mask resolution, IoU at the last working
-    height, info)."""
+    only when the IoU gains >= min_gain. yaw_fixed=True pins yaw at yaw_center everywhere (the front
+    camera a symmetric body must not leave, ticket 60 item 5): the coarse grid is the one yaw and the
+    refinement cannot drift off it; like pitch_range<=0, the pinned axis simply leaves the free vector.
+    Returns (camera at the mask resolution, IoU at the last working height, info)."""
     H0, W0 = mask.shape
     pts = np.asarray(points, dtype=np.float64)
     info = {"coarse": [], "refine": []}
@@ -561,7 +563,8 @@ def fit_camera(points, mask, yaw_range=35.0, yaw_step=5.0, pitch_range=10.0, wor
     tgt_area = float(len(xs))
     tgt_c = np.array([xs.mean() + 0.5, ys.mean() + 0.5])
     pitches = sorted({0.0, -pitch_range, pitch_range, -pitch_range / 2, pitch_range / 2}) if pitch_range > 0 else [0.0]
-    yaws = np.arange(yaw_center - yaw_range, yaw_center + yaw_range + 1e-6, yaw_step) if yaw_range > 0 else [yaw_center]
+    yaws = np.arange(yaw_center - yaw_range, yaw_center + yaw_range + 1e-6, yaw_step) \
+        if (yaw_range > 0 and not yaw_fixed) else [yaw_center]
     cands = []
     for yaw in yaws:
         for pitch in pitches:
@@ -618,13 +621,20 @@ def fit_camera(points, mask, yaw_range=35.0, yaw_step=5.0, pitch_range=10.0, wor
                 cam = OrthoCam(q[0], q[1], math.exp(q[2]), q[3], q[4], (ww, hw))
                 u, v, _ = cam.project(pts)
                 return 1.0 - mask_iou(splat_mask(u, v, ww, hw), mw)
-            if pitch_range <= 0:
-                q0 = np.delete(p, 1)
+            # the pinned axes (pitch when pitch_range<=0, yaw when yaw_fixed) leave the free
+            # vector: Nelder-Mead only ever moves what is free, the pin keeps its start value
+            free = [i for i in range(5) if not ((i == 0 and yaw_fixed) or (i == 1 and pitch_range <= 0))]
+            if len(free) < 5:
+                base = np.array(p, dtype=np.float64)
 
-                def obj4(q, obj=obj):
-                    return obj(np.insert(q, 1, 0.0))
-                q, fx_best, ev = nelder_mead(obj4, q0, np.delete(steps, 1), iters=220 if li == 0 else 160)
-                p = np.insert(q, 1, 0.0)
+                def objf(q, obj=obj, base=base, free=free):
+                    v = base.copy()
+                    v[free] = q
+                    return obj(v)
+                q, fx_best, ev = nelder_mead(objf, np.array(p)[free], steps[free],
+                                             iters=220 if li == 0 else 160)
+                p = base.copy()
+                p[free] = q
             else:
                 p, fx_best, ev = nelder_mead(obj, p, steps, iters=220 if li == 0 else 160)
             info["refine"].append({"start_iou": round(iou0, 4), "work_h": hw, "iou": round(1 - fx_best, 4),
@@ -653,7 +663,11 @@ def fit_camera(points, mask, yaw_range=35.0, yaw_step=5.0, pitch_range=10.0, wor
         for kh in (0.15, 0.4):
             q = q_o.copy()
             q[5] = kh
-            qq, fq, ev = nelder_mead(objp, q, np.array([1.5, 1.5 if pitch_range > 0 else 0.0, 0.015, 1.0, 1.0, 0.08]),
+            # pinned axes get a zero step: the simplex never spreads in that dimension, so
+            # reflection and contraction cannot move it (pitch already relied on this shape)
+            qq, fq, ev = nelder_mead(objp, q, np.array([1.5 if not yaw_fixed else 0.0,
+                                                        1.5 if pitch_range > 0 else 0.0,
+                                                        0.015, 1.0, 1.0, 0.08]),
                                      iters=200)
             if best_p is None or fq < best_p[1]:
                 best_p = (qq, fq, ev)
@@ -989,6 +1003,65 @@ def symmetry_plane(V, band=(0.75, 0.85), max_angle=35.0):
 def reflect(P, point, normal):
     d = (P - point) @ normal
     return P - 2.0 * d[:, None] * normal[None, :]
+
+
+def band_symmetry(V, band=(0.75, 0.85), cap=4000):
+    """How much the shoulder band mirrors itself, as a fraction of the body height. The plane is
+    FITTED, not guessed: its x position is the quantile-grid candidate whose reflection of the band
+    matches the band best (median nearest-point distance), because the position statistics that look
+    robust are not - a one-side weapon is exactly the contamination that drags a median or a mean
+    sideways, and a shifted plane alone fakes asymmetry. The angle is the band's principal axis as
+    symmetry_plane computes it (a lump lying along x barely tilts it). A body with a tail, a cloak
+    or a weapon then scores near zero - the fitted plane finds the torso's true mirror, and the
+    median shrugs off the attachment's few unmatched points - while a genuinely lopsided torso
+    matches nothing at any candidate position and scores high. The band is sampled down to `cap`
+    points so the kd loops stay fast on a million-vertex mesh. (The gate of paint_from_concept's
+    front lock, 0.7.9 fold wave ticket 60 item 5; symmetry_plane itself is not reused: its plane
+    deliberately follows the full band's median, which is what a weapon contaminates here.)"""
+    z0, z1 = float(V[:, 2].min()), float(V[:, 2].max())
+    H = max(z1 - z0, 1e-9)
+    sel = V[(V[:, 2] >= z0 + band[0] * H) & (V[:, 2] <= z0 + band[1] * H)]
+    if len(sel) < 50:
+        sel = V                                    # same fallback as symmetry_plane
+    if len(sel) > cap:
+        sel = sel[:: -(-len(sel) // cap)]          # even stride, deterministic
+    ang = 0.0
+    if len(sel) > 20:                              # the band's main horizontal axis, as symmetry_plane does
+        xy = sel[:, :2]
+        lo, hi = np.percentile(xy[:, 0], 10), np.percentile(xy[:, 0], 90)
+        core = xy[(xy[:, 0] >= lo) & (xy[:, 0] <= hi)]
+        if len(core) > 20:
+            w, vec = np.linalg.eigh(np.cov((core - core.mean(axis=0)).T))
+            e = vec[:, int(np.argmax(w))]
+            ang = math.degrees(math.atan2(e[1], e[0]))
+            ang = (ang + 90.0) % 180.0 - 90.0
+            if abs(ang) > 35.0:
+                ang = 0.0
+    nrm = np.array([math.cos(math.radians(ang)), math.sin(math.radians(ang)), 0.0])
+    kd = kd_tree(sel)
+    yc = float(np.median(sel[:, 1]))
+
+    def score(c):
+        _i, dist = kd_nearest(kd, reflect(sel, np.array([float(c), yc, 0.0]), nrm))
+        return float(np.median(dist))
+
+    lo_q, hi_q = (float(q) for q in np.quantile(sel[:, 0], (0.35, 0.65)))
+    best_c, med = 0.0, None
+    for c in np.linspace(lo_q, hi_q, 9):                 # a weapon shifts quantiles; the fit undoes it
+        m = score(float(c))
+        if med is None or m < med:
+            med, best_c = m, float(c)
+    step = max((hi_q - lo_q) / 8.0, 1e-4)
+    for _ in range(3):                                   # local refine: grid precision must not fake the score
+        improved = False
+        for k in (-1.0, 1.0):
+            m = score(best_c + k * step)
+            if m < med:
+                med, best_c, improved = m, best_c + k * step, True
+        if not improved:
+            break
+        step *= 0.5
+    return med / H
 
 
 def kd_tree(points):

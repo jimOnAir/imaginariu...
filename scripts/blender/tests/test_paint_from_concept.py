@@ -946,6 +946,81 @@ def _real(name, iou_min):
     return None
 
 
+# ------------------------------------------------- front lock (0.7.9 fold wave ticket 60 item 5)
+
+def _torso_points():
+    """Surface samples of an ellipsoid-cylinder torso (width 0.6 x depth 0.42 x height 1.4):
+    mirror-symmetric, with enough shoulder-band points for symmetry_plane."""
+    z = np.linspace(0.0, 1.4, 30)
+    th = np.linspace(0.0, 2.0 * np.pi, 96, endpoint=False)
+    zz, tt = np.meshgrid(z, th, indexing="ij")
+    return np.stack([0.30 * np.cos(tt), 0.21 * np.sin(tt), zz], axis=-1).reshape(-1, 3)
+
+
+def _silhouette_mask(pts, yaw, res=(200, 200)):
+    """A concept-like mask: the points projected from that yaw, scaled into the frame, centred."""
+    cam = pl.OrthoCam(yaw, 0.0, 1.0, 0.0, 0.0, res)
+    u, v, _ = cam.project(pts)
+    k = (0.8 * res[1]) / max(float(v.max() - v.min()), 1e-9)
+    return pl.splat_mask(u * k + res[0] / 2.0 - float(u.mean()) * k,
+                         v * k + res[1] / 2.0 - float(v.mean()) * k, res[0], res[1])
+
+
+def test_band_symmetry_gate_weapon_ok_lopsided_not():
+    body = _torso_points()
+    assert pl.band_symmetry(body) <= 0.015, "an ellipsoid torso mirrors itself"
+    rng = np.random.RandomState(7)
+    lump = np.stack([rng.uniform(0.30, 0.52, 60), rng.uniform(-0.06, 0.06, 60),
+                     rng.uniform(1.06, 1.18, 60)], axis=1)      # a one-side weapon on the shoulder
+    got = pl.band_symmetry(np.concatenate([body, lump]))
+    assert got <= 0.015, ("a sparse attachment is exactly what the median shrugs off", got)
+    lop = body.copy()
+    lop[lop[:, 0] > 0.05, 1] *= 0.35                            # right side flattened front-to-back
+    assert pl.band_symmetry(lop) > 0.015, "a genuinely lopsided torso must not be front-locked"
+
+
+def test_fit_camera_yaw_fixed_pins_yaw_across_all_stages():
+    body = _torso_points()
+    mask = _silhouette_mask(body, 30.0)
+    free_cam, free_iou, _ = pl.fit_camera(body, mask, yaw_range=60.0, pitch_range=6.0)
+    # the ellipsoid body is left-right symmetric: its silhouette from +30 equals the one from -30
+    # (the sign is not recoverable - this is the mirror ambiguity the front tie-break exists for),
+    # so what the free fit MUST get right is the magnitude of the angle
+    assert 22.0 <= abs(free_cam.yaw) <= 38.0, ("the free fit must follow an angled concept", free_cam.yaw)
+    pin_cam, pin_iou, info = pl.fit_camera(body, mask, yaw_range=60.0, pitch_range=6.0, yaw_fixed=True)
+    assert pin_cam.yaw == 0.0, ("a pinned yaw cannot move through refine or perspective", info["perspective"])
+    assert pin_iou <= free_iou - 0.02, ("pinned at the front, a 30-degree concept is honestly worse")
+    flat, _, _ = pl.fit_camera(body, mask, yaw_range=60.0, pitch_range=0.0, perspective=False)
+    assert flat.pitch == 0.0, "the other pinned-axis branch (no pitch search) still pins"
+
+
+def test_front_lock_records_the_step_decision():
+    tmp = _tmp()
+    concept = _render_concept(os.path.join(tmp, "concept0.png"), yaw=0.0, eye=False)
+    glb = _plain_glb(os.path.join(tmp, "plain.glb"))
+    res = _run({"mesh": glb, "concept": concept}, {"size": 512, "preview_size": 128}, out_dir=os.path.join(tmp, "out0"))
+    assert res["ok"], res.get("error")
+    lock = res["stats"]["camera_front_lock"]
+    assert lock is not None and lock["symmetry"] <= lock["symmetry_limit"], lock
+    assert lock["kept"] == "front", lock
+    assert res["stats"]["camera"]["yaw_deg"] == 0.0, res["stats"]["camera"]
+    # an angled concept keeps its angle: 15 deg costs the front camera far more than the margin
+    tmp = _tmp()
+    concept = _render_concept(os.path.join(tmp, "concept15.png"), yaw=15.0, eye=False)
+    glb = _plain_glb(os.path.join(tmp, "plain15.glb"))
+    res = _run({"mesh": glb, "concept": concept}, {"size": 512, "preview_size": 128}, out_dir=os.path.join(tmp, "out15"))
+    assert res["ok"], res.get("error")
+    lock = res["stats"]["camera_front_lock"]
+    assert lock["kept"] == "fitted", lock
+    assert abs(lock["yaw_fitted_deg"] - 15.0) <= 4.0, lock
+    assert abs(res["stats"]["camera"]["yaw_deg"] - 15.0) <= 4.0, res["stats"]["camera"]
+    # with the lock switched off the step does not evaluate it at all
+    res = _run({"mesh": glb, "concept": concept}, {"size": 512, "preview_size": 128, "front_lock": False},
+               out_dir=os.path.join(tmp, "off"))
+    assert res["ok"], res.get("error")
+    assert res["stats"]["camera_front_lock"] is None
+
+
 def test_real_knight():
     return _real("knight", 0.72)
 

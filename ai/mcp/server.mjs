@@ -11,12 +11,17 @@ import { z } from 'zod';
 import path from 'node:path';
 import os from 'node:os';
 import { spawn, execFile } from 'node:child_process';
-import { existsSync, openAsBlob, promises as fs } from 'node:fs';
+import { existsSync, openAsBlob, readFileSync, promises as fs } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const APP = path.resolve(process.env.ASTRA_APP || path.join(HERE, '..', '..'));
-const BASE = (process.env.ASTRA_URL || 'http://127.0.0.1:3210').replace(/\/+$/, '');
+// ticket 60 item 2: ASTRA_URL wins, then the port the studio recorded when it had to take another
+// one (data/runtime/port.json), then the usual 3210 - the same order as scripts/studio-port.mjs,
+// so an MCP tool can never knock on a port the studio already left.
+const STUDIO_ROOT = path.resolve(HERE, '..', '..');
+const studioPort = () => { try { return Number(JSON.parse(readFileSync(path.join(STUDIO_ROOT, 'data', 'runtime', 'port.json'), 'utf8')).port) || 0; } catch { return 0; } };
+const BASE = (process.env.ASTRA_URL || `http://127.0.0.1:${studioPort() || 3210}`).replace(/\/+$/, '');
 const MAX_TEXT = 60000;                       // cap of one tool answer, in characters
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 

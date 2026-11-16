@@ -3,7 +3,11 @@
 // a fake HOME, a node-path seam, a curl stub (server up/down) and, for the cross-device branch,
 // a fake df on PATH. What is pinned: the user always wins; existing models are never hidden;
 // a recorded placement is reused (and recreated); the short-drive relocation writes the
-// paths.json key AND exports OLLAMA_MODELS; a live server decides for itself.
+// paths.json key AND exports OLLAMA_MODELS; a live server decides for itself. The 0.7.9-fold
+// ticket-60 offer rides the same harness: short drive + room at the studio asks (and an answered
+// yes moves through a staging copy verified per file - blobs against the checksum in their own
+// name - before an original is deleted), a no keeps, -Yes never asks, a corrupt blob aborts the
+// move, and a studio drive without room never gets the question at all.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
@@ -31,6 +35,40 @@ CfgSet() { local n; n="$(NodeBin)"; [ -n "$n" ] || return 1; "$n" -e '
  const fs=require("fs"),p=require("path"),f=process.argv[1];let c={};try{c=JSON.parse(fs.readFileSync(f,"utf8"))}catch(e){}
  for(let i=2;i<process.argv.length;i+=2)c[process.argv[i]]=process.argv[i+1];
  fs.mkdirSync(p.dirname(f),{recursive:true});fs.writeFileSync(f,JSON.stringify(c,null,2)+"\\n")' "$CFGF" "$@"; }
+# the move-offer tests (ticket 60 item 3) need the real Ask semantics: -Yes answers the default
+# without reading, anything else reads the line; and a df whose two drives differ by device and
+# free space, plus a models folder shaped as Ollama keeps it (name-verified blob + manifest).
+Yes="\${ASK_YES:-0}"
+Ask() { local def="\${2:-y}"
+  if [ "$Yes" = 1 ]; then [ "$def" = y ]; return; fi
+  local ans
+  if [ "$def" = y ]; then read -r -p "$1 [Y/n] " ans || ans=''; else read -r -p "$1 [y/N] " ans || ans=''; fi
+  ans="\${ans:-$def}"
+  case "$ans" in [yY]*) return 0 ;; *) return 1 ;; esac; }
+fake_df() { # env in: HOME_AVAIL, STUDIO_AVAIL, FAKE_HOME_PREFIX
+  mkdir -p "$WORK/bin"
+  cat > "$WORK/bin/df" <<'DF'
+#!/usr/bin/env bash
+p="\${*: -1}"
+case "\$p" in
+  *"\$FAKE_HOME_PREFIX"*) dev="/dev/fakehome"; avail="\$HOME_AVAIL" ;;
+  *)                     dev="/dev/fakestudio"; avail="\$STUDIO_AVAIL" ;;
+esac
+case "\$*" in
+  *--output=avail*) echo "Avail"; echo "\$avail" ;;
+  *) echo "Filesystem 1024-blocks Used Available Capacity Mounted on"; echo "\$dev 1 1 1 100% /" ;;
+esac
+DF
+  chmod +x "$WORK/bin/df"; PATH="$WORK/bin:$PATH"
+}
+ollama_with_models() { # the real layout: blobs named by their own sha256 + a manifest json
+  local content='ollama blob payload' h
+  h="$(printf '%s' "$content" | sha256sum | cut -d' ' -f1)"
+  mkdir -p "$HOME/.ollama/models/blobs" "$HOME/.ollama/models/manifests"
+  printf '%s' "$content" > "$HOME/.ollama/models/blobs/sha256-$h"
+  printf '%s' '{"model":"x"}' > "$HOME/.ollama/models/manifests/latest"
+  printf '%s' "$h" > "$WORK/blob-sha"
+}
 eval "$(awk '/^# ---------------------------------------------------------------- Ollama model placement/,/^PullModel\\(\\)/' "$REPO/installer/install.sh" | grep -v '^PullModel()')"
 case "$CASE" in
   modelbytes) echo "MB[$(modelBytes qwen3:14b)][$(modelBytes qwen3-vl:8b)][$(modelBytes bogus:x)]" ;;
@@ -61,6 +99,37 @@ DF
               PrepareOllamaModels 9300000000
               echo "MODELS=\${OLLAMA_MODELS:-unset}"
               echo "PATHS=$(cat "$CFGF" 2>/dev/null)" ;;
+  moveyes)    ollama_with_models
+              export HOME_AVAIL=1000 STUDIO_AVAIL=40000000000 FAKE_HOME_PREFIX="$HOME"; fake_df
+              PrepareOllamaModels 6000000000
+              echo "MODELS=\${OLLAMA_MODELS:-unset}"
+              echo "BLOBS=$(ls "$RT/models/ollama/blobs" 2>/dev/null)"
+              echo "MANIFEST=$(cat "$RT/models/ollama/manifests/latest" 2>/dev/null)"
+              echo "SRC=$([ -e "$HOME/.ollama/models" ] && echo kept || echo gone)"
+              echo "STAGE=$(ls -A "$RT/models" 2>/dev/null)"
+              echo "CFG=$(tr -d ' \n' < "$CFGF" 2>/dev/null)" ;;
+  moveno)     ollama_with_models
+              export HOME_AVAIL=1000 STUDIO_AVAIL=40000000000 FAKE_HOME_PREFIX="$HOME"; fake_df
+              PrepareOllamaModels 6000000000
+              echo "MODELS=\${OLLAMA_MODELS:-unset}"
+              echo "SRC=$([ -e "$HOME/.ollama/models" ] && echo kept || echo gone)" ;;
+  moveunatt)  ollama_with_models
+              export HOME_AVAIL=1000 STUDIO_AVAIL=40000000000 FAKE_HOME_PREFIX="$HOME"; fake_df
+              PrepareOllamaModels 6000000000
+              echo "MODELS=\${OLLAMA_MODELS:-unset}"
+              echo "SRC=$([ -e "$HOME/.ollama/models" ] && echo kept || echo gone)" ;;
+  movecorrupt) ollama_with_models   # blob whose bytes no longer match the checksum its name carries
+              printf 'tampered' > "$HOME/.ollama/models/blobs/sha256-$(cat "$WORK/blob-sha")"
+              export HOME_AVAIL=1000 STUDIO_AVAIL=40000000000 FAKE_HOME_PREFIX="$HOME"; fake_df
+              PrepareOllamaModels 6000000000
+              echo "MODELS=\${OLLAMA_MODELS:-unset}"
+              echo "SRC=$([ -e "$HOME/.ollama/models" ] && echo kept || echo gone)"
+              echo "STAGE=$(ls -A "$RT/models" 2>/dev/null)" ;;
+  movefull)   ollama_with_models   # studio drive cannot fit the models plus the download: no offer
+              export HOME_AVAIL=1000 STUDIO_AVAIL=900 FAKE_HOME_PREFIX="$HOME"; fake_df
+              PrepareOllamaModels 6000000000
+              echo "MODELS=\${OLLAMA_MODELS:-unset}"
+              echo "SRC=$([ -e "$HOME/.ollama/models" ] && echo kept || echo gone)" ;;
   dfunknown)  mkdir -p "$WORK/bin"
               cat > "$WORK/bin/df" <<'DF'
 #!/usr/bin/env bash
@@ -83,12 +152,12 @@ DF
 esac
 `;
 
-const run = (env = {}) => {
+const run = (env = {}, input) => {
   const work = mkdtempSync(path.join(tmpdir(), 'af-t22-'));
   const scriptFile = path.join(work, 'harness.sh');
   writeFileSync(scriptFile, SCRIPT);
   const r = spawnSync('bash', [scriptFile], {
-    encoding: 'utf8', timeout: 60000,
+    encoding: 'utf8', timeout: 60000, input,
     env: { ...process.env, WORK: work, NODE: process.execPath, ...env },
   });
   return { ...r, work };
@@ -119,6 +188,61 @@ test('models that already exist are never hidden or switched - only kept (T1-3)'
   const r = run({ CASE: 'have' });
   assert.match(r.stdout, /you already have models in .+\.ollama\/models \(.+ used\) - they stay exactly where they are, nothing is hidden; moving them to the studio's drive would free that much/);
   assert.match(r.stdout, /MODELS=unset/);
+  rmSync(r.work, { recursive: true, force: true });
+});
+
+// The ticket-22 extension (0.7.9 fold wave ticket 60 item 3, the 0.7.8 note): when the drive
+// under the existing models is short and the studio's drive has room, the move is OFFERED -
+// interactively only, verified file by file before any original goes away.
+test('short drive + room at the studio: the move is offered, a yes copies, verifies, deletes, records', () => {
+  // (a prompt on a piped stdin is not echoed by bash - the proof the offer was made is that the
+  //  answered 'y' was CONSUMED: the move happened, so the fallback sentence must not appear)
+  const r = run({ CASE: 'moveyes' }, 'y\n');
+  assert.match(r.stdout, /models moved to .+runtime\/models\/ollama - every file verified/);
+  assert.doesNotMatch(r.stdout, /you already have models in/, 'the yes was asked and heard');
+  assert.match(r.stdout, /restart it pointing at OLLAMA_MODELS=/, 'a self-run ollama serve is warned about');
+  assert.match(r.stdout, /BLOBS=sha256-[0-9a-f]{64}/, 'the blob arrived under its checksum name');
+  assert.match(r.stdout, /MANIFEST=\{"model":"x"\}/, 'the manifest arrived with its bytes');
+  assert.match(r.stdout, /SRC=gone/, 'the originals went only after the verified copy');
+  assert.match(r.stdout, /STAGE=ollama\s*$/m, 'no staging folder was left behind');
+  assert.match(r.stdout, /MODELS=\S+models\/ollama/, 'and this run already uses the new home');
+  assert.match(r.stdout, /CFG=.*"ollamaModels"/, 'config/paths.json records it (the studio serve reads it)');
+  rmSync(r.work, { recursive: true, force: true });
+});
+
+test('a declined offer changes nothing - the ticket-22 keep sentence stays the answer', () => {
+  const r = run({ CASE: 'moveno' }, 'n\n');
+  assert.match(r.stdout, /you already have models in .+\.ollama\/models \(.+ used\) - they stay exactly where they are/);
+  assert.match(r.stdout, /MODELS=unset/);
+  assert.match(r.stdout, /SRC=kept/);
+  rmSync(r.work, { recursive: true, force: true });
+});
+
+test('an unattended run (-Yes) never sees the question - placement is never moved behind a job', () => {
+  // a 'y' line is available and must never be read: -Yes answers the default (no) itself
+  const r = run({ CASE: 'moveunatt', ASK_YES: '1' }, 'y\n');
+  assert.match(r.stdout, /you already have models in/);
+  assert.match(r.stdout, /MODELS=unset/);
+  assert.match(r.stdout, /SRC=kept/);
+  rmSync(r.work, { recursive: true, force: true });
+});
+
+test('a blob that cannot confirm its own name-checksum stops the move before any original is touched', () => {
+  const r = run({ CASE: 'movecorrupt' }, 'y\n');
+  assert.match(r.stdout, /failed verification - the copy is discarded, the originals are not touched/);
+  assert.match(r.stdout, /you already have models in/, 'the honest fallback sentence follows');
+  assert.match(r.stdout, /MODELS=unset/);
+  assert.match(r.stdout, /SRC=kept/);
+  assert.doesNotMatch(r.stdout, /STAGE=.*tmp-/, 'the discarded copy leaves no staging folder behind');
+  rmSync(r.work, { recursive: true, force: true });
+});
+
+test('a studio drive that cannot fit the models plus the download ahead is offered nothing', () => {
+  // input offers a 'y' nobody will ask for: if the short-circuit failed, this WOULD move - SRC=kept
+  const r = run({ CASE: 'movefull' }, 'y\n');
+  assert.match(r.stdout, /you already have models in/);
+  assert.match(r.stdout, /MODELS=unset/);
+  assert.match(r.stdout, /SRC=kept/);
   rmSync(r.work, { recursive: true, force: true });
 });
 

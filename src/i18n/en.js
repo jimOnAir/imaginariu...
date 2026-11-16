@@ -2462,6 +2462,7 @@ export default {
   "components.st.unavailable": "unavailable",
   "components.license": "License: {license}",
   "components.confirmNc": "\"{name}\" comes under {license}: not for commercial use. Install it anyway?",
+  "components.stalled": "(no new data for {n} s)",
   "components.found": "Found: {have}",
   "components.preset.quick": "Quick",
   "components.preset.full": "Full - everything",

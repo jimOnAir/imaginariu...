@@ -2460,6 +2460,7 @@ export default {
   "components.st.unavailable": "недоступно",
   "components.license": "Лицензия: {license}",
   "components.confirmNc": "«{name}» — лицензия {license}: не для коммерческого использования. Всё равно установить?",
+  "components.stalled": "(новых данных нет {n} с)",
   "components.found": "Найдено: {have}",
   "components.preset.quick": "Быстрая",
   "components.preset.full": "Полная - всё",

@@ -7,11 +7,15 @@
 // --direct runs the same pipeline engine in-process without the server.
 import path from 'node:path';
 import os from 'node:os';
-import { existsSync, openAsBlob, promises as fs } from 'node:fs';
+import { existsSync, openAsBlob, readFileSync, promises as fs } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(HERE, '..');
+
+// ticket 60 item 2: the studio may not sit on 3210 (a foreign program held it at start) - the
+// server records its real port, and this CLI follows the same answer scripts/studio-port.mjs gives.
+const studioPort = () => { try { return Number(JSON.parse(readFileSync(path.join(ROOT, 'data', 'runtime', 'port.json'), 'utf8')).port) || 0; } catch { return 0; } };
 
 const HELP = `AstraForge Forge — command line
 
@@ -45,7 +49,7 @@ Commands:
 Common options:
   --direct        no server, in this process (same pipeline module)
   --json          JSON output
-  --server <URL>  studio address (default http://127.0.0.1:$PORT or :3210)
+  --server <URL>  studio address (default http://127.0.0.1:<port the studio recorded> or :3210)
   --no-wait       do not wait for the job to finish (server mode only; ignored with --direct)
 `;
 
@@ -750,7 +754,7 @@ export async function main(argv = process.argv.slice(2)) {
     await engine.init();
     client = new DirectClient(engine);
   } else {
-    const base = (flags.server && flags.server !== true ? String(flags.server) : null) || process.env.ASTRA_FORGE_URL || `http://127.0.0.1:${process.env.PORT || 3210}`;
+    const base = (flags.server && flags.server !== true ? String(flags.server) : null) || process.env.ASTRA_FORGE_URL || `http://127.0.0.1:${process.env.PORT || studioPort() || 3210}`;
     client = new HttpClient(base);
   }
   switch (command) {

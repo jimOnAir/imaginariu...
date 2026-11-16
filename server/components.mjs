@@ -80,12 +80,12 @@ export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spa
     if (Number.isInteger(info.pid)) { try { process.kill(info.pid, 0); alive = true; } catch (e) { alive = e.code === 'EPERM'; } }
     if (alive || last.code != null) {
       return { ids: info.ids || [], profile: info.profile || '', progress: last.progress ?? 0,
-        text: last.text || 'installing', code: alive ? null : last.code,
+        text: last.text || 'installing', code: alive ? null : last.code, at: last.at || null,
         failed: String(last.failed || '').split(',').filter(Boolean), startedAt: info.startedAt || null, external: true };
     }
     // the pid is gone and the status has no finish line: the run died (power, kill -9) mid-way
     return { ids: info.ids || [], profile: info.profile || '', progress: last.progress ?? 0,
-      text: 'the install run ended without a finish line - installer/install.log has the story', code: -1,
+      text: 'the install run ended without a finish line - installer/install.log has the story', code: -1, at: last.at || null,
       failed: info.ids || [], startedAt: info.startedAt || null, external: true };
   }
   const readSoft = async (f) => { try { return JSON.parse((await fs.readFile(f, 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; } };
@@ -167,7 +167,7 @@ export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spa
   async function state() {
     const activeOwn = job && job.code == null;
     let shown = job ? { ...job } : null;
-    if (activeOwn) { const ext = await readRun(); if (ext) { shown.progress = ext.progress; shown.text = ext.text; shown.failed = ext.failed; } }
+    if (activeOwn) { const ext = await readRun(); if (ext) { shown.progress = ext.progress; shown.text = ext.text; shown.failed = ext.failed; shown.at = ext.at; } }
     else if (!job) shown = await readRun();
     const busy = !!shown && shown.code == null || (await probeLock());
     return { supported: true, due: await due(), scan: lastScan, job: shown, busy };

@@ -151,6 +151,8 @@ export default function ViewsPanel({image, notify, onBuild, buildBusy, engineRea
         <Sparkles size={15} />{missing.length ? t('views.generate', {n: missing.length}) : t('views.allPresent')}
       </button>}
     {task?.status === 'failed' && !running && <p className="field-note views-warn">{task.message}</p>}
+    {/* ticket 60 item 6: the "no assistant, drawing from the text as written" note outlives the step */}
+    {task?.conceptNote && <p className="field-note views-warn">{task.conceptNote}</p>}
 
     {onEngine && <EngineSelect engine={engine} onChange={onEngine} pixal={pixal} />}
     <button className="primary full views-build" disabled={disabled || !set?.canBuild || !set?.extraViews || buildBusy || !engineReady} onClick={() => onBuild(set.id)}>

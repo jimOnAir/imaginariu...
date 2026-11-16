@@ -457,6 +457,24 @@ def assert_common(res, names, clips_json, skate_max=None, preview=True):
 
 # =========================================================================== unit tests
 
+def test_find_target_rig_remedy_message():
+    """0.7.9 fold wave ticket 60 item 4: retarget on a mesh without a skeleton must name the next
+    click (the rig step), not just the class - a bare "no humanoid armature" on a freshly generated
+    model reads like a dead end."""
+    me = bpy.data.meshes.new("plain")
+    me.from_pydata([(0, 0, 0), (1, 0, 0), (0, 1, 0)], [], [(0, 1, 2)])
+    me.update()
+    ob = bpy.data.objects.new("Plain", me)
+    bpy.context.scene.collection.objects.link(ob)
+    try:
+        lib.find_target_rig([ob])
+        raise AssertionError("expected the no-humanoid-armature error")
+    except RuntimeError as e:
+        msg = str(e)
+        assert "run rig_humanoid first" in msg, msg
+        assert "no humanoid armature with a Hips-like bone" in msg, msg
+
+
 def test_map_bone_names_schemes():
     mix = ["mixamorig:" + c for c in lib.CORE]
     sch, m = lib.map_bone_names(mix)
