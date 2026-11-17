@@ -1898,6 +1898,7 @@ export default {
   "app.props.shortcutScale": "Scale",
   "app.props.shortcutFrame": "Frame selection",
   "app.engine.local": "Local 3D engine",
+  "app.engine.gpuPool": "Generation cards picked by the GPU pool (engine → card)",
   "app.engine.manage": "Manage connections",
   "app.status.ollamaOn": "Ollama connected",
   "app.status.ollamaOff": "Ollama unavailable",

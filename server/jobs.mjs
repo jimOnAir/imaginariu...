@@ -114,6 +114,7 @@ async function pump(config) {
 }
 function launch(j, config, engine, card) {
   running.set(j.id, { engine, card });
+  if (card) void update(j, { gpuCard: { index: card.index, uuid: card.uuid, name: card.name } }).catch(() => {}); // post-factum: "why was this slow" must be answerable
   const controller = new AbortController(); controllers.set(j.id, controller);
   void (async () => {
     try { await run(j, config, controller.signal, { engine, card }); }
@@ -131,6 +132,8 @@ async function waitPrompt(j,config,workflow,signal,stage){
  socket.on('error',()=>{});
  socket.on('message',raw=>{try{const v=JSON.parse(raw);if(j.status!=='running'||(v.data?.prompt_id&&j.promptId&&v.data.prompt_id!==j.promptId))return;if(v.type==='progress'){const ratio=v.data.value/v.data.max,meshPhase=['VAEDecodeHunyuan3D','VoxelToMesh','AstraMarchingCubes','SaveGLB'].includes(nodeClass);void update(j,{progress:meshPhase?Math.min(98,Math.round(88+ratio*10)):Math.min(87,Math.round(ratio*87)),message:(meshPhase?'Extracting the mesh':stage)+' · '+v.data.value+'/'+v.data.max}).catch(()=>{});}if(v.type==='executing'&&v.data.node){const node=workflow[v.data.node]?.class_type;nodeClass=node;const phases={VAEDecodeHunyuan3D:[88,'Extracting the volume from the latent'],VoxelToMesh:[94,'Building the polygon mesh'],AstraMarchingCubes:[94,'Extracting the surface · Marching Cubes'],SaveGLB:[97,'Saving GLB']};if(phases[node])void update(j,{progress:phases[node][0],message:phases[node][1]}).catch(()=>{});}}catch{}});
  const gpu=await acquireEngineGpu('hunyuan',{signal,failOpen:true,timeoutMs:60*60*1000,name:cardLockName(engineCardFor('hunyuan'))||undefined,urls:{hunyuan:config.comfyUrl},onWait:()=>void update(j,{message:'Waiting for the GPU to become free (GPU lock)'}).catch(()=>{}),onStep:text=>void update(j,{message:text}).catch(()=>{})}).catch(e=>{socket.close();throw e;});
+ // the engine may have claimed its pool card only now (lazy start): record the truth at lock time
+ const hcard=engineCardFor('hunyuan');if(hcard)void update(j,{gpuCard:{index:hcard.index,uuid:hcard.uuid,name:hcard.name}}).catch(()=>{});
  const deadline=Date.now()+60*60*1000;
  if(gpu.handover?.freed?.length||gpu.handover?.waited)void update(j,{handover:gpu.handover}).catch(()=>{});
  try{
@@ -205,7 +208,7 @@ async function runPixal3d(j,config,signal){
  signal.throwIfAborted();
  const asset=await saveAsset(result.buffer,'.glb',j.viewSetId?'Pixal3D · from views':'Pixal3D · '+(j.prompt||'from image').slice(0,50));
  const validation=await validateGlbAsset(result.buffer,j,path.join(data,'assets',asset.id+asset.extension));
- await update(j,{status:'completed',progress:100,message:'Geometry created · Pixal3D'+simplifyNote(validation)+' · needs review',asset,validation,pixal3d:{seconds:result.seconds,slots:result.slots,targetFaces:result.targetFaces,vramPeakMb:result.vram?.peak_used_mb??null,vramBaselineMb:result.vram?.baseline_used_mb??null,scale:result.normalization.scale,handover:result.handover}});
+ await update(j,{status:'completed',progress:100,message:'Geometry created · Pixal3D'+simplifyNote(validation)+' · needs review',asset,validation,pixal3d:{seconds:result.seconds,slots:result.slots,targetFaces:result.targetFaces,vramPeakMb:result.vram?.peak_used_mb??null,vramBaselineMb:result.vram?.baseline_used_mb??null,scale:result.normalization.scale,handover:result.handover,gpuCard:(()=>{const c=engineCardFor('pixal3d');return c?{index:c.index,uuid:c.uuid,name:c.name}:null})()}});
 }
 // TripoSG (docs/product/triposg.md): the third shape engine - one concept in, GLB out, through a
 // one-shot venv worker instead of a service (ADR-0004 ticket 01). Same job record as its siblings.

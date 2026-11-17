@@ -1896,6 +1896,7 @@ export default {
   "app.props.shortcutScale": "Масштаб",
   "app.props.shortcutFrame": "Вписать в кадр",
   "app.engine.local": "Локальный 3D-движок",
+  "app.engine.gpuPool": "Карты для генерации выбирает пул GPU (движок → карта)",
   "app.engine.manage": "Управление подключениями",
   "app.status.ollamaOn": "Ollama подключена",
   "app.status.ollamaOff": "Ollama недоступна",

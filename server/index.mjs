@@ -22,6 +22,7 @@ import { startRuntime,stopOwnedRuntime,restartRuntime } from './runtime.mjs';
 import { resolveEngine,pixal3dStatus,startPixal3dRuntime } from './pixal3d.mjs';
 import { triposgStatus, autoShape, vramMiB } from './triposg.mjs';
 import { gpuInfo } from './gpu-info.mjs';
+import { enumerateGpus, engineCardFor } from './gpu-pool.mjs';
 import { repairStudioVenvs } from './venv-health.mjs';
 import { registerLocale } from './locale.mjs';
 import { registerSound, soundStatus } from './sound.mjs';
@@ -35,6 +36,10 @@ await init();await loadJobs();
 const pkg=await readJson(path.join(root,'package.json'),{});const appVersion=pkg.version||'0.0.0';
 const readText=async f=>{try{return await fs.readFile(path.join(root,f),'utf8');}catch{return '';}};
 let config=await loadConfig(path.join(data,'config.json'));
+// The GPU pool readout (0.7.11): which cards exist, which engine sits on which, and which GPU
+// job runs or waits with its reason. The answer to "why did this take longer", and the data
+// behind the engine-card row in the UI. /api/gpus is the same object without the status weight.
+const gpusReport=()=>{const cards=enumerateGpus();return{pool:!!(cards&&cards.length),cards:cards||[],engines:{hunyuan:engineCardFor('hunyuan'),pixal3d:engineCardFor('pixal3d')},jobs:allJobs().filter(j=>['queued','running'].includes(j.status)).map(j=>({id:String(j.id).slice(0,8),engine:j.engine||'hunyuan',status:j.status,message:j.message||'',gpuCard:j.gpuCard||null}))};};
 // Ollama that runs itself (docs/product/ollama.md, ticket 14): an installed but silent local server
 // is started by the studio, the assistant model and the review model are chosen from what is
 // installed, and the review pick travels to the Blender steps via ASTRA_QA_VLM. Auto-start is for
@@ -91,7 +96,7 @@ app.get('/api/status',asyncRoute(async(req,res)=>{
  const ollamaCatalog_=ollama?await ollamaCatalog(config.ollamaUrl,fetch,isVisionModelName)||[]:[];
  const ollamaReview=ollama?await reviewPick(ollamaNames,ollamaVram):null;
  if(!ollama&&autostartOllama()&&!ollamaStarting){ollamaStarting=true;void ensureOllama({url:config.ollamaUrl,appRoot:root}).finally(()=>{ollamaStarting=false;});}
- res.json({pixal3d,triposg,sound,edit,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,gpuCard:gpuInfo(),ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
+ res.json({pixal3d,triposg,sound,edit,shapeAuto:autoShape({triposgInstalled:triposg.installed,pixal3dInstalled:!!pixal3d.installed}),ollama:{online:!!ollama,models:ollamaNames,model:pickChatModel(config.ollamaModel,ollamaNames,ollamaVram),catalog:ollamaCatalog_,review:ollamaReview,starting:ollamaStarting},comfy:{online:!!stats,ready:checkpoints.includes(config.shapeCheckpoint),checkpoints},gpu:stats?.devices?.[0]||null,gpuCard:gpuInfo(),gpus:gpusReport(),ram:stats?.system?.ram_total||null,modelDownload:existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint+'.part'))});
 }));
 app.post('/api/runtime/start',asyncRoute(async(req,res)=>res.json(await startRuntime())));
 app.post('/api/runtime/pixal3d/start',asyncRoute(async(req,res)=>res.json(await startPixal3dRuntime())));
@@ -119,6 +124,7 @@ app.get('/api/assets/:id',asyncRoute(async(req,res)=>{const info=await assetInfo
 app.post('/api/exports',upload.single('file'),asyncRoute(async(req,res)=>{const file=req.file;if(!file)throw new Error('No export file');const ext=path.extname(file.originalname).toLowerCase();if(!['.glb','.obj','.json','.png','.webm','.zip','.tres'].includes(ext))throw new Error('Unsupported export format');const id=randomUUID();const name=file.originalname.replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').slice(-150);await fs.writeFile(path.join(data,'exports',id+ext),file.buffer);await writeJson(path.join(data,'exports',id+'.meta.json'),{name,extension:ext});res.json({url:'/api/exports/'+id,name});}));
 app.get('/api/exports/:id',asyncRoute(async(req,res)=>{if(!isId(req.params.id))return res.status(400).end();const info=await readJson(path.join(data,'exports',req.params.id+'.meta.json'),null);if(!info)return res.status(404).end();res.download(path.join(data,'exports',req.params.id+info.extension),info.name);}));
 app.get('/api/jobs',(req,res)=>res.json(allJobs()));
+app.get('/api/gpus',(req,res)=>res.json(gpusReport()));
 app.post('/api/jobs',asyncRoute(async(req,res)=>{if(llmBusy)throw new Error('Wait for the AI reply.');if(allJobs().filter(j=>['running','queued'].includes(j.status)).length>=4)throw new Error('The queue is full. Wait for a job to finish.');const input=generationSchema.parse(req.body);input.engine=resolveEngine(input.engine,undefined,undefined,{hasViews:!!input.viewSetId});if(input.viewSetId){const set=await viewSets.getSet(input.viewSetId);if(!set.canBuild)throw new Error('The views are not ready yet: wait for view generation to finish or add a front view.');if(!input.imageId&&set.frontAssetId)input.imageId=set.frontAssetId;}if(input.imageId){const info=await assetInfo(input.imageId);if(!['.png','.jpg','.jpeg','.webp'].includes(info.extension))throw new Error('Generation needs a concept in image form.');}res.status(202).json(await createJob(input,config));}));
 app.post('/api/jobs/:id/cancel',asyncRoute(async(req,res)=>{if(!getJob(req.params.id))return res.status(404).json({error:'Job not found.'});await cancelJob(req.params.id,config);res.json({ok:true});}));
 app.post('/api/jobs/:id/validate',asyncRoute(async(req,res)=>res.json(await validateJobMesh(req.params.id))));
