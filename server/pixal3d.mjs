@@ -5,7 +5,8 @@ import { spawn } from 'node:child_process';
 import { existsSync, openSync, closeSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { root, data, pathsConfig } from './storage.mjs';
-import { localUrl, engineEnv } from './schema.mjs';
+import { localUrl } from './schema.mjs';
+import { pickCard, cardEnv, claimEngineCard, engineCardFor } from './gpu-pool.mjs';
 import { triposgConfig, triposgInstallState, autoShape } from './triposg.mjs';
 import { gpuInfo } from './gpu-info.mjs';
 import { freeRamMiB, ramFloor } from './ram-check.mjs';
@@ -160,10 +161,10 @@ async function logTail(file, lines = 12) {
  * @returns {Promise<{running:true, reused?:true, pid?:number, seconds?:number}>}
  */
 export async function startPixal3dRuntime(o = {}) {
-  const { cfg = pixal3dConfig(), signal, onProgress, timeoutMs = 240000, spawnFn = spawn, fetchFn = fetch, exists = existsSync, sleep = wait, runtimeDir = RUNTIME_DIR } = o;
+  const { cfg = pixal3dConfig(), signal, onProgress, timeoutMs = 240000, spawnFn = spawn, fetchFn = fetch, exists = existsSync, sleep = wait, runtimeDir = RUNTIME_DIR, pickCardFn = pickCard } = o;
   const state = pixal3dInstallState(cfg, exists);
   if (!state.installed) throw Object.assign(new Error(state.message), { code: 'pixal3d_not_installed' });
-  if (await probe(cfg.url, 1500, fetchFn)) return { running: true, reused: true };
+  if (await probe(cfg.url, 1500, fetchFn)) { claimEngineCard('pixal3d', null); return { running: true, reused: true }; }
   if (child && !child.killed && child.exitCode === null) {
     onProgress?.('Pixal3D is already starting');
   } else {
@@ -171,13 +172,18 @@ export async function startPixal3dRuntime(o = {}) {
     const python = path.join(cfg.dir, ...PIXAL3D_PYTHON_REL.split('/')), tempDir = pixal3dTempDir(runtimeDir), logFile = pixal3dLogFile(runtimeDir);
     await fs.mkdir(tempDir, { recursive: true });   // also creates runtimeDir
     const fd = openSync(logFile, 'a');
+    // The card pool picks at spawn (free card first, else the most suitable busy one, else no
+    // pin); the engine keeps the card until it exits, and the job layer locks THAT card.
+    const claimed = [engineCardFor('hunyuan')].filter(Boolean);
+    const card = pickCardFn({ engine: 'pixal3d', claimed }) || pickCardFn({ engine: 'pixal3d', claimed, free: false });
+    claimEngineCard('pixal3d', card);
     try {
-      child = spawnFn(python, pixal3dArgs(cfg, tempDir, path.join(runtimeDir, 'pixal3d.db')), { cwd: cfg.dir, windowsHide: true, detached: true, stdio: ['ignore', fd, fd], env: await engineEnv(pixal3dEnv(cfg)) });
+      child = spawnFn(python, pixal3dArgs(cfg, tempDir, path.join(runtimeDir, 'pixal3d.db')), { cwd: cfg.dir, windowsHide: true, detached: true, stdio: ['ignore', fd, fd], env: cardEnv(card, pixal3dEnv(cfg)) });
       child.unref?.();
     } finally { closeSync(fd); }
     const mine = child;
-    mine.on?.('error', (e) => { void fs.appendFile(logFile, 'spawn error: ' + e.message + '\n').catch(() => {}); if (child === mine) child = null; });
-    mine.on?.('exit', () => { if (child === mine) child = null; });
+    mine.on?.('error', (e) => { void fs.appendFile(logFile, 'spawn error: ' + e.message + '\n').catch(() => {}); if (child === mine) { child = null; claimEngineCard('pixal3d', null); } });
+    mine.on?.('exit', () => { if (child === mine) { child = null; claimEngineCard('pixal3d', null); } });
     await fs.writeFile(path.join(runtimeDir, 'pixal3d.pid'), String(mine.pid || '')).catch(() => {});
   }
   const started = Date.now(), mine = child;

@@ -14,6 +14,7 @@ import {
   PIXAL3D_REQUIREMENTS, PIXAL3D_PYTHON_REL, _resetPixal3dRuntime, DEFAULT_PIXAL3D_DIR, DEFAULT_PIXAL3D_URL,
 } from '../server/pixal3d.mjs';
 import { normalizeGlb, buildGlb, parseGlb, glbBounds } from '../server/glb-normalize.mjs';
+import { resetGpuPool, engineCardFor } from '../server/gpu-pool.mjs';
 import { generatePixal3d, explainPixal3dError, PIXAL3D_PHASES } from '../server/pixal3d-run.mjs';
 import { validateGeneratedMesh } from '../server/mesh-validation.mjs';
 
@@ -220,6 +221,7 @@ test('runtime start: spawns the portable python hidden, with the same arguments 
   const r = await startPixal3dRuntime({
     cfg, runtimeDir, fetchFn, sleep: async () => {}, onProgress: (t) => messages.push(t),
     spawnFn: (exe, args, options) => { spawnedArgs = { exe, args, options }; return fakeChild(); },
+    pickCardFn: () => null,   // no pool here: env stays exactly the bat-file environment
     timeoutMs: 5000,
   });
   assert.equal(r.running, true);
@@ -240,6 +242,27 @@ test('runtime start: spawns the portable python hidden, with the same arguments 
   assert.ok(messages.some((m) => /Starting the Pixal3D engine/.test(m)));
   assert.equal(readFileSync(path.join(runtimeDir, 'pixal3d.pid'), 'utf8'), '4242');
   _resetPixal3dRuntime();
+});
+
+test('runtime start: a card from the GPU pool is pinned into the child environment and claimed sticky', async () => {
+  _resetPixal3dRuntime(); resetGpuPool();
+  const cfg = fakeInstall('card'), runtimeDir = path.join(tmp, 'rt2b');
+  let up = false, options = null, probes = 0;
+  const fetchFn = async () => { probes += 1; if (probes >= 3) up = true; return up ? { ok: true } : (() => { throw new Error('ECONNREFUSED'); })(); };
+  const card = { index: 1, uuid: 'GPU-fake-2', name: 'Big Card', memoryTotalMiB: 16311, freeMiB: 15000 };
+  const seen = [];
+  const r = await startPixal3dRuntime({
+    cfg, runtimeDir, fetchFn, sleep: async () => {},
+    spawnFn: (exe, args, opts) => { options = opts; return fakeChild(); },
+    pickCardFn: ({ engine, free }) => { seen.push(`${engine}:${free === false ? 'busy' : 'free'}`); return seen.length === 1 ? null : card; },   // first pass empty -> spawn-anyway pick
+    timeoutMs: 5000,
+  });
+  assert.equal(r.running, true);
+  assert.deepEqual(seen, ['pixal3d:free', 'pixal3d:busy']);
+  assert.equal(options.env.CUDA_VISIBLE_DEVICES, '1', 'the child sees only the chosen card');
+  assert.equal(options.env.HF_HOME, path.join(cfg.dir, 'cache', 'huggingface'), 'the bat-file environment survives the pin');
+  assert.deepEqual(engineCardFor('pixal3d'), card, 'the job layer can find the card the engine sits on');
+  _resetPixal3dRuntime(); resetGpuPool();
 });
 
 test('runtime start: the environment drops system CUDA / Python variables like the bat file does', () => {
