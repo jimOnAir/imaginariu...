@@ -273,7 +273,11 @@ def run(req):
             except OSError:
                 pass
     objs, stats["import_helpers_removed"] = ml.purge_import_helpers(objs)
-    manifest = req.get("inputs", {}).get("manifest") or {}
+    manifest = {}
+    manifest_path = (req.get("inputs") or {}).get("manifest")
+    if manifest_path:  # the pipeline hands inputs.manifest as a PATH to asset.json (godot/bevy convention)
+        with open(manifest_path, "r", encoding="utf-8-sig") as fh:
+            manifest = json.load(fh)
     arm, mapped = _pick_rig(objs, warnings)
     mod = _enable_addon(ext_dir, warnings)
     if mod is None:

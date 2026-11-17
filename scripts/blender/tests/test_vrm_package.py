@@ -302,6 +302,36 @@ def test_vrm_export_round_trip():
         shutil.rmtree(tmp, ignore_errors=True)
 
 
+def test_manifest_input_is_a_path_to_asset_json():
+    """The live wizard run of 2026-11-17 caught this: forge-pipeline passes inputs.manifest
+    as a PATH to asset.json (godot_package and bevy_package open it), not as an object -
+    vrm_package used to treat it as one and crashed on the first pipeline run
+    (AttributeError: 'str' object has no attribute 'get'). The passport name becomes the
+    VRM meta name and the .vrm file name."""
+    from steps import vrm_package as VP
+    old = os.environ.pop("ASTRA_VRM_ADDON", None)
+    try:
+        ext_dir = VP._addon_dir()
+    finally:
+        if old is not None:
+            os.environ["ASTRA_VRM_ADDON"] = old
+    if not ext_dir:
+        return "skip: vrm addon not installed (ticket 61: installer -Only vrmaddon)"
+    tmp = tempfile.mkdtemp(prefix="vrm-manifest-")
+    try:
+        src = _synthetic_character_glb(os.path.join(tmp, "char.glb"))
+        asset = os.path.join(tmp, "asset.json")
+        with open(asset, "w", encoding="utf-8") as fh:
+            fh.write('{"name": "Passport Hero"}')
+        res = VP.run({"step": "vrm_package", "params": {"profile": "vrm1"},
+                      "inputs": {"glb": src, "manifest": asset}, "out_dir": tmp})
+        assert res["stats"]["vrm_meta_name"] == "Passport Hero", res["stats"]
+        assert os.path.basename(res["outputs"]["vrm"]) == "Passport_Hero.vrm", res["outputs"]
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
 def test_expressions_bound_in_the_exported_vrm():
     """Ticket 62's binding half, live-verified: a face carrying the ARKit keys gets its
     presets written into the addon's vrm1.expressions surface, and the addon itself emits
