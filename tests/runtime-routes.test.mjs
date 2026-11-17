@@ -25,7 +25,7 @@ test('GET /api/runtime/graphs: every studio graph with its node classes, derived
   const { status, json } = await get('/api/runtime/graphs');
   assert.equal(status, 200);
   assert.deepEqual(json.graphs.map((g) => g.id),
-    ['sdxl-concept', 'hunyuan-single-view', 'hunyuan-2.1', 'hunyuan-multiview', 'pixal3d-single-view', 'pixal3d-multiview']);
+    ['sdxl-concept', 'hunyuan-single-view', 'hunyuan-2.1', 'hunyuan-2mini', 'hunyuan-multiview', 'pixal3d-single-view', 'pixal3d-multiview']);
   for (const g of json.graphs) {
     assert.ok(g.title && g.usedWhen && g.checkpointSetting, `${g.id}: catalog rows explain themselves`);
     assert.ok(Array.isArray(g.classTypes) && g.classTypes.length > 0, `${g.id}: class types`);

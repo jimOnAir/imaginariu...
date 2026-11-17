@@ -46,7 +46,7 @@ function mkS(over = {}) {
     node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '',
     comfy: '', comfyVer: '', comfyDeps: false, gguf: false, godot: '', godotVer: '', clips: 0, library: '/l',
     vfxDir: '/v', vfxOk: false, ollama: '', llms: [], vlm: false,
-    hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
+    hy2: miss, hymv: miss, hy21: miss, hy2mini: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
     mv: { node: false, weights: false, config: false, pkgs: false, ready: false, offer: false, reason: 'needs an NVIDIA graphics card', warn: '', bytes: 0 },
     p3: { dir: '/p3', exists: false, engine: false, weights: false, complete: false, offer: false, reason: 'needs an NVIDIA RTX graphics card', warn: '', missingBytes: 0, diskNeed: 0 },
     ts: { dir: '', env: false, code: false, weights: false, complete: false, offer: false, reason: '', missingBytes: 0 },
@@ -66,6 +66,7 @@ test('empty machine with an RTX card: preset letters, dependencies, the mandator
   assert.equal(row(items, 'node').presets, 'qfl');
   assert.equal(row(items, 'vfx').presets, 'fl', 'vfx is not in the quick set');
   assert.equal(row(items, 'hy21').presets, 'f', 'the second shape model is full-only');
+  assert.equal(row(items, 'hy2mini').presets, 'qf', '2mini rides the quick set too - it is the small-card shape model (ticket 54)');
   assert.equal(row(items, 'npm').deps, 'node');
   assert.equal(row(items, 'hy2').deps, 'comfy');
   assert.equal(row(items, 'llm').deps, 'ollama');
@@ -103,6 +104,23 @@ test('the klein 9B pins: the licence travels with every pin, hashes and sizes ar
     assert.match(p.url, /^https:\/\/huggingface\.co\/(unsloth|Comfy-Org)\//, `${id}: the official repos only`);
   }
   for (const p of ['quick', 'full', 'lite']) assert.ok(!man.profiles[p].includes('flux9b'), `${p}: no preset carries the 9B`);
+});
+
+// Ticket 54 (0.7.9 fold wave): Hunyuan3D-2mini - the small shape model. Official tencent repo;
+// the file is self-contained (DiT + VAE + image encoder - remote safetensors header probe of
+// 2026-11-17 shows the conditioner/model/vae prefixes) and ComfyUI core's supported_models
+// auto-detects it (Hunyuan3Dv2mini, unet depth 8 - double_blocks.0..7 in that same header).
+test('the 2mini pin: the licence travels with it, hash and size are the publisher values', () => {
+  const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'manifest.json'), 'utf8'));
+  const p = man.models.hy2mini;
+  assert.ok(p, 'hy2mini pinned in manifest.models');
+  assert.equal(p.license, man.models.hy2.license, 'the same Tencent Hunyuan 3D 2.0 Community License as hy2/hy21');
+  assert.equal(p.sha256, '3cc66f3bea33e4062b7dbc875ffe1d70c4888914aec3e91b60f94e9bd01b522b', 'the content sha256 = the HF LFS oid = sha256sum of the installed 3 819 958 234-byte file (the hy2/hy21 convention; the resolve ETag is a xet transport hash - the fresh-context audit caught the first pin carrying it by mistake)');
+  assert.equal(p.size, 3819958234);
+  assert.match(p.url, /^https:\/\/huggingface\.co\/tencent\/Hunyuan3D-2mini\/resolve\/main\/hunyuan3d-dit-v2-mini\//, 'the official tencent repo, the plain mini (not the guidance-distilled -fast)');
+  assert.equal(p.file, 'hunyuan3d-dit-v2-mini.safetensors');
+  for (const prof of ['quick', 'full']) assert.ok(man.profiles[prof].includes('hy2mini'), `${prof}: the small-card shape model rides the preset`);
+  assert.ok(!man.profiles.lite.includes('hy2mini'), 'lite: no engine, no weights');
 });
 
 test('the klein 9B row: no preset, marked as a try, refuses on no-GPU; the 4B note tells the truth about installed files', () => {
@@ -407,6 +425,7 @@ test('integration: a fake app folder with a wrong-size model reads as outdated, 
       models: {
         hy2: { file: 'h.safetensors', size: 123 }, u2net: { file: 'u2net.onnx', size: 5 },
         hymv: { file: 'hm.safetensors', size: 5 }, hy21: { file: 'h21.safetensors', size: 5 },
+        hy2mini: { file: 'h2min.safetensors', size: 5 },
         sdxl: { file: 'sd.safetensors', size: 5 }, flux2: { file: 'f.gguf', size: 5 }, qwenimg: { file: 'q.gguf', size: 5 },
         qwenedit: { file: 'qe.gguf', size: 5 }, qweneditlora: { file: 'qe.safetensors', dir: 'loras', size: 5 },
       },

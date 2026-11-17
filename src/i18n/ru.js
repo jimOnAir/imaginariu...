@@ -1773,6 +1773,8 @@ export default {
   "app.quality.title": "Качество геометрии",
   "app.quality.shapeGenerator": "Генератор формы",
   "app.quality.hunyuan21": "Hunyuan3D 2.1 · форма",
+  "app.quality.hunyuan2mini": "Hunyuan3D 2mini · форма",
+  "app.quality.shapeAuto": "Авто - mini на слабой карте",
   "app.quality.polyNote": "Число полигонов не измеряет сходство. После генерации сверьте силуэт и детали с референсом в панели текстур.",
   "app.quality.draft": "Быстро",
   "app.quality.standard": "Баланс",

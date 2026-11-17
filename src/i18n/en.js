@@ -1775,6 +1775,8 @@ export default {
   "app.quality.title": "Geometry quality",
   "app.quality.shapeGenerator": "Shape generator",
   "app.quality.hunyuan21": "Hunyuan3D 2.1 · shape",
+  "app.quality.hunyuan2mini": "Hunyuan3D 2mini · shape",
+  "app.quality.shapeAuto": "Auto - mini on a small card",
   "app.quality.polyNote": "Polygon count does not measure likeness. After generation, compare the silhouette and details with the reference in the Textures panel.",
   "app.quality.draft": "Fast",
   "app.quality.standard": "Balanced",

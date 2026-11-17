@@ -24,8 +24,9 @@ function fixture() {
       hy2: { file: 'hunyuan3d-dit-v2.safetensors', size: 5000, sha256: '', license: 'MIT' },
       sdxl: { file: 'sd_xl_base_1.0.safetensors', size: 999, sha256: 'deadbeef', license: 'MIT' },
       hymv: { file: 'hunyuan3d-dit-v2-mv.safetensors', size: 700, sha256: '00', license: 'MIT' },
-      // scanComponents probes these too (the 5-model loop and the 2D sets); none have a candidate.
+      // scanComponents probes these too (the model loop and the 2D sets); none have a candidate.
       hy21: { file: 'hunyuan_3d_v2.1.safetensors', size: 4, sha256: '00', license: 'MIT' },
+      hy2mini: { file: 'hunyuan3d-dit-v2-mini.safetensors', size: 4, sha256: '00', license: 'MIT' },
       u2net: { file: 'u2net.onnx', size: 4, sha256: '00', license: 'MIT' },
       flux2: { file: 'flux.gguf', dir: 'unet', size: 4, sha256: '00', license: 'Apache-2.0' },
       qwenimg: { file: 'qwen.gguf', dir: 'unet', size: 4, sha256: '00', license: 'Apache-2.0' },
@@ -152,7 +153,7 @@ test('scanItems: the model row carries installed (external) through the frontend
     node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '', comfy: '', comfyVer: '', comfyDeps: false, gguf: false,
     godot: '', godotVer: '', clips: 0, library: '/l', vfxDir: '/v', vfxOk: false, ollama: '', llms: [], vlm: false,
     hy2: { st: 'installed', where: '/home/u/ComfyUI/models/checkpoints', extern: '/home/u/ComfyUI/models/checkpoints/f.safetensors' },
-    hymv: { st: 'missing', where: '' }, hy21: { st: 'missing', where: '' }, sdxl: { st: 'missing', where: '' }, u2net: { st: 'missing', where: '' },
+    hymv: { st: 'missing', where: '' }, hy21: { st: 'missing', where: '' }, hy2mini: { st: 'missing', where: '' }, sdxl: { st: 'missing', where: '' }, u2net: { st: 'missing', where: '' },
     flux2: { st: 'missing', where: '' }, qwenimg: { st: 'missing', where: '' }, qwenedit: { st: 'missing', where: '' },
     mv: { ready: false, offer: false, reason: 'x', warn: '', bytes: 0 }, p3: { complete: false, offer: false, reason: 'x', warn: '', missingBytes: 0, engine: false },
     ts: { complete: false, offer: false, reason: 'x', env: false }, snd: { complete: false, offer: false, reason: 'x', env: false, codeBytes: 0, missingBytes: 0 },

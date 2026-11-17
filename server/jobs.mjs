@@ -3,6 +3,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { data,readJson,writeJson,assetInfo,saveAsset,isId } from './storage.mjs';
 import { hunyuanWorkflow,hunyuanMultiViewWorkflow,MV_CHECKPOINT,sdxlWorkflow } from './schema.mjs';
+import { isLowVram,currentVramMib } from './low-vram.mjs';
 import {getViewsService} from './views.mjs';
 import WebSocket from 'ws';
 import { conceptEnglishText } from './concept-llm.mjs';   // ticket 60 item 6: the no-assistant fallback lives there
@@ -167,12 +168,25 @@ async function runTripoSG(j,config,signal){
  const validation=await validateGlbAsset(result.buffer,j,path.join(data,'assets',asset.id+asset.extension));
  await update(j,{status:'completed',progress:100,message:'Geometry created · TripoSG'+simplifyNote(validation)+' · needs review',asset,validation,triposg:{seconds:result.stats.seconds,faces:result.stats.faces,facesTarget:result.stats.facesTarget,seed:result.stats.seed,warnings:result.stats.warnings}});
 }
+const MINI_CHECKPOINT='hunyuan3d-dit-v2-mini.safetensors';
+// Ticket 54 (0.7.4 fold): shapeModel -> the checkpoint file. 'auto' is the small-card pick:
+// Hunyuan3D-2mini when its file is installed and the branch's one low-VRAM seam (9216 MiB,
+// ticket 37 - no second number) says the card is too small for the 2.0 DiT. 'default' stays
+// byte-for-byte the pre-0.7.9 behaviour (the configured checkpoint); an unknown card (null
+// VRAM) is "not small" (ticket 33's honesty), so auto never picks mini on faith.
+export function pickShapeCheckpoint(shapeModel,{names=[],fallback,vramMib}={}){
+ if(shapeModel==='hunyuan21')return 'hunyuan_3d_v2.1.safetensors';
+ if(shapeModel==='hunyuan2mini')return MINI_CHECKPOINT;
+ if(shapeModel==='auto'&&names.includes(MINI_CHECKPOINT)&&isLowVram(vramMib))return MINI_CHECKPOINT;
+ return fallback;
+}
+
 async function run(j,config,signal){
  if(j.engine==='pixal3d')return runPixal3d(j,config,signal);
  if(j.engine==='triposg')return runTripoSG(j,config,signal);
  await update(j,{status:'running',message:'Checking the 3D engine',progress:0});
  let nodes;try{nodes=await jsonFetch(config.comfyUrl+'/object_info',{signal});}catch{throw new Error('The local 3D engine is not running. Open the connections and click "Start 3D engine".');}
- const names=nodes.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[],checkpoint=j.viewSetId?MV_CHECKPOINT:j.shapeModel==='hunyuan21'?'hunyuan_3d_v2.1.safetensors':config.shapeCheckpoint;
+ const names=nodes.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[],checkpoint=j.viewSetId?MV_CHECKPOINT:pickShapeCheckpoint(j.shapeModel,{names,fallback:config.shapeCheckpoint,vramMib:currentVramMib({refresh:true})});
  if(!names.includes(checkpoint))throw new Error(j.viewSetId?'Geometry from views requires the model '+MV_CHECKPOINT+' (Hunyuan3D-2mv). It is not installed or is still downloading.':'The selected Hunyuan3D model is not installed or is still downloading. Check the connections.');
  await update(j,{modelCheckpoint:checkpoint});
  for(const node of [j.viewSetId?'Hunyuan3Dv2ConditioningMultiView':'Hunyuan3Dv2Conditioning','SaveGLB','AstraMarchingCubes'])if(!nodes[node])throw new Error('ComfyUI is missing the node '+node+'. Start the AstraForge 3D engine on port 8190.');

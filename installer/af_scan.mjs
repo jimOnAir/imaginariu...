@@ -29,7 +29,7 @@ export const APP_ROOT = path.resolve(HERE, '..');
 // ids that cannot be unticked in the checklist (the Mandatory of Setup.cs)
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
-export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'sdxl',
+export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'hy2mini', 'sdxl',
   'mvadapter', 'godot', 'gltfpack', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'flux9b', 'qwenimg', 'qwenedit', 'qweneditlora',
   'sound', 'soundmoss', 'soundace'];
 
@@ -169,6 +169,7 @@ function externLink(f, root, comfy) {
  */
 export function modelState(root, comfy, man, id) {
   const m = man.models[id];
+  if (!m) return { st: 'missing', where: '' }; // no pin for the id (older or partial manifests): never crash the scan, nothing can be "installed" against no expectations
   let where = '';
   if (id === 'u2net') {
     const base = path.join(root, 'data', 'models', 'background');
@@ -441,7 +442,7 @@ export function scanComponents(opts = {}) {
   s.gltfpack = candidates('gltfpack', 'ASTRA_GLTFPACK', cfg, env,
     path.join(rt, 'gltfpack', 'gltfpack'), which('gltfpack')).find((g) => isExe(g)) || '';
   s.gltfpackVer = s.gltfpack ? String(man.programs.gltfpack.version || '') : '';
-  for (const id of ['hy2', 'hymv', 'hy21', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
+  for (const id of ['hy2', 'hymv', 'hy21', 'hy2mini', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
   s.flux2 = multiState(root, s.comfy, man, ['flux2', 'flux2te', 'flux2vae']);
   // ticket 52: the opt-in 9B set; a manifest without the pin (test fixtures of a partial manifest)
@@ -514,7 +515,7 @@ export function scanItems(s) {
   else if (!s.comfyDeps) add('comfy', G_3D, 'outdated', `${s.comfyVer} · ${s.comfy}`, cNeed, SIZE.comfydeps, comfyName, 'GPL-3.0 / BSD', '', 'comfydeps', 'Python libraries are missing - they will be added');
   else add('comfy', G_3D, 'installed', `${s.comfyVer} · ${s.comfy}`, cNeed, SIZE.comfy, comfyName, 'GPL-3.0 / BSD');
   for (const [id, name, group] of [['hy2', 'Hunyuan3D-2: 3D from a picture', G_3D], ['u2net', 'u2net: background removal', G_3D],
-    ['hymv', 'Hunyuan3D-2mv: 3D from front and back views', G_3D], ['hy21', 'Hunyuan3D-2.1: a second shape model', G_3D], ['sdxl', 'SDXL: images and views', G_2D]]) {
+    ['hymv', 'Hunyuan3D-2mv: 3D from front and back views', G_3D], ['hy21', 'Hunyuan3D-2.1: a second shape model', G_3D], ['hy2mini', 'Hunyuan3D-2mini: the small shape model (the 8 GB path)', G_3D], ['sdxl', 'SDXL: images and views', G_2D]]) {
     const st = s[id];
     add(id, group, st.extern ? 'installed (external)' : st.st, st.where, '', man.models[id].size, name, man.models[id].license, 'comfy', '', st.st === 'outdated' ? 'file of another version - update' : gpuNote);
   }
@@ -633,7 +634,7 @@ export function stateLines(s) {
     S_BLENDER: s.blender, S_BLENDER_VER: s.blenderVer, S_COMFY: s.comfy, S_COMFYVER: s.comfyVer, S_COMFYDEPS: s.comfyDeps ? 'yes' : '',
     S_GGUF: s.gguf ? 'yes' : '', S_GODOT: s.godot, S_GODOT_VER: s.godotVer, S_GLTFPACK: s.gltfpack || '', S_LIBRARY: s.library, S_CLIPS: s.clips,
     S_VFXDIR: s.vfxDir, S_VFXOK: s.vfxOk ? 'yes' : '', S_OLLAMA: s.ollama, S_LLMS_STR: s.llms.join(' '), S_VLM: s.vlm ? 'yes' : '',
-    S_HY2: st(s.hy2), S_HYMV: st(s.hymv), S_HY21: st(s.hy21), S_SDXL: st(s.sdxl), S_U2NET: st(s.u2net),
+    S_HY2: st(s.hy2), S_HYMV: st(s.hymv), S_HY21: st(s.hy21), S_HY2MINI: st(s.hy2mini), S_SDXL: st(s.sdxl), S_U2NET: st(s.u2net),
     S_FLUX2W: st(s.flux2), S_QWENW: st(s.qwenimg), S_QWENEDITW: st(s.qwenedit),
     S_FLUX9BW: st(s.flux9b),
     S_MV: s.mv.ready ? 'yes' : '', S_MV_NODE: s.mv.node ? 'yes' : '', S_MV_WEIGHTS: s.mv.weights ? 'yes' : '', S_MV_CONFIG: s.mv.config ? 'yes' : '',

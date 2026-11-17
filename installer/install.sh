@@ -21,7 +21,7 @@
 # check falls back to installing the chosen preset as a whole. Scan logic: installer/af_scan.mjs.
 # Everything installs into this application folder (runtime/, data/models/), needs no root, and an
 # interrupted download resumes on the next run. Ids: node, npm, blender, comfy, comfydeps, hy2,
-# hymv, hy21, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
+# hymv, hy21, hy2mini, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
 # triposg, triposgvae, triposgdino, pixal3dtest, vfx, gguf, flux2, qwenimg, sound, soundmoss, soundace.  Log: installer/install.log
 set -uo pipefail
 
@@ -874,6 +874,7 @@ comp_what() { case "$1" in
   hy2) printf 'Hunyuan3D-2 model (3D from an image)' ;;
   hymv) printf 'Hunyuan3D-2mv model' ;;
   hy21) printf 'Hunyuan3D-2.1 model' ;;
+  hy2mini) printf 'Hunyuan3D-2mini model' ;;
   sdxl) printf 'SDXL model' ;;
   u2net) printf 'u2net background-removal model' ;;
   mvadapter) printf 'MV-Adapter: node, weights, Python packages' ;;
@@ -901,7 +902,7 @@ comp_what() { case "$1" in
 esac; }
 
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
-ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundaceflux2 qwenimg qwenedit sound soundmoss soundace'
+ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 hy2mini sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundaceflux2 qwenimg qwenedit sound soundmoss soundace'
 ORDER_IDS=${ORDER_IDS/godot /godot gltfpack }   # gltfpack (ticket 56) installs right after godot
 ORDER_IDS=${ORDER_IDS/flux2 qwenimg/flux2 flux9b qwenimg}   # flux9b (ticket 52) rides -Only, never a preset
 
@@ -1088,8 +1089,8 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
   if [ -n "$n" ]; then ids="$("$n" -e 'try{const m=require(process.argv[1]);process.stdout.write(m.profiles[process.argv[2]].join(" "))}catch(e){}' "$ROOT/installer/manifest.json" "$Profile" 2>/dev/null)"; fi
   [ -n "$ids" ] || case "$Profile" in   # without node the manifest is unreadable: the 0.5.0 lists mirrored
     lite) ids='node npm blender godot clips vfx' ;;
-    full) ids='node npm blender comfy hy2 u2net hymv hy21 sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;  # «новое, проба» (ticket 12): the triposg* experimental ids are never in a preset
-    *)    ids='node npm blender comfy hy2 u2net hymv sdxl mvadapter godot clips' ;;
+    full) ids='node npm blender comfy hy2 u2net hymv hy21 hy2mini sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw flux2 qwenimg' ;;  # «новое, проба» (ticket 12): the triposg* experimental ids are never in a preset
+    *)    ids='node npm blender comfy hy2 u2net hymv hy2mini sdxl mvadapter godot clips' ;;
   esac
   # gltfpack (ticket 56) rides every preset; the manifest already lists it, the mirrored lists above not
   case " $ids " in *" gltfpack "*) ;; *) ids="${ids/godot /godot gltfpack }" ;; esac
@@ -1219,6 +1220,7 @@ for e in "${plan[@]}"; do
     hy2) Model 'https://huggingface.co/tencent/Hunyuan3D-2/resolve/main/hunyuan3d-dit-v2-0/model.fp16.safetensors' 'hunyuan3d-dit-v2.safetensors' || err=$? ;;
     hymv) Model 'https://huggingface.co/tencent/Hunyuan3D-2mv/resolve/main/hunyuan3d-dit-v2-mv/model.fp16.safetensors' 'hunyuan3d-dit-v2-mv.safetensors' || err=$? ;;
     hy21) Model 'https://huggingface.co/Comfy-Org/hunyuan3D_2.1_repackaged/resolve/main/hunyuan_3d_v2.1.safetensors' 'hunyuan_3d_v2.1.safetensors' || err=$? ;;
+    hy2mini) Model 'https://huggingface.co/tencent/Hunyuan3D-2mini/resolve/main/hunyuan3d-dit-v2-mini/model.fp16.safetensors' 'hunyuan3d-dit-v2-mini.safetensors' || err=$? ;;
     sdxl) Model 'https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors' 'sd_xl_base_1.0.safetensors' || err=$? ;;
     u2net) Download 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx' "$ROOT/data/models/background/models/u2net/u2net.onnx" || err=$? ;;
     godot) InstallGodot || err=$? ;;

@@ -118,7 +118,7 @@ function scanStateFixture() {
     npmDeps: true, ui: true, blender: '/b', blenderVer: '5.0.1', comfy: '', comfyVer: '', comfyDeps: false,
     gguf: false, godot: '', godotVer: '', clips: 0, library: '/l', vfxDir: '/v', vfxOk: false, ollama: '', llms: [], vlm: false,
     driver: '615.71.09', driverMajor: 615, driverOld: false,
-    hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
+    hy2: miss, hymv: miss, hy21: miss, hy2mini: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
     mv: { node: false, weights: false, config: false, pkgs: false, ready: false, offer: true, reason: '', warn: '', bytes: 1 },
     p3: { dir: '', exists: false, engine: false, weights: false, complete: false, offer: true, reason: '', warn: '', missingBytes: 0, diskNeed: 0 },
     ts: { dir: '', env: false, code: false, weights: false, complete: false, offer: false, reason: '', missingBytes: 0 },

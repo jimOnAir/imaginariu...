@@ -56,7 +56,7 @@ function mkS(over = {}) {
     node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '',
     comfy: '', comfyVer: '', comfyDeps: false, gguf: false, godot: '', godotVer: '', clips: 0, library: '/l',
     vfxDir: '/v', vfxOk: false, ollama: '', llms: [], vlm: false,
-    hy2: miss, hymv: miss, hy21: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
+    hy2: miss, hymv: miss, hy21: miss, hy2mini: miss, sdxl: miss, u2net: miss, flux2: miss, qwenimg: miss, qwenedit: miss,
     free: 200e9, ...over,
   };
 }
