@@ -133,7 +133,9 @@ async function waitPrompt(j,config,workflow,signal,stage){
  socket.on('message',raw=>{try{const v=JSON.parse(raw);if(j.status!=='running'||(v.data?.prompt_id&&j.promptId&&v.data.prompt_id!==j.promptId))return;if(v.type==='progress'){const ratio=v.data.value/v.data.max,meshPhase=['VAEDecodeHunyuan3D','VoxelToMesh','AstraMarchingCubes','SaveGLB'].includes(nodeClass);void update(j,{progress:meshPhase?Math.min(98,Math.round(88+ratio*10)):Math.min(87,Math.round(ratio*87)),message:(meshPhase?'Extracting the mesh':stage)+' · '+v.data.value+'/'+v.data.max}).catch(()=>{});}if(v.type==='executing'&&v.data.node){const node=workflow[v.data.node]?.class_type;nodeClass=node;const phases={VAEDecodeHunyuan3D:[88,'Extracting the volume from the latent'],VoxelToMesh:[94,'Building the polygon mesh'],AstraMarchingCubes:[94,'Extracting the surface · Marching Cubes'],SaveGLB:[97,'Saving GLB']};if(phases[node])void update(j,{progress:phases[node][0],message:phases[node][1]}).catch(()=>{});}}catch{}});
  const gpu=await acquireEngineGpu('hunyuan',{signal,failOpen:true,timeoutMs:60*60*1000,name:cardLockName(engineCardFor('hunyuan'))||undefined,urls:{hunyuan:config.comfyUrl},onWait:()=>void update(j,{message:'Waiting for the GPU to become free (GPU lock)'}).catch(()=>{}),onStep:text=>void update(j,{message:text}).catch(()=>{})}).catch(e=>{socket.close();throw e;});
  // the engine may have claimed its pool card only now (lazy start): record the truth at lock time
- const hcard=engineCardFor('hunyuan');if(hcard)void update(j,{gpuCard:{index:hcard.index,uuid:hcard.uuid,name:hcard.name}}).catch(()=>{});
+ // - but only for jobs that GENERATE on this engine; the SDXL concept stage of a Pixal3D or
+ // TripoSG job shares the 8190 card and must not overwrite their shape card in the record.
+ const hcard=engineOf(j)==='hunyuan'?engineCardFor('hunyuan'):null;if(hcard)void update(j,{gpuCard:{index:hcard.index,uuid:hcard.uuid,name:hcard.name}}).catch(()=>{});
  const deadline=Date.now()+60*60*1000;
  if(gpu.handover?.freed?.length||gpu.handover?.waited)void update(j,{handover:gpu.handover}).catch(()=>{});
  try{

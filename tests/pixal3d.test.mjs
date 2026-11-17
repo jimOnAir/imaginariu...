@@ -14,7 +14,7 @@ import {
   PIXAL3D_REQUIREMENTS, PIXAL3D_PYTHON_REL, _resetPixal3dRuntime, DEFAULT_PIXAL3D_DIR, DEFAULT_PIXAL3D_URL,
 } from '../server/pixal3d.mjs';
 import { normalizeGlb, buildGlb, parseGlb, glbBounds } from '../server/glb-normalize.mjs';
-import { resetGpuPool, engineCardFor } from '../server/gpu-pool.mjs';
+import { resetGpuPool, engineCardFor, claimEngineCard } from '../server/gpu-pool.mjs';
 import { generatePixal3d, explainPixal3dError, PIXAL3D_PHASES } from '../server/pixal3d-run.mjs';
 import { validateGeneratedMesh } from '../server/mesh-validation.mjs';
 
@@ -207,9 +207,14 @@ test('runtime start: not installed -> clear error and nothing is spawned', async
 test('runtime start: an engine that already answers is reused, not started twice', async () => {
   _resetPixal3dRuntime();
   let spawned = 0;
-  const r = await startPixal3dRuntime({ cfg: fakeInstall('reuse'), fetchFn: async () => ({ ok: true }), spawnFn: () => { spawned += 1; }, runtimeDir: path.join(tmp, 'rt1') });
-  assert.deepEqual(r, { running: true, reused: true });
-  assert.equal(spawned, 0);
+  const card = { index: 1, uuid: 'GPU-B', name: 'Big Card' };
+  claimEngineCard('pixal3d', card);   // the studio started this engine earlier and claimed its card
+  try {
+    const r = await startPixal3dRuntime({ cfg: fakeInstall('reuse'), fetchFn: async () => ({ ok: true }), spawnFn: () => { spawned += 1; }, runtimeDir: path.join(tmp, 'rt1') });
+    assert.deepEqual(r, { running: true, reused: true });
+    assert.equal(spawned, 0);
+    assert.deepEqual(engineCardFor('pixal3d'), card, 'a reuse never forgets the card this studio claimed at spawn (0.7.11 regression)');
+  } finally { resetGpuPool(); }
 });
 
 test('runtime start: spawns the portable python hidden, with the same arguments and environment as the bat file, and waits for it', async () => {

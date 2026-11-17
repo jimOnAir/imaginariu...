@@ -8,7 +8,7 @@ import { stopOwnedPixal3d } from './pixal3d.mjs';
  let child=null;
 export async function startRuntime({ pickCardFn = pickCard } = {}){
  if(child&&!child.killed)return {running:true,pid:child.pid};
- try{const res=await fetch('http://127.0.0.1:8190/system_stats',{signal:AbortSignal.timeout(1500)});if(res.ok){const v=await res.json();const owned=v.system?.argv?.includes(path.join(data,'runtime','input'));if(owned){claimEngineCard('hunyuan',null);return {running:true,reused:true};}throw new Error('Port 8190 is used by another ComfyUI. Connect its address in the settings or free the port.');}}catch(e){if(e.message.startsWith('Port 8190'))throw e;}
+ try{const res=await fetch('http://127.0.0.1:8190/system_stats',{signal:AbortSignal.timeout(1500)});if(res.ok){const v=await res.json();const owned=v.system?.argv?.includes(path.join(data,'runtime','input'));if(owned)return {running:true,reused:true};throw new Error('Port 8190 is used by another ComfyUI. Connect its address in the settings or free the port.');}}catch(e){if(e.message.startsWith('Port 8190'))throw e;}
  const comfy=comfyDir();
  const python=venvPython(comfy);
  if(!existsSync(python)||!existsSync(path.join(comfy,'main.py')))throw new Error('ComfyUI not found. Set ASTRA_COMFY_DIR or connect your own server in the settings.');

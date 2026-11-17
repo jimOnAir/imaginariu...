@@ -164,7 +164,10 @@ export async function startPixal3dRuntime(o = {}) {
   const { cfg = pixal3dConfig(), signal, onProgress, timeoutMs = 240000, spawnFn = spawn, fetchFn = fetch, exists = existsSync, sleep = wait, runtimeDir = RUNTIME_DIR, pickCardFn = pickCard } = o;
   const state = pixal3dInstallState(cfg, exists);
   if (!state.installed) throw Object.assign(new Error(state.message), { code: 'pixal3d_not_installed' });
-  if (await probe(cfg.url, 1500, fetchFn)) { claimEngineCard('pixal3d', null); return { running: true, reused: true }; }
+  // Reuse NEVER clears the claim: when this studio started the engine, its card is a fact;
+  // when someone else did, there was never a claim to clear. (Clearing here made every
+  // generatePixal3d call - which probes through this path - forget the engine's own card.)
+  if (await probe(cfg.url, 1500, fetchFn)) return { running: true, reused: true };
   if (child && !child.killed && child.exitCode === null) {
     onProgress?.('Pixal3D is already starting');
   } else {
