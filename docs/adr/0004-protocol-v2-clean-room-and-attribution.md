@@ -235,3 +235,54 @@ Per-cluster evidence and the full deviations table live in
   with the PASS recorded per ticket; 39 and 40 were audited directly against the payload's
   same-named implementations (`replace_part` keep_rig, `model-scan.mjs`) and survived
   line-by-line comparison — longest shared runs 4 and 3 lines respectively, both boilerplate.
+
+## Amendment at the 0.7.9 release (deviations actually taken while implementing)
+
+- **Retarget honesty, exercised a fourth time.** The fold wave launched toward `0.7.2 → 0.7.4`-territory
+  while 0.7.5–0.7.9 kept arriving upstream; the release target became **0.7.9** by user order on
+  2026-11-15, before any tag (record #4 in the fold `spec.md`). The unpushed `v0.7.1` tag
+  (`d20b03e`) moves to `v0.7.9` at this closeout; no interim Linux 0.7.2…0.7.8 tag ever existed
+  or will.
+- **The intent channel changed; the quarantine did not.** From 0.7.x the author publishes
+  bilingual **public release notes + sha256-sidecarred assets on GitHub Releases**, so T1 intent
+  is now *sourced* publicly — the standing question Q1 (where do release intents come from) is
+  answered for every version back to 0.4.6. Payload trees stay quarantined from implementing
+  contexts for T2/T3 facts exactly as before.
+- **A Linux artifact arrived and changes nothing about the posture.** Upstream ships official
+  Linux builds from v0.7.7 (their `AstraForge-0.7.9-linux.tar.gz` landed alongside the fold). It
+  is the same author's output: **not** an audit-corpus source, **not** a reading channel —
+  quarantined like every payload. The branch's positioning (an MIT clean-room studio without the
+  subscription line) is stated once in the release docs and stops there.
+- **Corpus change recorded.** The retroactive audit now runs over **sixteen** trees: 0.4.6 …
+  0.7.1 plus **0.7.3** and **0.7.9** (the fold spec's row said "0.7.4 tree"; what was extracted
+  and what the corpus therefore carries is 0.7.3 + 0.7.9 — recorded honestly). Trees ≥0.7.0
+  include snapshots of this branch's own later releases, so shared-ancestry hits are expected
+  and must be adjudicated as such (next bullet).
+- **Three provenance rulings now bind the audit trail.** (1) *Factual pins converge*: a correct
+  restoration of public constants (a model's URL/sha256/size, a publisher's mirror list) matches
+  the corpus byte-for-byte because there is one correct byte sequence — ruled provenance-mandated
+  when the branch's own probing chain proves independence (t52: the 9B pins restored field-wise
+  from `8986276^`; t58: the Blender 5.2.4 line, byte-identical to our own 5.0.1 line except the
+  version facts). (2) *Shared ancestry*: a run whose every token pre-exists in our own history
+  (t44: ours since `cce8c29`, 0.3.0 — the corpus file byte-identical to HEAD after line-ending
+  normalization) is the branch reading itself through the corpus. (3) *Mega-line re-wraps*:
+  editing one long line counts the whole line as ADDED, so long matched spans inside it are
+  checked span-by-span against HEAD (t50's JSX line, t54's App.jsx 43-token run — the verbatim
+  span exists in HEAD's line, token-multiset diff shows insertions only). Each ruling was made
+  by a fresh-context auditor, never by the implementing context.
+- **The per-ticket gates caught two real process leaks** — which is what they are for. t49: the
+  first implementation had inherited the upstream cleanup param's *name and default* from the
+  planner's tree-reading workpaper (a T2/T3 leak upstream of the gate); the fix was
+  **re-derivation, not disclosure**: branch-native name, default re-chosen from this machine's
+  measured cost table. t50: the new i18n guard was **vacuous** for text inside a top-level
+  component (whole-file brace collapse); fixed and re-proven by injecting raw text into the
+  panel's return region.
+- **Supply-chain defense held on a dependency bump.** Blender 5.2.4 (published 2026-11-10
+  08:36 UTC) was pinned by URL/size/sha256 from the publisher's own sha256sums immediately, but
+  the tarball was not downloaded until the 7-day freshness gate opened (2026-11-17 08:36 UTC);
+  the lane proof runs through the installer's own checksum gate.
+- **Probe-first closed three rows before any code** (the 0.7.1 precedent, exercised again): the
+  CFG-batch halves (t45 — fp8 peaks measured 5.87 GB make the split unnecessary here), Pixal3D
+  residency (t51 — the branch never had the per-stage reload the note cures), and the clips
+  "one archive" (t55 — the publisher serves no archive this branch is allowed to verify; an
+  invented mirror stays the one move worse than a failed download, ⚫ recorded with the probe).

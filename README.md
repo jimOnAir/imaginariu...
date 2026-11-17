@@ -6,39 +6,58 @@
 >
 > - **Free:** [AstraForge-Setup.exe](https://github.com/Snodrod/AstraForge/releases/latest) (0.4.6, *Quick* ≈ 30 GB or *Full* ≈ 95 GB). Personal, educational and other **noncommercial** use only, no updates — [PolyForm Noncommercial 1.0.0](LICENSE-0.4.2.md).
 > - **Subscription — $5/month or $49/year:** use AstraForge and everything you make with it **commercially**, and get every update on release day — [subscription license](COMMERCIAL-LICENSE.md). [Subscribe](https://snodrod.github.io/AstraForge/#subscribe).
-> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.1** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
-re-derived behavior of the shipped Windows 0.6.0 → 0.7.1 line — 0.6.6 folded the first seven
-releases into one, this release folds the fourteen patches after it; the parity artifacts that
-actually arrived are **`AstraForge-Setup-0.6.8.exe`** (md5 `8fc2d345501e1abea7637be1a73f3846`),
+> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.9** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
+re-derived behavior of the shipped Windows 0.6.0 → 0.7.9 line — 0.6.6 folded the first seven
+releases into one, 0.7.1 the fourteen patches after it, this release folds the eight after that
+(0.7.2–0.7.9) together with a performance wave measured on Linux hardware; the release line was
+retargeted a fourth time before tagging (this fold is record #4 of the line's #1–#4, all
+disclosed in the acceptance reports); the parity artifacts that actually arrived are **`AstraForge-Setup-0.6.8.exe`** (md5 `8fc2d345501e1abea7637be1a73f3846`),
 **`AstraForge-Setup-0.6.10.exe`** (md5 `49a32878c1bb26918a508e4c0dc6f813`),
 **`AstraForge-Setup-0.6.12.exe`** (md5 `2a58c9d62e4de282bea244d26f00ae43`),
 **`AstraForge-Setup-0.6.18.exe`** (md5 `458223df82e2b291b089b38dd06e021f`),
 **`AstraForge-Setup-0.7.0.exe`** (md5 `e4213515d8695d042298194b87c9fe5b`) and
-**`AstraForge-Setup-0.7.1.exe`** (md5 `f074a5e56460c6c8262da576f4e5610c`) — the 0.6.7, 0.6.9,
-0.6.11 and 0.6.13–0.6.17 installers never arrived, and no 0.6.19+ artifact or notes file exists
-at all: their content is observable only folded into the trees above (recorded deviations; the
-release line was retargeted twice mid-closeout, both disclosed in the acceptance report).
-Highlights of the folded stretches: **Bevy as the fourth export target** — GLB plus the
-`af_bevy.json` asset passport, a branch-original MIT crate that plays a package with one
-dependency line (autostart, blending, sockets, sounds, hot reload), an optional headless cargo
-check with preview frames, MCP and sound parity, and an editor bridge installable only behind a
-pinned crates.io checksum; **over-cap generations salvaged, not thrown away** (a 115 MB mesh
-came back 67 MB, accepted); a **posture guard** on styled clips (humeral twist, verified by
-re-measure); **the 8 GB card told the truth** — views at 512 px, a step paging for five minutes
-stops the job with the real reason, "Full" unticks what does not fit, and Cancel really frees
-the GPU; **`keep_rig`** — replacing a part of a rigged model keeps the armature, the new
-vertices weighted from the removed surface; **weights other tools already downloaded are
-connected without copying** (checksum-verified links, an `installed (external)` row in the
-Components window); a missing Blender names its installer remedy instead of an errno; venvs
-that heal themselves; an interface that starts in the machine's language with a header RU/EN
-switch; installer concurrency via flock, detached-run re-attach and free-space honesty (an
-unreadable reading is unknown, never 0.0 GB); real driver and RAM gates before Pixal3D.
+**`AstraForge-Setup-0.7.1.exe`** (md5 `f074a5e56460c6c8262da576f4e5610c`), and — new in this
+lineage — the upstream **`AstraForge-0.7.9-linux.tar.gz`**: from v0.7.7 the author ships official
+Linux builds too; like every payload it stays quarantined on this branch, this fold's tree
+evidence being the extracted **0.7.3** and **0.7.9** payloads plus the branch's own probes. The
+0.6.7, 0.6.9, 0.6.11 and 0.6.13–0.6.17 installers never arrived, and no 0.6.19+ artifact or
+notes file exists at all: their content is observable only folded into the trees above
+(recorded deviations).
+Highlights of the newest stretches: an **fp8 UNet tier for cards ≤16 GB, measured on both this
+machine's cards** — the 12 GB card refuses the fp16 shape before step 1 and runs fp8 at a 6.45 GB
+peak, the 16 GB card holds 5.87 GB on the widest shape, so the line's low-VRAM cures land here
+without an 8 GB card in the room; **af-mesh-rs** — the studio's own MIT decimator over vendored
+pinned meshoptimizer (built offline; rig weights, colors, normals and shape keys survive
+simplification 1:1), a 3 998 792-triangle salvage in 24.9 s → 0.38 s, exactly 2.5M triangles out;
+the **Bevy bridge driven against a running game** — 0.7.1's honest ⚠️ closed with a live session
+(a curl fallback that never actually ran was found and fixed on the way); **hidden-arms
+auto-rigging** — the recorded 0.08–0.12 m shoulder drift on arms inside the torso silhouette now
+≤ 0.034 m with baseline cases byte-identical; **cleanup order honesty** — heavy meshes collapse
+first (`planar_wait_above_tris`, default chosen from this machine's measured cost table);
+**Hunyuan3D-2mini** — the small shape model (live run: 22 s, ~4.5 GB net on this card) with
+`auto` as the new default, picking it only on a small card that actually has the file;
+**network honesty** — PyTorch's official R2 wheel mirror and one named Hugging Face verdict per
+run; **LOD files and a compact GLB** in the convert step (exact triangle fractions via af-mesh-rs;
+EXT_meshopt_compression lands in a separate file, because Godot cannot read it — verified with
+Godot 4.7.2); **Blender 5.2.4 LTS** pinned through the 7-day supply-chain gate, the full
+22-module Blender lane run on it as the "same result" proof; **language-parity guards** that
+turn a hardcoded string in either skin into a red test; **the klein 9B back as an explicit
+opt-in** (its non-commercial licence travels with record, panel and asset; never a silent
+fallback); and six small honesty fixes (progress without lies, a port contract, a verified
+Ollama-folder move, cancelled ≠ failed, a front-locked paint camera, RU text→3D without an
+assistant). The earlier folded stretches (Bevy as the fourth export target, salvaged
+over-cap generations, the posture guard, the 8 GB paging sentinel, `keep_rig`, weight reuse,
+self-healing venvs, installer concurrency — see the [0.7.1 acceptance
+report](docs/product/acceptance-0.7.1.md)) all stay shipped here.
 Excluded with reasons: the 0.6.12 native speedups (closed binaries, no published source or
-checksum), the textured Pixal3D (C++) component, and **the 0.7.0 closed Rust core** — the host
+checksum), the textured Pixal3D (C++) component, **the 0.7.6 Rust rewrites of the Forge hot
+paths** (their host is that closed core — this wave's af-mesh-rs, fp8 tier and planar-wait are
+the measured branch-own answer on the same classes), and **the 0.7.0 closed Rust core** — the host
 of the node editor and content studio, gated on Windows by an active subscription: the
 monetization line and unpublished native code are standing exclusions of this branch. See the
-[0.7.1 acceptance report](docs/product/acceptance-0.7.1.md) (and
-[0.6.6](docs/product/acceptance-0.6.6.md), [0.5.1](docs/product/acceptance-0.5.1.md)) for what
+[0.7.9 acceptance report](docs/product/acceptance-0.7.9.md) (and
+[0.7.1](docs/product/acceptance-0.7.1.md), [0.6.6](docs/product/acceptance-0.6.6.md),
+[0.5.1](docs/product/acceptance-0.5.1.md)) for what
 shipped, what is deliberately excluded and what is unverified here. The `v0.5.0` line (feature set of shipped Windows 0.4.16) was produced under the earlier ADR-0003 bar; the retroactive audit has now run and found that pre-existing body to be verbatim payload material rather than re-derived code — disclosed in full in the [similarity audit](docs/product/similarity-audit-0-5-1.md), with a module-by-module rewrite campaign open; until it lands, the MIT grant above covers the original code of this branch (everything added under ADR-0004, audit-gated per ticket), and the rest stays under the rights holder's terms. See also the [0.5.0 acceptance report](docs/product/acceptance-0.5.0.md). The `master` source stays the older 0.3.0; released Windows installers are distributed under the licenses above.
 
 AstraForge is a Windows app that turns a picture or a text prompt into a game-ready 3D asset on your own machine: concept → geometry → editor → rig and animation → effects → export (GLB, OBJ, WebM, PNG, isometric sprite sheets, Godot packages). The server listens on `127.0.0.1` only. The UI is available in English and Russian (English by default, switch in the app).

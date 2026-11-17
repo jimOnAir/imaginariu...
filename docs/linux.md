@@ -3,10 +3,11 @@
 AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
 Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, since 0.6.6 the
-Windows 0.6.0 → 0.6.6 line as one release, and since 0.7.1 the Windows 0.6.7 → 0.7.1 patches as
-one folded release (see the sections below and
+Windows 0.6.0 → 0.6.6 line as one release, since 0.7.1 the Windows 0.6.7 → 0.7.1 patches as a
+folded release, and since 0.7.9 the Windows 0.7.2 → 0.7.9 patches plus a measured performance
+wave as one more release (see the sections below and
 `docs/product/acceptance-0.5.0.md` / `acceptance-0.5.1.md` / `acceptance-0.6.6.md` /
-`acceptance-0.7.1.md`). This page documents the
+`acceptance-0.7.1.md` / `acceptance-0.7.9.md`). This page documents the
 Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
 ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
 `process.platform` check or lives in Linux-only files, and the Windows frontends
@@ -202,6 +203,73 @@ v0.6.12/v0.6.18/v0.7.0 tag ever existed. Per-ticket evidence:
   fp8/eviction machinery is engine files; the `ffmpeg` installer component has no consumer on
   this branch. The self-learning idle gate has nothing to gate here — this branch's learning is
   a local journal, no background GPU job (recorded, ticket 41 withdrawn).
+
+## 0.7.9 — the performance wave and the Windows 0.7.2 → 0.7.9 fold
+
+Two waves land as one release: a **performance wave** (tickets 44–49) where every claim carries
+this machine's own number, and the fold of upstream's **0.7.2–0.7.9** (tickets 50–60) — the
+release line's fourth retarget (#4, ADR-0004 retarget honesty: the target moved to 0.7.9 by user
+order before any tag; the unpushed `v0.7.1` tag moves to `v0.7.9`). Intent came from the author's
+now-public GitHub release notes (T1 via the spec channel); payload trees stayed quarantined.
+Per-ticket evidence: [acceptance-0.7.9](product/acceptance-0.7.9.md) (clusters N–O).
+
+- **fp8 views for ≤16 GB cards, measured** (44, 45): the views node runs the UNet layerwise-fp8
+  (per-module — the shipped diffusers do not expose it on pipelines; the VAE deliberately stays
+  fp32-safe); measured here: the 12 GB card refuses the fp16 shape *before step 1* and runs fp8
+  at 6.45 GB, the 16 GB card at 5.87 GB on the widest shape — which is why the note's CFG-batch
+  halves close ⚫ without vendoring a split pipeline. Mechanism and table:
+  [`views-low-vram.md`](forge/views-low-vram.md).
+- **af-mesh-rs** (46, 56): a branch-original MIT crate over **vendored pinned meshoptimizer**
+  (per-file sha256, built offline, never downloaded), carry contract proven in Rust tests — and
+  the convert step now writes **LOD files** (exact triangle fractions) and a separate
+  **`.compact.glb`** (EXT_meshopt_compression; mains stay plain — Godot cannot read it, verified
+  on Godot 4.7.2); `gltfpack` joins as a new sha256-pinned installer component. Salvage tries
+  af-mesh first: 24.9 s → 0.38 s on the 3 998 792-triangle fixture.
+- **Bevy live session** (47): the bridge driven against a RUNNING game (xvfb, 52 MCP tools, a
+  clip change visible in captured state) — 0.7.1's ⚠️ row closed; the session's first defect was
+  real: the BRP install's curl fallback had never actually run (argument order) — fixed with a
+  regression test, and the verified game-side wiring (`RemoteHttpPlugin`) is now in the docs.
+- **hidden-arms landmark pass** (48): when the chain top of a buried arm falls below the armpit
+  window, the fitted hanging-line axis is extrapolated through the band's interior
+  (`_buried_shoulder`, confidence `S_src="interior"`, ranked below any measured shoulder):
+  the recorded 0.08–0.12 m drift → **≤ 0.034 m**, baselines byte-identical.
+- **collapse-before-planar** (49): `planar_wait_above_tris` (default **120 000**, from this
+  machine's cost table — 2.7 s @ 40.8 k → 193 s @ 202.5 k → killed > 45 min @ 410 k tri slabs);
+  `= 0` restores the old order exactly. This ticket is also the process poster: the per-ticket
+  gate caught an inherited param name+default from a planner workpaper and the fix was
+  re-derivation, not disclosure.
+- **shape: Hunyuan3D-2mini, and `auto`** (54): the small self-contained checkpoint (3.8 GB —
+  header-probed `conditioner`+`model`+`vae`, auto-detected by this runtime's ComfyUI core)
+  rides the quick and full presets; `shapeModel` defaults to **`auto`** — mini only when its
+  file is installed AND the 9216-MiB seam (ticket 37) says the card is small; unknown VRAM is
+  "not small"; explicit `default` stays the pre-0.7.9 path. Live run: 22 s to GLB, ~4.5 GB net.
+- **2D default honesty** (52): klein **4B stays the default**; the 9B returns (its pins restored
+  field-wise from this branch's own history) only as an explicit, confirm-gated row in no
+  preset; `assertEngineWeights` names the missing 4B files instead of quietly drawing on
+  non-commercial weights.
+- **network honesty** (55): PyTorch's official R2 wheel twin across all four wheel sites (same
+  pinned sha256, uv verifies whichever host answers), `HfGate` = one named HF verdict per run
+  with periodic re-probe; the clips "one archive" closed ⚫ as a recorded deviation — the
+  publisher serves no archive this branch may verify, and inventing one is not an option.
+- **Pixal3D fast-fail; cancelled ≠ failed** (57): `pixal3dPreflight()` answers in milliseconds
+  with the ticket-25 sentence (which component, which command) before minutes of concept work
+  can die on a missing engine Python; `batchCounts` keeps cancelled out of the error tally.
+- **Blender 5.2.4 LTS** (58): the pin (URL/size/sha256 from the publisher's own sha256sums,
+  mirrors HEAD-verified) landed at the pin commit; the tarball was downloaded **only after the
+  7-day supply-chain gate opened** (2026-11-17 08:36 UTC); the full 22-module lane runs on the
+  pinned binary through the installer's own checksum gate; the claimed glTF frame-shift
+  regression measured away — the exporter's `seconds = frame / fps` mapping is identical at
+  5.0.1/5.2.2/5.2.4.
+- **language parity by guard** (50): Cyrillic in an EN-only display field fails the test suite,
+  a raw text node in the panel fails it too, and the installer's EN-always policy is recorded;
+  **six small honesty fixes** (60): progress percent only with a denominator (unknown size =
+  indeterminate bar), the port contract (`take_port` names the holder, `port.json` is the
+  single truth), the verified Ollama-folder MOVE offer, the retarget remedy sentence, the
+  fitted-mirror paint-camera front lock, RU text→3D without an assistant.
+- **Positioning, once**: upstream ships official Linux builds from v0.7.7 — their Linux
+  `AstraForge-0.7.9-linux.tar.gz` is the same author's output and is quarantined from all
+  reading and audit contexts like every payload; this branch stays the MIT clean-room studio
+  without the subscription line.
 
 ## Quick start (Linux)
 
