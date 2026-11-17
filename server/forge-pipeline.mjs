@@ -30,9 +30,9 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 export const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v);
 export const CLIP_ID_RE = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
 export const isClipId = (v) => typeof v === 'string' && CLIP_ID_RE.test(v) && !v.includes('..');
-export const FILE_EXTENSIONS = ['glb', 'gltf', 'fbx', 'blend', 'png', 'json', 'tres', 'tscn', 'gd', 'md', 'zip', 'txt', 'log'];
-export const DOWNLOAD_EXTENSIONS = ['zip', 'blend', 'fbx', 'tres', 'tscn', 'gd', 'log', 'txt', 'md'];
-export const UPLOAD_EXTENSIONS = ['.glb', '.fbx', '.obj'];
+export const FILE_EXTENSIONS = ['glb', 'gltf', 'fbx', 'blend', 'png', 'json', 'tres', 'tscn', 'gd', 'md', 'zip', 'txt', 'log', 'vrm'];
+export const DOWNLOAD_EXTENSIONS = ['zip', 'blend', 'fbx', 'tres', 'tscn', 'gd', 'log', 'txt', 'md', 'vrm'];
+export const UPLOAD_EXTENSIONS = ['.glb', '.fbx', '.obj', '.vrm'];
 export const MAX_UPLOAD_BYTES = 300 * 1024 * 1024;
 export const MAX_CLIP_FILES = 500;
 const TERMINAL = ['completed', 'failed', 'cancelled'];
@@ -212,11 +212,11 @@ export function isFbxBuffer(buf) {
 /** Validate an uploaded mesh by extension and magic bytes. Returns the normalised extension. */
 export function sniffMeshUpload(buf, originalName) {
   const ext = path.extname(String(originalName || '')).toLowerCase();
-  if (!UPLOAD_EXTENSIONS.includes(ext)) throw forgeError('Only GLB, FBX and OBJ files are supported.', 400, 'bad_format');
+  if (!UPLOAD_EXTENSIONS.includes(ext)) throw forgeError('Only GLB, FBX, OBJ and VRM files are supported.', 400, 'bad_format');
   if (!buf || !buf.length) throw forgeError('The file is empty.', 400, 'empty_file');
   if (buf.length > MAX_UPLOAD_BYTES) throw forgeError('The file is larger than 300 MB.', 413, 'too_large');
   let ok = false;
-  if (ext === '.glb') ok = buf.subarray(0, 4).toString('latin1') === 'glTF';
+  if (ext === '.glb' || ext === '.vrm') ok = buf.subarray(0, 4).toString('latin1') === 'glTF'; // VRM 1.0 IS a glTF-2.0 binary container
   else if (ext === '.fbx') ok = isFbxBuffer(buf);
   else if (ext === '.obj') {
     const head = buf.subarray(0, 65536);
@@ -300,6 +300,35 @@ export function resolveClipSources(clips, index, animationsDir, { checkFiles = t
 const GLB_JSON_CHUNK = 0x4e4f534a; // 'JSON'
 const MAX_GLB_JSON_BYTES = 128 * 1024 * 1024;
 
+/** Validate the 20-byte head + JSON chunk bytes of a GLB container held in a Buffer. */
+function parseGlbJson(buf) {
+  if (buf.length < 20 || buf.subarray(0, 4).toString('latin1') !== 'glTF') throw new Error('no glTF header');
+  const length = buf.readUInt32LE(12);
+  if (buf.readUInt32LE(16) !== GLB_JSON_CHUNK) throw new Error('the first chunk is not JSON');
+  if (length > MAX_GLB_JSON_BYTES) throw new Error('the JSON chunk is too large');
+  if (buf.length < 20 + length) throw new Error('the file is truncated');
+  return JSON.parse(buf.subarray(20, 20 + length).toString('utf8'));
+}
+
+/** Read the JSON chunk of a GLB file whole (a head window is not enough for a rigged avatar). */
+async function glbJsonFromFile(file) {
+  const fd = await fs.open(file, 'r');
+  try {
+    const head = Buffer.alloc(20);
+    const { bytesRead } = await fd.read(head, 0, 20, 0);
+    if (bytesRead < 20 || head.toString('latin1', 0, 4) !== 'glTF') throw new Error('no glTF header');
+    const length = head.readUInt32LE(12);
+    if (head.readUInt32LE(16) !== GLB_JSON_CHUNK) throw new Error('the first chunk is not JSON');
+    if (length > MAX_GLB_JSON_BYTES) throw new Error('the JSON chunk is too large');
+    const body = Buffer.alloc(length);
+    const read = await fd.read(body, 0, length, 20);
+    if (read.bytesRead < length) throw new Error('the file is truncated');
+    return JSON.parse(body.toString('utf8'));
+  } finally {
+    await fd.close();
+  }
+}
+
 /**
  * Socket names of a .glb/.gltf, read from its JSON only (no Blender): nodes with
  * extras.game_socket, or whose name starts with 'socket_' — the same rule godot_package uses.
@@ -310,21 +339,7 @@ export async function readGlbSockets(file) {
     if (fileExt(file) === 'gltf') {
       json = JSON.parse(await fs.readFile(file, 'utf8'));
     } else {
-      const fd = await fs.open(file, 'r');
-      try {
-        const head = Buffer.alloc(20);
-        const { bytesRead } = await fd.read(head, 0, 20, 0);
-        if (bytesRead < 20 || head.toString('latin1', 0, 4) !== 'glTF') throw new Error('no glTF header');
-        const length = head.readUInt32LE(12);
-        if (head.readUInt32LE(16) !== GLB_JSON_CHUNK) throw new Error('the first chunk is not JSON');
-        if (length > MAX_GLB_JSON_BYTES) throw new Error('the JSON chunk is too large');
-        const body = Buffer.alloc(length);
-        const read = await fd.read(body, 0, length, 20);
-        if (read.bytesRead < length) throw new Error('the file is truncated');
-        json = JSON.parse(body.toString('utf8'));
-      } finally {
-        await fd.close();
-      }
+      json = await glbJsonFromFile(file);
     }
   } catch (err) {
     throw forgeError(`Failed to read the model sockets of ${path.basename(String(file))}: ${err.message}`, 400, 'bad_glb');
@@ -337,6 +352,27 @@ export async function readGlbSockets(file) {
     else if (name.startsWith('socket_')) names.push(name);
   }
   return [...new Set(names)];
+}
+
+/**
+ * A .vrm upload must really be VRM: the sniff gate only sees the shared glTF magic (VRM 1.0 IS
+ * a glTF-2.0 binary container), so a renamed .glb would walk in as an avatar. This demands the
+ * container DECLARE a VRM extension — VRMC_vrm (VRM 1.0) or VRM (VRoid Studio 0.x). Takes an
+ * upload buffer or a file path (the path is read by JSON chunk, whole); returns extensionsUsed.
+ */
+export async function assertVrmContainer(bufOrPath) {
+  let json;
+  try {
+    json = Buffer.isBuffer(bufOrPath) ? parseGlbJson(bufOrPath) : await glbJsonFromFile(bufOrPath);
+  } catch (err) {
+    throw forgeError(`Failed to read the VRM container: ${err.message}`, 400, 'bad_vrm');
+  }
+  const used = Array.isArray(json?.extensionsUsed) ? json.extensionsUsed : [];
+  if (!used.some((e) => e === 'VRMC_vrm' || e === 'VRM')) {
+    throw forgeError('This is not a VRM file: the glTF container does not declare a VRM extension '
+      + '(VRMC_vrm). Export the avatar as VRM from your model program.', 400, 'bad_vrm');
+  }
+  return used;
 }
 
 export const hasSocketMask = (entry) => typeof entry?.socket === 'string' && /[*?]/.test(entry.socket);
@@ -819,10 +855,12 @@ export class ForgeEngine {
         const fd = await fs.open(file.path, 'r');
         try { await fd.read(head, 0, head.length, 0); } finally { await fd.close(); }
         ext = sniffMeshUpload(head, originalName);
+        if (ext === '.vrm') await assertVrmContainer(file.path); // the head only proved the glTF magic
         copyFrom = file.path;
       } else {
         buffer = file.buffer;
         ext = sniffMeshUpload(buffer, originalName);
+        if (ext === '.vrm') await assertVrmContainer(buffer);
       }
       src.originalName = originalName.replace(/[<>:"/\\|?*\x00-\x1f]/g, '_').slice(-150);
       if (!name) name = path.basename(src.originalName, ext).slice(0, 150);

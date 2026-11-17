@@ -28,7 +28,11 @@ export const KINDS = ['humanoid', 'creature', 'item', 'ship', 'prop'];
 export const ALL_KINDS = [...KINDS];
 export const CLIP_CATEGORIES = ['idle', 'walk', 'run', 'attack', 'cast', 'hit', 'death', 'jump', 'emote', 'fly', 'other'];
 export const LOOP_CATEGORIES = ['idle', 'walk', 'run'];
-const MESH_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl'];
+// 'vrm' joins the mesh family (ticket 63): VRM 1.0 IS a glTF-2.0 binary container and the lane's
+// import_any reads it like a glb. The upload gate additionally demands the container DECLARE a
+// VRM extension (assertVrmContainer), and glb-slot steps (formats: ['glb']) still want the real
+// thing - the chain's first step converts the source anyway.
+const MESH_FORMATS = ['glb', 'gltf', 'fbx', 'obj', 'stl', 'vrm'];
 const VIEW_NAMES = ['front', 'back', 'left', 'right', 'top', 'three_quarter'];
 const FACING = ['auto', '-Y', '+Y', '-X', '+X'];
 const CREATURE_CLIPS = ['idle-loop', 'walk-loop', 'run-loop', 'fly-loop', 'glide-loop', 'attack', 'hit', 'death'];
@@ -1063,6 +1067,16 @@ const PRESET_LIST = [
     ],
   },
   {
+    id: 'humanoid_vrm', kind: 'humanoid', title: 'Humanoid from a model -> VRM 1.0 (anime)',
+    help: 'The anime route of "Humanoid from a model": the same cleanup to 40,000 triangles and 1.8 m, auto-rig and library clips, but the package is ONE .vrm file - VRM 1.0 with the humanoid bones, meta and the expressions the face supports (Unity/UniVRM, UE5/VRM4U, Godot/godot-vrm open it). Needs the "VRM Add-on for Blender" component; the run report names anything the character could not support.',
+    steps: [
+      { step: 'cleanup', params: { target_tris: 40000, height_m: 1.8 } },
+      { step: 'rig_humanoid', params: { height_m: 1.8 } },
+      { step: 'retarget', params: { clips: humanoidClips, root_motion: 'extract' } },
+      { step: 'vrm_package', params: { profile: 'vrm1' } },
+    ],
+  },
+  {
     id: 'creature_auto', kind: 'creature', title: 'Creature: auto-asset',
     help: 'Cleanup to 30,000 triangles, a rig from the auto template, procedural clips (tempo and speed decided by the step), a Godot package.',
     steps: [
@@ -1133,6 +1147,7 @@ export const EXPORT_PROFILES = {
   unity: { step: 'unity_package', params: { profile: 'unity' } },
   unreal: { step: 'unreal_package', params: { profile: 'unreal' } },
   bevy: { step: 'bevy_package', params: { profile: 'bevy' } },
+  vrm1: { step: 'vrm_package', params: { profile: 'vrm1' } }, // ticket 63: the VRM release's own profile
 };
 
 // Structured params the per-param schema cannot describe: checked before the run, so a typo fails

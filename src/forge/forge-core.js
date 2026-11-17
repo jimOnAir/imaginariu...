@@ -1504,6 +1504,7 @@ export const EXPORT_PROFILES = [
   { id: 'heroes_gates', kinds: ['humanoid', 'creature', 'item'] },
   { id: 'iso8', kinds: ALL },
   { id: 'unreal', kinds: ALL },
+  { id: 'vrm1', kinds: ['humanoid'] }, // ticket 63: the VRM release's own profile, characters only
 ].map((p) => withLabels(p, `core.export.${p.id}`));
 
 export function exportProfilesFor(kind) {

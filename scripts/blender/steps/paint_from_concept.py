@@ -1,6 +1,6 @@
 """paint_from_concept - colour a geometry-only mesh (Hunyuan3D 2.1 output) from its concept image.
 
-inputs.mesh (.glb/.gltf/.fbx/.obj/.blend) or inputs.blend (opened by af_run; every object stays),
+inputs.mesh (.glb/.gltf/.fbx/.obj/.vrm/.blend) or inputs.blend (opened by af_run; every object stays),
 inputs.concept: the concept image, RGBA with alpha = subject (the studio's prepared reference PNG:
 original RGB + rembg alpha; its colour x alpha storage is divided back); an image without transparency
 is keyed by its border colour. Optional inputs.concept_original = {image, crop, content_rect}: the

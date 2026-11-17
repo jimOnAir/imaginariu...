@@ -1,6 +1,6 @@
 """inspect — import a model and report stats; optional preview sheet.
 
-inputs.mesh: path (.glb/.gltf/.fbx/.obj/.stl/.blend); params.preview: bool (default true),
+inputs.mesh: path (.glb/.gltf/.fbx/.obj/.stl/.vrm/.blend); params.preview: bool (default true),
 params.views: list of view names (af_common.VIEWS), params.size: px.
 """
 import os

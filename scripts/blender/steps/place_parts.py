@@ -4,7 +4,7 @@ Generic: clasps, buttons, studs, rivets, gems, badges, spikes on a garment, an a
 any part at a given pose (e.g. a procedural hand at a wrist).
 
 inputs:
-  mesh | blend    the target (.glb/.gltf/.fbx/.obj/.stl/.blend). All its meshes are joined into one
+  mesh | blend    the target (.glb/.gltf/.fbx/.obj/.stl/.vrm/.blend). All its meshes are joined into one
                   object, unless params.target_objects lists the ones to keep - the others are
                   dropped (e.g. keep only "body" of a separate.py parts file). A rig is dropped.
   part            the default part (.glb/.blend/...; or params.part): all its meshes form one

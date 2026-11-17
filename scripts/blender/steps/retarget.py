@@ -1,7 +1,7 @@
 """retarget - Mixamo (or any humanoid) clips onto a humanoid rig, contract section 7.
 
 inputs.blend  - .blend with a skinned humanoid armature (af_run opens it), or
-inputs.mesh   - skinned .glb/.gltf/.fbx with a humanoid armature.
+inputs.mesh   - skinned .glb/.gltf/.fbx/.vrm with a humanoid armature.
 params:
   clips: [{source: abs .fbx | "library:<id>" | "<id>", name, trim: [first, last] (source frames),
            loop (default by category: idle/walk/run), in_place (see root_motion), fps (30),

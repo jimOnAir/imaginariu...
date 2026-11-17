@@ -1,6 +1,6 @@
 """convert — any supported input to GLB / FBX / OBJ, optionally a Mixamo-ready FBX.
 
-inputs.mesh or inputs.blend: .glb/.gltf/.fbx/.obj/.stl/.blend. A rig and its animation are kept
+inputs.mesh or inputs.blend: .glb/.gltf/.fbx/.obj/.stl/.vrm/.blend. A rig and its animation are kept
 (except for OBJ and Mixamo); importer helpers such as the glTF bone-shape Icosphere are deleted.
 
 params:

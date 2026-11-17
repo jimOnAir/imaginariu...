@@ -162,7 +162,7 @@ def import_any(path, purge_helpers=True):
     path = os.path.abspath(path)
     ext = os.path.splitext(path)[1].lower()
     before = set(bpy.data.objects)
-    if ext in (".glb", ".gltf"):
+    if ext in (".glb", ".gltf", ".vrm"):  # VRM 1.0 IS a glTF-2.0 container; the importer reads it as such (ticket 63)
         bpy.ops.import_scene.gltf(filepath=path)
     elif ext == ".fbx":
         bpy.ops.import_scene.fbx(filepath=path, automatic_bone_orientation=False)

@@ -1,6 +1,6 @@
 """rig_creature — automatic skeleton + skin weights for non-human creatures (contract §5, §6).
 
-inputs.mesh   path to .glb/.gltf/.fbx/.obj/.stl/.blend, or
+inputs.mesh   path to .glb/.gltf/.fbx/.obj/.stl/.vrm/.blend, or
 inputs.blend  a .blend (e.g. from cleanup); mesh wins when both are given. Hierarchies, empties,
               armatures, skins and shape keys are stripped: only the rest-shape meshes are kept.
 params

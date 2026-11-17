@@ -342,10 +342,14 @@ test('forge: sockets and effects', () => {
   assert.equal(suggestSocket('unknown', ['socket_a']), 'socket_a');
   assert.deepEqual(fxForPassport([{ preset: 'aura', socket: 'socket_fx_chest' }, { preset: 'fire', socket: '' }]), [{ preset: 'aura', socket: 'socket_fx_chest', params: {} }]);
   assert.deepEqual(exportProfilesFor('ship').map((p) => p.id), ['godot', 'space_quest', 'iso8', 'unreal']);
-  assert.deepEqual(exportProfilesFor('humanoid').map((p) => p.id), ['godot', 'heroes_gates', 'iso8', 'unreal']);
+  assert.deepEqual(exportProfilesFor('humanoid').map((p) => p.id), ['godot', 'heroes_gates', 'iso8', 'unreal', 'vrm1'],
+    'ticket 63: every character can ship as VRM 1.0');
   assert.deepEqual(exportProfilesFor('turret').map((p) => p.id), ['godot', 'space_quest', 'iso8', 'unreal']);
   assert.equal(exportProfilesFor('turret')[2].title, 'iso8 sprites');
   assert.equal(exportProfilesFor('creature').map((p) => p.id)[1], 'heroes_gates');
+  // the VRM row is humanoid-only and speaks both skins (labels come from the dictionary)
+  assert.equal(exportProfilesFor('humanoid').at(-1).title, 'VRM 1.0 (anime)');
+  inRussian(() => assert.equal(exportProfilesFor('humanoid').at(-1).title, 'VRM 1.0 (аниме)'));
 });
 
 test('forge: job progress, current step and plain-language errors', () => {

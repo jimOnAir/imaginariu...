@@ -7,6 +7,8 @@ export default {
   "shell.mode.title": "View", "shell.mode.simple": "Simple", "shell.mode.detailed": "Detailed",
   "core.export.unreal.title": "Unreal Engine 5",
   "core.export.unreal.hint": "FBX + textures + af_unreal.json for the Python importer plugin",
+  "core.export.vrm1.title": "VRM 1.0 (anime)",
+  "core.export.vrm1.hint": "One .vrm file: bones, meta, expressions, MToon - Unity (UniVRM), UE5 (VRM4U), Godot (godot-vrm)",
 
   // Common: language switch
   "lang.switch": "Interface language",

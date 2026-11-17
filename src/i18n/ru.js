@@ -5,6 +5,8 @@ export default {
   "shell.mode.title": "Вид", "shell.mode.simple": "Просто", "shell.mode.detailed": "Подробно",
   "core.export.unreal.title": "Unreal Engine 5",
   "core.export.unreal.hint": "FBX, текстуры и af_unreal.json для Python-плагина импорта",
+  "core.export.vrm1.title": "VRM 1.0 (аниме)",
+  "core.export.vrm1.hint": "Один файл .vrm: кости, мета, мимика, MToon — Unity (UniVRM), UE5 (VRM4U), Godot (godot-vrm)",
 
   // Common: language switch
   "lang.switch": "Язык интерфейса",

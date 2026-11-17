@@ -1,6 +1,6 @@
 """cleanup — turn an AI / high-poly mesh into a clean working mesh (contract §3-4).
 
-inputs.mesh or inputs.blend: .glb/.gltf/.fbx/.obj/.stl/.blend (static meshes; a rig in the input
+inputs.mesh or inputs.blend: .glb/.gltf/.fbx/.obj/.stl/.vrm/.blend (static meshes; a rig in the input
 is dropped, importer helpers such as the glTF bone-shape Icosphere are deleted).
 
 params (all optional):

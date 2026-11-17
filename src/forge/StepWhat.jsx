@@ -9,7 +9,7 @@ import { Section, Dropzone, TrashButton, useForge } from './ForgeUi.jsx';
 import { useT } from '../i18n/index.js';
 
 /** Extensions the forge accepts as a multipart upload (server sniffMeshUpload). */
-const FORGE_UPLOAD = ['.glb', '.fbx', '.obj'];
+const FORGE_UPLOAD = ['.glb', '.fbx', '.obj', '.vrm'];
 
 const KIND_ICONS = { humanoid: User, creature: PawPrint, item: Sword, ship: Rocket, turret: Crosshair };
 const SOURCE_ICONS = { scene: Box, job: Sparkles, upload: Upload, params: SlidersHorizontal };
@@ -251,7 +251,7 @@ export default function StepWhat({ onCreated }) {
         {source === 'upload' && (
           <>
             <Dropzone
-              accept=".glb,.fbx,.obj,.stl"
+              accept=".glb,.fbx,.obj,.stl,.vrm"
               title={file ? file.name : t('wizard.what.dropTitle')}
               hint={file ? t('wizard.what.dropHintChange') : t('wizard.what.dropHint')}
               onFiles={([f]) => setFile(f)}

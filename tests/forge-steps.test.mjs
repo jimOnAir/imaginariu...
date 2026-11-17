@@ -82,7 +82,7 @@ test('godot_package: godot / space_quest / heroes_gates profiles, Space Quest re
 
 test('presets reference real steps with valid params', () => {
   const ids = listPresets().map((p) => p.id);
-  for (const id of ['humanoid_from_mesh', 'humanoid_hg_sprites', 'humanoid_face_checked', 'creature_auto', 'sculpt_refine', 'item_kit_sword', 'item_from_mesh', 'ship_procedural', 'ship_from_mesh', 'turret']) {
+  for (const id of ['humanoid_from_mesh', 'humanoid_hg_sprites', 'humanoid_face_checked', 'humanoid_vrm', 'creature_auto', 'sculpt_refine', 'item_kit_sword', 'item_from_mesh', 'ship_procedural', 'ship_from_mesh', 'turret']) {
     assert.ok(ids.includes(id), id);
   }
   for (const p of listPresets()) {
@@ -99,6 +99,10 @@ test('presets reference real steps with valid params', () => {
   assert.deepEqual(clips.map((c) => c.source), ['category:idle', 'category:walk', 'category:attack', 'category:hit', 'category:death']);
   assert.equal(clips[1].loop, true);
   assert.equal(clips[1].in_place, true);
+  // ticket 63 (0.7.10 fold): the anime pack - the same humanoid route, the VRM 1.0 package last
+  const vrmP = getPreset('humanoid_vrm');
+  assert.deepEqual(vrmP.steps.map((s) => s.step), ['cleanup', 'rig_humanoid', 'retarget', 'vrm_package']);
+  assert.deepEqual(vrmP.steps[3].params, { profile: 'vrm1' });
   const spr = getPreset('humanoid_hg_sprites').steps;
   assert.deepEqual(spr.map((s) => s.step), ['cleanup', 'rig_humanoid', 'retarget', 'render_sprites', 'godot_package'],
     'sprites are rendered before the Godot package so it includes them (inputs.sprites)');
@@ -121,10 +125,12 @@ test('presets reference real steps with valid params', () => {
 
 test('export profiles map to export steps', () => {
   assert.equal(EXPORT_PROFILES.godot.step, 'godot_package');
-  assert.deepEqual(Object.keys(EXPORT_PROFILES).sort(), ['bevy', 'godot', 'heroes_gates', 'iso8', 'space_quest', 'unity', 'unreal']);
+  assert.deepEqual(Object.keys(EXPORT_PROFILES).sort(), ['bevy', 'godot', 'heroes_gates', 'iso8', 'space_quest', 'unity', 'unreal', 'vrm1']);
   assert.equal(EXPORT_PROFILES.unreal.step, 'unreal_package');
   assert.equal(EXPORT_PROFILES.unity.step, 'unity_package');
   assert.equal(EXPORT_PROFILES.bevy.step, 'bevy_package', 'ticket 28: Bevy joins the export family');
+  assert.equal(EXPORT_PROFILES.vrm1.step, 'vrm_package', 'ticket 63: VRM 1.0 joins the export family');
+  assert.deepEqual(EXPORT_PROFILES.vrm1.params, { profile: 'vrm1' });
   assert.equal(EXPORT_PROFILES.iso8.params.profile, 'iso8');
   assert.equal(EXPORT_PROFILES.space_quest.params.profile, 'space_quest');
   assert.deepEqual(EXPORT_PROFILES.heroes_gates.params, { profile: 'heroes_gates', in_place: 'drift' }, 'travelling one-shots render in place');

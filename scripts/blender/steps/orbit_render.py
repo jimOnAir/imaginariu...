@@ -7,7 +7,7 @@ orbit.json manifest (the orbit contract: {"frames":[{"file":"orbit_00.png","yaw_
 (af's mesh_metrics: boundary/non-manifold/wire edges, loose parts, tris) that cap the VLM's
 seam score in the studio's decide() — a model never grades topology by taste here.
 
-inputs.mesh: .glb/.gltf/.obj/.stl path; params: frames (4..16, default 8), size px (default 384),
+inputs.mesh: .glb/.gltf/.obj/.stl/.vrm path; params: frames (4..16, default 8), size px (default 384),
 elevation_deg (default 12).
 """
 import json

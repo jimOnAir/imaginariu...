@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import JSZip from 'jszip';
 import {
-  ASSET_ID_RE, ForgeEngine, LIBRARY_LOCK_FILE, assetSlug, expandSocketMasks, findLocalPath, isInside, readGlbSockets, resolveClipSources, sniffMeshUpload,
+  ASSET_ID_RE, ForgeEngine, LIBRARY_LOCK_FILE, assetSlug, assertVrmContainer, expandSocketMasks, findLocalPath, isInside, readGlbSockets, resolveClipSources, sniffMeshUpload,
 } from '../server/forge-pipeline.mjs';
 import { StepQueue, runBlenderStep } from '../server/blender.mjs';
 
@@ -141,8 +141,30 @@ test('upload sniffing accepts GLB/FBX/OBJ by signature only', () => {
   assert.equal(sniffMeshUpload(OBJ, 'm.obj'), '.obj');
   assert.throws(() => sniffMeshUpload(GLB, 'a.fbx'), /does not match the file format/);
   assert.throws(() => sniffMeshUpload(Buffer.from('MZ....'), 'a.glb'), /does not match the file format/);
-  assert.throws(() => sniffMeshUpload(GLB, 'a.exe'), /GLB, FBX and OBJ/);
+  assert.throws(() => sniffMeshUpload(GLB, 'a.exe'), /GLB, FBX, OBJ and VRM/);
   assert.throws(() => sniffMeshUpload(Buffer.alloc(0), 'a.glb'), /is empty/);
+});
+
+// Ticket 63 (0.7.10 fold wave): VRM 1.0 IS a glTF-2.0 binary container - the upload gate
+// accepts it by the same magic; a separate check demands the container actually DECLARES a
+// VRM extension, so a renamed .glb cannot walk in as an avatar. VRoid Studio's 0.x files
+// (extensionsUsed: ["VRM"]) are the same family and equally importable.
+test('a .vrm upload is a glTF container that declares VRM', async () => {
+  assert.equal(sniffMeshUpload(makeGlb({ asset: { version: '2.0' }, extensionsUsed: ['VRMC_vrm'] }), 'avatar.vrm'), '.vrm');
+  assert.throws(() => sniffMeshUpload(Buffer.from('MZ....'), 'a.vrm'), /does not match the file format/);
+  assert.deepEqual(await assertVrmContainer(makeGlb({ asset: { version: '2.0' }, extensionsUsed: ['VRMC_vrm', 'VRMC_springBone'] })), ['VRMC_vrm', 'VRMC_springBone']);
+  await assertVrmContainer(makeGlb({ asset: { version: '2.0' }, extensionsUsed: ['VRM'] })); // VRoid 0.x accepted too
+  await assert.rejects(() => assertVrmContainer(makeGlb({ asset: { version: '2.0' } })), (e) => e.code === 'bad_vrm' && /not a VRM/i.test(e.message), 'a plain renamed .glb must not enter as .vrm');
+  await assert.rejects(() => assertVrmContainer(GLB), (e) => e.code === 'bad_vrm');
+  // file branch: a JSON chunk larger than the upload head's 64 KB window must still be read whole
+  const dir = await fs.mkdtemp(path.join(tmpdir(), 'af-vrm-'));
+  try {
+    const f = path.join(dir, 'big.vrm');
+    await fs.writeFile(f, makeGlb({ asset: { version: '2.0' }, extensionsUsed: ['VRMC_vrm'], nodes: Array.from({ length: 5000 }, (_, i) => ({ name: `bone${i}` })) }));
+    assert.ok((await assertVrmContainer(f)).includes('VRMC_vrm'));
+  } finally {
+    await fs.rm(dir, { recursive: true, force: true });
+  }
 });
 
 test('game asset ids are snake_case ASCII', () => {
@@ -203,6 +225,22 @@ test('assets are created from params, uploads, generation jobs and other assets'
   const list = await engine.listAssets();
   assert.equal(list.length, 6);
   assert.ok(list.every((a) => a.lastStatus === 'new'));
+});
+
+// Ticket 63 (0.7.10 fold wave): the upload gate is not the end of the road - a .vrm asset must
+// run the humanoid chain (the fresh-context audit caught the first draft stopping one seam short:
+// the formats gate rejected 'vrm' and every chain's first step raised no_input). VRM 1.0 IS a
+// glTF binary container, so the mesh family takes vrm; the chain's first step gets the source.
+test('an uploaded .vrm runs the humanoid chain - recognized, not just accepted', async () => {
+  const { engine, calls } = await makeEngine();
+  const VRM = makeGlb({ asset: { version: '2.0' }, extensionsUsed: ['VRMC_vrm'], nodes: [{ name: 'Hips' }] });
+  const a = await engine.createAsset({ kind: 'humanoid', source: { type: 'upload' } }, { buffer: VRM, originalName: 'avatar.vrm' });
+  const src = path.join(engine.assetDir(a.id), 'source', 'source.vrm');
+  const run = await engine.startRun(a.id, { steps: [{ step: 'cleanup', params: { target_tris: 40000 } }, { step: 'rig_humanoid' }] });
+  const job = await engine.waitJob(run.jobId);
+  assert.equal(job.status, 'completed', job.error);
+  assert.deepEqual(calls[0].request.inputs, { mesh: src }, 'cleanup reads the .vrm source as the mesh');
+  assert.equal(calls[1].request.inputs.blend, path.join(engine.assetDir(a.id), 'v001', '01_cleanup', 'cleanup.blend'), 'the chain continues from the cleanup output like any glb route');
 });
 
 test('a run creates v001 with numbered step folders and resolves inputs along the chain', async () => {

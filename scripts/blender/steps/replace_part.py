@@ -5,7 +5,7 @@ full-body pass (a skull, a hand, a staff head) is generated alone from a high-re
 put back in place of the old geometry.
 
 inputs:
-  mesh | blend    the body (.glb/.gltf/.fbx/.obj/.stl/.blend; all meshes are joined, a rig dropped
+  mesh | blend    the body (.glb/.gltf/.fbx/.obj/.stl/.vrm/.blend; all meshes are joined, a rig dropped
                   unless keep_rig - then the body keeps its armature)
   part            the new part (.glb/...), e.g. a Hunyuan3D result generated from a crop; it must
                   face the same way as the body in the generator frame (front = -Y)

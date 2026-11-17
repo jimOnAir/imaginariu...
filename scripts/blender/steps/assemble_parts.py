@@ -6,7 +6,7 @@ generator's frame (several times the voxels per part) and writes parts.json. Thi
 meshes on the whole-body base mesh and fuses them.
 
 inputs:
-  mesh | blend    the whole-body base mesh (.glb/.gltf/.fbx/.obj/.blend, e.g. Hunyuan mesh_mv_<seed>.glb): it
+  mesh | blend    the whole-body base mesh (.glb/.gltf/.fbx/.obj/.vrm/.blend, e.g. Hunyuan mesh_mv_<seed>.glb): it
                   gives the depth (Y) of every part and fills the place of a part that has no mesh
   concept         the FRONT reference (RGBA, alpha = subject) the parts were cut from: the camera is fitted to
                   its silhouette, so reference pixels map to metres (params.concept_file on the CLI)
