@@ -31,6 +31,7 @@ acceptance note carry it at closeout:
 | the remedy errors (no skeleton / missing Required bones / component not installed) name the next action | lane-tested |
 | producing a real `.vrm` end to end (export via the addon, re-import round trip) | **verified live** — `test_vrm_export_round_trip` passes with the installed component (2026-11-17); the fixture rig had to carry the real humanoid parent chain because the addon's validator enforces bone hierarchy |
 | expressions actually bound in the exported file (presets land as `morphTargetBinds`, count pinned equal to the bytes) | **verified live** — `test_expressions_bound_in_the_exported_vrm` (2026-11-17) |
+| the whole studio wizard (upload GLB → Preparation → Skeleton → Motion → Export, Playwright, 2026-11-17) | **verified live** — the humanoid route produced `Demo Mannequin VRM.vrm` (1,014,052 B) from an unrigged mesh: 35,472 triangles, 25 bones, 5 retargeted clips, passport name in the VRM meta. The run caught the first real pipeline execution of the step and fixed its `inputs.manifest` contract (the pipeline passes the asset.json **path**, like godot/bevy — `test_manifest_input_is_a_path_to_asset_json`) |
 | MToon; `VRMC_springBone` | **not attempted yet** — the run report says so (`gaps.springs`); a bare rig earns no invented spring parameters |
 | Unity/UniVRM, UE5/VRM4U, Godot/godot-vrm opening our files | **not verified by us** — that is the standard's promise, not our test result |
 
