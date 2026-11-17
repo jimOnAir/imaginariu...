@@ -201,9 +201,13 @@ def test_bad_profile_rejected_before_anything_else():
 
 # ---------------------------------------------------------------- end to end (post-gate half)
 
-def _synthetic_character_glb(path):
-    """A rigged (not shaped) character: CANON bones on a cube body skinned to the armature -
-    everything the step's rig+meta half needs; expressions report gaps, honestly."""
+def _synthetic_character_glb(path, shape_keys=False):
+    """A rigged (not shaped) character in a rough T-pose: CANON bones with the REAL humanoid
+    parent chain and skinned to a cube body. (The first real round trip found the reason a
+    stick of orphan bones is not enough: the VRM 1.0 validator checks each assigned bone's
+    hierarchy - "Confirm hierarchy of ... and its children" - so the fixture must mirror the
+    spec's chains: Spine>Spine1>Spine2>Neck>Head, Shoulder>Arm>ForeArm>Hand>fingers,
+    UpLeg>Leg>Foot>Toes.)"""
     from steps import _anim_lib as AL
     af.reset_scene()
     arm_data = bpy.data.armatures.new("Armature")
@@ -212,14 +216,38 @@ def _synthetic_character_glb(path):
     bpy.context.view_layer.objects.active = arm
     bpy.ops.object.mode_set(mode="EDIT")
     made = {}
-    for i, name in enumerate(["Hips"] + [c for c in AL.CANON if c != "Hips"]):
+
+    def bone(name, head, tail, parent=None):
         eb = arm_data.edit_bones.new("mixamorig:" + name)
-        eb.head = (0, 0, i * 0.05)
-        eb.tail = (0, 0, i * 0.05 + 0.04)
+        eb.head, eb.tail = head, tail
+        if parent and parent in made:
+            eb.parent = made[parent]
         made[name] = eb
-    for child, parent in (("Spine", "Hips"), ("LeftArm", "Spine2"), ("RightArm", "Spine2")):
-        if parent in made:
-            made[child].parent = made[parent]
+
+    bone("Hips", (0, 0, 1.0), (0, 0, 1.05))
+    bone("Spine", (0, 0, 1.05), (0, 0, 1.09), "Hips")
+    bone("Spine1", (0, 0, 1.09), (0, 0, 1.13), "Spine")
+    bone("Spine2", (0, 0, 1.13), (0, 0, 1.17), "Spine1")
+    bone("Neck", (0, 0, 1.17), (0, 0, 1.21), "Spine2")
+    bone("Head", (0, 0, 1.21), (0, 0, 1.27), "Neck")
+    bone("HeadTop_End", (0, 0, 1.27), (0, 0, 1.30), "Head")
+    for sgn, s in ((-1.0, "Left"), (1.0, "Right")):
+        bone(s + "Shoulder", (sgn * 0.05, 0, 1.15), (sgn * 0.15, 0, 1.15), "Spine2")
+        bone(s + "Arm", (sgn * 0.15, 0, 1.15), (sgn * 0.35, 0, 1.15), s + "Shoulder")
+        bone(s + "ForeArm", (sgn * 0.35, 0, 1.15), (sgn * 0.55, 0, 1.15), s + "Arm")
+        bone(s + "Hand", (sgn * 0.55, 0, 1.15), (sgn * 0.63, 0, 1.15), s + "ForeArm")
+        for f, fy in (("Thumb", -0.04), ("Index", 0.03), ("Middle", 0.01), ("Ring", -0.01), ("Pinky", -0.03)):
+            prev = s + "Hand"
+            for i in range(1, 5):
+                n = s + "Hand" + f + str(i)
+                bone(n, (sgn * (0.64 + 0.025 * (i - 1)), fy, 1.15), (sgn * (0.64 + 0.025 * i), fy, 1.15), prev)
+                prev = n
+        bone(s + "UpLeg", (sgn * 0.09, 0, 0.95), (sgn * 0.09, 0, 0.55), "Hips")
+        bone(s + "Leg", (sgn * 0.09, 0, 0.55), (sgn * 0.09, 0, 0.15), s + "UpLeg")
+        bone(s + "Foot", (sgn * 0.09, 0, 0.15), (sgn * 0.09, -0.06, 0.12), s + "Leg")
+        bone(s + "ToeBase", (sgn * 0.09, -0.06, 0.12), (sgn * 0.09, -0.12, 0.12), s + "Foot")
+        bone(s + "Toe_End", (sgn * 0.09, -0.12, 0.12), (sgn * 0.09, -0.15, 0.12), s + "ToeBase")
+    assert set(made) == set(AL.CANON), "fixture drifted from the rig contract"
     bpy.ops.object.mode_set(mode="OBJECT")
     me = bpy.data.meshes.new("body")
     me.from_pydata([(-0.1, -0.05, 0), (0.1, -0.05, 0), (0.1, 0.05, 0), (-0.1, 0.05, 0)],
@@ -231,6 +259,11 @@ def _synthetic_character_glb(path):
     vg.add(list(range(len(me.vertices))), 1.0, "REPLACE")
     mod = body.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
+    if shape_keys:
+        body.shape_key_add(name="Basis")
+        for sk in ("eyeBlinkLeft", "eyeBlinkRight", "jawOpen", "mouthSmileLeft",
+                   "mouthSmileRight", "browDownLeft", "browDownRight"):
+            body.shape_key_add(name=sk)
     bpy.ops.object.select_all(action="DESELECT")
     arm.select_set(True)
     body.select_set(True)
@@ -241,7 +274,8 @@ def _synthetic_character_glb(path):
 def test_vrm_export_round_trip():
     """The runtime half of ticket 62: with the component installed the step exports a .vrm
     whose VRM 1.0 bones the addon itself wrote (human_bones_assigned), the container carries
-    VRMC_vrm, and the rig re-imports. Skips honestly until the gate opens and 61 lands."""
+    VRMC_vrm, and the rig re-imports. Ran live first on 2026-11-17 (component installed by
+    owner order); still skips honestly if the addon is missing."""
     from steps import vrm_package as VP
     old = os.environ.pop("ASTRA_VRM_ADDON", None)
     try:
@@ -250,7 +284,7 @@ def test_vrm_export_round_trip():
         if old is not None:
             os.environ["ASTRA_VRM_ADDON"] = old
     if not ext_dir:
-        return "skip: vrm addon not installed (ticket 61 lands it after 2026-11-18 08:35:20 UTC)"
+        return "skip: vrm addon not installed (ticket 61: installer -Only vrmaddon)"
     tmp = tempfile.mkdtemp(prefix="vrm-e2e-")
     try:
         src = _synthetic_character_glb(os.path.join(tmp, "char.glb"))
@@ -263,6 +297,51 @@ def test_vrm_export_round_trip():
         assert res["stats"]["vrm_meta_name"] == "Char One", res["stats"]
         assert res["stats"].get("reimport", {}).get("armatures") == 1, res["stats"]
         assert os.path.isfile(res["outputs"]["report"])
+    finally:
+        import shutil
+        shutil.rmtree(tmp, ignore_errors=True)
+
+
+def test_expressions_bound_in_the_exported_vrm():
+    """Ticket 62's binding half, live-verified: a face carrying the ARKit keys gets its
+    presets written into the addon's vrm1.expressions surface, and the addon itself emits
+    them in the file (VRMC_vrm.expressions.preset.<name>.morphTargetBinds). The report count
+    is checked against what the BYTES show, not against what the matcher found."""
+    from steps import vrm_package as VP
+    old = os.environ.pop("ASTRA_VRM_ADDON", None)
+    try:
+        ext_dir = VP._addon_dir()
+    finally:
+        if old is not None:
+            os.environ["ASTRA_VRM_ADDON"] = old
+    if not ext_dir:
+        return "skip: vrm addon not installed (ticket 61: installer -Only vrmaddon)"
+    tmp = tempfile.mkdtemp(prefix="vrm-bind-")
+    try:
+        src = _synthetic_character_glb(os.path.join(tmp, "face.glb"), shape_keys=True)
+        res = VP.run({"step": "vrm_package", "params": {"name": "face", "meta_name": "Face One"},
+                      "inputs": {"glb": src}, "out_dir": tmp})
+        # the fixture's keys support exactly blink/aa/happy/sad (the blends whose members all
+        # exist); ih/ou/ee/oh/angry/surprised/relaxed stay named gaps, and the bound count
+        # equals the number of presets the FILE carries
+        assert res["stats"]["expressions_bound"] == 4, res["stats"]
+        assert sorted(res["stats"]["gaps"]["expressions"]) == sorted(
+            ["angry", "ee", "ih", "oh", "ou", "relaxed", "surprised"]), res["stats"]
+        from steps import convert as cvt
+        g = cvt._glb_json(res["outputs"]["vrm"])
+        preset = g["extensions"]["VRMC_vrm"]["expressions"]["preset"]
+        bound = sorted(p for p, e in preset.items() if e.get("morphTargetBinds"))
+        assert bound == ["aa", "blink", "happy", "sad"], bound
+        assert len(preset["blink"]["morphTargetBinds"]) == 2
+        aa = preset["aa"]["morphTargetBinds"]
+        assert len(aa) == 1 and aa[0]["weight"] == 0.5
+        names = [n for m in g["meshes"]
+                 for n in ((m.get("extras") or {}).get("targetNames") or [])]
+        assert {"eyeBlinkLeft", "eyeBlinkRight", "jawOpen"} <= set(names), names
+        mesh_nt = len(((g["meshes"][0].get("extras") or {}).get("targetNames") or []))
+        for e in preset.values():
+            for b in e.get("morphTargetBinds", []):
+                assert isinstance(b["index"], int) and 0 <= b["index"] < mesh_nt, b
     finally:
         import shutil
         shutil.rmtree(tmp, ignore_errors=True)

@@ -15,8 +15,12 @@ published VRM 1.0 specification and the add-on's published mapping tables (see
 
 ## Verification status — read this before quoting the doc
 
-Honest split, as of the wave (the runtime half waits for the pinned add-on archive to clear
-the 7-day supply-chain gate, 2026-11-18):
+Honest split. The runtime half ran live on 2026-11-17: the pinned add-on archive was
+downloaded by owner order one day before its 7-day supply-chain buffer opened
+(2026-11-18 08:35:20 UTC) — the owner explicitly waived the age gate for this component;
+the installer's own `DownloadChecked` sha256 gate still ran and passed. The deviation is
+recorded in the wave's ticket-61 proof box now; the ADR-0004 amendment 5 entry and the 0.7.10
+acceptance note carry it at closeout:
 
 | Claim | Status |
 | --- | --- |
@@ -25,8 +29,9 @@ the 7-day supply-chain gate, 2026-11-18):
 | the step maps the rig to the spec's Required-15 bones; a shoulder-less rig is not blocked | lane-tested (`scripts/blender/tests/test_vrm_package.py`) |
 | ARKit expression matching: direct keys and the published blends, unsupported presets named as gaps | lane-tested |
 | the remedy errors (no skeleton / missing Required bones / component not installed) name the next action | lane-tested |
-| producing a real `.vrm` end to end (export, re-import round trip) | **not yet verified** — the test exists (`test_vrm_export_round_trip`) and skips until the component installs |
-| expressions actually bound in the exported file; MToon; `VRMC_springBone` | **not attempted yet** — the run report says so (`expressions_bound: false`, `gaps.springs`) |
+| producing a real `.vrm` end to end (export via the addon, re-import round trip) | **verified live** — `test_vrm_export_round_trip` passes with the installed component (2026-11-17); the fixture rig had to carry the real humanoid parent chain because the addon's validator enforces bone hierarchy |
+| expressions actually bound in the exported file (presets land as `morphTargetBinds`, count pinned equal to the bytes) | **verified live** — `test_expressions_bound_in_the_exported_vrm` (2026-11-17) |
+| MToon; `VRMC_springBone` | **not attempted yet** — the run report says so (`gaps.springs`); a bare rig earns no invented spring parameters |
 | Unity/UniVRM, UE5/VRM4U, Godot/godot-vrm opening our files | **not verified by us** — that is the standard's promise, not our test result |
 
 ## Running it
@@ -59,7 +64,11 @@ runtime/blender/blender-5.2.4-linux-x64/blender -b --factory-startup \
 `vrm_package.json` (the `report` output) carries the stats, and the honesty rule is the
 contract: **a run never claims more than it did**. `stats.expressions_matched` lists what the
 face supports (a preset name → the direct shape key, or `arkit-blend` with the published
-weights); `stats.expressions_bound` is `false` while the binding half has not landed;
+weights); `stats.expressions_bound` is the count of presets the EXPORTED FILE actually carries
+as morph-target binds — pinned equal to the bytes by `test_expressions_bound_in_the_exported_vrm`
+(the addon's own automatic expression assignment is switched off before export, so the file is
+exactly this step's published-blend table and nothing more — found live 2026-11-17, with the
+default the exported presets out-listed the step's matched set);
 `stats.gaps.expressions` names every preset the character cannot support — nothing is silently
 dropped. `stats.extensions_used` and `stats.vrm_meta_name` are read back from the produced
 file's own JSON chunk (a reader with the same contract as the upload gate — parallel JS and

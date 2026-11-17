@@ -71,45 +71,39 @@ def _addon_dir():
 
 
 def _enable_addon(ext_dir, warnings):
-    """Enable the extension in THIS background Blender. Documented surface: the addon's own
-    scripting example enables it by module name 'io_scene_vrm' after an install; for a folder
-    the lane unpacked (never installed through the UI) we first register its parent as a
-    local extensions repository, sync, and try the module names a local repo yields - the
-    verdict is the extension's own operator appearing, so none of this trusts a guess."""
-    parent = os.path.dirname(os.path.abspath(ext_dir))
-    try:
-        prefs = bpy.context.preferences.extensions
-        repo = next((r for r in prefs.repos if str(getattr(r, "custom_directory", "")) == parent), None)
-        if repo is None:
-            repo = prefs.repos.new()
-            repo.name = "astraforge_vrm"
-            try:
-                repo.type = "LOCAL"
-            except TypeError:
-                pass  # some builds expose only the default LOCAL type
-            repo.enabled = True
+    """Enable the extension in THIS background Blender.
+
+    The extensions-repository route is fragile headless: the folder name must be a
+    valid Python module name (our component dir "vrm-addon" has a hyphen, Blender
+    skips it with "not a supported module name") and repo_sync_all refuses to run
+    without online access in a --factory-startup Blender. The extension itself is a
+    legacy-compatible add-on package (bl_info + register() in its root __init__.py,
+    verified in the unpacked 4.10.5), so we load it by path instead: expose it under
+    valid module name through a temporary symlink when needed, and enable it through
+    addon_utils (which imports from sys.path, registers, and creates the add-on
+    preferences entry the extension's exporter asserts on). The verdict is still the
+    extension's own export operator appearing, so none of this trusts a guess."""
+    import sys
+    import tempfile
+
+    ext_dir = os.path.abspath(ext_dir)
+    name = os.path.basename(ext_dir)
+    root = os.path.dirname(ext_dir)
+    if not name.isidentifier():
+        alias_root = tempfile.mkdtemp(prefix="astra-vrm-")
         try:
-            repo.custom_directory = parent
-        except AttributeError:
-            repo.directory = parent
-        bpy.ops.extensions.repo_sync_all()
-    except Exception as exc:  # noqa: BLE001 - the honest fallback, reported not hidden
-        warnings.append("local extensions repo sync failed (%s) - falling back to sys.path" % exc)
-        import sys
-        if parent not in sys.path:
-            sys.path.insert(0, parent)
+            os.symlink(ext_dir, os.path.join(alias_root, "vrm_addon"))
+        except OSError as exc:  # noqa: BLE001 - reported, not hidden
+            warnings.append("could not alias %s under a valid module name (%s)" % (ext_dir, exc))
+            return None
+        name, root = "vrm_addon", alias_root
+    if root not in sys.path:
+        sys.path.insert(0, root)
     import addon_utils
-    names = [m.bl_idname for m in addon_utils.modules()]
-    have_op = lambda: hasattr(bpy.ops.export_scene, "vrm")  # noqa: E731
-    for mod in ("io_scene_vrm", "bl_ext.astraforge_vrm.vrm"):
-        if mod in names:
-            try:
-                bpy.ops.preferences.addon_enable(module=mod)
-            except Exception:  # noqa: BLE001
-                continue
-            if have_op():
-                return mod
-    return None
+    if addon_utils.enable(name, default_set=True) is None:
+        warnings.append("addon_utils.enable(%s) from %s failed" % (name, ext_dir))
+        return None
+    return name if hasattr(bpy.ops.export_scene, "vrm") else None
 
 
 def _pick_rig(objs, warnings):
@@ -184,21 +178,63 @@ def _shape_keys(objs):
 
 
 def _apply_expressions(arm, objs, warnings, stats):
+    """Bind what the face supports into the addon's VRM 1.0 expression presets, so the addon
+    itself writes them into VRMC_vrm on export. Field semantics confirmed against the installed
+    4.10.5 surface live on 2026-11-17 (exporter/vrm1_exporter.create_expression_dict resolves a
+    bind's `index` as the SHAPE KEY NAME against the mesh object named by `node.mesh_object_name`,
+    `weight` in 0..1). Unsupported presets stay named gaps; bindings that cannot land are warned."""
     found, gaps = V.match_expressions(_shape_keys(objs))
     stats["expressions_matched"] = {k: (v.get("direct") or "arkit-blend") for k, v in found.items()}
     stats["gaps"] = {"expressions": gaps,
-                     # springs are NOT attempted by this half at all: an empty list here would
-                     # read as "checked, found none" - the same honesty as expressions_bound
-                     "springs": "not attempted yet - the VRMC_springBone half lands with the "
-                                "addon's runtime verification (ticket 62)"}
-    # BINDING the matched presets into the addon's vrm1 expression fields is the runtime half
-    # of ticket 62: the exact field surface is confirmed against the installed addon
-    # (test_vrm_package end to end) - until that runs, the report says plainly what was
-    # matched but NOT yet bound, so no run ever claims more than it did.
-    stats["expressions_bound"] = False
-    if found:
-        warnings.append("%d expression preset(s) matched but not bound yet - the binding lands "
-                        "with the addon's runtime verification (ticket 62)" % len(found))
+                     # springs are NOT attempted by this step at all: an empty list here would
+                     # read as "checked, found none" - a character with spring-carrying chains
+                     # (hair, cloth) is the honest trigger, kept as a named gap until then
+                     "springs": "not attempted yet - spring parameters need the character's "
+                                "own chains; nothing is invented for a bare rig"}
+    preset_group = getattr(getattr(getattr(getattr(arm.data, "vrm_addon_extension", None),
+                                           "vrm1", None), "expressions", None), "preset", None)
+    expressions = getattr(getattr(arm.data, "vrm_addon_extension", None), "vrm1", None)
+    expressions = getattr(expressions, "expressions", None) if expressions else None
+    if expressions is not None and hasattr(expressions, "initial_automatic_expression_assignment"):
+        # The addon can auto-assign expressions from its own heuristics at export; that would
+        # put presets in the FILE that our published-blend table calls gaps - the report must
+        # describe the bytes exactly, so the file contains OUR bindings and nothing else.
+        # (Found live 2026-11-17: with the default on, the exported presets out-listed the
+        # step's matched set - blinkLeft/ee/ou/surprised bound from keys our table does not
+        # wire. Flag confirmed on the installed 4.10.5: Vrm1ExpressionsPropertyGroup.)
+        expressions.initial_automatic_expression_assignment = False
+    owner = {}
+    for o in objs:
+        if o.type == "MESH" and o.data and o.data.shape_keys:
+            for kb in o.data.shape_keys.key_blocks[1:]:
+                owner.setdefault(kb.name, o)
+    bound, skipped = 0, []
+    if found and preset_group is None:
+        warnings.append("no vrm1.expressions.preset surface on this addon - matched presets "
+                        "were NOT bound")
+    for preset, spec in sorted(found.items()):
+        expr = getattr(preset_group, preset, None) if preset_group is not None else None
+        if expr is None:
+            skipped.append(preset)
+            continue
+        binds = {spec["direct"]: 1.0} if "direct" in spec else dict(spec["blend"])
+        expr.morph_target_binds.clear()
+        for key_name, weight in sorted(binds.items()):
+            obj = owner.get(key_name)
+            if obj is None:
+                continue
+            b = expr.morph_target_binds.add()  # the addon's own migration code uses .add()
+            b.node.mesh_object_name = obj.name
+            b.index = key_name
+            b.weight = float(weight)
+        if len(expr.morph_target_binds):
+            bound += 1
+        else:
+            skipped.append(preset)
+    stats["expressions_bound"] = bound
+    if skipped:
+        warnings.append("%d matched preset(s) not bound (no preset attribute on this addon build "
+                        "or no owning mesh): %s" % (len(skipped), sorted(skipped)))
 
 
 def run(req):
