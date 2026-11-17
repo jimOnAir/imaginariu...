@@ -3,6 +3,7 @@ import { openSync,closeSync,existsSync } from 'node:fs';
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { data, comfyDir, venvPython } from './storage.mjs';
+import { engineEnv } from './schema.mjs';
 import { stopOwnedPixal3d } from './pixal3d.mjs';
 let child=null;
 export async function startRuntime(){
@@ -16,7 +17,7 @@ export async function startRuntime(){
  await fs.writeFile(yaml,`astraforge:\n  base_path: ${JSON.stringify(path.join(data,'models').replaceAll('\\','/'))}\n  checkpoints: checkpoints\n  custom_nodes: ../runtime/custom_nodes\nexisting:\n  base_path: ${JSON.stringify(path.join(comfy,'models').replaceAll('\\','/'))}\n  checkpoints: checkpoints\n  diffusion_models: diffusion_models\n  vae: vae\n  clip: clip\n  clip_vision: clip_vision\n`);
  const args=[path.join(comfy,'main.py'),'--listen','127.0.0.1','--port','8190','--extra-model-paths-config',yaml,'--output-directory',path.join(folders,'output'),'--input-directory',path.join(folders,'input'),'--temp-directory',path.join(folders,'temp'),'--user-directory',path.join(folders,'user'),'--database-url','sqlite:///'+path.join(folders,'studio.db').replaceAll('\\','/'),'--disable-all-custom-nodes','--whitelist-custom-nodes','AstraForgeMesh','ComfyUI-MVAdapter','ComfyUI-GGUF','--lowvram','--reserve-vram','1'];
  const logFile=path.join(folders,'comfy.log'),logFd=openSync(logFile,'a');
- try{child=spawn(python,args,{cwd:comfy,windowsHide:true,detached:true,stdio:['ignore',logFd,logFd],env:{...process.env,PYTHONDONTWRITEBYTECODE:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'}});child.unref();}finally{closeSync(logFd);}
+ try{child=spawn(python,args,{cwd:comfy,windowsHide:true,detached:true,stdio:['ignore',logFd,logFd],env:await engineEnv({...process.env,PYTHONDONTWRITEBYTECODE:'1',HF_HUB_OFFLINE:'1',TRANSFORMERS_OFFLINE:'1'})});child.unref();}finally{closeSync(logFd);}
  await fs.writeFile(path.join(folders,'comfy.pid'),String(child.pid));
  child.on('error',e=>{void fs.appendFile(logFile,e.message+'\n').catch(()=>{});child=null;});child.on('exit',()=>{child=null;});
  return {running:true,pid:child.pid};

@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { existsSync, openSync, closeSync, promises as fs } from 'node:fs';
 import path from 'node:path';
 import { root, data, pathsConfig } from './storage.mjs';
-import { localUrl } from './schema.mjs';
+import { localUrl, engineEnv } from './schema.mjs';
 import { triposgConfig, triposgInstallState, autoShape } from './triposg.mjs';
 import { gpuInfo } from './gpu-info.mjs';
 import { freeRamMiB, ramFloor } from './ram-check.mjs';
@@ -172,7 +172,7 @@ export async function startPixal3dRuntime(o = {}) {
     await fs.mkdir(tempDir, { recursive: true });   // also creates runtimeDir
     const fd = openSync(logFile, 'a');
     try {
-      child = spawnFn(python, pixal3dArgs(cfg, tempDir, path.join(runtimeDir, 'pixal3d.db')), { cwd: cfg.dir, windowsHide: true, detached: true, stdio: ['ignore', fd, fd], env: pixal3dEnv(cfg) });
+      child = spawnFn(python, pixal3dArgs(cfg, tempDir, path.join(runtimeDir, 'pixal3d.db')), { cwd: cfg.dir, windowsHide: true, detached: true, stdio: ['ignore', fd, fd], env: await engineEnv(pixal3dEnv(cfg)) });
       child.unref?.();
     } finally { closeSync(fd); }
     const mine = child;
