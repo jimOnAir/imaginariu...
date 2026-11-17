@@ -1,6 +1,9 @@
 // Forge step registry and presets: shape, defaults within ranges, Russian titles, GPU flags.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   CREATURE_SIZE_RANGES, EXPORT_PROFILES, KINDS, applyProfileSize, blenderParams, creatureSizeWarning, defaultParams,
   creatureRigParams, getPreset, isGpuStep, listPresets, listSteps, normalizeParams, pathParams, normalizeSteps, stepNames, timeoutFor,
@@ -136,6 +139,17 @@ test('export profiles map to export steps', () => {
   assert.deepEqual(EXPORT_PROFILES.heroes_gates.params, { profile: 'heroes_gates', in_place: 'drift' }, 'travelling one-shots render in place');
   assert.throws(() => normalizeSteps([]), /non-empty/);
   assert.throws(() => normalizeSteps([{ params: {} }]), /name is not specified/);
+});
+
+// The MCP gate hardcodes the profile list (z.enum) — the wave that adds a registry profile must
+// add it there too, or agents cannot see it (ticket 63 found exactly this: vrm1 was missing).
+test('the MCP forge_export gate is the registry profiles', () => {
+  const mcp = readFileSync(path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'ai', 'mcp', 'server.mjs'), 'utf8');
+  const decl = mcp.match(/const PROFILES = \[([^\]]+)\]/);
+  assert.ok(decl, 'ai/mcp/server.mjs declares the PROFILES literal');
+  const listed = decl[1].split(',').map((s) => s.trim().replace(/^'|'$/g, '')).filter(Boolean);
+  assert.deepEqual(listed.sort(), Object.keys(EXPORT_PROFILES).sort(),
+    'the MCP export gate follows the server registry — a profile added here without there is invisible to agents');
 });
 
 test('empty values, path params and server-filled ids', () => {

@@ -652,7 +652,7 @@ tool('forge_learn_note',
     (engine) => engine.learn.addNote({ cls: a.class, kind: a.kind, text: a.text, steps: a.steps, by: a.by }),
   ));
 
-const PROFILES = ['godot', 'space_quest', 'heroes_gates', 'iso8', 'unity', 'unreal', 'bevy'];
+const PROFILES = ['godot', 'space_quest', 'heroes_gates', 'iso8', 'unity', 'unreal', 'bevy', 'vrm1'];
 /** Downloads the export archives of job jobId (or all latest ones) and unpacks them with the system tar. */
 async function fetchExports(assetId, jobId, out, unzip) {
   const m = await get(`/api/forge/assets/${enc(assetId)}`);
@@ -678,7 +678,7 @@ async function fetchExports(assetId, jobId, out, unzip) {
 }
 
 tool('forge_export',
-  'Экспорт ассета в профиль (POST /api/forge/assets/:id/export): godot / space_quest (пакет Godot: GLB + .tscn + скрипт + эффекты), heroes_gates (спрайты «Врат Героев», 8 направлений), iso8 (изометрические спрайты), unity (FBX + текстуры + af_unity.json; импортёр com.astraforge.unity собирает префаб; дальше unity_send), unreal (FBX + PASSPORT af_unreal.json; плагин unreal/AstraForge строит SM_/SK_, LOD, UCX-коллизии, сокеты и A_ blueprint; тест — на машине с Unreal Editor), bevy (GLB + паспорт af_bevy.json; пакет играет крейт astraforge_bevy — одна строка зависимости; при наличии Rust студия дополнительно прогоняет headless cargo-проверку и снимает превью-кадры). Берёт последнюю завершённую версию. Экспорт долгий (рендер): по умолчанию возвращает jobId. Если задан out — ждёт задачу (timeoutSec) и скачивает архив в папку out с распаковкой.',
+  'Экспорт ассета в профиль (POST /api/forge/assets/:id/export): godot / space_quest (пакет Godot: GLB + .tscn + скрипт + эффекты), heroes_gates (спрайты «Врат Героев», 8 направлений), iso8 (изометрические спрайты), unity (FBX + текстуры + af_unity.json; импортёр com.astraforge.unity собирает префаб; дальше unity_send), unreal (FBX + PASSPORT af_unreal.json; плагин unreal/AstraForge строит SM_/SK_, LOD, UCX-коллизии, сокеты и A_ blueprint; тест — на машине с Unreal Editor), bevy (GLB + паспорт af_bevy.json; пакет играет крейт astraforge_bevy — одна строка зависимости; при наличии Rust студия дополнительно прогоняет headless cargo-проверку и снимает превью-кадры), vrm1 (персонаж одним `.vrm` — VRM 1.0 через VRM-аддон (компонент студии); шаг `vrm_package`; что уже проверено, а что ждёт установки компонента — `docs/forge/vrm_package.md`). Берёт последнюю завершённую версию. Экспорт долгий (рендер): по умолчанию возвращает jobId. Если задан out — ждёт задачу (timeoutSec) и скачивает архив в папку out с распаковкой.',
   {
     assetId: ID, profile: z.enum(PROFILES),
     params: z.record(z.string(), z.any()).optional().describe('Параметры шага экспорта (godot_package или render_sprites), см. forge_steps.'),

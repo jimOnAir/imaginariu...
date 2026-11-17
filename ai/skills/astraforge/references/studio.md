@@ -115,11 +115,12 @@ jobs | job <jobId> [--wait] | cancel <jobId>
 | `kitbash` | гатлинги, сопла, трубы, антенны, огни на сокетах готовой модели | ship/prop |
 | `render_sprites` (export) | листы спрайтов по направлениям и клипам; профили `iso8`, `heroes_gates`, `custom`; GPU | все |
 | `godot_package` | GLB + `.tscn` + `af_fx_mount.gd` + `fx/*.tscn` + README + запись реестра; проверка настоящим Godot 4.5.1 | все |
+| `vrm_package` | персонаж одним `.vrm` (VRM 1.0 через VRM-аддон: кости по спеке, мета, выражения из поддерживаемого лицом); чего не хватает — честно в `report`; проверка экспорта ждёт установки компонента (`installer -Only vrmaddon`) | humanoid |
 
-Подробности — `docs/forge/<модуль>.md` (core, humanoid, mixamo, motion_style, cloth_sim, extract_props, paint_from_concept, creatures, items, bone_kit, ships, kitbash, replace_part, parts, export, necromancer).
+Подробности — `docs/forge/<модуль>.md` (core, humanoid, mixamo, motion_style, cloth_sim, extract_props, paint_from_concept, creatures, items, bone_kit, ships, kitbash, replace_part, parts, export, necromancer, bevy, unity, vrm_package).
 
 ### Готовые конвейеры (`presets`)
-`humanoid_from_mesh` (cleanup → rig_humanoid → retarget → godot_package), `humanoid_hg_sprites` (… → render_sprites `heroes_gates` → godot_package), `creature_auto`, `item_kit_sword`, `item_from_mesh`,
+`humanoid_from_mesh` (cleanup → rig_humanoid → retarget → godot_package), `humanoid_hg_sprites` (… → render_sprites `heroes_gates` → godot_package), `humanoid_face_checked`, `humanoid_vrm` (cleanup → rig_humanoid → retarget → vrm_package), `creature_auto`, `sculpt_refine`, `item_kit_sword`, `item_from_mesh`,
 `ship_procedural`, `ship_from_mesh`, `turret`. Расширенная цепочка бойца «Врат» (`forge-concepts.mjs`): cleanup → paint_from_concept → extract_props → rig_humanoid → retarget → attach_prop (extracted) →
 motion_style → cloth_sim → render_sprites → godot_package.
 

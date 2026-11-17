@@ -81,7 +81,7 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | | `forge_create` | паспорт из `fromGlb` / `fromJob` / `fromAsset` / `params`, опционально сразу `preset` или `steps` |
 | | `forge_run` | конвейер на ассете: `preset` или `steps`, `from` source / latest / v003 |
 | | `forge_job`, `forge_jobs`, `forge_job_cancel` | задача (с `wait`), последние задачи, отмена |
-| | `forge_export` | профиль godot / space_quest / heroes_gates / iso8 / unity / unreal; с `out` ждёт и скачивает архив |
+| | `forge_export` | профиль godot / space_quest / heroes_gates / iso8 / unity / unreal / bevy / vrm1; с `out` ждёт и скачивает архив |
 | | `forge_export_fetch` | скачать и распаковать готовые архивы экспорта |
 | | `forge_batch` | пакет по `items.json` |
 | | `forge_recipes` | рецепт и грабли класса ассета (Markdown или JSON) — читать перед заданием |

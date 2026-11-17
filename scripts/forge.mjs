@@ -27,9 +27,9 @@ Commands:
   assets                                   list of passports
   show <assetId>                           passport: versions, pipeline, exports
   create --kind <type> --name <name> [source] [--preset id | --steps file.json]
-         source: --from-glb <path> (GLB/FBX/OBJ) | --from-job <jobId> | --from-asset <id> | --params <json|file>
+         source: --from-glb <path> (GLB/FBX/OBJ/VRM) | --from-job <jobId> | --from-asset <id> | --params <json|file>
   run <assetId> (--steps file.json | --preset id) [--from source|latest|v003] [--class <c>] [--no-recipes]
-  export <assetId> --profile godot|space_quest|heroes_gates|iso8|unity [--params <json|file>] [--out <folder>]
+  export <assetId> --profile godot|space_quest|heroes_gates|iso8|unity|unreal|bevy|vrm1 [--params <json|file>] [--out <folder>]
          [--to-unity <Unity project> [--build]]   the unity profile: put the package into <project>/Assets/AstraForge/<id>/
   batch <file.json>                        batch: {"items":[{name, kind, source, preset|steps}]}
   clips [list] | clips import <folder> | clips remove <clipId>
