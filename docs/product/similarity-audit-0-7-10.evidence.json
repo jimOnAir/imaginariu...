@@ -1,0 +1,372 @@
+{
+ "k": 8,
+ "bands": {
+  "review": [
+   8,
+   39
+  ],
+  "rewrite": [
+   40,
+   null
+  ]
+ },
+ "baseRef": "ff410e3",
+ "corpus": {
+  "trees": [
+   "0.4.16",
+   "0.4.6",
+   "0.5.0",
+   "0.5.1",
+   "0.5.3",
+   "0.6.0",
+   "0.6.10",
+   "0.6.12",
+   "0.6.18",
+   "0.6.5",
+   "0.6.6",
+   "0.6.8",
+   "0.7.0",
+   "0.7.1",
+   "0.7.10",
+   "0.7.3",
+   "0.7.9"
+  ],
+  "totalCorpusFiles": 15735,
+  "uniqueStreams": 2054
+ },
+ "results": [
+  {
+   "file": "ai/mcp/README.md",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 9,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/ai/mcp/README.md",
+   "excerpt": "forge export godot space quest heroes gates iso8 unity"
+  },
+  {
+   "file": "ai/mcp/server.mjs",
+   "addedLines": 2,
+   "movedLinesExcluded": 0,
+   "maxRun": 28,
+   "band": "REVIEW",
+   "worstRef": "0.5.0/ai/mcp/server.mjs",
+   "excerpt": "post api forge assets id export godot space quest godot glb tscn heroes gates 8 iso8 unity fbx af unity json com astraforge unity unity send unreal fbx"
+  },
+  {
+   "file": "ai/skills/astraforge/SKILL.md",
+   "addedLines": 3,
+   "movedLinesExcluded": 0,
+   "maxRun": 36,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/ai/skills/astraforge/SKILL.md",
+   "excerpt": "godot id glb tscn fx space quest models json fit units min units glb games md 3 heroes gates data sprites json iso8 8 unity fbx af unity json com astraforge unity unity references unity md"
+  },
+  {
+   "file": "ai/skills/astraforge/references/studio.md",
+   "addedLines": 3,
+   "movedLinesExcluded": 0,
+   "maxRun": 26,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/ai/skills/astraforge/references/studio.md",
+   "excerpt": "docs forge md core humanoid mixamo motion style cloth sim extract props paint from concept creatures items bone kit ships kitbash replace part parts export necromancer"
+  },
+  {
+   "file": "docs/forge/vrm_package.md",
+   "addedLines": 92,
+   "movedLinesExcluded": 0,
+   "maxRun": 13,
+   "band": "REVIEW",
+   "worstRef": "0.7.10/scripts/blender/tests/test_vrm_package.py",
+   "excerpt": "blender b factory startup python scripts blender tests run tests py vrm package"
+  },
+  {
+   "file": "installer/af_scan.mjs",
+   "addedLines": 13,
+   "movedLinesExcluded": 0,
+   "maxRun": 8,
+   "band": "REVIEW",
+   "worstRef": "0.7.10/ai/skills/astraforge-anime/references/licenses.md",
+   "excerpt": "vrm add on for blender vrm 1 0"
+  },
+  {
+   "file": "installer/install.sh",
+   "addedLines": 26,
+   "movedLinesExcluded": 3,
+   "maxRun": 8,
+   "band": "REVIEW",
+   "worstRef": "0.7.10/THIRD_PARTY_NOTICES.md",
+   "excerpt": "vrm add on for blender 4 10 5"
+  },
+  {
+   "file": "installer/manifest.json",
+   "addedLines": 4,
+   "movedLinesExcluded": 0,
+   "maxRun": 29,
+   "band": "REVIEW",
+   "worstRef": "0.7.10/installer/manifest.json",
+   "excerpt": "url https github com saturday06 vrm addon for blender releases download v4 10 5 vrm addon for blender extension 4 10 5 zip size 1649936 sha256 5f0dd6a277f33961cc453ca401d36ae99272f6bcd06994e8c375d2b922b44bf1 license mit"
+  },
+  {
+   "file": "scripts/blender/af_common.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "scripts/blender/steps/_vrm_lib.py",
+   "addedLines": 200,
+   "movedLinesExcluded": 0,
+   "maxRun": 23,
+   "band": "REVIEW",
+   "worstRef": "0.7.10/scripts/blender/steps/_character_lib.py",
+   "excerpt": "mouthclose mouthfunnel mouthpucker mouthleft mouthright mouthsmileleft mouthsmileright mouthfrownleft mouthfrownright mouthdimpleleft mouthdimpleright mouthstretchleft mouthstretchright mouthrolllower mouthrollupper mouthshruglower mouthshrugupper mouthpressleft mouthpressright mouthlowerdownleft mouthlowerdownright mouthupperupleft mouthupperupright"
+  },
+  {
+   "file": "scripts/blender/steps/assemble_parts.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 11,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/assemble_parts.py",
+   "excerpt": "mesh blend the whole body base mesh glb gltf fbx obj"
+  },
+  {
+   "file": "scripts/blender/steps/attach_prop.py",
+   "addedLines": 22,
+   "movedLinesExcluded": 2,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "scripts/blender/steps/cleanup.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 10,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/cleanup.py",
+   "excerpt": "inputs mesh or inputs blend glb gltf fbx obj stl"
+  },
+  {
+   "file": "scripts/blender/steps/convert.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 10,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/cleanup.py",
+   "excerpt": "inputs mesh or inputs blend glb gltf fbx obj stl"
+  },
+  {
+   "file": "scripts/blender/steps/inspect.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 8,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/inspect.py",
+   "excerpt": "inputs mesh path glb gltf fbx obj stl"
+  },
+  {
+   "file": "scripts/blender/steps/orbit_render.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "scripts/blender/steps/paint_from_concept.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 11,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/paint_from_concept.py",
+   "excerpt": "blend or inputs blend opened by af run every object stays"
+  },
+  {
+   "file": "scripts/blender/steps/place_parts.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 9,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/place_parts.py",
+   "excerpt": "mesh blend the target glb gltf fbx obj stl"
+  },
+  {
+   "file": "scripts/blender/steps/replace_part.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 9,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/replace_part.py",
+   "excerpt": "mesh blend the body glb gltf fbx obj stl"
+  },
+  {
+   "file": "scripts/blender/steps/retarget.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "scripts/blender/steps/rig_creature.py",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 9,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/rig_creature.py",
+   "excerpt": "inputs mesh path to glb gltf fbx obj stl"
+  },
+  {
+   "file": "scripts/blender/steps/vrm_package.py",
+   "addedLines": 339,
+   "movedLinesExcluded": 0,
+   "maxRun": 15,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/blender/steps/_parts_lib.py",
+   "excerpt": "import af common as af from steps import mesh lib as ml from steps import"
+  },
+  {
+   "file": "scripts/blender/tests/test_attach_hints.py",
+   "addedLines": 71,
+   "movedLinesExcluded": 0,
+   "maxRun": 28,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/units/zombie_gen.py",
+   "excerpt": "arm data bpy context scene collection objects link arm bpy context view layer objects active arm bpy ops object mode set mode edit eb arm data edit bones"
+  },
+  {
+   "file": "scripts/blender/tests/test_vrm_package.py",
+   "addedLines": 347,
+   "movedLinesExcluded": 0,
+   "maxRun": 34,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/scripts/units/zombie_gen.py",
+   "excerpt": "arm bpy data objects new rig arm data bpy context scene collection objects link arm bpy context view layer objects active arm bpy ops object mode set mode edit eb arm data edit bones"
+  },
+  {
+   "file": "scripts/forge.mjs",
+   "addedLines": 2,
+   "movedLinesExcluded": 0,
+   "maxRun": 12,
+   "band": "REVIEW",
+   "worstRef": "0.6.10/scripts/forge.mjs",
+   "excerpt": "export assetid profile godot space quest heroes gates iso8 unity unreal bevy"
+  },
+  {
+   "file": "server/forge-pipeline.mjs",
+   "addedLines": 30,
+   "movedLinesExcluded": 28,
+   "maxRun": 17,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/server/forge-pipeline.mjs",
+   "excerpt": "export const file extensions glb gltf fbx blend png json tres tscn gd md zip txt log"
+  },
+  {
+   "file": "server/forge-steps.mjs",
+   "addedLines": 19,
+   "movedLinesExcluded": 11,
+   "maxRun": 11,
+   "band": "REVIEW",
+   "worstRef": "0.6.10/src/i18n/phrases-en.json",
+   "excerpt": "cleanup to 40 000 triangles and 1 8 m auto rig"
+  },
+  {
+   "file": "src/forge/StepWhat.jsx",
+   "addedLines": 2,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "src/forge/forge-core.js",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "src/i18n/en.js",
+   "addedLines": 4,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "src/i18n/ru.js",
+   "addedLines": 4,
+   "movedLinesExcluded": 0,
+   "maxRun": 0,
+   "band": "clean",
+   "worstRef": null,
+   "excerpt": null
+  },
+  {
+   "file": "tests/forge-learn.test.mjs",
+   "addedLines": 21,
+   "movedLinesExcluded": 6,
+   "maxRun": 14,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/tests/forge-learn.test.mjs",
+   "excerpt": "await engine learn recipes cls zombie groups find x x stepkey render sprites pixel"
+  },
+  {
+   "file": "tests/forge-pipeline.test.mjs",
+   "addedLines": 30,
+   "movedLinesExcluded": 10,
+   "maxRun": 11,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/tests/forge-pipeline.test.mjs",
+   "excerpt": "const a await engine createasset kind humanoid source type upload buffer"
+  },
+  {
+   "file": "tests/forge-routes.test.mjs",
+   "addedLines": 1,
+   "movedLinesExcluded": 0,
+   "maxRun": 17,
+   "band": "REVIEW",
+   "worstRef": "0.4.16/tests/forge-routes.test.mjs",
+   "excerpt": "19 bone kit replace part kitbash place parts motion style paint from concept extract props assemble parts"
+  },
+  {
+   "file": "tests/forge-steps.test.mjs",
+   "addedLines": 21,
+   "movedLinesExcluded": 2,
+   "maxRun": 14,
+   "band": "REVIEW",
+   "worstRef": "0.7.0/server/places.mjs",
+   "excerpt": "readfilesync from node fs import path from node path import fileurltopath from node url"
+  },
+  {
+   "file": "tests/forge-ui-core.test.mjs",
+   "addedLines": 5,
+   "movedLinesExcluded": 0,
+   "maxRun": 13,
+   "band": "REVIEW",
+   "worstRef": "0.5.0/tests/forge-ui-core.test.mjs",
+   "excerpt": "assert deepequal exportprofilesfor humanoid map p p id godot heroes gates iso8 unreal"
+  },
+  {
+   "file": "tests/install-scan.test.mjs",
+   "addedLines": 25,
+   "movedLinesExcluded": 5,
+   "maxRun": 23,
+   "band": "REVIEW",
+   "worstRef": "0.7.10/installer/manifest.json",
+   "excerpt": "url https github com saturday06 vrm addon for blender releases download v4 10 5 vrm addon for blender extension 4 10 5 zip"
+  }
+ ]
+}

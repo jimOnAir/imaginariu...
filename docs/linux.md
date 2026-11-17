@@ -4,10 +4,11 @@ AstraForge shipped as a Windows application; the `linux-support` branch has grow
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
 Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, since 0.6.6 the
 Windows 0.6.0 → 0.6.6 line as one release, since 0.7.1 the Windows 0.6.7 → 0.7.1 patches as a
-folded release, and since 0.7.9 the Windows 0.7.2 → 0.7.9 patches plus a measured performance
-wave as one more release (see the sections below and
+folded release, since 0.7.9 the Windows 0.7.2 → 0.7.9 patches plus a measured performance
+wave as one more release, and since 0.7.10 the Windows VRM line (upstream v0.7.10, the VRM
+release) as the newest (see the sections below and
 `docs/product/acceptance-0.5.0.md` / `acceptance-0.5.1.md` / `acceptance-0.6.6.md` /
-`acceptance-0.7.1.md` / `acceptance-0.7.9.md`). This page documents the
+`acceptance-0.7.1.md` / `acceptance-0.7.9.md` / `acceptance-0.7.10.md`). This page documents the
 Linux support and the exact boundaries of parity (see `GLOSSARY.md`, "Linux parity", and
 ADR-0001/0002). The Windows side stays untouched: every shared-code change is behind a
 `process.platform` check or lives in Linux-only files, and the Windows frontends
@@ -270,6 +271,45 @@ Per-ticket evidence: [acceptance-0.7.9](product/acceptance-0.7.9.md) (clusters N
   `AstraForge-0.7.9-linux.tar.gz` is the same author's output and is quarantined from all
   reading and audit contexts like every payload; this branch stays the MIT clean-room studio
   without the subscription line.
+
+## 0.7.10 — the VRM release, folded
+
+The fold re-derives upstream **v0.7.10 — the VRM release** as this branch's own anime-humanoid
+line (tickets 61–68): intent from the public notes (T1) through the spec channel, payload trees
+quarantined (the 0.7.10 tree joins the audit corpus — seventeen trees now). Per-ticket evidence:
+[acceptance-0.7.10](product/acceptance-0.7.10.md) (clusters P–Q).
+
+- **`vrmaddon` component** (61): the VRM Add-on for Blender 4.10.5 pinned by URL/size/sha256
+  (the release-asset digest observed through the GitHub releases API — the publisher ships no
+  digest file; the platform-served digest is byte-identical to the pin), installed to
+  `runtime/vrm-addon`, config key `vrm_addon`, the checklist row riding all three presets right
+  after `gltfpack`. **Supply-chain record**: the pin and tests landed before any download (the
+  t58 pattern), but the download ran 2026-11-17 **by owner order**, ~24 h before the 7-day age
+  buffer opened — the buffer waived by the owner, the installer's own `DownloadChecked` sha
+  gate still enforced (rc=0); disclosed as acceptance deviation 23, not smoothed over.
+- **`vrm_package` step** (62): a rigged character becomes ONE `.vrm` — the addon's own exporter
+  writes the VRM 1.0 container inside the step's background Blender. The bone table is
+  re-derived from the published spec (Required-15, shoulders optional — a shoulder-less rig
+  never blocks, regression-guarded); the 52 ARKit names and the per-preset blend weights come
+  from the add-on's published mapping tables (auditor byte-checked both directions); the run
+  report stays honest: named gaps, and `expressions_bound` pinned byte-equal to the exported
+  JSON — the addon's own automatic expression assignment is switched off before export, so the
+  file is exactly this step's table. The runtime half ran live and caught three real
+  integration defects no dry lane could see (recorded at their layers, ticket + ADR-0004).
+- **The `.vrm` route in** (63): the upload gate admits by signature AND declaration (glTF magic,
+  then `extensionsUsed` ∋ `VRMC_vrm` or `VRM` — a renamed `.glb` fails closed with `bad_vrm`,
+  whole-chunk read, truncation included); the "VRM 1.0 (anime)" export profile (humanoid-only,
+  en/ru) and the `humanoid_vrm` preset (cleanup 40k/1.8m → rig → retarget → vrm_package).
+  Real-file acceptance: UniVRM's own VRM-0.x test avatar enters through upload and runs the
+  chain, and her real 128-bone skeleton maps at **52 bones, zero Required missing**.
+- **Agent surfaces and a drift class killed** (68): VRM rows in SKILL.md/studio.md;
+  [`docs/forge/vrm_package.md`](forge/vrm_package.md) ships with a verification-status table
+  (tested / verified-live / not-attempted / not-ours-to-claim); the MCP `forge_export` profile
+  list drifted from the registry — fixed, and a guard test now pins MCP == registry
+  (mutation-tested), so the class dies, not just the instance.
+- **Springs do not ship — by ruling**: spring authoring needs the character's own chains (hair,
+  cloth); inventing constants for a bare rig is the magic the fold spec forbids. The report and
+  docs name it (`gaps.springs`; acceptance deviation 25).
 
 ## Quick start (Linux)
 

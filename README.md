@@ -6,12 +6,12 @@
 >
 > - **Free:** [AstraForge-Setup.exe](https://github.com/Snodrod/AstraForge/releases/latest) (0.4.6, *Quick* ≈ 30 GB or *Full* ≈ 95 GB). Personal, educational and other **noncommercial** use only, no updates — [PolyForm Noncommercial 1.0.0](LICENSE-0.4.2.md).
 > - **Subscription — $5/month or $49/year:** use AstraForge and everything you make with it **commercially**, and get every update on release day — [subscription license](COMMERCIAL-LICENSE.md). [Subscribe](https://snodrod.github.io/AstraForge/#subscribe).
-> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.9** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
-re-derived behavior of the shipped Windows 0.6.0 → 0.7.9 line — 0.6.6 folded the first seven
-releases into one, 0.7.1 the fourteen patches after it, this release folds the eight after that
-(0.7.2–0.7.9) together with a performance wave measured on Linux hardware; the release line was
-retargeted a fourth time before tagging (this fold is record #4 of the line's #1–#4, all
-disclosed in the acceptance reports); the parity artifacts that actually arrived are **`AstraForge-Setup-0.6.8.exe`** (md5 `8fc2d345501e1abea7637be1a73f3846`),
+> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.10** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
+re-derived behavior of the shipped Windows 0.6.0 → 0.7.10 line — 0.6.6 folded the first seven
+releases into one, 0.7.1 the fourteen patches after it, 0.7.9 the eight after that together with
+a performance wave measured on Linux hardware, and this release the VRM line after that; the
+release line was retargeted a fifth time before tagging (this fold is record #5 of the line's
+#1–#5, all disclosed in the acceptance reports); the parity artifacts that actually arrived are **`AstraForge-Setup-0.6.8.exe`** (md5 `8fc2d345501e1abea7637be1a73f3846`),
 **`AstraForge-Setup-0.6.10.exe`** (md5 `49a32878c1bb26918a508e4c0dc6f813`),
 **`AstraForge-Setup-0.6.12.exe`** (md5 `2a58c9d62e4de282bea244d26f00ae43`),
 **`AstraForge-Setup-0.6.18.exe`** (md5 `458223df82e2b291b089b38dd06e021f`),
@@ -19,11 +19,19 @@ disclosed in the acceptance reports); the parity artifacts that actually arrived
 **`AstraForge-Setup-0.7.1.exe`** (md5 `f074a5e56460c6c8262da576f4e5610c`), and — new in this
 lineage — the upstream **`AstraForge-0.7.9-linux.tar.gz`**: from v0.7.7 the author ships official
 Linux builds too; like every payload it stays quarantined on this branch, this fold's tree
-evidence being the extracted **0.7.3** and **0.7.9** payloads plus the branch's own probes. The
+evidence being the extracted **0.7.3**, **0.7.9** and **0.7.10** payloads plus the branch's own
+probes. The
 0.6.7, 0.6.9, 0.6.11 and 0.6.13–0.6.17 installers never arrived, and no 0.6.19+ artifact or
 notes file exists at all: their content is observable only folded into the trees above
 (recorded deviations).
-Highlights of the newest stretches: an **fp8 UNet tier for cards ≤16 GB, measured on both this
+Highlights of the newest stretch, the VRM release: **anime humanoid avatars as one `.vrm` file**
+— the VRM 1.0 export step, driven by the sha256-pinned VRM add-on inside the step's own Blender,
+with the bone table re-derived from the published spec (Required-15, shoulders optional), the
+ARKit-52 expression set wired from the publisher's own blend weights, and a run report whose
+expression count is **pinned byte-equal to the exported file** — verified live, including a real
+third-party avatar's 128-bone skeleton recognized at **52 bones, zero required missing**; the
+`.vrm` upload route admits a file by signature **and** declaration, so a renamed `.glb` fails
+closed. Highlights of the previous stretches: an **fp8 UNet tier for cards ≤16 GB, measured on both this
 machine's cards** — the 12 GB card refuses the fp16 shape before step 1 and runs fp8 at a 6.45 GB
 peak, the 16 GB card holds 5.87 GB on the widest shape, so the line's low-VRAM cures land here
 without an 8 GB card in the room; **af-mesh-rs** — the studio's own MIT decimator over vendored
@@ -55,8 +63,9 @@ paths** (their host is that closed core — this wave's af-mesh-rs, fp8 tier and
 the measured branch-own answer on the same classes), and **the 0.7.0 closed Rust core** — the host
 of the node editor and content studio, gated on Windows by an active subscription: the
 monetization line and unpublished native code are standing exclusions of this branch. See the
-[0.7.9 acceptance report](docs/product/acceptance-0.7.9.md) (and
-[0.7.1](docs/product/acceptance-0.7.1.md), [0.6.6](docs/product/acceptance-0.6.6.md),
+[0.7.10 acceptance report](docs/product/acceptance-0.7.10.md) (and
+[0.7.9](docs/product/acceptance-0.7.9.md), [0.7.1](docs/product/acceptance-0.7.1.md),
+[0.6.6](docs/product/acceptance-0.6.6.md),
 [0.5.1](docs/product/acceptance-0.5.1.md)) for what
 shipped, what is deliberately excluded and what is unverified here. The `v0.5.0` line (feature set of shipped Windows 0.4.16) was produced under the earlier ADR-0003 bar; the retroactive audit has now run and found that pre-existing body to be verbatim payload material rather than re-derived code — disclosed in full in the [similarity audit](docs/product/similarity-audit-0-5-1.md), with a module-by-module rewrite campaign open; until it lands, the MIT grant above covers the original code of this branch (everything added under ADR-0004, audit-gated per ticket), and the rest stays under the rights holder's terms. See also the [0.5.0 acceptance report](docs/product/acceptance-0.5.0.md). The `master` source stays the older 0.3.0; released Windows installers are distributed under the licenses above.
 
