@@ -999,6 +999,20 @@ const STEP_LIST = [
       validate: bool(true, 'Check in Bevy', 'Cargo without a window: the crate loads the package, plays the default clip, verifies the passport and captures preview frames. The first check pays the Bevy compile (minutes), after that the build cache makes it seconds. Without Rust the package exports the same, minus the check.'),
     },
   },
+  {
+    step: 'vrm_package', module: 'export', title: 'VRM 1.0 package',
+    help: 'The rigged (and shaped) character as one .vrm file - VRM 1.0, openable in Unity (UniVRM), UE5 (VRM4U) and Godot 4 (godot-vrm): the humanoid bones assigned from the rig, the meta fields, the expression presets the character can actually support (shape keys named like a preset, or a stock ARKit face through the published blendshape blends), MToon and spring bones by the VRM add-on. Needs the "VRM Add-on for Blender" component (the studio installer installs it with every preset). What the character cannot support is reported in the run, never invented.',
+    kinds: ['humanoid'], inputs: { slots: ['glb'], required: true, formats: ['glb'], manifest: true },
+    outputs: ['vrm', 'report'], export: true, timeoutSec: 15 * 60,
+    params: {
+      profile: oneOf(['vrm1'], 'vrm1', 'Profile', ''),
+      meta_name: str(null, 'Name', 'The VRM meta name; empty - the asset name from the passport.'),
+      meta_version: str('0.1.0', 'Version', 'The VRM meta version.'),
+      meta_author: str('AstraForge studio', 'Author', 'The VRM meta author string.'),
+      expressions: oneOf(['auto', 'off'], 'auto', 'Expressions', 'auto - wire the presets the shape keys support (blink, vowels, emotions); off - rig and materials only.'),
+      validate: bool(true, 'Verify the file', 'Re-read the .vrm as a glTF container (the VRMC extensions the file must carry) and re-import it in Blender - the rig must come back.'),
+    },
+  },
 ];
 
 const STEPS = new Map(STEP_LIST.map((s) => [s.step, s]));

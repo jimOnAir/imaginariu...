@@ -9,7 +9,7 @@ import {
 const PLANNED = ['inspect', 'cleanup', 'convert', 'separate', 'rig_humanoid', 'prepare_mixamo', 'import_mixamo_rig', 'retarget',
   'clip_library', 'rig_creature', 'anim_creature', 'item_kit', 'item_from_mesh', 'attach_prop', 'ship_gen', 'turret_gen',
   'ship_from_mesh', 'render_sprites', 'godot_package', 'bone_kit', 'replace_part', 'kitbash', 'place_parts', 'motion_style', 'cloth_sim',
-  'paint_from_concept', 'extract_props', 'assemble_parts', 'sculpt', 'face_match', 'face_fix_loop', 'unity_package', 'unreal_package', 'bevy_package'];
+  'paint_from_concept', 'extract_props', 'assemble_parts', 'sculpt', 'face_match', 'face_fix_loop', 'unity_package', 'unreal_package', 'bevy_package', 'vrm_package'];
 const cyrillic = /[Ѐ-ӿ]/;
 const TYPES = ['number', 'integer', 'boolean', 'string', 'array', 'object', 'any'];
 // params a step cannot run without and that have no sensible default (STEP_CHECKS require them)
