@@ -30,7 +30,7 @@ export const APP_ROOT = path.resolve(HERE, '..');
 export const MANDATORY = ['node', 'npm', 'blender'];
 // install order of the component ids (the -Only list of a checklist run, the Order of Setup.cs)
 export const ORDER = ['node', 'npm', 'blender', 'comfy', 'comfydeps', 'hy2', 'u2net', 'hymv', 'hy21', 'hy2mini', 'sdxl',
-  'mvadapter', 'godot', 'gltfpack', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'flux9b', 'qwenimg', 'qwenedit', 'qweneditlora',
+  'mvadapter', 'godot', 'gltfpack', 'vrmaddon', 'clips', 'vfx', 'ollama', 'llm', 'vlm', 'pixal3d', 'pixal3dw', 'triposg', 'triposgvae', 'triposgdino', 'flux2', 'flux9b', 'qwenimg', 'qwenedit', 'qweneditlora',
   'sound', 'soundmoss', 'soundace'];
 
 const G_P = 'Programs';
@@ -41,7 +41,7 @@ const G_SND = 'Sound and music';
 
 // The manifest pins the Windows archives; these are the Linux download sizes (the same numbers
 // install.sh used before the scan core existed).
-const SIZE = { node: 32000000, npm: 250000000, blender: 405779142, comfy: 6000000000, comfydeps: 1000000000, godot: 76685794, gltfpack: 1977681, ollama: 1578217944 };
+const SIZE = { node: 32000000, npm: 250000000, blender: 405779142, comfy: 6000000000, comfydeps: 1000000000, godot: 76685794, gltfpack: 1977681, vrmaddon: 1649936, ollama: 1578217944 };
 // Pixal3D: the engine download/disk estimates of installer/pixal3d/pixal3d.ps1 ($P3EngineDownload,
 // $P3EngineDisk); weights take the sizes of installer/pixal3d/manifest.json + 1.3 GB of slack (DINOv3 copy).
 const P3_ENGINE_DOWNLOAD = 5.5e9;
@@ -373,7 +373,7 @@ export function scanComponents(opts = {}) {
   const pyRel = process.platform === 'win32' ? path.join('.venv', 'Scripts', 'python.exe') : path.join('.venv', 'bin', 'python');
   const s = { root, rt, env, cfg, man, pyRel, gpu: '', vram: 0, cc: '', adapters: [], gpuBroken: '',
     node: '', nodeVer: '', npmDeps: false, ui: false, blender: '', blenderVer: '', comfy: '', comfyVer: '', comfyDeps: false, driver: '', driverMajor: null, driverOld: false,
-    gguf: false, godot: '', godotVer: '', gltfpack: '', gltfpackVer: '', clips: 0, library: '', vfxDir: '', vfxOk: false, ollama: '', llms: [], vlm: false };
+    gguf: false, godot: '', godotVer: '', gltfpack: '', gltfpackVer: '', vrmaddon: '', clips: 0, library: '', vfxDir: '', vfxOk: false, ollama: '', llms: [], vlm: false };
 
   // --- GPU: name/VRAM/compute capability from nvidia-smi; lspci only names the cards in the warning
   if (env.ASTRA_INSTALL_NO_GPU || opts.noGpu) {
@@ -442,6 +442,13 @@ export function scanComponents(opts = {}) {
   s.gltfpack = candidates('gltfpack', 'ASTRA_GLTFPACK', cfg, env,
     path.join(rt, 'gltfpack', 'gltfpack'), which('gltfpack')).find((g) => isExe(g)) || '';
   s.gltfpackVer = s.gltfpack ? String(man.programs.gltfpack.version || '') : '';
+  // vrmaddon (0.7.10 fold wave ticket 61): the VRM Add-on for Blender extension zip that the
+  // vrm_package step enables in its background Blender; the installer unpacks the pinned
+  // official release into runtime/vrm-addon - an extension folder is the one holding its
+  // blender_manifest.toml (the zip root is the folder named by the extension id, `vrm`)
+  const isExtDir = (d) => { try { return statSync(path.join(d, 'blender_manifest.toml')).isFile(); } catch { return false; } };
+  s.vrmaddon = candidates('vrm_addon', 'ASTRA_VRM_ADDON', cfg, env,
+    path.join(rt, 'vrm-addon', 'vrm'), path.join(rt, 'vrm-addon')).find((d) => isExtDir(d)) || '';
   for (const id of ['hy2', 'hymv', 'hy21', 'hy2mini', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
   s.flux2 = multiState(root, s.comfy, man, ['flux2', 'flux2te', 'flux2vae']);
@@ -506,6 +513,9 @@ export function scanItems(s) {
   add('gltfpack', G_P, s.gltfpack ? 'installed' : 'missing', s.gltfpack || '', 'v1.3', SIZE.gltfpack,
     'gltfpack (LOD levels and compact GLB)', man.programs.gltfpack.license, '', '',
     'the convert step writes LOD files and compact.glb with it (af-mesh-rs stays primary for LODs)');
+  add('vrmaddon', G_P, s.vrmaddon ? 'installed' : 'missing', s.vrmaddon || '', String(man.programs.vrmaddon.version || ''), SIZE.vrmaddon,
+    'VRM Add-on for Blender (VRM 1.0 character files)', man.programs.vrmaddon.license, 'blender', '',
+    'the vrm_package step enables it in its own Blender to export the character as one .vrm');
   add('clips', G_P, s.clips > 0 ? 'installed' : 'missing', s.clips > 0 ? `${s.clips} clips` : '', '', man.clips.size, 'Quaternius / ActionForge animations', man.clips.license, 'blender');
   add('vfx', G_P, s.vfxOk ? 'installed' : 'missing', s.vfxOk ? s.vfxDir : '', '', man.vfx.size, 'VFX texture generators', man.vfx.license);
   const cNeed = String(man.programs.comfy.version).replace(/^v/, '');

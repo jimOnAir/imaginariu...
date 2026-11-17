@@ -280,6 +280,29 @@ InstallGltfpack() {
   chmod +x "$RT/gltfpack/gltfpack"
   S_GLTFPACK="$RT/gltfpack/gltfpack"; CfgSet gltfpack "$S_GLTFPACK"
 }
+# vrmaddon (0.7.10 fold wave ticket 61): the saturday06 VRM Add-on for Blender 4.10.5 extension
+# zip - the official GitHub release, 1.6 MB, sha256-pinned from the manifest (the sha equals the
+# digest the GitHub platform serves for the asset, live-checked 2026-11-17; DownloadChecked
+# re-confirms on the first run after the 7-day supply-chain gate; the manifest _note records the
+# chain). The vrm_package step enables it in its own background Blender. The zip root is the
+# folder named by the extension id (`vrm`); we keep the
+# repo layout and point config key vrm_addon at the folder that holds blender_manifest.toml.
+InstallVrmAddon() {
+  local n leaf url size sha d
+  n="$(NodeBin)"
+  [ -n "$n" ] || { say '  node is needed to read the manifest for vrmaddon'; return 1; }
+  read -r leaf url size sha <<<"$("$n" -e 'const p=require(process.argv[1]).programs.vrmaddon;console.log(require("path").basename(p.url),p.url,p.size,p.sha256)' "$ROOT/installer/manifest.json")"
+  [ -n "$url" ] && [ -n "$sha" ] || { say '  the vrmaddon entry is missing from installer/manifest.json'; return 1; }
+  DownloadChecked "$url" "$DL/$leaf" "$size" "$sha" || return 1
+  rm -rf "$RT/vrm-addon"
+  mkdir -p "$RT/vrm-addon"
+  unzip -o -q "$DL/$leaf" -d "$RT/vrm-addon" || return 1
+  d="$RT/vrm-addon/vrm"
+  [ -f "$d/blender_manifest.toml" ] || d="$RT/vrm-addon"   # flat zip layout fallback
+  [ -f "$d/blender_manifest.toml" ] || { say '  the vrmaddon archive did not contain an extension (blender_manifest.toml not found)'; return 1; }
+  S_VRMADDON="$d"; CfgSet vrm_addon "$S_VRMADDON"
+  say "  VRM Add-on for Blender: $S_VRMADDON"
+}
 Uv() {
   if command -v uv >/dev/null; then
     UV_BIN="$(command -v uv)"
@@ -880,6 +903,7 @@ comp_what() { case "$1" in
   mvadapter) printf 'MV-Adapter: node, weights, Python packages' ;;
   godot) printf 'Godot 4.5.1' ;;
   gltfpack) printf 'gltfpack v1.3 (LOD levels and compact GLB for the convert step)' ;;
+  vrmaddon) printf 'VRM Add-on for Blender 4.10.5 (VRM 1.0 character files)' ;;
   clips) printf 'Quaternius / ActionForge animations (CC0)' ;;
   vfx) printf 'VFX texture generators' ;;
   ollama) printf 'Ollama' ;;
@@ -904,6 +928,7 @@ esac; }
 # the install order of component ids (the Order of Setup.cs; pixal3dtest/gguf are only reachable via -Only)
 ORDER_IDS='node npm blender comfy comfydeps hy2 u2net hymv hy21 hy2mini sdxl mvadapter godot clips vfx ollama llm vlm pixal3d pixal3dw triposg triposgvae triposgdino flux2 qwenimg sound soundmoss soundaceflux2 qwenimg qwenedit sound soundmoss soundace'
 ORDER_IDS=${ORDER_IDS/godot /godot gltfpack }   # gltfpack (ticket 56) installs right after godot
+ORDER_IDS=${ORDER_IDS/gltfpack /gltfpack vrmaddon }   # vrmaddon (ticket 61) rides every preset, right after gltfpack
 ORDER_IDS=${ORDER_IDS/flux2 qwenimg/flux2 flux9b qwenimg}   # flux9b (ticket 52) rides -Only, never a preset
 
 # ---------------------------------------------------------------- the "What to install" checklist (0.4.8)
@@ -1094,6 +1119,8 @@ PresetPlan() {   # the failed-check fallback: install the chosen preset as a who
   esac
   # gltfpack (ticket 56) rides every preset; the manifest already lists it, the mirrored lists above not
   case " $ids " in *" gltfpack "*) ;; *) ids="${ids/godot /godot gltfpack }" ;; esac
+  # vrmaddon (ticket 61) rides every preset too - same mirrored-list dance
+  case " $ids " in *" vrmaddon "*) ;; *) ids="${ids/gltfpack /gltfpack vrmaddon }" ;; esac
   # Windows 0.6.15 (ticket 37): the whole-preset plan obeys the same 8 GB rule as the checklist.
   if [ "$Profile" = full ] && Is8gbVram; then
     local kept=''
@@ -1225,6 +1252,7 @@ for e in "${plan[@]}"; do
     u2net) Download 'https://github.com/danielgatis/rembg/releases/download/v0.0.0/u2net.onnx' "$ROOT/data/models/background/models/u2net/u2net.onnx" || err=$? ;;
     godot) InstallGodot || err=$? ;;
     gltfpack) InstallGltfpack || err=$? ;;
+    vrmaddon) InstallVrmAddon || err=$? ;;
     clips)
       if [ -z "$S_BLENDER" ]; then say '  Blender is required - install it in the same run.'; err=1
       else CfgSet library "$S_LIBRARY"; InstallClips || err=$?; fi ;;
@@ -1276,6 +1304,7 @@ if [ -n "$S_COMFY" ] && [ -z "$(CfgGet comfyDir)" ]; then CfgSet comfyDir "$S_CO
 if [ -n "$S_BLENDER" ] && [ -z "$(CfgGet blender)" ]; then CfgSet blender "$S_BLENDER"; fi
 if [ -n "$S_GODOT" ] && [ -z "$(CfgGet godot)" ]; then CfgSet godot "$S_GODOT"; fi
 if [ -n "${S_GLTFPACK:-}" ] && [ -z "$(CfgGet gltfpack)" ]; then CfgSet gltfpack "$S_GLTFPACK"; fi
+if [ -n "${S_VRMADDON:-}" ] && [ -z "$(CfgGet vrm_addon)" ]; then CfgSet vrm_addon "$S_VRMADDON"; fi
 if [ -n "$S_NODE" ] && [ -z "$(CfgGet node)" ]; then CfgSet node "$S_NODE"; fi
 # ---------------------------------------------------------------- af-mesh-rs (0.7.9 performance wave ticket 46)
 # The studio's own GLB decimator (native/af_mesh_rs: Rust over vendored pinned meshoptimizer) is

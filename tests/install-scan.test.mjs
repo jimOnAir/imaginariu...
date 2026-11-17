@@ -123,6 +123,36 @@ test('the 2mini pin: the licence travels with it, hash and size are the publishe
   assert.ok(!man.profiles.lite.includes('hy2mini'), 'lite: no engine, no weights');
 });
 
+// Ticket 61 (0.7.10 fold wave): the VRM Add-on for Blender - the component behind the vrm_package
+// step. The sha is not the publisher's own digest file (there is none) but the digest the GitHub
+// platform serves for the release asset (releases API digest field, checked live 2026-11-17);
+// DownloadChecked re-confirms it on the first run after the 7-day supply-chain gate.
+test('the vrmaddon pin: the official Extension zip, licence travels with it, publisher facts live-HEAD checked', () => {
+  const man = JSON.parse(readFileSync(path.join(APP_ROOT, 'installer', 'manifest.json'), 'utf8'));
+  const p = man.programs.vrmaddon;
+  assert.ok(p, 'vrmaddon pinned in manifest.programs');
+  assert.equal(p.version, '4.10.5');
+  assert.match(p.url, /^https:\/\/github\.com\/saturday06\/VRM-Addon-for-Blender\/releases\/download\/v4\.10\.5\/VRM_Addon_for_Blender-Extension-4_10_5\.zip$/, 'the Extension zip of the v4.10.5 release - not the legacy plain zip');
+  assert.equal(p.size, 1649936, 'the GitHub asset size (live-HEAD 2026-11-17)');
+  assert.equal(p.sha256, '5f0dd6a277f33961cc453ca401d36ae99272f6bcd06994e8c375d2b922b44bf1', 'the expected content sha256 - DownloadChecked confirms it on the first post-gate run');
+  assert.match(p.sha256, /^[0-9a-f]{64}$/, 'sha256 pinned');
+  assert.match(p.license, /MIT.*GPL-3/, 'the dual licence (MIT or GPL-3.0-or-later) travels with the pin');
+  for (const prof of ['quick', 'full', 'lite']) {
+    const l = man.profiles[prof];
+    assert.ok(l.includes('vrmaddon'), `${prof}: the add-on rides the preset`);
+    assert.equal(l[l.indexOf('vrmaddon') - 1], 'gltfpack', `${prof}: inserted right after gltfpack`);
+  }
+});
+
+test('the vrmaddon row: a Blender extension - dependency, version and presets come from the pin', () => {
+  const r = row(scanItems(mkS()), 'vrmaddon');
+  assert.ok(r, 'the row exists');
+  assert.equal(r.status, 'missing', 'nothing installed in the synthetic state');
+  assert.equal(r.deps, 'blender', 'an extension is useless without its host app');
+  assert.equal(r.need, '4.10.5');
+  assert.equal(r.presets, 'qfl', 'rides every preset (0.7.10 note: the anime pack and every character profile need it)');
+});
+
 test('the klein 9B row: no preset, marked as a try, refuses on no-GPU; the 4B note tells the truth about installed files', () => {
   const r = row(scanItems(mkS()), 'flux9b');
   assert.ok(r, 'the row exists');
