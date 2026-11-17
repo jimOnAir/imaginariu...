@@ -11,11 +11,12 @@ import { prepareConcept, conceptPrepPythonCheck } from './preprocess.mjs';
 import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
 import {acceptOrSimplify,makeSalvageSimplify} from './mesh-salvage.mjs';
 import {acquireEngineGpu} from './gpu-handover.mjs';
-import {pickCard,engineCardFor,cardLockName} from './gpu-pool.mjs';
+import {pickCard,engineCardFor,cardLockName,enumerateGpus,sharesCard} from './gpu-pool.mjs';
+import {freeRamMiB,ramFloor} from './ram-check.mjs';
 import {pixal3dConfig,pixal3dStatus} from './pixal3d.mjs';
 import {generatePixal3d} from './pixal3d-run.mjs';
 import {triposgStatus,generateTripoSG} from './triposg.mjs';
-const jobs=new Map();const controllers=new Map();let active=null;let pumping=false;
+const jobs=new Map();const controllers=new Map();const pumping={on:false,wake:null};const running=new Map();// id -> {engine,card} of the GPU jobs currently running (0.7.11: up to MAX_GPU_JOBS on different cards)
 // Auto-review (ticket 08): index.mjs installs a listener; a completed shape job is its only caller.
 // The studio's own retry children carry autoreviewOf and must not open a second review.
 export const hooks={onCompleted:null};
@@ -59,7 +60,71 @@ export function getJob(id){return jobs.get(id);}
 export async function validateJobMesh(id){const j=jobs.get(id);if(!j?.asset||j.asset.extension!=='.glb')throw new Error('The job has no GLB to validate.');try{const info=await assetInfo(j.asset.id),file=path.join(data,'assets',info.id+info.extension);const validation=await validateGlbAsset(await fs.readFile(file),j,file);await update(j,{validation});return validation;}catch(e){await update(j,{status:'failed',message:e.message,validation:{accepted:false,reason:e.message}});return j.validation;}}
 export async function createJob(input,config){const j={id:randomUUID(),...input,status:'queued',progress:0,message:'Waiting in the queue',createdAt:new Date().toISOString()};jobs.set(j.id,j);await persist(j);void pump(config);return j;}
 export async function cancelJob(id,config){const j=jobs.get(id);if(!j)return;if(!['queued','running'].includes(j.status))return;controllers.get(id)?.abort();if(j.promptId&&j.engine!=='pixal3d'){const queue=await jsonFetch(config.comfyUrl+'/queue').catch(()=>null);if(queue?.queue_running?.some(item=>item[1]===j.promptId))await fetch(config.comfyUrl+'/interrupt',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).catch(()=>{});else await fetch(config.comfyUrl+'/queue',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({delete:[j.promptId]})}).catch(()=>{});}await update(j,{status:'cancelled',message:'Cancelled'});}
-async function pump(config){if(pumping)return;pumping=true;try{for(;;){const j=[...jobs.values()].find(x=>x.status==='queued');if(!j)break;active=j.id;const controller=new AbortController();controllers.set(j.id,controller);try{await run(j,config,controller.signal);}catch(e){if(j.status!=='cancelled')await update(j,{status:'failed',message:e.name==='AbortError'?'Generation aborted':e.message});}finally{controllers.delete(j.id);active=null;if(j.status==='completed'&&j.asset?.extension==='.glb'&&!j.autoreviewOf&&hooks.onCompleted)void Promise.resolve(hooks.onCompleted(j)).catch(()=>{});}}}finally{pumping=false;}}
+// The GPU queue (0.7.11): up to MAX_GPU_JOBS generations at a time, but only on DIFFERENT cards
+// - that is what a second card is for (two jobs on one card only fight over VRAM). The decision
+// is this pure function so the rule is testable without engines: never two jobs on one engine,
+// never two on one card, unknown facts (no pool, engine started outside the studio, a card that
+// cannot be resolved) fall back to the pre-pool serialization, and before the SECOND machine-wide
+// engine the same free-RAM floor the Pixal3D preflight uses must hold (the lesson of the machine
+// that OOM-died with two engines plus Blender: the box matters, not only the card).
+export const MAX_GPU_JOBS = 2;
+const ENGINE_NAMES = { hunyuan: 'the studio 3D engine', pixal3d: 'Pixal3D', triposg: 'TripoSG' };
+export function decideDispatch(engine, { running = [], cardFor = () => null, cards = null, freeRamMiB = null, ramNeedMib = 0, triposgPick = () => null } = {}) {
+  if (running.length >= MAX_GPU_JOBS) return { ok: false, why: `${MAX_GPU_JOBS} generations already run` };
+  if (!running.length) return { ok: true, card: engine === 'triposg' ? triposgPick([]) : cardFor(engine) };
+  if (!cards?.length) return { ok: false, why: 'no GPU card pool here - the queue keeps one generation at a time' };
+  const used = running.map((r) => (r.engine === 'triposg' ? r.card : cardFor(r.engine)));
+  if (used.some((c) => !c)) return { ok: false, why: 'a running generation sits on an unknown card - the queue keeps one generation at a time there' };
+  if (running.some((r) => r.engine === engine)) return { ok: false, why: `${ENGINE_NAMES[engine] || engine} is busy with the other generation` };
+  const mine = engine === 'triposg' ? triposgPick(used) : cardFor(engine);
+  if (!mine) return { ok: false, why: `${ENGINE_NAMES[engine] || engine} is not on a known GPU card - one generation at a time until its engine runs on a card of the pool` };
+  if (used.some((c) => sharesCard(c, mine))) return { ok: false, why: `every GPU card that could take ${ENGINE_NAMES[engine] || engine} is already generating` };
+  if (ramNeedMib > 0 && freeRamMiB !== null && freeRamMiB < ramNeedMib) return { ok: false, why: `only ${freeRamMiB} MiB of free memory - a second engine would take the machine down; the generation waits for the first to finish` };
+  return { ok: true, card: mine };
+}
+const engineOf = (j) => (j.engine === 'pixal3d' ? 'pixal3d' : j.engine === 'triposg' ? 'triposg' : 'hunyuan');
+async function dispatchCardFor(engine, runningEntries, cards) {
+  const claim = (e) => (e === 'triposg' ? undefined : engineCardFor(e));
+  if (engine !== 'triposg') return claim(engine);
+  const claimed = [...runningEntries.map((r) => (r.engine === 'triposg' ? r.card : claim(r.engine))), engineCardFor('hunyuan'), engineCardFor('pixal3d')].filter(Boolean);
+  return pickCard({ engine: 'triposg', claimed }) || pickCard({ engine: 'triposg', claimed, free: false });
+}
+function wakePump() { const w = pumping.wake; pumping.wake = null; if (w) w(); }
+async function pump(config) {
+  if (pumping.on) return; pumping.on = true;
+  try {
+    for (;;) {
+      const queued = [...jobs.values()].filter((x) => x.status === 'queued').sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+      if (!queued.length) break;
+      let started = 0;
+      for (const j of queued) {
+        if (running.size >= MAX_GPU_JOBS) break;
+        const engine = engineOf(j);
+        let d;
+        try {
+          d = decideDispatch(engine, { running: [...running.values()], cardFor: engineCardFor, cards: enumerateGpus(), freeRamMiB: await freeRamMiB(), ramNeedMib: ramFloor(engine), triposgPick: (claimed) => dispatchCardFor('triposg', running.size ? [...running.values()] : [], null) });
+        } catch { d = { ok: true, card: null }; } // a broken decision must never eat a job - start it and let the lock serialize
+        if (!d.ok) { const m = 'Waiting for the GPU: ' + d.why; if (j.status === 'queued' && j.message !== m) await update(j, { message: m }); continue; }
+        launch(j, config, engine, d.card ?? null); started += 1;
+      }
+      if (started) { while (running.size >= MAX_GPU_JOBS && running.size) await new Promise((r) => { pumping.wake = r; }); continue; }
+      await new Promise((r) => { pumping.wake = r; setTimeout(() => { if (pumping.wake === r) { pumping.wake = null; r(); } }, 30000); }); // event or 30 s safety re-check (RAM and pool facts move)
+    }
+  } finally { pumping.on = false; }
+}
+function launch(j, config, engine, card) {
+  running.set(j.id, { engine, card });
+  const controller = new AbortController(); controllers.set(j.id, controller);
+  void (async () => {
+    try { await run(j, config, controller.signal, { engine, card }); }
+    catch (e) { if (j.status !== 'cancelled') await update(j, { status: 'failed', message: e.name === 'AbortError' ? 'Generation aborted' : e.message }); }
+    finally {
+      controllers.delete(j.id); running.delete(j.id); wakePump();
+      if (j.status === 'completed' && j.asset?.extension === '.glb' && !j.autoreviewOf && hooks.onCompleted) void Promise.resolve(hooks.onCompleted(j)).catch(() => {});
+      void pump(config);
+    }
+  })();
+}
 async function jsonFetch(url,options={}){const res=await fetch(url,{...options,signal:options.signal||AbortSignal.timeout(10000)});let v;try{v=await res.json();}catch{throw new Error('The ComfyUI server returned an invalid response.');}if(!res.ok)throw new Error(v.error?.message||JSON.stringify(v.node_errors||v.error||v).slice(0,700));return v;}
 async function waitPrompt(j,config,workflow,signal,stage){
  let nodeClass='';const clientId=randomUUID();const socket=new WebSocket(config.comfyUrl.replace('http:','ws:')+'/ws?clientId='+clientId);
@@ -144,7 +209,7 @@ async function runPixal3d(j,config,signal){
 }
 // TripoSG (docs/product/triposg.md): the third shape engine - one concept in, GLB out, through a
 // one-shot venv worker instead of a service (ADR-0004 ticket 01). Same job record as its siblings.
-async function runTripoSG(j,config,signal){
+async function runTripoSG(j,config,signal,dispatch={}){
  await update(j,{status:'running',message:'Checking the TripoSG engine',progress:0});
  const state=triposgStatus();
  if(!state.installed)throw new Error(state.message);
@@ -165,7 +230,7 @@ async function runTripoSG(j,config,signal){
  // that is not true any more. The one-shot worker gets its card from the pool (the other
  // engines' claims are never offered) and holds that card's lock for the whole run.
  const claimed=[engineCardFor('hunyuan'),engineCardFor('pixal3d')].filter(Boolean);
- const card=pickCard({engine:'triposg',claimed})||pickCard({engine:'triposg',claimed,free:false});
+ const card='card' in dispatch?dispatch.card:(pickCard({engine:'triposg',claimed})||pickCard({engine:'triposg',claimed,free:false}));
  const gpu=await acquireEngineGpu('triposg',{signal,failOpen:true,timeoutMs:60*60*1000,name:cardLockName(card)||undefined,card,onWait:m=>void update(j,{message:m}).catch(()=>{}),onStep:m=>void update(j,{message:m}).catch(()=>{})});
  let result;
  try{result=await generateTripoSG({image:path.join(data,'assets',info.id+info.extension),level:j.meshLevel??0,seed:j.seed,signal,card,
@@ -190,9 +255,9 @@ export function pickShapeCheckpoint(shapeModel,{names=[],fallback,vramMib}={}){
  return fallback;
 }
 
-async function run(j,config,signal){
+async function run(j,config,signal,dispatch={}){
  if(j.engine==='pixal3d')return runPixal3d(j,config,signal);
- if(j.engine==='triposg')return runTripoSG(j,config,signal);
+ if(j.engine==='triposg')return runTripoSG(j,config,signal,dispatch);
  await update(j,{status:'running',message:'Checking the 3D engine',progress:0});
  let nodes;try{nodes=await jsonFetch(config.comfyUrl+'/object_info',{signal});}catch{throw new Error('The local 3D engine is not running. Open the connections and click "Start 3D engine".');}
  const names=nodes.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[],checkpoint=j.viewSetId?MV_CHECKPOINT:pickShapeCheckpoint(j.shapeModel,{names,fallback:config.shapeCheckpoint,vramMib:currentVramMib({refresh:true})});
