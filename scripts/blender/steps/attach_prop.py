@@ -82,6 +82,28 @@ from steps import _items_lib as L
 
 # --------------------------------------------------------------------------- loading
 
+def pick_hands_armature(objs, path):
+    # 0.7.10 fold wave ticket 64 (the t60 retarget-remedy family): "item in hand" on a
+    # skeletonless model names the next click, and a model that has an armature WITHOUT hands
+    # is never sent to run the rig step again - the message says which rig lacks what.
+    arms = [a for a in af.armatures(objs) if L.find_bone(a, "mixamorig:RightHand") or L.find_bone(a, "mixamorig:LeftHand")]
+    if not arms:
+        have = [a.name for a in af.armatures(objs)]
+        if have:
+            raise ValueError("no hand bones (RightHand/LeftHand) on %s: holding an item needs a humanoid skeleton - rig this character with rig_humanoid, or bind it to a humanoid armature, then hold the item"
+                             % ", ".join("armature '%s'" % n for n in have))
+        raise ValueError("this model has no skeleton yet - run rig_humanoid first (or attach an armature), then hold the item (no armature in %s)" % path)
+    return arms[0]
+
+
+def grip_hint(item_path):
+    # ticket 64: a bare socket name is a dead end; bone_kit is the step that creates this very
+    # socket (its sockets pass builds socket_grip_main on the shaft centre line).
+    return ("item %s has no socket_grip_main - the hand does not know where to hold it: "
+            "run bone_kit on the item first (it adds the grip sockets), or parent an empty named "
+            "socket_grip_main to it" % item_path)
+
+
 def load_character(path):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".blend":
@@ -90,10 +112,7 @@ def load_character(path):
     else:
         af.reset_scene()
         objs = af.import_any(path)
-    arms = [a for a in af.armatures(objs) if L.find_bone(a, "mixamorig:RightHand") or L.find_bone(a, "mixamorig:LeftHand")]
-    if not arms:
-        raise ValueError("no armature with mixamorig hand bones in %s" % path)
-    arm = arms[0]
+    arm = pick_hands_armature(objs, path)
     bodies = L.skinned_meshes(arm)
     if not bodies:
         raise ValueError("no skinned mesh bound to %s" % arm.name)
@@ -482,7 +501,7 @@ def run(req):
         grip = it["sockets"].get("socket_grip_main")
         checks.append(af.check("att%d_socket_grip_main" % i, grip is not None, sorted(it["sockets"])))
         if grip is None:
-            raise ValueError("item %s has no socket_grip_main" % a["item"])
+            raise ValueError(grip_hint(a["item"]))
         sc = a.get("item_scale", prm.get("item_scale", 1.0))
         if sc == "auto":
             sc = height / 1.8 if abs(height / 1.8 - 1) > 0.2 else 1.0
