@@ -220,6 +220,33 @@ test('recipes: the accepted params win, the rejected ones become pitfalls with t
   assert.equal(after2.best, null, 'the latest verdict of a version wins');
 });
 
+// Ticket 67 (0.7.10 fold wave): "settings from a single editing session no longer end up in
+// shared recipes". The branch journal has always required an explicit accepted verdict for a
+// params signature to win (winners = accepted > 0 && score > 0), and there is no shared layer at
+// all (learn-community is EXCLUDED.md). The guarantee is structural, so it is cheap to pin as a
+// regression test - three blind sessions of the SAME params must still produce no recipe.
+test('a recipe needs an accepted verdict: blind single-session runs never become one (ticket 67)', async () => {
+  const { engine } = await makeEngine();
+  const ids = [];
+  for (const i of [0, 1, 2]) {
+    const a = await zombie(engine, `zciv_blind_${i}`);
+    await runSprites(engine, a.id, PASS_GOOD);
+    ids.push(a.id);
+  }
+  const find = async () => (await engine.learn.recipes({ cls: 'zombie' })).groups.find((x) => x.stepKey === 'render_sprites@pixel');
+  const g = await find();
+  assert.ok(g, 'the group counts the runs');
+  assert.equal(g.runs, 3);
+  assert.equal(g.best, null, 'runs without a verdict never win - a session cannot mint a recipe');
+  assert.equal(g.pitfalls.length, 0, 'blind runs are not pitfalls either - nothing was said about them');
+  // the moment one is explicitly accepted, that very params becomes the recipe: the gate is the
+  // verdict, not the count of sessions
+  await engine.addFeedback({ assetId: ids[2], verdict: 'accepted', rating: 5 });
+  const g2 = await find();
+  assert.ok(g2.best, 'one explicit accepted verdict is the whole gate');
+  assert.deepEqual(g2.best.params, recipeParams('render_sprites', PASS_GOOD));
+});
+
 test('the next run of the class starts from the recipe; explicit params win; recipes:false turns it off', async () => {
   const { engine, calls } = await makeEngine();
   const old = await zombie(engine, 'zciv_old');
