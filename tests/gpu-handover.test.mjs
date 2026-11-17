@@ -3,6 +3,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { handoverTo, acquireEngineGpu, withEngineGpu, freeIfIdle, engineQueue, engineUrls } from '../server/gpu-handover.mjs';
+import { claimEngineCard, resetGpuPool } from '../server/gpu-pool.mjs';
 
 const H = 'http://127.0.0.1:8190', P = 'http://127.0.0.1:8191';
 const urls = { hunyuan: H, pixal3d: P };
@@ -56,6 +57,34 @@ test('hand-over: an engine that is not running (or is not a ComfyUI) is skipped 
   const r2 = await handoverTo('pixal3d', { urls, fetchFn: stranger.fetchFn, sleep: noSleep });
   assert.deepEqual(r2.freed, [], 'something that does not answer like /queue of ComfyUI is left alone');
   assert.equal(stranger.log.some((r) => r.path === '/free'), false);
+});
+
+test('hand-over: engines the pool put on DIFFERENT cards never hand over to each other (0.7.11)', async () => {
+  const cardA = { index: 0, uuid: 'GPU-A', memoryTotalMiB: 12227, freeMiB: 9000 };
+  const cardB = { index: 1, uuid: 'GPU-B', memoryTotalMiB: 16311, freeMiB: 15000 };
+  resetGpuPool();
+  try {
+    claimEngineCard('hunyuan', cardA); claimEngineCard('pixal3d', cardB);
+    const c = fakeComfy({ [H]: { up: true }, [P]: { up: true } });
+    const report = await handoverTo('pixal3d', { urls, fetchFn: c.fetchFn, sleep: noSleep });
+    assert.deepEqual(report.freed, [], 'Hunyuan is on another card: no drain, no /free');
+    assert.deepEqual(report.crossCard, ['hunyuan'], 'the skip is visible in the report');
+    assert.equal(c.log.length, 0, 'not even a queue probe crosses cards');
+    // same card again (the pool fell back to one big card) and the full hand-over is back
+    claimEngineCard('hunyuan', cardB);
+    const c2 = fakeComfy({ [H]: { up: true }, [P]: { up: true } });
+    const same = await handoverTo('pixal3d', { urls, fetchFn: c2.fetchFn, sleep: noSleep });
+    assert.deepEqual(same.freed, ['hunyuan']);
+    // an explicit card option wins over the registry (a job that chose a one-shot worker card)
+    const c3 = fakeComfy({ [H]: { up: true }, [P]: { up: true } });
+    claimEngineCard('hunyuan', cardA); claimEngineCard('pixal3d', null);
+    const oneShot = await handoverTo('triposg', { urls, card: cardB, fetchFn: c3.fetchFn, sleep: noSleep });
+    assert.deepEqual(oneShot.freed, ['pixal3d'], 'card A vs worker card B: Hunyuan skipped; an UNKNOWN pixal3d card keeps the safe unload');
+    assert.deepEqual(oneShot.crossCard, ['hunyuan']);
+    const c4 = fakeComfy({ [H]: { up: true }, [P]: { up: true } });
+    const collide = await handoverTo('triposg', { urls, card: cardA, fetchFn: c4.fetchFn, sleep: noSleep });
+    assert.deepEqual(collide.freed, ['hunyuan', 'pixal3d'], 'no claims and no card match -> both unload as before');
+  } finally { resetGpuPool(); }
 });
 
 test('hand-over: a busy engine is waited for, never interrupted, and only freed once its queue is empty', async () => {

@@ -151,6 +151,18 @@ test('generateTripoSG: argv, progress mapping, result bytes', async () => {
   rmSync(outArg, { force: true });
 });
 
+test('generateTripoSG: a card from the GPU pool pins CUDA_VISIBLE_DEVICES into the worker env, none touches it', async () => {
+  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const lines = ['TRIPOSG_RESULT {"out":"p"}'];
+  let seenEnv = null;
+  const spawnCard = (exe, argv, opts) => { seenEnv = opts.env; writeFileSync(argv[argv.indexOf('--out') + 1], 'GLB'); return fakeChild({ lines, exitCode: 0 }); };
+  await generateTripoSG({ cfg, image: '/tmp/c.png', card: { index: 1, uuid: 'GPU-B' }, spawnFn: spawnCard, onProgress: () => {} });
+  assert.equal(seenEnv.CUDA_VISIBLE_DEVICES, '1', 'the worker sees only its card');
+  assert.equal(seenEnv.HF_HUB_OFFLINE, '1', 'the worker environment survives the pin');
+  await generateTripoSG({ cfg, image: '/tmp/c.png', spawnFn: spawnCard, onProgress: () => {} });
+  assert.equal(seenEnv.CUDA_VISIBLE_DEVICES, process.env.CUDA_VISIBLE_DEVICES, 'no pool -> the inherited value passes through untouched (the pre-pool behaviour)');
+});
+
 test('generateTripoSG: progress callbacks fire in order; TRIPOSG_ERROR becomes the job message', async () => {
   const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   const got = [];

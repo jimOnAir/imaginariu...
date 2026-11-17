@@ -11,6 +11,7 @@ import { prepareConcept, conceptPrepPythonCheck } from './preprocess.mjs';
 import {validateGeneratedMesh,maxMeshBytes} from './mesh-validation.mjs';
 import {acceptOrSimplify,makeSalvageSimplify} from './mesh-salvage.mjs';
 import {acquireEngineGpu} from './gpu-handover.mjs';
+import {pickCard,engineCardFor,cardLockName} from './gpu-pool.mjs';
 import {pixal3dConfig,pixal3dStatus} from './pixal3d.mjs';
 import {generatePixal3d} from './pixal3d-run.mjs';
 import {triposgStatus,generateTripoSG} from './triposg.mjs';
@@ -64,7 +65,7 @@ async function waitPrompt(j,config,workflow,signal,stage){
  let nodeClass='';const clientId=randomUUID();const socket=new WebSocket(config.comfyUrl.replace('http:','ws:')+'/ws?clientId='+clientId);
  socket.on('error',()=>{});
  socket.on('message',raw=>{try{const v=JSON.parse(raw);if(j.status!=='running'||(v.data?.prompt_id&&j.promptId&&v.data.prompt_id!==j.promptId))return;if(v.type==='progress'){const ratio=v.data.value/v.data.max,meshPhase=['VAEDecodeHunyuan3D','VoxelToMesh','AstraMarchingCubes','SaveGLB'].includes(nodeClass);void update(j,{progress:meshPhase?Math.min(98,Math.round(88+ratio*10)):Math.min(87,Math.round(ratio*87)),message:(meshPhase?'Extracting the mesh':stage)+' · '+v.data.value+'/'+v.data.max}).catch(()=>{});}if(v.type==='executing'&&v.data.node){const node=workflow[v.data.node]?.class_type;nodeClass=node;const phases={VAEDecodeHunyuan3D:[88,'Extracting the volume from the latent'],VoxelToMesh:[94,'Building the polygon mesh'],AstraMarchingCubes:[94,'Extracting the surface · Marching Cubes'],SaveGLB:[97,'Saving GLB']};if(phases[node])void update(j,{progress:phases[node][0],message:phases[node][1]}).catch(()=>{});}}catch{}});
- const gpu=await acquireEngineGpu('hunyuan',{signal,failOpen:true,timeoutMs:60*60*1000,urls:{hunyuan:config.comfyUrl},onWait:()=>void update(j,{message:'Waiting for the GPU to become free (GPU lock)'}).catch(()=>{}),onStep:text=>void update(j,{message:text}).catch(()=>{})}).catch(e=>{socket.close();throw e;});
+ const gpu=await acquireEngineGpu('hunyuan',{signal,failOpen:true,timeoutMs:60*60*1000,name:cardLockName(engineCardFor('hunyuan'))||undefined,urls:{hunyuan:config.comfyUrl},onWait:()=>void update(j,{message:'Waiting for the GPU to become free (GPU lock)'}).catch(()=>{}),onStep:text=>void update(j,{message:text}).catch(()=>{})}).catch(e=>{socket.close();throw e;});
  const deadline=Date.now()+60*60*1000;
  if(gpu.handover?.freed?.length||gpu.handover?.waited)void update(j,{handover:gpu.handover}).catch(()=>{});
  try{
@@ -160,9 +161,17 @@ async function runTripoSG(j,config,signal){
  const prepared=await prepareConcept(image,j.id,signal,j.backgroundMode||'auto');
  await update(j,{preparedConcept:prepared});
  const info=await assetInfo(prepared.reference.id);
- const result=await generateTripoSG({image:path.join(data,'assets',info.id+info.extension),level:j.meshLevel??0,seed:j.seed,signal,
+ // 0.7.11: TripoSG used to rely on the job pump alone for serialization - with parallel dispatch
+ // that is not true any more. The one-shot worker gets its card from the pool (the other
+ // engines' claims are never offered) and holds that card's lock for the whole run.
+ const claimed=[engineCardFor('hunyuan'),engineCardFor('pixal3d')].filter(Boolean);
+ const card=pickCard({engine:'triposg',claimed})||pickCard({engine:'triposg',claimed,free:false});
+ const gpu=await acquireEngineGpu('triposg',{signal,failOpen:true,timeoutMs:60*60*1000,name:cardLockName(card)||undefined,card,onWait:m=>void update(j,{message:m}).catch(()=>{}),onStep:m=>void update(j,{message:m}).catch(()=>{})});
+ let result;
+ try{result=await generateTripoSG({image:path.join(data,'assets',info.id+info.extension),level:j.meshLevel??0,seed:j.seed,signal,card,
   onProgress:({percent,message})=>{if(j.status==='running')void update(j,{progress:percent,message}).catch(()=>{});},
-  onWait:message=>{if(j.status==='running')void update(j,{message}).catch(()=>{});}});
+  onWait:message=>{if(j.status==='running')void update(j,{message}).catch(()=>{});}});}
+ finally{await gpu.release();}
  signal.throwIfAborted();
  const asset=await saveAsset(result.buffer,'.glb',('TripoSG · '+(j.prompt||'from image')).slice(0,50));
  const validation=await validateGlbAsset(result.buffer,j,path.join(data,'assets',asset.id+asset.extension));

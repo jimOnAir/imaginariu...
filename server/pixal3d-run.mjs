@@ -11,6 +11,7 @@ import path from 'node:path';
 import { pixal3dWorkflow } from './schema.mjs';
 import { pixal3dConfig, startPixal3dRuntime } from './pixal3d.mjs';
 import { acquireEngineGpu, freeIfIdle, engineQueue } from './gpu-handover.mjs';
+import { cardLockName, engineCardFor } from './gpu-pool.mjs';
 import { validateGeneratedMesh, maxMeshBytes } from './mesh-validation.mjs';
 import { normalizeGlb } from './glb-normalize.mjs';
 import { gpuInfo, oldDriverText } from './gpu-info.mjs';
@@ -177,7 +178,7 @@ export async function generatePixal3d(o) {
   const workflow = workflowFor(names);
 
   const gpu = await (deps.acquire || acquireEngineGpu)('pixal3d', {
-    signal, failOpen: true, timeoutMs: 60 * 60 * 1000, urls: { pixal3d: cfg.url },
+    signal, failOpen: true, timeoutMs: 60 * 60 * 1000, name: cardLockName(engineCardFor('pixal3d')) || undefined, urls: { pixal3d: cfg.url },
     onWait: () => onWait?.('Waiting for the GPU to become free (GPU lock)'), onStep: (text) => onWait?.(text),
   });
   const clientId = randomUUID();

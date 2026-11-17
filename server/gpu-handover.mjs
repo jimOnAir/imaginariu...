@@ -6,6 +6,7 @@
 //   2. when that queue is empty it asks the other engine to unload its models (POST /free) and waits until the memory is back.
 // An engine that does not answer (not started, not installed) is simply skipped.
 import { acquireGpuLock } from './gpu-lock.mjs';
+import { engineCardFor, sharesCard } from './gpu-pool.mjs';
 import { pixal3dConfig } from './pixal3d.mjs';
 import { isLowVram, currentVramMib } from './low-vram.mjs';
 import { spawnSync } from 'node:child_process';
@@ -54,16 +55,21 @@ async function torchVram(url, fetchFn) {
 /**
  * Make room for `target` by unloading the other engine. Resolves with a report, throws only on abort or after `maxWaitMs`.
  * @param {'hunyuan'|'pixal3d'} target engine that is about to run
- * @param {object} [o] urls, signal, onWait(text) (called once when waiting starts), onStep(text), fetchFn, sleep, pollMs, maxWaitMs, settleMs
+ * @param {object} [o] urls, signal, onWait(text) (called once when waiting starts), onStep(text), fetchFn, sleep, pollMs, maxWaitMs, settleMs,
+ *   card (the card the target runs on; default the pool's claim - an engine that runs on ANOTHER card than `other` needs no room from it)
  * @returns {Promise<{waited:boolean, freed:string[], skipped:string[]}>}
  */
 export async function handoverTo(target, o = {}) {
   const { signal, onWait, onStep, fetchFn = fetch, sleep = sleepMs, pollMs = 2000, maxWaitMs = 60 * 60 * 1000, settleMs = 8000 } = o;
   const urls = engineUrls(o.urls);
+  const myCard = 'card' in o ? o.card : engineCardFor(target);
   const report = { waited: false, freed: [], skipped: [] };
   for (const other of Object.keys(ENGINE_LABELS).filter((name) => name !== target)) {
     const url = urls[other];
     if (!url || url === urls[target]) { report.skipped.push(other); continue; }
+    // GPU pool (0.7.11): engines on different cards never fight - no drain, no /free, no ollama
+    // unload there. An unknown card (no pool, reused external engine) keeps the old full hand-over.
+    if (!sharesCard(myCard, engineCardFor(other))) { report.crossCard = (report.crossCard || []).concat(other); continue; }
     let queue = await engineQueue(url, fetchFn);
     if (!queue) { report.skipped.push(other); continue; }
     const started = Date.now();
@@ -146,10 +152,10 @@ export async function unloadOllamaModels(url = null, fetchFn = fetch, env = proc
  * @param {object} [opts] everything acquireGpuLock takes, plus urls, onStep, fetchFn, sleep, acquire (tests), pollMs, maxWaitMs, settleMs
  */
 export async function acquireEngineGpu(engine, opts = {}) {
-  const { acquire = acquireGpuLock, urls, onStep, fetchFn, sleep, pollMs, maxWaitMs, settleMs, ...lockOpts } = opts;
+  const { acquire = acquireGpuLock, urls, card, onStep, fetchFn, sleep, pollMs, maxWaitMs, settleMs, ...lockOpts } = opts;
   const lock = await acquire(lockOpts);
   try {
-    lock.handover = await handoverTo(engine, { urls, signal: lockOpts.signal, onWait: onStep, onStep, fetchFn, sleep, pollMs, maxWaitMs, settleMs });
+    lock.handover = await handoverTo(engine, { urls, card, signal: lockOpts.signal, onWait: onStep, onStep, fetchFn, sleep, pollMs, maxWaitMs, settleMs });
     return lock;
   } catch (error) {
     await lock.release();

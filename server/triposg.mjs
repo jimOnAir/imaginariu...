@@ -9,6 +9,7 @@ import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { root, data, pathsConfig } from './storage.mjs';
+import { cardEnv } from './gpu-pool.mjs';
 
 export const DEFAULT_TRIPOSG_DIR = 'runtime/triposg';
 /** What has to be on disk for TripoSG. [relative to the install folder, what it is]. */
@@ -109,12 +110,12 @@ export function triposgArgs(cfg, { image, out, level, seed, steps, guidance }) {
  * One TripoSG run: spawn the worker, follow its PROGRESS lines, return the GLB bytes and stats.
  * Cancellation kills the child; a worker failure carries its last lines into the Error message.
  */
-export function generateTripoSG({ cfg = triposgConfig(), image, level, seed = 42, steps, guidance, signal, onProgress = () => {}, onWait = () => {}, spawnFn = spawn }) {
+export function generateTripoSG({ cfg = triposgConfig(), image, level, seed = 42, steps, guidance, signal, card = null, onProgress = () => {}, onWait = () => {}, spawnFn = spawn }) {
   return new Promise((resolve, reject) => {
     const out = path.join(data, 'runtime', 'temp', `triposg-${Date.now().toString(36)}.glb`);
     const [python, script, ...rest] = triposgArgs(cfg, { image, out, level, seed, steps, guidance });
-    const env = { ...process.env, PYTHONUTF8: '1', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1',
-      HF_HOME: path.join(cfg.dir, 'cache', 'huggingface'), TORCH_HOME: path.join(cfg.dir, 'cache', 'torch') };
+    const env = cardEnv(card, { ...process.env, PYTHONUTF8: '1', HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1',
+      HF_HOME: path.join(cfg.dir, 'cache', 'huggingface'), TORCH_HOME: path.join(cfg.dir, 'cache', 'torch') });
     delete env.PYTHONPATH; delete env.VIRTUAL_ENV;
     const child = spawnFn(python, [script, ...rest], { cwd: cfg.dir, env, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
     let buf = '', err = '', done = false;
