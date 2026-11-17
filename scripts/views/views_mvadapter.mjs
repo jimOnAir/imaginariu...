@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { SLOT_META } from './views_prompts.mjs';
 import { DATA, DEFAULT_COMFY_URL, requireNodes, uploadImage, runWorkflow, downloadOutput, runPython } from './comfy_client.mjs';
 import { withEngineGpu } from '../../server/gpu-handover.mjs';
-import { isLowVram, currentVramMib, MVA_MAX_WAIT_MS } from '../../server/low-vram.mjs';
+import { isLowVram, currentVramMib, MVA_MAX_WAIT_MS, viewsFp8Tier, FP8_STEP_MAX_MS } from '../../server/low-vram.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const MVA_DIR = path.join(DATA, 'models', 'mvadapter');
@@ -75,7 +75,14 @@ export async function generateMvadapterViews(o) {
   let size = safeSize(o.size, slots.length);
   // Ticket 37 (Windows 0.6.15): on 8 GB-class cards views render at 512 px from the start and
   // the engine wait is capped at 20 minutes. o.vramMib / o.lowVram override the probe (tests).
-  const lowVram = o.lowVram ?? isLowVram(o.vramMib ?? currentVramMib({ refresh: true }));
+  const vram = o.vramMib ?? currentVramMib({ refresh: true });
+  const lowVram = o.lowVram ?? isLowVram(vram);
+  // Ticket 44 (fp8 tier): an fp8 step legitimately runs a bit slower - the layerwise-cast mechanism
+  // is ON-CARD (fp8 masters resident, blocks upcast per step), so it costs compute, not bandwidth -
+  // and the 5-minute paging sentinel of the fp16 path would interrupt a healthy fp8 run. The tier
+  // only loosens THAT limit — the ASTRA_VIEWS_STEP_MAX_SEC default stays for fp16. o.fp8Tier
+  // overrides the probe (tests); the node logs the mode it actually used.
+  const fp8 = o.fp8Tier ?? viewsFp8Tier(vram);
   if (lowVram && size > 512) size = 512;
   const status = await mvadapterStatus(comfyUrl);
   if (!status.ready) throw new Error('Local MV-Adapter is not ready: ' + status.reasons.join('; ') + '.');
@@ -92,6 +99,7 @@ export async function generateMvadapterViews(o) {
     const run = await withEngineGpu('hunyuan', () => runWorkflow(comfyUrl, wf, {
       signal: o.signal,
       timeoutMs: lowVram ? MVA_MAX_WAIT_MS : undefined, // undefined = the 60-minute default of the big cards
+      stepMaxMs: fp8 ? FP8_STEP_MAX_MS : undefined, // ticket 44: tier-loosened sentinel, fp16 keeps env default
       onProgress: (t) => o.onProgress?.('MV-Adapter · ' + t),
     }), { signal: o.signal, failOpen: true, timeoutMs: 60 * 60 * 1000, urls: { hunyuan: comfyUrl }, onWait: () => o.onProgress?.('Waiting for the GPU to become free'), onStep: (t) => o.onProgress?.(t) });
     return run.outputs;

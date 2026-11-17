@@ -1,7 +1,7 @@
 // "Views": multi-view workflow, schema, prompts and the /api/views routes (stub runner: no ComfyUI, Codex or Python).
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtempSync, promises as fs } from 'node:fs';
+import { mkdtempSync, promises as fs, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import express from 'express';
@@ -10,6 +10,7 @@ import { createViewsService, registerViews, generateSchema } from '../server/vie
 import * as real from '../scripts/views/views_generate.mjs';
 import { SLOTS, SLOT_META, codexPrompt, generationOrder, GENERATED_SLOTS } from '../scripts/views/views_prompts.mjs';
 import { mvadapterWorkflow, safeSize } from '../scripts/views/views_mvadapter.mjs';
+import { viewsFp8Tier, FP8_STEP_MAX_MS } from '../server/low-vram.mjs';
 
 const PNG = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(24, 7)]);
 const ID = '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f';
@@ -251,4 +252,34 @@ test('forJob: generator inputs of a set, front included', async () => {
   const files = real.normFiles(dir, views, MV_SLOTS);
   assert.deepEqual(Object.keys(files).sort(), ['front', 'right']);
   assert.match(files.front, /norm_front\.png$/);
+});
+
+// ---------- ticket 44: the views fp8 memory tier ----------
+test('fp8 tier: on for NVIDIA ≤16384 MiB, env gate respected, unknown VRAM stays fp16', () => {
+  assert.equal(FP8_STEP_MAX_MS, 10 * 60 * 1000);
+  const keys = ['ASTRA_VIEWS_FP8', 'ASTRA_VIEWS_FP8_MAX_MIB'];
+  const saved = keys.map((k) => process.env[k]);
+  try {
+    assert.equal(viewsFp8Tier(12227), true);   // this machine's RTX 5070 class
+    assert.equal(viewsFp8Tier(16384), true);   // gate is <=, the node's rule
+    assert.equal(viewsFp8Tier(16385), false);
+    assert.equal(viewsFp8Tier(null), false);   // gpu-info silent (no NVIDIA) = fp16 path
+    process.env.ASTRA_VIEWS_FP8 = '0';
+    assert.equal(viewsFp8Tier(12227), false);
+    process.env.ASTRA_VIEWS_FP8 = 'auto';
+    process.env.ASTRA_VIEWS_FP8_MAX_MIB = '8192';
+    assert.equal(viewsFp8Tier(12227), false);
+    assert.equal(viewsFp8Tier(8192), true);
+  } finally {
+    keys.forEach((k, i) => (saved[i] === undefined ? delete process.env[k] : (process.env[k] = saved[i])));
+  }
+});
+
+test('fp8 tier loosens only the step sentinel: the call is tiered, the fp16 env default stays', () => {
+  const repo = path.resolve(import.meta.dirname, '..');
+  const mv = readFileSync(path.join(repo, 'scripts/views/views_mvadapter.mjs'), 'utf8');
+  assert.match(mv, /stepMaxMs: fp8 \? FP8_STEP_MAX_MS : undefined/); // undefined = env default for fp16
+  assert.match(mv, /o\.fp8Tier \?\? viewsFp8Tier\(vram\)/);           // probe seam, tests override
+  const guard = readFileSync(path.join(repo, 'tests/slow-step-guard.test.mjs'), 'utf8');
+  assert.match(guard, /ASTRA_VIEWS_STEP_MAX_SEC/);                    // the pinned 5-min sentinel stays
 });

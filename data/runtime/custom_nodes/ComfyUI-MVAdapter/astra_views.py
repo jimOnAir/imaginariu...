@@ -8,6 +8,7 @@ cached on the GPU between prompts, which is not an option on a 12 GB card shared
 import gc
 import os
 import re
+import time
 
 import torch
 
@@ -23,8 +24,35 @@ def _default_adapter_dir():
     return os.path.normpath(os.path.join(here, "..", "..", "..", "models", "mvadapter"))
 
 
-def _manual_offload(pipe, device, dtype):
-    pipe.unet.to(device=device, dtype=dtype)
+def _fp8_tier(device):
+    """Ticket 44 (views low-VRAM): NVIDIA cards up to ASTRA_VIEWS_FP8_MAX_MIB (default 16384)
+    store the UNet as fp8 (e4m3) masters ON THE CARD - ~2.9 GB instead of ~5.4 GB of fp16, with
+    each block upcast to fp16 on the fly for the step it participates in. ASTRA_VIEWS_FP8=0/off
+    disables the whole path. Per-MODULE call - the shipped diffusers (0.40/0.42) does not expose
+    layerwise casting on pipelines, only on ModelMixin parts, so this applies to pipe.unet
+    alone. The VAE is deliberately NOT cast: its force_upcast float32 path collides with fp8
+    storage."""
+    mode = (os.environ.get("ASTRA_VIEWS_FP8") or "auto").strip().lower()
+    if mode in ("0", "off", "no"):
+        return False
+    if getattr(torch.version, "hip", None) or not torch.cuda.is_available():
+        return False
+    try:
+        total_mib = torch.cuda.get_device_properties(device).total_memory / 2 ** 20
+    except Exception:
+        return False
+    max_mib = int(os.environ.get("ASTRA_VIEWS_FP8_MAX_MIB", "16384") or 0)
+    return max_mib <= 0 or total_mib <= max_mib
+
+
+def _manual_offload(pipe, device, dtype, unet_dtype=...):
+    # unet_dtype=None means "upload with the master dtypes as they are" - required after fp8
+    # layerwise casting, where a .to(dtype=float16) would upcast the fp8 masters back and undo it.
+    unet_dtype = dtype if unet_dtype is ... else unet_dtype
+    if unet_dtype is None:
+        pipe.unet.to(device=device)
+    else:
+        pipe.unet.to(device=device, dtype=unet_dtype)
     pipe.cond_encoder.to(device=device, dtype=dtype)
     for module in (pipe.text_encoder, pipe.text_encoder_2, pipe.vae):
         module.to("cpu")
@@ -108,22 +136,52 @@ class AstraMVAdapterViews:
             pipe.init_custom_adapter(num_views=len(azimuth_list))
             pipe.load_custom_adapter(adapter_dir, weight_name=adapter_name)
             pipe.cond_encoder.to(device=device, dtype=dtype)
+            # Ticket 44 (fp8 tier): CAST IN RAM FIRST, then upload - the card receives ~2.9 GB of
+            # fp8 masters instead of 5.4 GB of fp16, and the casting hooks upcast one block at a
+            # time to compute_dtype for each step ON THE CARD (layerwise casting is a dtype
+            # mechanism on the current device; it does not stream from RAM - leaving the UNet on
+            # the CPU here fails at the first addmm with cuda-vs-cpu tensors, measured 2026-11-16).
+            # The adapter weights must already be loaded when the fp8 masters freeze; the
+            # precision-critical skip list (norm/modulation) uploads as fp16. Uploading fp16 first
+            # and casting after saves nothing at the upload itself - the fp16 upload is exactly
+            # what OOMs on a tight card next to the desktop (this machine: 161 MiB free at that
+            # point). The VAE and text encoders are deliberately never cast.
+            fp8 = _fp8_tier(device)
+            if fp8:
+                pipe.unet.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn,
+                                                   compute_dtype=dtype)
             if offload == "text+vae":
-                # The UNet with its multi-view/reference attention (~7.5 GB) stays on the card; the text
-                # encoders and the VAE visit it only while they work. (accelerate's enable_model_cpu_offload
-                # copies the kwargs dicts and breaks MV-Adapter's reference cache, so this is done by hand.)
-                _manual_offload(pipe, device, dtype)
+                # The UNet with its multi-view/reference attention stays on the card (fp8 masters
+                # on this tier, fp16 otherwise); the text encoders and the VAE visit it only
+                # while they work. (accelerate's enable_model_cpu_offload copies the kwargs dicts
+                # and breaks MV-Adapter's reference cache, so this is done by hand.)
+                _manual_offload(pipe, device, dtype, unet_dtype=None if fp8 else dtype)
             else:
-                pipe = pipe.to(device, dtype)
+                if fp8:  # keep the fp8 masters; upload the fp16 parts as before
+                    for module in (pipe.text_encoder, pipe.text_encoder_2, pipe.vae,
+                                   pipe.cond_encoder):
+                        module.to(device=device, dtype=dtype)
+                    pipe.unet.to(device=device)
+                    class _OnDevice(type(pipe)):
+                        @property
+                        def _execution_device(self):
+                            return device
+                    pipe.__class__ = _OnDevice
+                else:
+                    pipe = pipe.to(device, dtype)
             pipe.vae.enable_slicing()
             torch.cuda.reset_peak_memory_stats()
             sampler = DiffusersMVSampler()
+            t_run = time.time()
             images = sampler.sample(
                 pipe, len(azimuth_list), prompt, negative_prompt, height, width, steps, cfg, seed,
                 reference_image=reference, azimuth_degrees=azimuth_list,
             )[0]
+            wall = time.time() - t_run
             peak = torch.cuda.max_memory_allocated() / 2 ** 30
-            print("[AstraMVAdapterViews] views=%s size=%dx%d steps=%d peak VRAM %.2f GB" % (azimuth_list, width, height, steps, peak), flush=True)
+            print("[AstraMVAdapterViews] views=%s size=%dx%d steps=%d peak VRAM %.2f GB wall %.1f s"
+                  " (%.1f s/step)%s" % (azimuth_list, width, height, steps, peak, wall,
+                                        wall / max(1, steps), " fp8-layerwise" if fp8 else ""), flush=True)
             return (images.cpu(),)
         finally:
             if pipe is not None:
