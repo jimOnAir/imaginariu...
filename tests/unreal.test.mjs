@@ -95,7 +95,7 @@ test('test without an Unreal Editor answers with the actionable absence, never a
 
 test('the log-lock guard refuses a second background run while the lock exists', () => {
   const fake = path.join(tmp, 'fake-unreal-cmd');
-  writeFileSync(fake, '#!/bin/sh\necho "AFUNREAL {}"\n');
+  writeFileSync(fake, '#!/bin/sh\necho "IMAGINARIUM_UNREAL {}"\n');
   spawnSync('chmod', ['+x', fake]);
   writeFileSync(path.join(tmp, 'proj', '.ima_unreal.lock'), '{"pid":1}');
   const r = af(['test', '--project', path.join(tmp, 'proj'), '--json'], { IMAGINARIUM_UNREAL: fake });

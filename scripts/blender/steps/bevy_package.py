@@ -80,9 +80,9 @@ def _cargo_check(pkg_dir, out_dir, warnings, checks):
     except subprocess.TimeoutExpired:
         checks.append(ima.check("bevy_validation", False, "the cargo check ran past its ceiling", severity="warning"))
         return {}
-    line = next((ln for ln in (r.stdout or "").splitlines() if ln.startswith("AFBEVYCHECK ")), None)
+    line = next((ln for ln in (r.stdout or "").splitlines() if ln.startswith("IMAGINARIUM_BEVY_CHECK ")), None)
     try:
-        rep = json.loads(line[len("AFBEVYCHECK "):]) if line else None
+        rep = json.loads(line[len("IMAGINARIUM_BEVY_CHECK "):]) if line else None
     except ValueError:
         rep = None
     if rep is None:

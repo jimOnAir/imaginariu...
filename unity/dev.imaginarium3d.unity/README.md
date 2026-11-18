@@ -28,7 +28,7 @@
 
 ```
 Unity -batchmode -projectPath <проект> -executeMethod Imaginarium.Editor.ImaginariumBatch.Validate ^
-      -afPackages "Assets/Imaginarium/a;Assets/Imaginarium/b" -afReport report.json -afShots shots -quit
+      -imaPackages "Assets/Imaginarium/a;Assets/Imaginarium/b" -imaReport report.json -imaShots shots -quit
 Unity -batchmode -projectPath <проект> -executeMethod Imaginarium.Editor.ImaginariumBatch.BuildAll -quit
 ```
 

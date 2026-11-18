@@ -9,7 +9,7 @@
 //! box may not own), loads the passport through the crate's own loader, waits for the scene to
 //! mount and its animations to wire, verifies the passport's promises against the live world,
 //! captures preview frames through bevy's screenshot pass (a front frame, then a frame after a
-//! clip switch), and prints one final `AFBEVY {json}` line. Exit code: 0 verified, 2 something
+//! clip switch), and prints one final `IMAGINARIUM_BEVY {json}` line. Exit code: 0 verified, 2 something
 //! the passport promised is not true, 3 timed out. A machine without Rust or a GPU simply does
 //! not run this: the package build never asked for either, and the studio says so (T2-3).
 
@@ -127,7 +127,7 @@ fn check_scene(mut commands: Commands) {
 
 /// The state machine: wait for the crate to mount + wire, give the renderer a settle beat,
 /// shoot the front frame (re-shooting while it looks flat), queue the one-shot clip through
-/// the crate's own play queue, shoot again after the blend, verify, print AFBEVY, exit.
+/// the crate's own play queue, shoot again after the blend, verify, print IMAGINARIUM_BEVY, exit.
 fn check_machine(
     mut commands: Commands,
     mut state: ResMut<CheckState>,
@@ -282,7 +282,7 @@ fn finish(commands: &mut Commands, state: &mut CheckState, code: u8, why: &str) 
         "ok": ok, "slug": state.slug, "code": code, "why": why,
         "shots": state.shots, "checks": checks,
     });
-    println!("AFBEVY {}", serde_json::to_string(&report).unwrap_or_default());
+    println!("IMAGINARIUM_BEVY {}", serde_json::to_string(&report).unwrap_or_default());
     let _ = std::fs::write(state.out.join("bevy_check.json"),
         serde_json::to_string_pretty(&report).unwrap_or_default());
     if let Some(f) = &state.forward {

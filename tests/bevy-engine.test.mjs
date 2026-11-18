@@ -1,5 +1,5 @@
 // Bevy engine driver (0.6.10 wave ticket 30). The toolchain itself is never assumed here:
-// every cargo touch runs through a stub script that speaks just enough of the CLI (AFBEVY
+// every cargo touch runs through a stub script that speaks just enough of the CLI (IMAGINARIUM_BEVY
 // lines, the --slug/--out contract of imaginarium_bevy_check) for the driver's contract to be tested
 // end to end - the real check is verified live on the machine. The absence rows (no Rust on
 // PATH) and the kill timers (a stuck cargo must never hang a forge job) are the heart of it.
@@ -36,14 +36,14 @@ for a in "$@"; do
   prev="$a"
 done
 if [ ! -f "assets/imaginarium/$slug/ima_bevy.json" ]; then
-  echo 'AFBEVY {"ok":false,"slug":"'$slug'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
+  echo 'IMAGINARIUM_BEVY {"ok":false,"slug":"'$slug'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
   exit 2
 fi
 mkdir -p "$out/shots"
 printf 'PNGSTUB' > "$out/shots/forward.png"
 echo '{"ok":true,"from":"stub"}' > "$out/bevy_check.json"
 echo '{"up":"+Y","from":"stub"}' > "$out/bevy_forward.json"
-echo "AFBEVY {\\"ok\\":true,\\"slug\\":\\"$slug\\",\\"code\\":0,\\"why\\":\\"\\",\\"shots\\":[\\"shots/forward.png\\"],\\"checks\\":[{\\"name\\":\\"scene_mounted\\",\\"ok\\":true,\\"detail\\":\\"stub\\"}]}"
+echo "IMAGINARIUM_BEVY {\\"ok\\":true,\\"slug\\":\\"$slug\\",\\"code\\":0,\\"why\\":\\"\\",\\"shots\\":[\\"shots/forward.png\\"],\\"checks\\":[{\\"name\\":\\"scene_mounted\\",\\"ok\\":true,\\"detail\\":\\"stub\\"}]}"
 exit 0
 `);
 
@@ -157,7 +157,7 @@ test('checkPackage: no cargo - honest skip; stub cargo - the four contract outpu
   for (const f of ['bevy_check.json', 'bevy_forward.json', 'bevy_log.txt', 'shots/forward.png']) {
     assert.ok(existsSync(path.join(out, f)), f);
   }
-  assert.match(readFileSync(path.join(out, 'bevy_log.txt'), 'utf8'), /AFBEVY/);
+  assert.match(readFileSync(path.join(out, 'bevy_log.txt'), 'utf8'), /IMAGINARIUM_BEVY/);
   assert.ok(existsSync(path.join(out, '_bevy_check', 'assets', 'imaginarium', 'check_box', 'ima_bevy.json')),
     'the scaffold held exactly this package');
 });
@@ -174,7 +174,7 @@ test('the CLI: status and check-package degrade honestly without Rust (T2-3)', (
   const ck = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'engines', 'bevy.mjs'), 'check-package',
     '--package', pkg, '--out', path.join(tmp, 'o-cli')], { env, encoding: 'utf8' });
   assert.equal(ck.status, 0, 'an honest skip is not a failed export');
-  assert.match(ck.stdout, /^AFBEVYCHECK /);
+  assert.match(ck.stdout, /^IMAGINARIUM_BEVY_CHECK /);
   assert.match(ck.stdout, /cargo not found/);
 });
 

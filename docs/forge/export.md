@@ -306,7 +306,7 @@ GL Compatibility, журнал в файл и кэш шейдеров выклю
 `--headless --import` и `--headless --script res://validate_package.gd`. Процесс Godot запускается с
 `APPDATA`/`LOCALAPPDATA` = `out_dir/_godot_check/_home` (с `.gdignore`): настройки редактора и `user://`
 остаются внутри `out_dir`, в `%APPDATA%/Godot` ничего не пишется (контракт §3). Скрипт печатает строку
-`AFGODOT {json}`: сцена загружена и инстанцирована, анимации и `loop_mode`, сокеты (узел, родитель, мировая
+`IMAGINARIUM_GODOT {json}`: сцена загружена и инстанцирована, анимации и `loop_mode`, сокеты (узел, родитель, мировая
 позиция и ось +Y), FX под сокетами (масштаб относительно корня `scale_rel`, ось излучения в осях корня
 `axis_y_root`, а при `expect_axis` ещё `axis_dot` / `axis_ok`, `visibility_aabb`, размер частицы), каждая FX-сцена
 отдельно, `SpriteFrames` (кадры, петли, скорость, размер кадра). Этот JSON целиком лежит в проверке

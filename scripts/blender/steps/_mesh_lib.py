@@ -1178,7 +1178,7 @@ def render_sheet(path, objects=None, views=("front", "three_quarter"), size=512,
     stem = os.path.splitext(os.path.basename(path))[0]
     try:
         for name in views:
-            direction, _up = af.VIEWS[name]
+            direction, _up = ima.VIEWS[name]
             cam.location = centre + direction * extent * 3
             if name == "top":
                 cam.rotation_euler = (0.0, 0.0, 0.0)

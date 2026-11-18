@@ -401,8 +401,8 @@ function fakeEngine({ outcome = 'success', pollsBeforeDone = 1, foreign = false 
         state.uploads.push(name);
         return json({ name, subfolder: '', type: 'input' });
       }
-      if (url.pathname === '/af/vram/start') { state.vramStarted += 1; return json({ baseline_used_mb: 1500 }); }
-      if (url.pathname === '/af/vram/stop') return json({ baseline_used_mb: 1500, peak_used_mb: 11200, peak_delta_mb: 9700, samples: 10 });
+      if (url.pathname === '/ima/vram/start') { state.vramStarted += 1; return json({ baseline_used_mb: 1500 }); }
+      if (url.pathname === '/ima/vram/stop') return json({ baseline_used_mb: 1500, peak_used_mb: 11200, peak_delta_mb: 9700, samples: 10 });
       if (url.pathname === '/prompt') {
         state.prompt = JSON.parse(body.toString('utf8'));
         setTimeout(() => {

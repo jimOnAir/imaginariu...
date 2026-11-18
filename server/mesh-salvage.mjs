@@ -9,7 +9,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { validateGeneratedMesh, maxMeshTriangles } from './mesh-validation.mjs';
 import { runBlenderStep } from './blender.mjs';
-import { afMeshConfig, runAfMesh } from './imaginarium-mesh.mjs';
+import { imaginariumMeshConfig, runImaginariumMesh } from './imaginarium-mesh.mjs';
 import { data } from './storage.mjs';
 
 export const SALVAGE_ROOT = path.join(data, 'runtime', 'salvage');
@@ -101,7 +101,7 @@ export function makeBlenderSimplify({ runStep = runBlenderStep, root = SALVAGE_R
  * caller's fallback decides instead of failing the job. Injectable `run`/`cfg` keep the unit
  * lane imaginarium-mesh-free.
  */
-export function makeAfMeshSimplify({ root = SALVAGE_ROOT, passes = 3, cfg = afMeshConfig(), run = runAfMesh } = {}) {
+export function makeImaginariumMeshSimplify({ root = SALVAGE_ROOT, passes = 3, cfg = imaginariumMeshConfig(), run = runImaginariumMesh } = {}) {
   return async (buffer) => {
     if (!cfg.found) return null;
     const dir = path.join(root, randomUUID());
@@ -139,12 +139,12 @@ export function makeAfMeshSimplify({ root = SALVAGE_ROOT, passes = 3, cfg = afMe
  * fallback for anything the fast path declines or cannot finish — and `IMAGINARIUM_SALVAGE=blender`
  * forces it as the whole route, byte-identical behavior to the wave before imaginarium-mesh existed.
  */
-export function makeSalvageSimplify({ env = process.env, makeAfMesh = makeAfMeshSimplify, makeBlender = makeBlenderSimplify } = {}) {
+export function makeSalvageSimplify({ env = process.env, makeImaginariumMesh = makeImaginariumMeshSimplify, makeBlender = makeBlenderSimplify } = {}) {
   if (String(env.IMAGINARIUM_SALVAGE || '').toLowerCase() === 'blender') return makeBlender();
-  const af = makeAfMesh();
+  const mesh = makeImaginariumMesh();
   const blender = makeBlender();
   return async (buffer) => {
-    const out = await Promise.resolve(af(buffer)).catch(() => null);
+    const out = await Promise.resolve(mesh(buffer)).catch(() => null);
     if (out) {
       try { validateGeneratedMesh(out); return out; } catch { /* still over a cap — the Blender path gets its turn */ }
     }

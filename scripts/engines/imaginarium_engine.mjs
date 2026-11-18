@@ -429,7 +429,7 @@ export async function testProject({ project, engine = null, shots = false, scene
           `report = au.import_package(${JSON.stringify(man)})`,
           'from imaginarium_unreal import check as ck',
           `ck.check_package(${JSON.stringify(man)})`,
-          'print("AFUNREAL " + __import__("json").dumps(report))',
+          'print("IMAGINARIUM_UNREAL " + __import__("json").dumps(report))',
         ].join('\n'));
         log(`Unreal: importing ${path.basename(dir)} (UnrealEditor-Cmd -run=pythonscript)...`);
         const r = run(exe, [path.join(p.path, findUproject(p.path)), '-run=pythonscript', `-script=${script}`,
@@ -457,8 +457,8 @@ export async function testProject({ project, engine = null, shots = false, scene
     const report = path.join(outDir, 'imaginarium_report.json');
     log('Unity: Imaginarium package check (batchmode)...');
     const v = run(exe, ['-batchmode', '-projectPath', p.path, '-executeMethod', 'Imaginarium.Editor.ImaginariumBatch.Validate',
-      '-afReport', report, ...(shots ? ['-afShots', shotsDir] : []), '-logFile', path.join(outDir, 'validate.log'), '-quit']);
-    const af = await readJson(report, null);
+      '-imaReport', report, ...(shots ? ['-imaShots', shotsDir] : []), '-logFile', path.join(outDir, 'validate.log'), '-quit']);
+    const unityReport = await readJson(report, null);
     const results = {};
     for (const platform of playMode ? ['EditMode', 'PlayMode'] : ['EditMode']) {
       log(`Unity: ${platform} tests (batchmode)...`);
@@ -467,7 +467,7 @@ export async function testProject({ project, engine = null, shots = false, scene
         '-logFile', path.join(outDir, `tests_${platform}.log`)]);
       results[platform] = existsSync(xml) ? parseNUnit(await fs.readFile(xml, 'utf8')) : { result: 'NoResults', exit: t.code };
     }
-    const assetsOk = !af || ima.assets.length === 0 || ima.ok;
+    const assetsOk = !unityReport || ima.assets.length === 0 || ima.ok;
     const testsOk = Object.values(results).every((r) => r && (r.failed || 0) === 0 && r.result !== 'NoResults');
     return { ok: assetsOk && testsOk, engine: 'unity', project: p, report_dir: outDir,
       imaginarium: af ? { ok: ima.ok, pipeline: ima.pipeline, assets: ima.assets.map((a) => ({ asset_id: a.asset_id, ok: a.ok, failed: a.checks.filter((c) => !c.ok && c.severity === 'error').map((c) => `${c.name}: ${c.value}`) })), console_errors: ima.console_errors.slice(0, 10), contact_sheet: ima.contact_sheet } : { exit: v.code },

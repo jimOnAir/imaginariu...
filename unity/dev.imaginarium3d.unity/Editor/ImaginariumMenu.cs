@@ -64,7 +64,7 @@ namespace Imaginarium.Editor
             var rp = UnityEngine.Rendering.GraphicsSettings.currentRenderPipeline;
             Directory.CreateDirectory("Assets/Imaginarium");
             AssetDatabase.Refresh();
-            Debug.Log("AFSETUP " + (p != ImaginariumRenderPipeline.BuiltIn || Arg("-afPipeline") == "builtin" ? "ok" : "fail")
+            Debug.Log("IMAGINARIUM SETUP " + (p != ImaginariumRenderPipeline.BuiltIn || Arg("-imaPipeline") == "builtin" ? "ok" : "fail")
                       + " pipeline=" + p + " asset=" + (rp != null ? rp.name : "none") + " unity=" + Application.unityVersion);
         }
 

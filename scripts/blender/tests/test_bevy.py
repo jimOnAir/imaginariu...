@@ -187,14 +187,14 @@ for a in "$@"; do
   prev="$a"
 done
 if [ ! -f "assets/imaginarium/$slug/ima_bevy.json" ]; then
-  echo 'AFBEVY {"ok":false,"slug":"'"$slug"'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
+  echo 'IMAGINARIUM_BEVY {"ok":false,"slug":"'"$slug"'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
   exit 2
 fi
 mkdir -p "$out/shots"
 printf 'PNGSTUB' > "$out/shots/forward.png"
 echo '{"ok":true,"from":"stub"}' > "$out/bevy_check.json"
 echo '{"up":"+Y","from":"stub"}' > "$out/bevy_forward.json"
-echo "AFBEVY {\\\"ok\\\":true,\\\"slug\\\":\\\"$slug\\\",\\\"code\\\":0,\\\"why\\\":\\\"\\\",\\\"shots\\\":[\\\"shots/forward.png\\\"],\\\"checks\\\":[{\\\"name\\\":\\\"scene_mounted\\\",\\\"ok\\\":true,\\\"detail\\\":\\\"stub\\\"}]}"
+echo "IMAGINARIUM_BEVY {\\\"ok\\\":true,\\\"slug\\\":\\\"$slug\\\",\\\"code\\\":0,\\\"why\\\":\\\"\\\",\\\"shots\\\":[\\\"shots/forward.png\\\"],\\\"checks\\\":[{\\\"name\\\":\\\"scene_mounted\\\",\\\"ok\\\":true,\\\"detail\\\":\\\"stub\\\"}]}"
 exit 0
 """)
     os.chmod(p, 0o755)

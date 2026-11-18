@@ -75,7 +75,7 @@ def _external_tool(env_name, cfg_key, own):
 
 
 def _imaginarium_mesh_rs():
-    return _external_tool("IMAGINARIUM_AF_MESH", "afMesh",
+    return _external_tool("IMAGINARIUM_MESH_EXE", "meshTool",
                           os.path.join(REPO_ROOT, "native", "imaginarium_mesh_rs", "target",
                                        "release", "imaginarium-mesh-rs"))
 
@@ -237,7 +237,7 @@ def _build_lods(out, name, lods, tris_in, req, outputs, stats, warnings, checks)
     stats["lods"] = []
     if not imaginarium_mesh and not gltf:
         warnings.append("lods: neither imaginarium-mesh-rs nor gltfpack found (installer components, or "
-                        "IMAGINARIUM_AF_MESH / IMAGINARIUM_GLTFPACK) - no LOD files were written")
+                        "IMAGINARIUM_MESH_EXE / IMAGINARIUM_GLTFPACK) - no LOD files were written")
         checks.append(ima.check("lods_written", False, "no LOD tool present", severity="warning"))
         return
     for i, frac in enumerate(lods, 1):

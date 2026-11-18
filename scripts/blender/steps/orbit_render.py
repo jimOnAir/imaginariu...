@@ -4,7 +4,7 @@ Flyaround renders of a finished shape: `frames` orthographic Workbench frames at
 azimuths around the model's centre, each PNG written into out_dir as orbit_NN.png, plus an
 orbit.json manifest (the orbit contract: {"frames":[{"file":"orbit_00.png","yaw_deg":0},…],
 "size":px,"elevation_deg":deg}). Alongside the pictures the step reports the PLAIN mesh numbers
-(af's mesh_metrics: boundary/non-manifold/wire edges, loose parts, tris) that cap the VLM's
+(the common module's mesh_metrics: boundary/non-manifold/wire edges, loose parts, tris) that cap the VLM's
 seam score in the studio's decide() — a model never grades topology by taste here.
 
 inputs.mesh: .glb/.gltf/.obj/.stl/.vrm path; params: frames (4..16, default 8), size px (default 384),

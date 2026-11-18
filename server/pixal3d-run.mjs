@@ -191,7 +191,7 @@ export async function generatePixal3d(o) {
     const own = await engineQueue(cfg.url);
     if (own && (own.running || own.pending)) onWait?.('The Pixal3D queue already holds other jobs: waiting for my turn');
     onProgress?.({ percent: 0, message: 'Pixal3D: queueing the job' });
-    vramProbe = await fetch(cfg.url + '/af/vram/start', { method: 'POST', signal: AbortSignal.timeout(3000) }).then((r) => r.ok).catch(() => false);
+    vramProbe = await fetch(cfg.url + '/ima/vram/start', { method: 'POST', signal: AbortSignal.timeout(3000) }).then((r) => r.ok).catch(() => false);
     const queued = await comfyJson(cfg.url + '/prompt', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ prompt: workflow, client_id: clientId }), signal });
     promptId = queued.prompt_id;
     onPrompt?.(promptId);
@@ -226,7 +226,7 @@ export async function generatePixal3d(o) {
     try { validateGeneratedMesh(raw); } catch (e) { if (e.code !== 'oversize') throw e; }
     const normalized = normalizeGlb(raw);
     try { validateGeneratedMesh(normalized.buffer); } catch (e) { if (e.code !== 'oversize') throw e; }
-    const vram = vramProbe ? await comfyJson(cfg.url + '/af/vram/stop', { method: 'POST', signal: AbortSignal.timeout(3000) }).catch(() => null) : null;
+    const vram = vramProbe ? await comfyJson(cfg.url + '/ima/vram/stop', { method: 'POST', signal: AbortSignal.timeout(3000) }).catch(() => null) : null;
     vramProbe = false;
     return {
       buffer: normalized.buffer, seconds: Math.round((Date.now() - started) / 100) / 10, promptId, slots, seed, targetFaces, rawBytes: raw.length, url: cfg.url, vram, handover: gpu.handover || null,
@@ -237,7 +237,7 @@ export async function generatePixal3d(o) {
     throw error;
   } finally {
     follower.close();
-    if (vramProbe) await fetch(cfg.url + '/af/vram/stop', { method: 'POST', signal: AbortSignal.timeout(3000) }).catch(() => {});
+    if (vramProbe) await fetch(cfg.url + '/ima/vram/stop', { method: 'POST', signal: AbortSignal.timeout(3000) }).catch(() => {});
     // models are reloaded by every Pixal3D run anyway: give the memory back to whoever uses the card next
     await (deps.free || freeIfIdle)(cfg.url).catch(() => {});
     await gpu.release();

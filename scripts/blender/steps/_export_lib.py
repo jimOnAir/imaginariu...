@@ -1304,16 +1304,16 @@ def run_godot(exe, proj, args, timeout=300):
 
 
 def godot_validate(exe, proj, config, timeout=300):
-    """Import the throwaway project, run validate_package.gd, parse its AFGODOT line."""
+    """Import the throwaway project, run validate_package.gd, parse its IMAGINARIUM_GODOT line."""
     with open(os.path.join(proj, "imaginarium_check.json"), "w", encoding="utf-8") as fh:
         json.dump(config, fh, ensure_ascii=False, indent=2)
     code_i, out_i, sec_i = run_godot(exe, proj, ["--import"], timeout)
     code_v, out_v, sec_v = run_godot(exe, proj, ["--script", "res://validate_package.gd"], timeout)
     result = None
     for line in out_v.splitlines():
-        if line.startswith("AFGODOT "):
+        if line.startswith("IMAGINARIUM_GODOT "):
             try:
-                result = json.loads(line[len("AFGODOT "):])
+                result = json.loads(line[len("IMAGINARIUM_GODOT "):])
             except ValueError:
                 result = None
     errs = [ln.strip() for ln in (out_i + "\n" + out_v).splitlines()

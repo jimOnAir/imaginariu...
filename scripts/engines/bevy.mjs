@@ -12,7 +12,7 @@
 //   node scripts/engines/bevy.mjs test   --project <folder> --slug <asset_id> [--out <dir>]
 //   node scripts/engines/bevy.mjs check-package --package <pkg dir> --out <dir>
 //        (used by the bevy_package forge step: a scratch scaffold + imaginarium_bevy_check, prints the
-//         final 'AFBEVYCHECK {json}' line; task ids imaginarium_bevy_check, imaginarium_bevy_send_<slug>)
+//         final 'IMAGINARIUM_BEVY_CHECK {json}' line; task ids imaginarium_bevy_check, imaginarium_bevy_send_<slug>)
 //
 // Everything cargo speaks streams into a log file with an idle-kill: a stuck toolchain (a lock
 // another build holds) must never hang the forge job - after IMAGINARIUM_CARGO_IDLE_MIN of silence
@@ -235,7 +235,7 @@ async function runCheck({ slug, assetsRoot, out, cargo, env, onLine }) {
     out: path.join(out, 'bevy_log.txt'),
     onLine,
   });
-  const line = r.log.split(/\r?\n/).reverse().find((l) => l.startsWith('AFBEVY '));
+  const line = r.log.split(/\r?\n/).reverse().find((l) => l.startsWith('IMAGINARIUM_BEVY '));
   const report = line ? safeJson(line.slice(7)) : null;
   if (report) report.log = path.join(out, 'bevy_log.txt');
   const taskId = 'imaginarium_bevy_check';   // the pinned task id of the check verb (spec T3-Bevy)
@@ -347,7 +347,7 @@ async function main() {
     process.exitCode = r.ok || r.skipped ? 0 : 1;   // an honest skip is not a failed run
   } else if (CMD === 'check-package') {
     const r = await checkPackage({ packageDir: path.resolve(opt('package')), out: path.resolve(opt('out')) });
-    console.log(`AFBEVYCHECK ${JSON.stringify(r.report ? { ok: r.ok, skipped: r.skipped, shots: r.report.shots, checks: r.report.checks } : { ok: false, skipped: r.skipped || 'the check answered nothing' })}`);
+    console.log(`IMAGINARIUM_BEVY_CHECK ${JSON.stringify(r.report ? { ok: r.ok, skipped: r.skipped, shots: r.report.shots, checks: r.report.checks } : { ok: false, skipped: r.skipped || 'the check answered nothing' })}`);
     process.exitCode = r.ok || r.skipped ? 0 : 1;
   } else if (CMD === 'brp-install') {
     const r = await installBrpMcp({ log: (s) => console.log(s) });

@@ -47,14 +47,14 @@ for _stream in (sys.stdout, sys.stderr):
 try:  # under Blender (imaginarium_run.py puts scripts/blender on sys.path) use the imaginarium_common protocol; otherwise our own minimum
     import imaginarium_common as ima
 except Exception:  # pragma: no cover
-    af = None
+    ima = None
 
 T0 = time.time()
 
 
 # ----------------------------------------------------------------------------------------------- protocol
 def log(msg, **data):
-    if af is not None:
+    if ima is not None:
         ima.log(msg, **data)
         return
     payload = {"t": round(time.time() - T0, 2), "msg": str(msg)}

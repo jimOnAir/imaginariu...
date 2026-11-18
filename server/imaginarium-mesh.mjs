@@ -9,8 +9,8 @@
 // ticket. Nothing here ever downloads anything: the binary is built from source by
 // installer/install.sh or by the developer, never fetched.
 //
-// Where the binary is: IMAGINARIUM_AF_MESH (an explicit path, the IMAGINARIUM_* idiom of every other
-// external tool), then config/paths.json (key afMesh, written by the installer build step),
+// Where the binary is: IMAGINARIUM_MESH_EXE (an explicit path, the IMAGINARIUM_* idiom of every other
+// external tool), then config/paths.json (key meshTool, written by the installer build step),
 // then the in-repo release build.
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -20,26 +20,26 @@ import { root, pathsConfig } from './storage.mjs';
 export const Imaginarium_MESH_REPO_BUILD = path.join('native', 'imaginarium_mesh_rs', 'target', 'release', 'imaginarium-mesh-rs');
 
 /** Which imaginarium-mesh-rs this studio would run: { exe, source, found }. Never throws. */
-export function afMeshConfig({ env = process.env, appRoot = root, exists = existsSync } = {}) {
-  const forced = (env.IMAGINARIUM_AF_MESH || '').trim();
+export function imaginariumMeshConfig({ env = process.env, appRoot = root, exists = existsSync } = {}) {
+  const forced = (env.IMAGINARIUM_MESH_EXE || '').trim();
   if (forced) return { exe: forced, source: 'env', found: exists(forced) };
   const paths = pathsConfig(appRoot);
-  if (typeof paths.afMesh === 'string' && paths.afMesh.trim()) {
-    const p = paths.afMesh.trim();
+  if (typeof paths.meshTool === 'string' && paths.meshTool.trim()) {
+    const p = paths.meshTool.trim();
     return { exe: p, source: 'paths.json', found: exists(p) };
   }
   const p = path.join(appRoot, Imaginarium_MESH_REPO_BUILD);
   return { exe: p, source: 'default', found: exists(p) };
 }
 
-export function afMeshAvailable(cfg = afMeshConfig()) {
+export function imaginariumMeshAvailable(cfg = imaginariumMeshConfig()) {
   return cfg.found;
 }
 
 /** One simplify run is seconds even on multi-million meshes; the ceiling is a guard against a
- *  wedged process, not a budget. IMAGINARIUM_AF_MESH_TIMEOUT_S overrides (seconds). */
-export function afMeshTimeoutMs(env = process.env) {
-  return (Number(env.IMAGINARIUM_AF_MESH_TIMEOUT_S) || 120) * 1000;
+ *  wedged process, not a budget. IMAGINARIUM_MESH_EXE_TIMEOUT_S overrides (seconds). */
+export function imaginariumMeshTimeoutMs(env = process.env) {
+  return (Number(env.IMAGINARIUM_MESH_EXE_TIMEOUT_S) || 120) * 1000;
 }
 
 /**
@@ -47,7 +47,7 @@ export function afMeshTimeoutMs(env = process.env) {
  * stderr, timedOut } and never rejects — the caller judges, like runCargo in bevy.mjs. A run
  * past timeoutMs gets SIGKILL and timedOut: true.
  */
-export function runAfMesh({ exe = afMeshConfig().exe, args = [], timeoutMs = afMeshTimeoutMs(), spawnImpl = spawn } = {}) {
+export function runImaginariumMesh({ exe = imaginariumMeshConfig().exe, args = [], timeoutMs = imaginariumMeshTimeoutMs(), spawnImpl = spawn } = {}) {
   return new Promise((resolve) => {
     let child;
     try {
@@ -78,7 +78,7 @@ export function runAfMesh({ exe = afMeshConfig().exe, args = [], timeoutMs = afM
 }
 
 /** The `--version --json` handshake: { name, version } or null (absent / not imaginarium-mesh-rs). */
-export async function afMeshInfo({ cfg = afMeshConfig(), run = runAfMesh } = {}) {
+export async function imaginariumMeshInfo({ cfg = imaginariumMeshConfig(), run = runImaginariumMesh } = {}) {
   if (!cfg.found) return null;
   const r = await run({ exe: cfg.exe, args: ['--version', '--json'] });
   if (r.code !== 0) return null;

@@ -131,10 +131,10 @@ def ensure_project(exe, proj, log_dir, pipeline="urp"):
     write_manifest(proj, pipeline)
     log = os.path.join(log_dir, "setup.log")
     code, text, _sec = run_unity(exe, proj, ["-executeMethod", "Imaginarium.Editor.ImaginariumSetup.ConfigureCheckProject",
-                                             "-afPipeline", pipeline, "-quit"], log)
+                                             "-imaPipeline", pipeline, "-quit"], log)
     if license_problem(text):
         return {"ok": False, "error": "license", "log": log}
-    if code != 0 or "AFSETUP ok" not in text:
+    if code != 0 or "IMAGINARIUM SETUP ok" not in text:
         return {"ok": False, "error": "setup failed (exit %s)" % code, "log": log}
     with open(marker, "w", encoding="utf-8") as fh:
         json.dump({"pipeline": pipeline, "unity": unity_version(exe), "created": time.strftime("%Y-%m-%d %H:%M:%S")},
@@ -221,8 +221,8 @@ def validate(packages, out_dir, params=None, timeout=1800):
             os.remove(report)
         log = os.path.join(log_dir, "validate.log")
         code, text, sec = run_unity(exe, proj, ["-executeMethod", "Imaginarium.Editor.ImaginariumBatch.Validate",
-                                                "-afPackages", ";".join(rels), "-afReport", report,
-                                                "-afShots", shots, "-quit"], log, timeout=timeout)
+                                                "-imaPackages", ";".join(rels), "-imaReport", report,
+                                                "-imaShots", shots, "-quit"], log, timeout=timeout)
     if license_problem(text):
         return {"ok": False, "error": "license", "log": log, "unity": unity_version(exe)}
     result = None

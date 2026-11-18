@@ -15,7 +15,7 @@ extends SceneTree
 ## Every fx entry reports "axis_y_root": the FX node's +Y (its emit direction) in the package root's space.
 ## With "expect_axis": [x, y, z] (thruster FX: aft) it also reports "axis_dot" / "axis_ok" and fails the run
 ## when dot(axis_y_root, expect_axis) < "expect_dot" (default 0.9).
-## Prints one line `AFGODOT {json}` and quits with 0 (all ok) or 1.
+## Prints one line `IMAGINARIUM_GODOT {json}` and quits with 0 (all ok) or 1.
 
 var cfg: Dictionary = {}
 var result: Dictionary = {"ok": true, "errors": []}
@@ -68,7 +68,7 @@ func _finish() -> void:
 	if finished:
 		return
 	finished = true
-	print("AFGODOT " + JSON.stringify(result))
+	print("IMAGINARIUM_GODOT " + JSON.stringify(result))
 	quit(0 if result["ok"] else 1)
 
 

@@ -107,7 +107,7 @@ func _run() -> void:
 	var f := FileAccess.open(_args.get("out", "user://imaginarium_engine_check.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, " "))
 	f.close()
-	print("AFENGINE ", JSON.stringify({"ok": report["ok"], "scenes": report["scenes"].size()}))
+	print("IMAGINARIUM_ENGINE ", JSON.stringify({"ok": report["ok"], "scenes": report["scenes"].size()}))
 	quit(0 if report["ok"] else 1)
 
 

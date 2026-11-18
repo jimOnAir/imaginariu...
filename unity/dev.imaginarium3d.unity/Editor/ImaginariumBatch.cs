@@ -12,7 +12,7 @@ namespace Imaginarium.Editor
     /// <summary>
     /// Batchmode entry points:
     ///   Unity -batchmode -projectPath P -executeMethod Imaginarium.Editor.ImaginariumBatch.Validate
-    ///         -afPackages "Assets/Imaginarium/a;Assets/Imaginarium/b" -afReport report.json -afShots shots_dir -quit
+    ///         -imaPackages "Assets/Imaginarium/a;Assets/Imaginarium/b" -imaReport report.json -imaShots shots_dir -quit
     /// builds every package, checks the prefabs and writes a JSON report plus a screenshot per asset.
     ///   ... -executeMethod Imaginarium.Editor.ImaginariumBatch.BuildAll  (rebuild every package under Assets)
     /// </summary>
@@ -72,11 +72,11 @@ namespace Imaginarium.Editor
             Application.logMessageReceived += cb;
             var report = new Report { unity = Application.unityVersion, pipeline = ImaginariumPipeline.Current.ToString(),
                                       project = Directory.GetCurrentDirectory() };
-            var pkgsArg = Arg("-afPackages");
+            var pkgsArg = Arg("-imaPackages");
             var folders = string.IsNullOrEmpty(pkgsArg) ? FindPackages().ToList()
                 : pkgsArg.Split(new[] { ';' }, StringSplitOptions.RemoveEmptyEntries).Select(s => s.Trim()).ToList();
-            var shots = Arg("-afShots");
-            var reportPath = Arg("-afReport") ?? "imaginarium_unity_report.json";
+            var shots = Arg("-imaShots");
+            var reportPath = Arg("-imaReport") ?? "imaginarium_unity_report.json";
             if (!string.IsNullOrEmpty(shots)) Directory.CreateDirectory(shots);
             AssetDatabase.Refresh(ImportAssetOptions.ForceSynchronousImport);
             var shotFiles = new List<string>();

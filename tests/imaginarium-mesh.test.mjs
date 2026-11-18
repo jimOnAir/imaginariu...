@@ -1,6 +1,6 @@
 // Ticket 46 (0.7.9 performance wave): imaginarium-mesh-rs is the salvage fast path — the spawn helper
 // and the chain must be provable WITHOUT the binary, exactly like the Blender lane is provable
-// without Blender. A fake spawnImpl answers runAfMesh; a fake run answers the salvage maker.
+// without Blender. A fake spawnImpl answers runImaginariumMesh; a fake run answers the salvage maker.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
@@ -9,8 +9,8 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afMeshConfig, afMeshInfo, runAfMesh } from '../server/imaginarium-mesh.mjs';
-import { makeAfMeshSimplify, makeSalvageSimplify } from '../server/mesh-salvage.mjs';
+import { imaginariumMeshConfig, imaginariumMeshInfo, runImaginariumMesh } from '../server/imaginarium-mesh.mjs';
+import { makeImaginariumMeshSimplify, makeSalvageSimplify } from '../server/mesh-salvage.mjs';
 import { maxMeshTriangles } from '../server/mesh-validation.mjs';
 
 // A validator-shaped GLB assembled with an explicit binary layout: a 20-byte header, one JSON
@@ -57,30 +57,30 @@ function fakeChild({ code = 0, stdout = '', stderr = '', error = null, hang = fa
   return child;
 }
 
-test('afMeshConfig: IMAGINARIUM_AF_MESH, then paths.json afMesh, then the in-repo build', async () => {
+test('imaginariumMeshConfig: IMAGINARIUM_MESH_EXE, then paths.json meshTool, then the in-repo build', async () => {
   const appRoot = path.join(os.tmpdir(), 'imaginarium-mesh-lane-' + randomUUID());
   await fs.mkdir(path.join(appRoot, 'config'), { recursive: true });
   const env = { ...process.env };
-  delete env.IMAGINARIUM_AF_MESH;
-  const def = afMeshConfig({ env, appRoot });
+  delete env.IMAGINARIUM_MESH_EXE;
+  const def = imaginariumMeshConfig({ env, appRoot });
   assert.equal(def.source, 'default');
   assert.equal(def.found, false, 'a scratch appRoot has no build');
 
-  await fs.writeFile(path.join(appRoot, 'config', 'paths.json'), JSON.stringify({ afMesh: process.execPath }));
-  const fromCfg = afMeshConfig({ env, appRoot });
+  await fs.writeFile(path.join(appRoot, 'config', 'paths.json'), JSON.stringify({ meshTool: process.execPath }));
+  const fromCfg = imaginariumMeshConfig({ env, appRoot });
   assert.equal(fromCfg.source, 'paths.json');
   assert.equal(fromCfg.exe, process.execPath);
   assert.equal(fromCfg.found, true);
 
-  const forced = afMeshConfig({ env: { ...env, IMAGINARIUM_AF_MESH: '/nowhere/imaginarium-mesh-rs' }, appRoot });
+  const forced = imaginariumMeshConfig({ env: { ...env, IMAGINARIUM_MESH_EXE: '/nowhere/imaginarium-mesh-rs' }, appRoot });
   assert.equal(forced.source, 'env');
   assert.equal(forced.found, false, 'an explicit path that is not there is reported honestly');
   await fs.rm(appRoot, { recursive: true, force: true });
 });
 
-test('runAfMesh: streams and exit code are collected, argv is passed through', async () => {
+test('runImaginariumMesh: streams and exit code are collected, argv is passed through', async () => {
   let seen = null;
-  const r = await runAfMesh({
+  const r = await runImaginariumMesh({
     exe: '/fake/imaginarium-mesh-rs', args: ['simplify', '--in', 'a.glb'], timeoutMs: 1000,
     spawnImpl: (exe, args) => { seen = { exe, args }; return fakeChild({ code: 0, stdout: '{"ok":true}', stderr: 'note' }); },
   });
@@ -89,38 +89,38 @@ test('runAfMesh: streams and exit code are collected, argv is passed through', a
   assert.deepEqual(r, { code: 0, stdout: '{"ok":true}', stderr: 'note', timedOut: false });
 });
 
-test('runAfMesh: a wedged run is SIGKILLed at the timeout and reported, never left hanging', async () => {
+test('runImaginariumMesh: a wedged run is SIGKILLed at the timeout and reported, never left hanging', async () => {
   let kid = null;
   const t = Date.now();
-  const r = await runAfMesh({ exe: '/fake', args: ['simplify'], timeoutMs: 300, spawnImpl: () => (kid = fakeChild({ hang: true })) });
+  const r = await runImaginariumMesh({ exe: '/fake', args: ['simplify'], timeoutMs: 300, spawnImpl: () => (kid = fakeChild({ hang: true })) });
   assert.equal(r.timedOut, true);
   assert.equal(r.code, -1);
   assert.equal(kid.killed, true, 'the timeout actually kills the child');
   assert.ok(Date.now() - t >= 250);
 });
 
-test('runAfMesh: a missing binary resolves, it never rejects', async () => {
-  const thrown = await runAfMesh({ exe: '/nowhere', args: [], spawnImpl: () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); } });
+test('runImaginariumMesh: a missing binary resolves, it never rejects', async () => {
+  const thrown = await runImaginariumMesh({ exe: '/nowhere', args: [], spawnImpl: () => { throw Object.assign(new Error('ENOENT'), { code: 'ENOENT' }); } });
   assert.equal(thrown.code, -1);
   assert.match(thrown.stderr, /ENOENT/);
-  const er = await runAfMesh({ exe: '/fake', args: [], spawnImpl: () => fakeChild({ error: new Error('spawn failed') }) });
+  const er = await runImaginariumMesh({ exe: '/fake', args: [], spawnImpl: () => fakeChild({ error: new Error('spawn failed') }) });
   assert.equal(er.code, -1);
 });
 
-test('afMeshInfo: the --version --json handshake, name-checked', async () => {
-  assert.equal(await afMeshInfo({ cfg: { found: false } }), null, 'absent binary: no spawn at all');
-  const ok = await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"imaginarium-mesh-rs","version":"0.7.9"}' }) });
+test('imaginariumMeshInfo: the --version --json handshake, name-checked', async () => {
+  assert.equal(await imaginariumMeshInfo({ cfg: { found: false } }), null, 'absent binary: no spawn at all');
+  const ok = await imaginariumMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"imaginarium-mesh-rs","version":"0.7.9"}' }) });
   assert.equal(ok.version, '0.7.9');
-  assert.equal(await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"something-else"}' }) }), null);
-  assert.equal(await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 1, stdout: '' }) }), null);
+  assert.equal(await imaginariumMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"something-else"}' }) }), null);
+  assert.equal(await imaginariumMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 1, stdout: '' }) }), null);
 });
 
-test('makeAfMeshSimplify: absent binary answers null without spawning (the ticket-30 posture)', async () => {
-  const f = makeAfMeshSimplify({ cfg: { found: false }, run: async () => { throw new Error('must not spawn'); } });
+test('makeImaginariumMeshSimplify: absent binary answers null without spawning (the ticket-30 posture)', async () => {
+  const f = makeImaginariumMeshSimplify({ cfg: { found: false }, run: async () => { throw new Error('must not spawn'); } });
   assert.equal(await f(OVER), null);
 });
 
-test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving', async () => {
+test('makeImaginariumMeshSimplify: the spawn shape, the summary gate, the budget halving', async () => {
   const root = path.join(os.tmpdir(), 'imaginarium-mesh-lane-' + randomUUID());
   const calls = [];
   const run = async ({ exe, args }) => {
@@ -130,7 +130,7 @@ test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving'
     await fs.writeFile(dst, SMALL);
     return { code: 0, stdout: JSON.stringify({ trianglesBefore: maxMeshTriangles + 1, trianglesAfter: 100 }), stderr: '' };
   };
-  const f = makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake/imaginarium-mesh-rs' }, run });
+  const f = makeImaginariumMeshSimplify({ root, cfg: { found: true, exe: '/fake/imaginarium-mesh-rs' }, run });
   // first pass declines (after >= before): the fast path bows out for the Blender fallback
   assert.equal(await f(OVER), null, 'a declined summary is not a success');
   calls.length = 0;
@@ -141,7 +141,7 @@ test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving'
     await fs.writeFile(dst, SMALL);
     return { code: 0, stdout: JSON.stringify({ trianglesBefore: maxMeshTriangles + 1, trianglesAfter: 100 }) };
   };
-  const g = makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake/imaginarium-mesh-rs' }, run: run2 });
+  const g = makeImaginariumMeshSimplify({ root, cfg: { found: true, exe: '/fake/imaginarium-mesh-rs' }, run: run2 });
   const out = await g(OVER);
   assert.ok(out && out.equals(SMALL), 'the second pass (halved budget) comes back');
   assert.equal(calls.length, 2);
@@ -155,11 +155,11 @@ test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving'
   await fs.rm(root, { recursive: true, force: true });
 });
 
-test('makeAfMeshSimplify: a refusal exit and unreadable summaries answer null', async () => {
+test('makeImaginariumMeshSimplify: a refusal exit and unreadable summaries answer null', async () => {
   const root = path.join(os.tmpdir(), 'imaginarium-mesh-lane-' + randomUUID());
-  assert.equal(await makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 1, stderr: 'refused' }) })(OVER), null);
-  assert.equal(await makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: 'not json' }) })(OVER), null);
-  assert.equal(await makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => { throw new Error('spawn exploded'); } })(OVER), null);
+  assert.equal(await makeImaginariumMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 1, stderr: 'refused' }) })(OVER), null);
+  assert.equal(await makeImaginariumMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: 'not json' }) })(OVER), null);
+  assert.equal(await makeImaginariumMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => { throw new Error('spawn exploded'); } })(OVER), null);
   await fs.rm(root, { recursive: true, force: true });
 });
 
@@ -170,20 +170,20 @@ test('makeSalvageSimplify: imaginarium-mesh first, Blender as the fallback, IMAG
   const afBad = () => async () => { afCalls++; return OVER; }; // reduced but still over a cap
   const bl = () => async (b) => { blCalls++; return SMALL; };
 
-  const chain1 = makeSalvageSimplify({ env: {}, makeAfMesh: afOk, makeBlender: bl });
+  const chain1 = makeSalvageSimplify({ env: {}, makeImaginariumMesh: afOk, makeBlender: bl });
   assert.ok((await chain1(OVER)).equals(SMALL));
   assert.equal(blCalls, 0, 'the fast path result stands, Blender never wakes up');
 
-  const chain2 = makeSalvageSimplify({ env: {}, makeAfMesh: afNo, makeBlender: bl });
+  const chain2 = makeSalvageSimplify({ env: {}, makeImaginariumMesh: afNo, makeBlender: bl });
   await chain2(OVER);
   assert.equal(blCalls, 1, 'a declined fast path falls through to the Blender route');
 
-  const chain3 = makeSalvageSimplify({ env: {}, makeAfMesh: afBad, makeBlender: bl });
+  const chain3 = makeSalvageSimplify({ env: {}, makeImaginariumMesh: afBad, makeBlender: bl });
   await chain3(OVER);
   assert.equal(blCalls, 2, 'reduced-but-still-oversize falls through too');
 
   let afBuilt = false;
-  const chain4 = makeSalvageSimplify({ env: { IMAGINARIUM_SALVAGE: 'blender' }, makeAfMesh: () => { afBuilt = true; throw new Error('must not build'); }, makeBlender: bl });
+  const chain4 = makeSalvageSimplify({ env: { IMAGINARIUM_SALVAGE: 'blender' }, makeImaginariumMesh: () => { afBuilt = true; throw new Error('must not build'); }, makeBlender: bl });
   await chain4(OVER);
   assert.equal(afBuilt, false, 'IMAGINARIUM_SALVAGE=blender is the forced route — the fast path is not even constructed');
   assert.equal(blCalls, 3, 'the forced route is the Blender path');

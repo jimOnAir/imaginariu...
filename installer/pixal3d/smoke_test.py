@@ -4,7 +4,7 @@
     python_embeded\\python.exe -I tools\\smoke_test.py --generate --front front.png [--left l.png --back b.png --right r.png]
                                                     [--mode single|mv] [--out DIR] [--tag NAME] [--seed 1000]
 
-Default (--nodes): asks the running server for /object_info and /af/vram and checks that every Trellis2 node used by
+Default (--nodes): asks the running server for /object_info and /ima/vram and checks that every Trellis2 node used by
 the shape graphs is registered. The installer runs this after starting ComfyUI for a few seconds, then stops it.
 
 --generate: a real shape-only run (no texture stage, no nvdiffrast rendering node: nvdiffrast is non-commercial).
@@ -53,11 +53,11 @@ def check_nodes():
     for n in missing:
         print("MISSING node:", n)
     try:
-        v = http("GET", "/af/vram", timeout=15)
+        v = http("GET", "/ima/vram", timeout=15)
         print("VRAM probe ok: %.0f of %.0f MB in use" % (v["used_mb"], v["total_mb"]))
     except Exception as e:
         print("VRAM probe (imaginarium_vram_probe.py) not available:", e)
-        missing.append("/af/vram")
+        missing.append("/ima/vram")
     return 0 if not missing else 1
 
 
@@ -163,7 +163,7 @@ def generate(a):
     d = COMFY_OUT / "imaginarium"
     before = set(p.name for p in d.iterdir()) if d.is_dir() else set()
     try:
-        http("POST", "/af/vram/start")
+        http("POST", "/ima/vram/start")
         probe = True
     except Exception:
         probe = False
@@ -177,7 +177,7 @@ def generate(a):
             break
         time.sleep(2)
     secs = time.time() - t0
-    vram = http("POST", "/af/vram/stop") if probe else None
+    vram = http("POST", "/ima/vram/stop") if probe else None
     st = hist["status"]
     print("status:", st.get("status_str"), " seconds: %.1f" % secs, " vram:", vram)
     rec = {"tag": a.tag, "mode": a.mode, "seconds": round(secs, 1), "vram": vram, "status": st.get("status_str"),

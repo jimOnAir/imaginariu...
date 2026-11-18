@@ -9,7 +9,7 @@
 
 Отчёт: `C:\Imaginarium\engines\reports\<игра>_<время>\` — JSON, журналы, `tests_*.xml`, `shots/`.
 
-Опорные цифры 31.10.2026 на демо «AF Demo»:
+Опорные цифры 31.10.2026 на демо «Imaginarium Demo»:
 
 - Unity: 4 пакета OK (лучник Humanoid, костёр, дерево, заяц), EditMode 2/2, 13–22 с.
 - Godot: 3 сцены OK, `run_tests` 5/5, кадры сняты.

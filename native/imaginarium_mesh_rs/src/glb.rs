@@ -64,7 +64,7 @@ pub struct Summary {
 pub fn load(bytes: &[u8]) -> Result<(json::Root, Vec<u8>), String> {
     if !bytes.starts_with(b"glTF") {
         return Err(
-            "not a GLB file (no 'glTF' magic) — af-mesh takes the studio's .glb files".into(),
+            "not a GLB file (no 'glTF' magic) — imaginarium-mesh takes the studio's .glb files".into(),
         );
     }
     let glb = gltf::binary::Glb::from_slice(bytes).map_err(|e| format!("broken GLB: {e}"))?;
@@ -87,7 +87,7 @@ fn single_internal_buffer(root: &json::Root) -> Result<(), String> {
     }
     if root.buffers.len() > 1 || root.buffers[0].uri.is_some() {
         return Err(
-            "the file references external or base64 buffers; af-mesh carries the single \
+            "the file references external or base64 buffers; imaginarium-mesh carries the single \
                     internal GLB buffer only"
                 .into(),
         );
@@ -220,12 +220,12 @@ impl<'a> Rewriter<'a> {
         let prim = &root.meshes[mi].primitives[pi];
         if !matches!(prim.mode, Checked::Valid(json::mesh::Mode::Triangles)) {
             return Err(format!(
-                "{here}: the primitive mode is not TRIANGLES; af-mesh collapses triangles only"
+                "{here}: the primitive mode is not TRIANGLES; imaginarium-mesh collapses triangles only"
             ));
         }
         if prim.extensions.is_some() {
             return Err(format!(
-                "{here}: the primitive carries extensions (mesh compression); af-mesh \
+                "{here}: the primitive carries extensions (mesh compression); imaginarium-mesh \
                                cannot read them — unpack the file first or keep the fallback"
             ));
         }

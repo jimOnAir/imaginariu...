@@ -1,8 +1,8 @@
 """Imaginarium helper (not part of ComfyUI-Trellis2): device-wide VRAM peak probe for the evaluation runs.
 
-    POST /af/vram/start   -> starts a 20 ms sampler of torch.cuda.mem_get_info(), remembers the baseline
-    POST /af/vram/stop    -> returns {"baseline_used_mb", "peak_used_mb", "peak_delta_mb", "samples"}
-    GET  /af/vram         -> current used/total
+    POST /ima/vram/start   -> starts a 20 ms sampler of torch.cuda.mem_get_info(), remembers the baseline
+    POST /ima/vram/stop    -> returns {"baseline_used_mb", "peak_used_mb", "peak_delta_mb", "samples"}
+    GET  /ima/vram         -> current used/total
 
 The numbers are DEVICE-WIDE (other programs on the GPU count too), so the peak is reported together with the
 baseline taken at start.
@@ -34,13 +34,13 @@ def _sampler(stop):
         time.sleep(0.02)
 
 
-@PromptServer.instance.routes.get("/af/vram")
+@PromptServer.instance.routes.get("/ima/vram")
 async def imaginarium_vram(request):
     used, total = _used_mb()
     return web.json_response({"used_mb": used, "total_mb": total})
 
 
-@PromptServer.instance.routes.post("/af/vram/start")
+@PromptServer.instance.routes.post("/ima/vram/start")
 async def imaginarium_vram_start(request):
     if _state["stop"] is not None:
         _state["stop"].set()
@@ -52,7 +52,7 @@ async def imaginarium_vram_start(request):
     return web.json_response({"baseline_used_mb": used})
 
 
-@PromptServer.instance.routes.post("/af/vram/stop")
+@PromptServer.instance.routes.post("/ima/vram/stop")
 async def imaginarium_vram_stop(request):
     if _state["stop"] is not None:
         _state["stop"].set()
