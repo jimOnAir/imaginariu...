@@ -1,13 +1,13 @@
 [package]
-name = "af-mesh-rs"
+name = "imaginarium-mesh-rs"
 version = "0.7.9"
 edition = "2021"
 license = "MIT"
-description = "AstraForge's own GLB decimator on vendored meshoptimizer - the salvage fast path (wave ticket 46)"
+description = "Imaginarium's own GLB decimator on vendored meshoptimizer - the salvage fast path (wave ticket 46)"
 publish = false
 
 [[bin]]
-name = "af-mesh-rs"
+name = "imaginarium-mesh-rs"
 path = "src/main.rs"
 
 # Pinned to the byte age the 7-day supply-chain gate already cleared: gltf 1.4.1 published

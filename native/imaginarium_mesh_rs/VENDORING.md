@@ -18,7 +18,7 @@ Files vendored (exactly what the simplifier translation unit needs; no network a
 These files are UNMODIFIED upstream sources. They are third-party code under their own MIT
 license and are listed in `THIRD_PARTY_NOTICES.md`; for the ADR-0004 similarity audits they are
 **excluded-by-notice** (like `node_modules`): third-party files legitimately match any build
-that vendors the same project, and the audit gates ORIGINAL AstraForge code, which lives in
+that vendors the same project, and the audit gates ORIGINAL Imaginarium code, which lives in
 `src/` and `build.rs`.
 
 Built from source with the `cc` crate — never downloaded as a binary.

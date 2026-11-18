@@ -1,9 +1,9 @@
-//! af-mesh-rs — the CLI the studio spawns (wave ticket 46). Grammar, deliberately tiny:
+//! imaginarium-mesh-rs — the CLI the studio spawns (wave ticket 46). Grammar, deliberately tiny:
 //!
 //! ```text
-//! af-mesh-rs simplify --in A.glb --tris N --out B.glb [--json]
-//! af-mesh-rs compare  --a A.glb --b B.glb [--json]
-//! af-mesh-rs --version
+//! imaginarium-mesh-rs simplify --in A.glb --tris N --out B.glb [--json]
+//! imaginarium-mesh-rs compare  --a A.glb --b B.glb [--json]
+//! imaginarium-mesh-rs --version
 //! ```
 //!
 //! Exit codes: 0 success, 1 a real refusal (the reason goes to stderr, the output file is
@@ -16,7 +16,7 @@ fn main() -> ExitCode {
         Ok(()) => ExitCode::SUCCESS,
         Err(Fail::Misuse) => ExitCode::from(2),
         Err(Fail::Refusal(msg)) => {
-            eprintln!("af-mesh-rs: {msg}");
+            eprintln!("imaginarium-mesh-rs: {msg}");
             ExitCode::FAILURE
         }
     }
@@ -35,13 +35,13 @@ impl From<String> for Fail {
 
 fn usage() -> &'static str {
     "usage:\n  \
-     af-mesh-rs simplify --in A.glb --tris N --out B.glb [--json]\n  \
-     af-mesh-rs compare  --a A.glb --b B.glb [--json]\n  \
-     af-mesh-rs --version"
+     imaginarium-mesh-rs simplify --in A.glb --tris N --out B.glb [--json]\n  \
+     imaginarium-mesh-rs compare  --a A.glb --b B.glb [--json]\n  \
+     imaginarium-mesh-rs --version"
 }
 
 fn need(flag: &str) -> Fail {
-    eprintln!("af-mesh-rs: {flag} is required\n{}", usage());
+    eprintln!("imaginarium-mesh-rs: {flag} is required\n{}", usage());
     Fail::Misuse
 }
 
@@ -84,7 +84,7 @@ impl Args {
             Ok(())
         } else {
             eprintln!(
-                "af-mesh-rs: unexpected arguments: {}\n{}",
+                "imaginarium-mesh-rs: unexpected arguments: {}\n{}",
                 self.rest.join(" "),
                 usage()
             );
@@ -110,17 +110,17 @@ fn run() -> Result<(), Fail> {
             if as_json {
                 println!(
                     "{}",
-                    serde_json::json!({ "name": "af-mesh-rs", "version": af_mesh_rs::VERSION })
+                    serde_json::json!({ "name": "imaginarium-mesh-rs", "version": imaginarium_mesh_rs::VERSION })
                 );
             } else {
-                println!("af-mesh-rs {}", af_mesh_rs::VERSION);
+                println!("imaginarium-mesh-rs {}", imaginarium_mesh_rs::VERSION);
             }
             Ok(())
         }
         "simplify" => simplify(&mut args, as_json),
         "compare" => compare(&mut args, as_json),
         other => {
-            eprintln!("af-mesh-rs: unknown command '{other}'\n{}", usage());
+            eprintln!("imaginarium-mesh-rs: unknown command '{other}'\n{}", usage());
             Err(Fail::Misuse)
         }
     }
@@ -138,9 +138,9 @@ fn simplify(args: &mut Args, as_json: bool) -> Result<(), Fail> {
     args.reject_stray()?;
 
     let bytes = read(&input)?;
-    let (mut root, bin) = af_mesh_rs::glb::load(&bytes).map_err(Fail::Refusal)?;
+    let (mut root, bin) = imaginarium_mesh_rs::glb::load(&bytes).map_err(Fail::Refusal)?;
     let (out, summary) =
-        af_mesh_rs::glb::simplify_glb(&mut root, &bin, tris).map_err(Fail::Refusal)?;
+        imaginarium_mesh_rs::glb::simplify_glb(&mut root, &bin, tris).map_err(Fail::Refusal)?;
     // Success only now: any refusal above left `--out` completely untouched.
     std::fs::write(&output, &out).map_err(|e| Fail::Refusal(format!("writing {output}: {e}")))?;
 
@@ -163,7 +163,7 @@ fn simplify(args: &mut Args, as_json: bool) -> Result<(), Fail> {
         println!(
             "{}",
             serde_json::json!({
-                "name": "af-mesh-rs", "version": af_mesh_rs::VERSION, "mode": "simplify",
+                "name": "imaginarium-mesh-rs", "version": imaginarium_mesh_rs::VERSION, "mode": "simplify",
                 "targetTris": tris, "trianglesBefore": before, "trianglesAfter": after,
                 "maxError": (summary.max_error as f64 * 1e6).round() / 1e6,
                 "primitives": primitives,
@@ -172,7 +172,7 @@ fn simplify(args: &mut Args, as_json: bool) -> Result<(), Fail> {
             })
         );
     } else {
-        println!("af-mesh-rs: {input}: {before} -> {after} triangles -> {output}");
+        println!("imaginarium-mesh-rs: {input}: {before} -> {after} triangles -> {output}");
     }
     Ok(())
 }
@@ -183,13 +183,13 @@ fn compare(args: &mut Args, as_json: bool) -> Result<(), Fail> {
     args.reject_stray()?;
     let va = read(&a)?;
     let vb = read(&b)?;
-    let value = af_mesh_rs::glb::compare_bytes(&va, &vb).map_err(Fail::Refusal)?;
+    let value = imaginarium_mesh_rs::glb::compare_bytes(&va, &vb).map_err(Fail::Refusal)?;
     if as_json {
         println!("{value}");
     } else {
         let d = &value["deviation"]["vertexDistance"];
         println!(
-            "af-mesh-rs compare {a} vs {b}: area ratio {}, vertex distance p50 {} p95 {} max {}",
+            "imaginarium-mesh-rs compare {a} vs {b}: area ratio {}, vertex distance p50 {} p95 {} max {}",
             value["deviation"]["areaRatio"], d["p50"], d["p95"], d["max"]
         );
     }

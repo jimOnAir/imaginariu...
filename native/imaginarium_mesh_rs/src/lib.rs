@@ -1,13 +1,13 @@
-//! af-mesh-rs — AstraForge's own GLB decimator on vendored meshoptimizer (wave ticket 46).
+//! imaginarium-mesh-rs — Imaginarium's own GLB decimator on vendored meshoptimizer (wave ticket 46).
 //!
-//! Branch-original code (MIT, AstraForge contributors) over unmodified third-party sources
+//! Branch-original code (MIT, Imaginarium contributors) over unmodified third-party sources
 //! pinned in `vendor/` (`VENDORING.md`, `THIRD_PARTY_NOTICES.md`). The CLI in `src/main.rs` is
 //! the only contract the studio relies on:
 //!
 //! ```text
-//! af-mesh-rs simplify --in a.glb --tris N --out b.glb [--json]
-//! af-mesh-rs compare  --a a.glb --b b.glb [--json]
-//! af-mesh-rs --version
+//! imaginarium-mesh-rs simplify --in a.glb --tris N --out b.glb [--json]
+//! imaginarium-mesh-rs compare  --a a.glb --b b.glb [--json]
+//! imaginarium-mesh-rs --version
 //! ```
 //!
 //! The carry-contract: rig weights, vertex colours, custom normals, UVs and shape-key deltas
