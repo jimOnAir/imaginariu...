@@ -5,7 +5,7 @@ edition = "2024"
 rust-version = "1.97.1"
 license = "MIT"
 description = "Play Imaginarium game assets (GLB + ima_bevy.json passport) in Bevy: default-clip autostart, clip blending, socket-mounted effects, studio sound banks, hot model reload."
-repository = "https://github.com/Snodrod/AstraForge"
+repository = "https://github.com/jimOnAir/imaginarium"
 keywords = ["bevy", "gamedev", "imaginarium", "glb", "asset"]
 categories = ["game-development"]
 
