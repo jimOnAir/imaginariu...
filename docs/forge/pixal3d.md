@@ -5,7 +5,7 @@
 ## Что это и зачем
 
 Pixal3D (Tencent ARC, поверх TRELLIS.2) строит форму по одному или нескольким видам. Владелец выбрал его после сравнения на ополченце
-(`C:\AstraForge\incoming\units_1013\militia\pixal3d\compare.png`, цифры — `compare.json`; IoU силуэта против поданных видов):
+(`C:\Imaginarium\incoming\units_1013\militia\pixal3d\compare.png`, цифры — `compare.json`; IoU силуэта против поданных видов):
 
 | Вариант | спереди | слева | сзади | справа | время | видеопамять (пик над фоном) |
 |---|---|---|---|---|---|---|
@@ -48,8 +48,8 @@ node scripts/views/views_3d.mjs --views <папка набора> --out mesh.glb
 
 | Что | Источник |
 |---|---|
-| папка ComfyUI-Pixal3D | переменная `ASTRA_PIXAL3D_DIR`, затем `config\paths.json`, ключ `pixal3dDir` (его пишет установщик; `Start.cmd` переносит в переменную), затем `C:\AstraForge\ComfyUI-Pixal3D` |
-| адрес | `ASTRA_PIXAL3D_URL` (или `pixal3dUrl` в `paths.json`), по умолчанию `http://127.0.0.1:8191`; только локальный http |
+| папка ComfyUI-Pixal3D | переменная `IMAGINARIUM_PIXAL3D_DIR`, затем `config\paths.json`, ключ `pixal3dDir` (его пишет установщик; `Start.cmd` переносит в переменную), затем `C:\Imaginarium\ComfyUI-Pixal3D` |
+| адрес | `IMAGINARIUM_PIXAL3D_URL` (или `pixal3dUrl` в `paths.json`), по умолчанию `http://127.0.0.1:8191`; только локальный http |
 
 «Установлен» значит: на диске есть портативный Python, ComfyUI, узлы ComfyUI-Trellis2, веса Pixal3D (одно- и многовидовые), DINOv3 ViT-L/16 и MoGe-2 (список — `PIXAL3D_REQUIREMENTS`
 в `server/pixal3d.mjs`). Чего-то не хватает — студия не падает: переключатель неактивен, задание с `engine: "pixal3d"` отклоняется сразу с причиной, `auto` и CLI берут Hunyuan3D.
@@ -133,7 +133,7 @@ Pixal3D занимает около 9,5 ГБ из 12, а Hunyuan держит м
 `server/gpu-handover.mjs` (передача видеокарты), `server/glb-normalize.mjs` (нормировка), `server/schema.mjs` (`pixal3dWorkflow`, поле `engine`),
 `server/jobs.mjs` (ветка `runPixal3d`), `server/index.mjs` (`engine` в заданиях, `pixal3d` в `/api/status`), `server/views.mjs` (`forJob` отдаёт и вырезки `cutFiles`),
 `scripts/views/views_3d.mjs` (CLI), `scripts/Start.ps1` и `scripts/Stop.ps1`, `src/ViewsPanel.jsx` (`EngineSelect`), `src/App.jsx`, `src/views.css`.
-Сам движок и его описание — `C:\AstraForge\ComfyUI-Pixal3D\ASTRAFORGE_README.md`.
+Сам движок и его описание — `C:\Imaginarium\ComfyUI-Pixal3D\IMAGINARIUM_README.md`.
 
 ## Ядро NATTEN и пробник видеокарты (0.6.x, тикет 11)
 
@@ -142,7 +142,7 @@ Windows-ветка в 0.6.4 чинила падение Pixal3D на RTX 50 («n
 закреплённое колесо `natten-0.21.5+torch290cu128` умеет Blackwell (настоящий проход `na2d` с
 картой 16×16 даёт конечный результат), но установщик всё равно обязан ПРОВЕРЯТЬ, а не предполагать:
 
-- `installer/pixal3d/af_natten_probe.mjs` — выбор колеса по тройке (версия torch, CUDA, compute
+- `installer/pixal3d/imaginarium_natten_probe.mjs` — выбор колеса по тройке (версия torch, CUDA, compute
   capability); матрица закреплена в `installer/pixal3d/manifest.json` (`linux.nattenMatrix`).
   Понты ниже `sm_75` (GTX 10xx) колесо не получают вообще — честная рекомендация облегчённого
   набора; неизвестная карта/торч — деградация к закреплённому колесу с внятным сообщением.
@@ -152,5 +152,5 @@ Windows-ветка в 0.6.4 чинила падение Pixal3D на RTX 50 («n
 - Починка обоих окружений Pixal3D (переносной на 8191 и старого до-0.5 Pixal3D-на-ComfyUI):
   `installer/pixal3d/install-pixal3d.sh natten [каталог]` — проверяет и заменяет ядро, только
   когда оно не подходит карте; отсутствующее окружение честно называется отсутствующим.
-- Швы для тестов (в стиле `ASTRA_VRAM_MIB`): `ASTRA_GPU_CC` подменяет compute capability,
-  `ASTRA_NATTEN_PROBE=0` выключает живой проход. Логика выбора покрыта `tests/natten-probe.test.mjs`.
+- Швы для тестов (в стиле `IMAGINARIUM_VRAM_MIB`): `IMAGINARIUM_GPU_CC` подменяет compute capability,
+  `IMAGINARIUM_NATTEN_PROBE=0` выключает живой проход. Логика выбора покрыта `tests/natten-probe.test.mjs`.

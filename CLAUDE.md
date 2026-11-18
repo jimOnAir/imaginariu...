@@ -1,13 +1,13 @@
-# AstraForge: instructions for Claude Code
+# Imaginarium: instructions for Claude Code
 
-AstraForge is a local Windows 3D asset studio (image/text to 3D, rig, animation, effects, export). See `README.md` for what it does. This file tells you how to install and run it when the user says things like "install everything" or "set up AstraForge".
+Imaginarium is a local Windows 3D asset studio (image/text to 3D, rig, animation, effects, export). See `README.md` for what it does. This file tells you how to install and run it when the user says things like "install everything" or "set up Imaginarium".
 
 ## Rules
 
 - Never ask for API keys in chat and never write keys into files. The custom OpenAI-compatible endpoint key (`CUSTOM_LLM_API_KEY`) and the Tripo key are optional and the user enters them in the app's **Connections** tab (encrypted with Windows DPAPI).
 - Never touch `data\` (projects, models, `vault.json`) when reinstalling.
 - No administrator rights are needed. Do not run heavy GPU jobs unless asked.
-- Use a short Latin-only install path (for example `C:\AstraForge`). If the clone is in a long or non-Latin path, tell the user and suggest moving it before installing.
+- Use a short Latin-only install path (for example `C:\Imaginarium`). If the clone is in a long or non-Latin path, tell the user and suggest moving it before installing.
 
 ## Install procedure
 
@@ -21,10 +21,10 @@ AstraForge is a local Windows 3D asset studio (image/text to 3D, rig, animation,
    `powershell -NoProfile -ExecutionPolicy Bypass -File installer\Install.ps1 -Yes -Only node,npm,blender,comfy,comfydeps,hy2,u2net,<chosen ids>`
    Run it with `run_in_background`, and follow progress with `Get-Content installer\install.log -Tail 30`. If a download is interrupted, rerun the same command: it resumes. `-Yes` alone installs the required components plus the wizard's defaults (Pixal3D is never a default). `-DryRun` walks through without downloading.
 4. **Verify:** run `-ScanOnly` again and read `config\paths.json` (paths to Node, Blender, ComfyUI, Godot, and `pixal3dDir` if installed). Optionally run `npm test`.
-5. **Start the studio:** run `Start.cmd` (or the AstraForge desktop shortcut), then check `http://127.0.0.1:3210/api/health`; the response must contain `"app":"AstraForge"`. The studio's own ComfyUI runs on 8190 and Pixal3D on 8191. Stop with `Stop.cmd`.
+5. **Start the studio:** run `Start.cmd` (or the Imaginarium desktop shortcut), then check `http://127.0.0.1:3210/api/health`; the response must contain `"app":"Imaginarium"`. The studio's own ComfyUI runs on 8190 and Pixal3D on 8191. Stop with `Stop.cmd`.
 6. **Troubleshooting:** read `installer\install.log`, `data\runtime\server-error.log` and `data\runtime\comfy.log`; reinstall only the broken component with `Install.ps1 -Yes -Only <id>`.
 
-The interactive launcher `Install AstraForge.cmd` is for people installing by hand; the user may use it instead of the steps above.
+The interactive launcher `Install Imaginarium.cmd` is for people installing by hand; the user may use it instead of the steps above.
 
 ## Component ids
 
@@ -49,10 +49,10 @@ List ids in install order. When the user just says "install everything useful", 
 
 ## Deeper help
 
-- `ai/skills/` has two skills for AI agents: `astraforge` (install, components, studio CLI, troubleshooting, `scripts/af_status.ps1` health check) and `astraforge-vfx` (effects and VFX textures). To make them visible to Claude Code in every project, link them (cmd, no admin rights needed):
+- `ai/skills/` has two skills for AI agents: `imaginarium` (install, components, studio CLI, troubleshooting, `scripts/imaginarium_status.ps1` health check) and `imaginarium-vfx` (effects and VFX textures). To make them visible to Claude Code in every project, link them (cmd, no admin rights needed):
   ```bat
-  mklink /J "%USERPROFILE%\.claude\skills\astraforge" "<AstraForge folder>\ai\skills\astraforge"
-  mklink /J "%USERPROFILE%\.claude\skills\astraforge-vfx" "<AstraForge folder>\ai\skills\astraforge-vfx"
+  mklink /J "%USERPROFILE%\.claude\skills\imaginarium" "<Imaginarium folder>\ai\skills\imaginarium"
+  mklink /J "%USERPROFILE%\.claude\skills\imaginarium-vfx" "<Imaginarium folder>\ai\skills\imaginarium-vfx"
   ```
 - `docs/forge/` documents the Blender "Forge" pipeline, `ARCHITECTURE.md` the app, `GODOT-RIGGING.md` and `SURFACES-SPRITES-GODOT.md` the Godot hand-off.
 

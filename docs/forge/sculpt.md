@@ -47,14 +47,14 @@
 ## Устройство и безопасность
 
 ```
-студия (http://127.0.0.1:3210)          веб-порт (http://127.0.0.1:3211, ASTRA_VFX_WEB_PORT)
+студия (http://127.0.0.1:3210)          веб-порт (http://127.0.0.1:3211, IMAGINARIUM_VFX_WEB_PORT)
  ├ вкладка «Скульпт» (SculptPanel.jsx)   └ /sculpt/  ← SculptGL + мост (bridge.js), сторонний код
  ├ iframe → /sculpt/?studio=<origin>
  └ postMessage ⇄ мост
 ```
 
 - Сторонний JS живёт на **другом origin** (веб-порт генераторов VFX): API студии ему недоступен, студия отбивает
-  запросы с чужим `Origin` и без заголовка `x-astra-client`.
+  запросы с чужим `Origin` и без заголовка `x-imaginarium-client`.
 - Единственное исключение: `GET`/`HEAD /api/assets/<uuid>` с `Origin` страницы скульпта получает
   `Access-Control-Allow-Origin` именно для этого origin (`server/sculpt.mjs`). По нему SculptGL скачивает OBJ,
   который студия положила в ассеты. Запись, остальные пути и другие origin по-прежнему получают 403.
@@ -86,7 +86,7 @@ SculptGL собирается из исходников на машине вла
 powershell -ExecutionPolicy Bypass -File scripts\vfx\Install-VfxTools.ps1 -Only sculptgl
 ```
 
-Скрипт скачивает ветку `master` в `<ASTRA_VFX_TOOLS>\web\sculptgl-src`, ставит зависимости (`npm ci --ignore-scripts`,
+Скрипт скачивает ветку `master` в `<IMAGINARIUM_VFX_TOOLS>\web\sculptgl-src`, ставит зависимости (`npm ci --ignore-scripts`,
 затем webpack 5.97 вместо 5.21 из lock-файла: старый не работает на Node 17+), собирает `webpack --env release`,
 удаляет `node_modules` и запускает `scripts/sculpt/assemble.mjs`. Тот копирует `app/` в `web/sculptgl/`, убирает
 внешние обращения (Google Fonts, страница авторизации Sketchfab), подключает мост и кладёт `LICENSE.txt`.
@@ -107,4 +107,4 @@ powershell -ExecutionPolicy Bypass -File scripts\vfx\Install-VfxTools.ps1 -Only 
 ## Лицензия
 
 SculptGL © 2019 Stéphane Ginier, MIT; текст лицензии лежит в сборке (`web/sculptgl/LICENSE.txt`) и в
-`THIRD_PARTY_NOTICES.md`. Мост и вкладка принадлежат AstraForge.
+`THIRD_PARTY_NOTICES.md`. Мост и вкладка принадлежат Imaginarium.

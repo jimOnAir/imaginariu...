@@ -1,4 +1,4 @@
-# AstraForge 0.6.6 — acceptance report (Windows 0.5.3→0.6.6 behavior, re-derived on Linux, shipped once)
+# Imaginarium 0.6.6 — acceptance report (Windows 0.5.3→0.6.6 behavior, re-derived on Linux, shipped once)
 
 This tree (`linux-support`) is version **0.6.6**. It carries everything the [0.5.1 acceptance
 report](acceptance-0.5.1.md) covered — the 0.4.16 feature set plus the Windows 0.5.x line — and
@@ -7,7 +7,7 @@ Protocol v2 ([ADR-0004](../adr/0004-protocol-v2-clean-room-and-attribution.md)):
 published intent paraphrased to functional bullets (T1), observed behavior (T2) and interface
 facts (T3) as the only spec channels; implementing contexts never read the extracted payload;
 every commit gated by an independent fresh-context similarity audit recorded per ticket under
-`.scratch/astraforge-060-reintroduction/issues/`.
+`.scratch/imaginarium-060-reintroduction/issues/`.
 
 **Parity line.** Windows shipped 0.6.0 and then patched it six times; **this branch folds the
 whole line into one Linux release** — there was never a Linux 0.6.0…0.6.5 (recorded deviation).
@@ -30,7 +30,7 @@ How to verify the whole tree at this commit:
 
 ```bash
 npm ci
-ASTRA_ENGINE_AUTOSTART=0 npm test    # 519 tests: 517 pass, 0 fail, 2 skipped (both pre-existing)
+IMAGINARIUM_ENGINE_AUTOSTART=0 npm test    # 519 tests: 517 pass, 0 fail, 2 skipped (both pre-existing)
 cd ai/mcp && npm test                # 24 tests: 23 pass, 1 skipped (the fake-Start case is win32-only)
 npm run build
 installer/install.sh -v              # prints the package.json version (0.6.6) — the drift guard
@@ -50,15 +50,15 @@ draft was landed.
 | # | Behavior (intent, paraphrased) | Status | Where | Proof |
 |---|---|---|---|---|
 | 1 | TripoSG generates a mesh from a single picture as its own worker: dedicated venv (torch cpu/cu128 by card), commit-pinned MIT clone, HF snapshot split into resumable checksummed steps; `engine: triposg` rides the studio job layer and lands a GLB | ✅ | ticket 01 (`4ef4989`), `server/triposg.mjs`, `server/triposg-run.mjs` | live demo on the 5070 (studio booted, `POST /api/jobs engine=triposg` → GLB opens, record in the ticket) + `tests/triposg*.test.mjs` |
-| 2 | Installer components `triposg`/`triposgvae`/`triposgdino`, scan rows, `-Only` installs them; `auto` resolves the shape engine by card: TripoSG ≤ 9216 MiB, else Pixal3D if installed, else Hunyuan — proven through the `ASTRA_VRAM_MIB` seam without hardware surgery | ✅ | ticket 02 (`47127c1`), `installer/af_scan.mjs`, `installer/install.sh`, `server/triposg.mjs` | `-ScanList` rows + real `-Yes -Only` run verified pins against the on-disk install; the auto rule unit-pinned at both sides of the boundary |
-| 3 | Windows ships TripoSG inside the AstraForge Engine (plugin + engine installer); this branch keeps the standalone-worker mapping | recorded deviation | ADR-0004 §0.6.6 amendment | engine plumbing stays deferred with the Engine line |
+| 2 | Installer components `triposg`/`triposgvae`/`triposgdino`, scan rows, `-Only` installs them; `auto` resolves the shape engine by card: TripoSG ≤ 9216 MiB, else Pixal3D if installed, else Hunyuan — proven through the `IMAGINARIUM_VRAM_MIB` seam without hardware surgery | ✅ | ticket 02 (`47127c1`), `installer/imaginarium_scan.mjs`, `installer/install.sh`, `server/triposg.mjs` | `-ScanList` rows + real `-Yes -Only` run verified pins against the on-disk install; the auto rule unit-pinned at both sides of the boundary |
+| 3 | Windows ships TripoSG inside the Imaginarium Engine (plugin + engine installer); this branch keeps the standalone-worker mapping | recorded deviation | ADR-0004 §0.6.6 amendment | engine plumbing stays deferred with the Engine line |
 
 ## Cluster B — the autorig slot that refuses honestly: SkinTokens (Windows 0.6.0 line, license outcome)
 
 | # | Behavior | Status | Where | Proof |
 |---|---|---|---|---|
 | 1 | `rig_creature` accepts the upstream contract params (`rig_engine: blender \| skintokens`, skeleton hint); `skintokens` is refused **before anything spawns** with the license reason and a pointer to the doc — the released checkpoint hard-asserts a GPL-vendored mesh encoder (structure-for-structure Michelangelo classes) with no clean substitute for the published weights | ✅ (degraded per the ticket's own rule: scope degrades, the license rule does not) | ticket 03 (`d52a17f`), `scripts/blender/steps/rig_creature.py`, `docs/product/skintokens.md` | refusal + fallback + absence tests; the Blender template rig (the supported path) untouched |
-| 2 | A `skintokens` checklist row the day a clean encoder lands | 🚫 by decision | `installer/af_scan.mjs` `EXPERIMENTAL` lists it for that day | no row today; the decision doc carries the re-evaluation conditions |
+| 2 | A `skintokens` checklist row the day a clean encoder lands | 🚫 by decision | `installer/imaginarium_scan.mjs` `EXPERIMENTAL` lists it for that day | no row today; the decision doc carries the re-evaluation conditions |
 
 ## Cluster C — Sound: local effects and music (Windows 0.6.0 line B)
 
@@ -74,7 +74,7 @@ draft was landed.
 |---|---|---|---|---|
 | 1 | Styles carry reference pictures + an English description, described locally by the installed vision model (`/describe`, no cloud) | ✅ | ticket 06 (`6821781`), `server/styles.mjs`, `src/StylePanel.jsx` | live demo with real qwen3-vl:8b (two painted references → usable description into the bible) |
 | 2 | A 2D set carries `styleBibleId`; series, turnarounds and text-edits draw **in style** on Qwen-Image-Edit 2511 GGUF (stock ComfyUI nodes, lightning LoRA 4-step, `reference_latents_method` wiring); the gate is honest: 10 GiB of video memory or the style series fall back to FLUX.2 klein, the reason rides the card | ✅ | ticket 07 (`cde3b34`), `scripts/art2d/art2d_workflows.mjs`, `server/art2d.mjs`, `installer` component `qwenedit` | live T2 demo: bible → `engine: qwenedit` (auto-upgrade note), 48 s, real 768×1024 PNGs, bible text in `prompt_final`; fallback proven live too (ComfyUI silent → `flux2` with the reason) |
-| 3 | Upstream draws this inside the AstraForge Engine; this branch uses stock ComfyUI nodes (deviation, like TripoSG) | recorded deviation | ADR-0004 §0.6.6 amendment | docs state it |
+| 3 | Upstream draws this inside the Imaginarium Engine; this branch uses stock ComfyUI nodes (deviation, like TripoSG) | recorded deviation | ADR-0004 §0.6.6 amendment | docs state it |
 
 ## Cluster E — the studio checks its own shapes (auto-review)
 
@@ -88,17 +88,17 @@ draft was landed.
 | # | Behavior | Status | Where | Proof |
 |---|---|---|---|---|
 | 1 | The 2D tab's base model becomes FLUX.2 klein **4B** (Apache-2.0 GGUF, commercial-safe): component `flux2` retargeted, notices reworded (the last non-commercial FLUX caveat of this branch disappears); an existing 9B is reported and left on disk for the user | ✅ | ticket 09 (`8986276`), `installer/manifest.json`, `THIRD_PARTY_NOTICES.md` | `-ScanOnly` live row + install-scan/version-rule tests |
-| 2 | Pixal3D on Blackwell without "no kernel image": the installer **probes** the real card (torch, CUDA, compute capability), installs the matrix row's wheel, then runs a live `na2d` kernel check with one repair; pre-sm_75 cards get the honest lighter-set recommendation; `install-pixal3d.sh natten` re-checks both Pixal3D environments | ✅ | ticket 11 (`991ad8d`), `installer/pixal3d/af_natten_probe.mjs`, `linux.nattenMatrix` | live on the 5070: the pinned wheel carries sm_120 kernels (na2d finite forward), probe reports `nothing to fix`; seams prove the older-card branch; 6/6 tests |
+| 2 | Pixal3D on Blackwell without "no kernel image": the installer **probes** the real card (torch, CUDA, compute capability), installs the matrix row's wheel, then runs a live `na2d` kernel check with one repair; pre-sm_75 cards get the honest lighter-set recommendation; `install-pixal3d.sh natten` re-checks both Pixal3D environments | ✅ | ticket 11 (`991ad8d`), `installer/pixal3d/imaginarium_natten_probe.mjs`, `linux.nattenMatrix` | live on the 5070: the pinned wheel carries sm_120 kernels (na2d finite forward), probe reports `nothing to fix`; seams prove the older-card branch; 6/6 tests |
 | 3 | klein-4B *drawing* on this machine (weights present) | ⚠ | ticket 09 kept the old 9B unused per its rule | swap logic seam-tested; a fresh-install demo belongs to the next card that runs the installer end to end |
 
 ## Cluster G — installer resilience and hygiene
 
 | # | Behavior | Status | Where | Proof |
 |---|---|---|---|---|
-| 1 | «новое, проба»: experimental components (`triposg*`, `sound`, `qwenedit`, `skintokens` when it lands) carry a badge and are **never preselected by any preset** — stricter than upstream (their low-VRAM TripoSG forcing stays Windows-side; this branch's opt-in is unconditional) | ✅ | ticket 12 (`f7986bd`), `installer/af_scan.mjs` `EXPERIMENTAL`, panel badge | live `##ITEM` rows (empty presets + marker) + rule-pinning tests |
-| 2 | Network survival: hf-mirror.com fallthrough behind the sha256 gate (a substituted file cannot pass), one full re-download of a damaged file before the named honest failure, clips mirror chain from the manifest (ships deliberately **empty** — no checksum-verifiable public copy of the repack exists; no invented mirrors), `say()` never aborts on an unwritable install log (the 0.6.6 Linux form) | ✅ | ticket 16 (`13156e9`), `installer/af_download.sh`, `install.sh`, `install-pixal3d.sh`, `install-vfx.sh` | 6 new offline download-core tests (blackhole/mirror/corrupt fakes); 23/23 in that file |
+| 1 | «новое, проба»: experimental components (`triposg*`, `sound`, `qwenedit`, `skintokens` when it lands) carry a badge and are **never preselected by any preset** — stricter than upstream (their low-VRAM TripoSG forcing stays Windows-side; this branch's opt-in is unconditional) | ✅ | ticket 12 (`f7986bd`), `installer/imaginarium_scan.mjs` `EXPERIMENTAL`, panel badge | live `##ITEM` rows (empty presets + marker) + rule-pinning tests |
+| 2 | Network survival: hf-mirror.com fallthrough behind the sha256 gate (a substituted file cannot pass), one full re-download of a damaged file before the named honest failure, clips mirror chain from the manifest (ships deliberately **empty** — no checksum-verifiable public copy of the repack exists; no invented mirrors), `say()` never aborts on an unwritable install log (the 0.6.6 Linux form) | ✅ | ticket 16 (`13156e9`), `installer/imaginarium_download.sh`, `install.sh`, `install-pixal3d.sh`, `install-vfx.sh` | 6 new offline download-core tests (blackhole/mirror/corrupt fakes); 23/23 in that file |
 | 3 | Dead third-party generator links no longer kill the VFX install: catalog entries carry an `optional` dated reason; install names and skips them, the tab distinguishes skipped-optional from missing, the site link stays | ✅ | ticket 15 (`1604176`), `server/vfx-tools-catalog.json`, `scripts/vfx/install-vfx.sh`, `src/VfxPanel.jsx` | live blocked-URL demo (`SKIPPED (optional, pixaflux)` + exit 0) + skip-vs-fail shell probe |
-| 4 | Ollama local-first: the studio starts Ollama when nothing answers on 127.0.0.1:11434, offers only installed models (live catalog), the Connections choice + `ASTRA_REVIEW_VLM` precedence, and the pick's reason is recorded wherever a verdict is made | ✅ | ticket 14 (`a6ce9d3`), `server/ollama-run.mjs`, `server/vlm.mjs` | network-namespace recovery demos (boot / dead / user choice) |
+| 4 | Ollama local-first: the studio starts Ollama when nothing answers on 127.0.0.1:11434, offers only installed models (live catalog), the Connections choice + `IMAGINARIUM_REVIEW_VLM` precedence, and the pick's reason is recorded wherever a verdict is made | ✅ | ticket 14 (`a6ce9d3`), `server/ollama-run.mjs`, `server/vlm.mjs` | network-namespace recovery demos (boot / dead / user choice) |
 | 5 | One bad field no longer costs every setting: a `config.json` that is valid JSON with a foreign key or a rejected value is read field by field — offender defaulted, everything else survives, the file untouched; a non-JSON file still moves aside (0.5.1 rule) | ✅ | ticket 17 (`8d132d1`), `server/schema.mjs` | live boot demo with the ticket's hostile config + tolerant-read tests |
 | 6 | 0.6.6's updater-429 fix | 🚫 by decision | no updater on this branch (Q5) | — |
 
@@ -106,7 +106,7 @@ draft was landed.
 
 | Line | Decision | Where recorded |
 |---|---|---|
-| AstraForge Engine + plugin plumbing (TripoSG-in-Engine, generator plugin verbs, self-learning LoRA) | **Deferred** — mappings land as workers (TripoSG, Sound) on stock ComfyUI; documented absent by name | ADR-0004 §0.6.6 amendment; Cluster A row 3 |
+| Imaginarium Engine + plugin plumbing (TripoSG-in-Engine, generator plugin verbs, self-learning LoRA) | **Deferred** — mappings land as workers (TripoSG, Sound) on stock ComfyUI; documented absent by name | ADR-0004 §0.6.6 amendment; Cluster A row 3 |
 | Provenance/licensing machinery (afmk watermarks, MODEL_LICENSES, core-manifest, `AFC1` certificates) | **Excluded** — sound exports carry no marks; OGG comments sanitized only against product-name keys | ADR-0004 §6; Cluster C row 2 |
 | Updater, telemetry, keys-server (incl. 0.6.6's updater-429 fix) | **Excluded**; only message patterns mirrored | ADR-0004 §6; Cluster G row 6 |
 | AMD/ROCm | **Deferred** — no AMD hardware to verify against (unchanged) | ADR-0004 §6 |
@@ -172,7 +172,7 @@ retroactive rewrite duty stays exactly where the 0.5.1 audit left it.
 ## What "done" meant for this wave
 
 Tickets 01–09 and 11–12 and 14–17 green through the similarity gate (per-ticket records under
-`.scratch/astraforge-060-reintroduction/issues/`) · the suites above green at every commit ·
+`.scratch/imaginarium-060-reintroduction/issues/`) · the suites above green at every commit ·
 live Linux demos per cluster (TripoSG job → GLB, Sound audible, MCP client session, style-bible
 set in 48 s, the auto-review reject→redo→accept loop, NATTEN forward on the 5070, network
 blackhole/mirror/corruption fakes, config-boot hostility) · this report + the ADR amendment +

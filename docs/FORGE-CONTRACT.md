@@ -1,4 +1,4 @@
-# AstraForge Forge — контракт модулей (10.10.2026)
+# Imaginarium Forge — контракт модулей (10.10.2026)
 
 Этот документ — общий договор для всех новых модулей «кузницы»: Blender-воркер, авториг, Mixamo, существа,
 предметы, корабли, спрайты, экспорт в Godot, паспорт ассета, пакетный режим, интерфейс мастера.
@@ -15,8 +15,8 @@
 
 | Путь | Что |
 |---|---|
-| `scripts/blender/af_run.py` | единая точка входа в Blender: `-- <step> <request.json>` |
-| `scripts/blender/af_common.py` | общие помощники: аргументы, импорт/экспорт GLB/FBX, нормализация, отчёт |
+| `scripts/blender/imaginarium_run.py` | единая точка входа в Blender: `-- <step> <request.json>` |
+| `scripts/blender/imaginarium_common.py` | общие помощники: аргументы, импорт/экспорт GLB/FBX, нормализация, отчёт |
 | `scripts/blender/steps/<step>.py` | один шаг конвейера = один модуль с функцией `run(req) -> dict` |
 | `scripts/blender/tests/` | самопроверки шагов на синтетике и на ассетах с диска |
 | `server/blender.mjs` | запуск Blender, очередь, таймауты, разбор результата, журналы |
@@ -28,18 +28,18 @@
 | `<library>/kits/` | наборы деталей (тела, одежда, оружие, детали кораблей), если появятся |
 | `docs/` | этот контракт, отчёты модулей, аудит |
 
-`<library>` — библиотека кузницы: по умолчанию `C:\AstraForge\library` на Windows (короткие пути: Blender и Godot ломаются за пределом 260 символов), переопределяется `ASTRA_FORGE_LIBRARY`; журналы Blender и рабочие файлы — `C:\AstraForge\runtime` (`ASTRA_FORGE_RUNTIME`). В git библиотека не попадает. Файлы проекта вне перечисленных модули не трогают; `server/index.mjs`,
+`<library>` — библиотека кузницы: по умолчанию `C:\Imaginarium\library` на Windows (короткие пути: Blender и Godot ломаются за пределом 260 символов), переопределяется `IMAGINARIUM_LIBRARY`; журналы Blender и рабочие файлы — `C:\Imaginarium\runtime` (`IMAGINARIUM_RUNTIME`). В git библиотека не попадает. Файлы проекта вне перечисленных модули не трогают; `server/index.mjs`,
 `src/App.jsx` и `package.json` правит только интегратор (одна строка подключения на модуль).
 
 ## 3. Вызов шага Blender
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup \
-    --python scripts/blender/af_run.py -- <step> <request.json>
+    --python scripts/blender/imaginarium_run.py -- <step> <request.json>
 ```
 
-Путь к Blender: переменная `ASTRA_BLENDER`, иначе путь выше. Для шагов, которым нужен исходный .blend,
-запрос содержит `inputs.blend`; `af_run.py` открывает его сам (`bpy.ops.wm.open_mainfile`).
+Путь к Blender: переменная `IMAGINARIUM_BLENDER`, иначе путь выше. Для шагов, которым нужен исходный .blend,
+запрос содержит `inputs.blend`; `imaginarium_run.py` открывает его сам (`bpy.ops.wm.open_mainfile`).
 
 `request.json`:
 ```json
@@ -51,8 +51,8 @@
 }
 ```
 
-Шаг пишет `out_dir/result.json` и последней строкой stdout печатает `AFRESULT {json}` (одна строка).
-При ошибке — `AFERROR {"step":..., "error":..., "trace":...}` и код выхода 1.
+Шаг пишет `out_dir/result.json` и последней строкой stdout печатает `IMAGINARIUM_RESULT {json}` (одна строка).
+При ошибке — `IMAGINARIUM_ERROR {"step":..., "error":..., "trace":...}` и код выхода 1.
 
 `result.json`:
 ```json
@@ -70,7 +70,7 @@
 Пути держать короче 260 символов (MAX_PATH Windows ломает Blender). Шаг, который запускает Godot,
 перенаправляет `APPDATA`/`LOCALAPPDATA` дочернего процесса внутрь `out_dir` (`_export_lib.godot_env`),
 чтобы Godot не писал кэш и настройки в профиль пользователя. Для проверок проектов Space Quest и «Врат»
-брать только Godot 4.5.1 (`ASTRA_GODOT` или `C:/Dorn/Game Dev/Godot_v4.5.1-stable_win64_console.exe`), не 4.7.
+брать только Godot 4.5.1 (`IMAGINARIUM_GODOT` или `C:/Dorn/Game Dev/Godot_v4.5.1-stable_win64_console.exe`), не 4.7.
 Каждый выход `.glb` сопровождается `.blend` для пересборки, если шаг меняет сцену.
 `checks` — машинные проверки качества; `ok:false` в любой проверке с `"severity":"error"` делает весь
 шаг `ok:false`. Предупреждения не валят шаг.
@@ -105,7 +105,7 @@ LeftToe_End, RightUpLeg, RightLeg, RightFoot, RightToeBase, RightToe_End` (25 о
 
 Одно соглашение для всех типов — соглашение Space Quest: пустышка `socket_<вид>_<место>`
 (ASCII, snake_case, без точек) с custom property `game_socket` = то же имя (уходит в glTF extras),
-плюс `kind` и при необходимости `size_class` ("S"/"M"/"L"). Помощник: `af_common.add_socket`.
+плюс `kind` и при необходимости `size_class` ("S"/"M"/"L"). Помощник: `imaginarium_common.add_socket`.
 Родитель — кость (`parent_type = BONE`) или объект.
 
 | Тип | Сокеты |
@@ -181,7 +181,7 @@ LeftToe_End, RightUpLeg, RightLeg, RightFoot, RightToeBase, RightToe_End` (25 о
 ## 9. Очередь и видеокарта
 
 Шаги Blender идут через одну очередь `server/blender.mjs` (по умолчанию 1 одновременно,
-`ASTRA_BLENDER_CONCURRENCY`). Шаги, рендерящие на GPU (`render_sprites`, `preview` в Cycles), берут
+`IMAGINARIUM_BLENDER_CONCURRENCY`). Шаги, рендерящие на GPU (`render_sprites`, `preview` в Cycles), берут
 тот же замок, что генерация в ComfyUI 8190, чтобы не делить 12 ГБ с Hunyuan. Таймаут шага по умолчанию
 15 минут, рендер — 60 минут. Журнал шага: `data/runtime/blender/<jobId>/<step>.log`.
 

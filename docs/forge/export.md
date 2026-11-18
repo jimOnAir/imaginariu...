@@ -8,14 +8,14 @@
   запись реестра Space Quest или «Врат Героев»; пакет проверяется настоящим Godot 4.5.1 без окна.
 
 Файлы модуля: `scripts/blender/steps/{render_sprites,godot_package,_export_lib}.py`,
-`scripts/blender/data/fx_presets.json`, `scripts/blender/godot/{validate_package,af_fx_mount,af_preview}.gd`,
+`scripts/blender/data/fx_presets.json`, `scripts/blender/godot/{validate_package,ima_fx_mount,imaginarium_preview}.gd`,
 `scripts/blender/tests/test_export.py`. В проекты «Врат Героев» и Space Quest ничего не пишется.
 
 ## Запуск
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-    --python scripts/blender/af_run.py -- render_sprites request.json
+    --python scripts/blender/imaginarium_run.py -- render_sprites request.json
 ```
 
 ```json
@@ -45,7 +45,7 @@ k = 10.8. Явный `scale` перекрывает автомасштаб. `fit
 
 Тесты: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- export`.
 
-Экспорт в **Unity** (шаг `unity_package`, профиль `unity`, импортёр `com.astraforge.unity`, проверка в Unity без окна) — [unity.md](unity.md).
+Экспорт в **Unity** (шаг `unity_package`, профиль `unity`, импортёр `dev.imaginarium3d.unity`, проверка в Unity без окна) — [unity.md](unity.md).
 
 ## render_sprites
 
@@ -182,7 +182,7 @@ false` → `cell_fit`; диск радиусом 2 м на высоте коле
 
 Если `.blend` пришёл из шага `cloth_sim` (`docs/forge/cloth_sim.md`), одежда персонажа (`Body_cloth_<группа>`) несёт
 запечённую симуляцию: по ключу формы на каждый кадр клипа и по действию ключей формы на клип; свойство объекта
-`af_cloth_cache` = `{действие арматуры: действие ключей}`. `render_sprites` при каждом переключении клипа (`_bind`)
+`imaginarium_cloth_cache` = `{действие арматуры: действие ключей}`. `render_sprites` при каждом переключении клипа (`_bind`)
 зовёт `_export_lib.bind_cloth_cache(действия клипа)`: у одежды включается действие этого клипа и выключается её
 модификатор Armature (ключи хранят готовые позиции), значения ключей прошлого клипа обнуляются (иначе ключ, который
 анимировало прошлое действие, сохраняет последнее значение). Клип без кэша и замер позы покоя (`_rest_points`,
@@ -205,7 +205,7 @@ GLB из `cloth_sim` (`cloth.glb`) — обычный GLB персонажа: т
 | `kind` | — | вид ассета без паспорта (`ship`, `humanoid`, …) |
 | `fx` | `manifest.fx` | `[{preset, socket, params}]`; params: `scale`, `color`, `amount`, `lifetime`, любое поле пресета |
 | `fx_auto_scale` | true | false — пресеты в родном размере, если нет `params.scale` |
-| `autoplay` | — | анимация на `_ready` (`idle-loop` или `idle`; `af_fx_mount.play_animation` пробует имя как есть и без одного суффикса `-loop`/`_loop`/`-cycle`/`_cycle`) |
+| `autoplay` | — | анимация на `_ready` (`idle-loop` или `idle`; `ima_fx_mount.play_animation` пробует имя как есть и без одного суффикса `-loop`/`_loop`/`-cycle`/`_cycle`) |
 | `sq_type`, `comment` | `ships`, имя паспорта | поля записи Space Quest |
 | `fit_units`, `min_units` | по роли (`sq_class`, иначе `kind`): корабль 3,4 / 0,6, турель 1,5 / 0,12, модуль 0,3 / 0,05, станция 20 / 0, дрон 2 / 0,15, банк 1 / 0, прочее 1 / 0; умолчание `min_units` не больше `fit_units` | **единицы рендера** записи `models.json`, не метры; `min_units` от 0 (схема сервера до 17.10 требовала ≥ 0,001) |
 | `sq_class` | — (по `kind`) | роль для умолчаний: `ship`, `turret`, `module`, `station`, `drone`, `bank` или класс бюджета (`ship_s/m/l`, `hull_module`, `station_core`, `station_module`, `structure_kit`, `drone_kit`, `asteroid_kit`, `debris_kit`) |
@@ -220,11 +220,11 @@ GLB из `cloth_sim` (`cloth.glb`) — обычный GLB персонажа: т
 L 4.5 м ÷ `reference_socket_m` (у сопел S ≈ 2.2, M 5, L 10); 3) длинная ось ассета в позе покоя ÷
 `reference_size_m`; 4) иначе 1. k умножает все длины: `quad_size`, скорости, затухание, ускорения, гравитацию,
 форму излучателя, радиус света и `visibility_aabb` (иначе эффект отсекается, когда коробка уходит из кадра).
-Использованный k и его источник пишутся в `af_package.json` (`fx[].scale`, `scale_source`, `quad_size_m`,
+Использованный k и его источник пишутся в `ima_package.json` (`fx[].scale`, `scale_source`, `quad_size_m`,
 `visibility_aabb`) и README. Проверка-предупреждение `fx_scale_vs_asset`: частица меньше 1 % длинной оси ассета
 или отношение «частица/ассет» дальше чем в 4 раза от расчётного у пресета (второе правило не применяется, когда
 k взят из диаметра или `size_class` сокета: такой эффект подогнан под своё дуло или сопло, а не под весь
-корабль). `af_fx_mount.gd` снимает масштаб
+корабль). `ima_fx_mount.gd` снимает масштаб
 сокета относительно корня пакета (сокет под узлом 0.01 из сантиметрового FBX), а масштаб самого корня
 (`fit_units` Space Quest) по-прежнему масштабирует эффекты вместе с моделью.
 
@@ -236,22 +236,22 @@ k взят из диаметра или `size_class` сокета: такой э
 (`min_units` 45) — нигде. Теперь без параметров берутся единицы роли (соседи в `models.json` на 17.10: SQ-03 и
 `asset_pack/ships` 3,4 / 0,6, `asset_pack/turrets` 1,5 / 0,12, `modules/` 0,3 / 0,05, станция кузницы 20 / 0,
 `asset_pack/drones` 2 / 0,15, банки `forge/` 1 / 0) с предупреждением «render units, not metres»; итог и откуда он
-взят — `af_package.json` и `stats` → `sq_units`. Проверки профиля `space_quest`: `sq_min_units_visible` —
+взят — `ima_package.json` и `stats` → `sq_units`. Проверки профиля `space_quest`: `sq_min_units_visible` —
 `min_units` > 10 предупреждение (модель пропадёт в ангаре; в `value.hidden_in` — какие виды её теряют), > 20 ошибка
 (ни один вид её не нарисует); `sq_fit_not_below_min` — `fit_units` < `min_units` ошибка (вызов без единиц модель не
 рисует никогда). Числа всё равно лучше задавать явно, по соседям той же роли.
 
 Пакет `<asset_id>/`: `<asset_id>.glb` (байт-в-байт), `<asset_id>.tscn` (`Node3D` + экземпляр GLB `model` +
-`af_fx_mount.gd`), `af_fx_mount.gd` (на `_ready` ищет сокеты по `extras.game_socket`, затем по имени с заменой
+`ima_fx_mount.gd`), `ima_fx_mount.gd` (на `_ready` ищет сокеты по `extras.game_socket`, затем по имени с заменой
 `: . @ / " %` на `_`, ставит FX; `trigger(сокет)` перезапускает разовые), `fx/<preset>.tscn`
 (`GPUParticles3D` + `ParticleProcessMaterial` + `QuadMesh`/`StandardMaterial3D`, опц. `OmniLight3D`),
-`fx/textures/*.png` (процедурные), `README.md`, `af_package.json`, запись реестра. Все пути внутри относительные:
+`fx/textures/*.png` (процедурные), `README.md`, `ima_package.json`, запись реестра. Все пути внутри относительные:
 папку можно положить в любой каталог проекта (проверено размещением в `res://packages/<id>/`).
 
 **Сокеты и пивоты.** Сокет — узел с `extras.game_socket` или с именем `socket_*`; проверка
 `socket_names_snake_ascii` (в профилях `space_quest` и `heroes_gates` — ошибка) и поиск сокетов в Godot идут
 только по ним. Узлы рига турели `pivot_yaw` / `pivot_pitch` (`_export_lib.is_rig_pivot`) сокетами не считаются,
-даже если старый GLB несёт на них `game_socket`: они пишутся отдельно в `af_package.json` → `pivots` (ось,
+даже если старый GLB несёт на них `game_socket`: они пишутся отдельно в `ima_package.json` → `pivots` (ось,
 диапазон) и в README; проверка-предупреждение `rig_pivots` требует `axis` + `range_degrees` и отсутствие
 `game_socket` (контракт §6). До этой правки `pivot_yaw` не проходил шаблон `socket_*` и пакет турели в профиле
 `space_quest` падал с ошибкой.
@@ -280,8 +280,8 @@ Blender** (вперёд дула Space Quest). Сокеты сопел (`kind: t
 `extras.frame thrust contradicts geometry; inferred: …`), а противоречие документированной рамки — ещё и
 предупреждением. Ось получает каждая привязка FX на таком сокете, чей пресет излучает вдоль +Y (в
 `fx_presets.json` это все, кроме `muzzle_flash` — он и пресеты с другим `direction` не трогаются): `fx[].emit_axis` и
-`emit_axis_from`, `emit_aft_dot` в `af_package.json` (в `sockets[]` — `frame`, `exhaust_axis`, `exhaust_axis_from`),
-фраза в README, ключ `"emit_axis": Vector3(x, y, z)` в словаре `fx_bindings` сцены. `af_fx_mount.gd` поворачивает
+`emit_axis_from`, `emit_aft_dot` в `ima_package.json` (в `sockets[]` — `frame`, `exhaust_axis`, `exhaust_axis_from`),
+фраза в README, ключ `"emit_axis": Vector3(x, y, z)` в словаре `fx_bindings` сцены. `ima_fx_mount.gd` поворачивает
 экземпляр FX так, чтобы его +Y легла на `emit_axis` (`Quaternion(Vector3.UP, ось)`, для −Y — поворот на 180° вокруг X)
 и после этого, как раньше, снимает масштаб сокета; `Node3D.scale` поворот не сбрасывает — проверено на сокете
 под узлом 0.01. Для `+Y` поворот тождественный, поведение для `sq_legacy` и старых GLB не изменилось.
@@ -318,11 +318,11 @@ GL Compatibility, журнал в файл и кэш шейдеров выклю
 проверяет у имени анимации метки `loop_mode`, `loop`, `cycle` (`-метка`/`_метка` в конце или `$метка`), ставит петлю,
 снимает метку и зовёт `rename_animation(ИСХОДНОЕ_имя, новое)`. Если совпали две метки (`pitch_cycle-loop`: сначала `-loop`,
 потом `_cycle`), второе переименование ищет уже несуществующее исходное имя — `ERROR: Animation not found: pitch_cycle-loop`,
-клип остаётся `pitch_cycle` с петлёй. Ссылок на имя с суффиксом в `af_fx_mount.gd`/`af_preview.gd`/`.tscn` нет — ошибку
+клип остаётся `pitch_cycle` с петлёй. Ссылок на имя с суффиксом в `ima_fx_mount.gd`/`imaginarium_preview.gd`/`.tscn` нет — ошибку
 даёт сам импорт. `godot_package` моделирует это правило (`_export_lib.godot_import_name`) и в GLB пакета переименовывает
 такие клипы в имя, которое импортируется в то же `clip_base` без повторного переименования (`godot_safe_clip_name`:
 `pitch_cycle-loop` → `pitch_cycle-cycle` → в Godot `pitch_cycle`, `loop_mode = 1`). Остальные клипы и бинарная часть GLB не
-меняются (правится только JSON-блок, `rename_glb_animations`). Переименования — в `stats.clip_renames`, в `af_package.json`
+меняются (правится только JSON-блок, `rename_glb_animations`). Переименования — в `stats.clip_renames`, в `ima_package.json`
 (`clips[].package_name`) и в README пакета; проверка `godot_animation_loops` ждёт имя из пакета.
 
 ## Замеры (10.10.2026, RTX 4070, Blender 5.0.1, Godot 4.5.1)
@@ -346,7 +346,7 @@ GL Compatibility, журнал в файл и кэш шейдеров выклю
 `forward_axis: "+Z"`, ждёт `axis_y_root` = −Z) и `test_thruster_axis_contradicting_frame_and_canted_nozzle` (рамка
 `thrust` на сокетах с геометрией «+Y» и `sq_legacy` на сокете с геометрией «+Z» — выигрывает геометрия, одно
 предупреждение; незнакомая рамка; сопло, наклонённое на 30°, — `axis_dot` 0.866 принимается). Без поворота в
-`af_fx_mount.gd` оба первых теста падают на `godot_fx_thruster_aft`. На реальных GLB: `ship_sq03_gunship_hy21.glb`
+`ima_fx_mount.gd` оба первых теста падают на `godot_fx_thruster_aft`. На реальных GLB: `ship_sq03_gunship_hy21.glb`
 из `ShipSQ03Forge` (сопла `sq_legacy`, ось +Y) и ship_gen-корабль с четырьмя соплами `thrust` из библиотеки —
 `axis_y_root` всех FX `[0, 0, 1]`, `axis_ok` везде, ошибок движка нет.
 
@@ -374,7 +374,7 @@ GL Compatibility, журнал в файл и кэш шейдеров выклю
 
 ![iso8 zombie](img/export/iso8_zombie_directions.png)
 
-**Защита от единиц** (через `af_run`): маркер 1.7 см → `AFERROR … projected model is only 1.6 px
+**Защита от единиц** (через `imaginarium_run`): маркер 1.7 см → `IMAGINARIUM_ERROR … projected model is only 1.6 px
 (min_body_px=24; … fix the units with params.height_m …)`, код 1; маркер 170 м (сантиметры как метры) →
 `sprite cell 4412x15972 px exceeds max_cell_px=2048`, код 1, за 1.4 с — до рендера. Маркер 17 м при 10 px/м
 рендерится с предупреждением про `height_m`.
@@ -453,5 +453,5 @@ GL Compatibility, журнал в файл и кэш шейдеров выклю
 - Связки «всадник + конь» (действия `<clip>|<скелет>`) поддержаны по соглашению HG, но на реальных
   ассетах не проверялись.
 - Проверка Godot — без окна: она не оценивает картинку, только загрузку, имена, режимы петель, масштаб и
-  прикрепление. Прошлые прогоны (до этой правки) оставили `%APPDATA%/Godot/app_userdata/af_godot_check`
+  прикрепление. Прошлые прогоны (до этой правки) оставили `%APPDATA%/Godot/app_userdata/imaginarium_godot_check`
   (журналы, кэш шейдеров) — папку можно удалить вручную.

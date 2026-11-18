@@ -5,7 +5,7 @@ Hunyuan3D-2mv в нашем ComfyUI строит всё тело одним ла
 — единицы. Идея: вырезать из референсов отдельно голову, торс, руки и ноги, сгенерировать каждую часть из кадра, который
 **заполняет кадр генератора** (те же 512 вокселей — на часть), потом поставить части на целую сетку и сплавить в одну модель.
 
-Проверено на ополченце (`C:/AstraForge/incoming/units_1013/militia/`): голова получилась заметно лучше целой сетки
+Проверено на ополченце (`C:/Imaginarium/incoming/units_1013/militia/`): голова получилась заметно лучше целой сетки
 (гребень и нащёчники шлема, нос, глаза, рот), торс и руки — на уровне целой сетки, ноги — на уровне, но хуже по
 силуэту. Подробности и числа — в разделе «Замеры».
 
@@ -38,7 +38,7 @@ D:/ComfyUI/.venv/Scripts/python.exe scripts/parts/build_parts.py ^
 ```
 parts_prep.py     --front ref_front.png --back ref_back.png --out parts/ [--boxes boxes.json] [--margin 0.045] [--parts head,legs]
 parts_generate.py --parts-dir parts/ [--seeds 703 11 | head=703,11 torso=5] [--only head] [--force]
-blender -b --factory-startup --python scripts/blender/af_run.py -- assemble_parts request.json
+blender -b --factory-startup --python scripts/blender/imaginarium_run.py -- assemble_parts request.json
 ```
 
 `request.json` шага: `{"step": "assemble_parts", "inputs": {"mesh": "<целая сетка>", "concept": "<ref_front.png>",
@@ -82,7 +82,7 @@ RGBA (альфа = фигура) одной высоты, как их делае
 
 Граф — слово в слово `gen_mv.py` (ImageOnlyCheckpointLoader → CLIPVisionEncode спереди и сзади →
 Hunyuan3Dv2ConditioningMultiView → EmptyLatentHunyuan3Dv2(3072) → KSampler 45 шагов, cfg 5 → VAEDecodeHunyuan3D (octree 512)
-→ AstraMarchingCubes → SaveGLB). Видеокарта: один запрос за раз; перед каждым смотрит `GET /queue` и ждёт пустой
+→ ImagiMarchingCubes → SaveGLB). Видеокарта: один запрос за раз; перед каждым смотрит `GET /queue` и ждёт пустой
 очереди (чужая задача), `/free` и `/interrupt` не вызываются. Сиды: `--seeds 703` (по умолчанию) на все части,
 `--seeds head=703,11` — несколько на одну. Результат: `parts/<часть>/mesh_<сид>.glb`, в `parts.json` — `meshes` и
 выбранная `mesh`.
@@ -203,7 +203,7 @@ IoU в рамке до/после, сдвиг и толщина по глуби�
 
 ## Как подставить в сборку бойца
 
-`C:/AstraForge/incoming/units_1013/militia/mv/mesh_mv_parts.glb` — результат в нормировке Hunyuan (bbox по центру: X ±0,953,
+`C:/Imaginarium/incoming/units_1013/militia/mv/mesh_mv_parts.glb` — результат в нормировке Hunyuan (bbox по центру: X ±0,953,
 Y ±0,225, Z ±1,0; у `mesh_mv_703.glb`: X ±0,968, Z ±0,999), 1,18 млн треугольников, 21 МБ, без разрезов вершин. Проходит
 `cleanup` (`bash build_unit.sh militia parts 24000`: проверено шагом `cleanup` с `height_m 1,8`, `target_tris 24000`: 18 с,
 IoU до/после 0,998, чек-листы зелёные; выход — `parts/cleanup24k/clean_from_mesh_mv_parts.glb`). `cleanup` без `voxel_remesh_m`

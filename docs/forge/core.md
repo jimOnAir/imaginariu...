@@ -12,7 +12,7 @@
 
 - Источник — `inputs.mesh` **или** `inputs.blend` (.glb/.gltf/.fbx/.obj/.stl/.blend). Конвейер после
   шага, записавшего .blend, передаёт только `{blend}` — цепочка «чистка → разделение» и
-  «… → конвертация» работает через `af_run.py`. Если заданы оба, берётся `mesh`.
+  «… → конвертация» работает через `imaginarium_run.py`. Если заданы оба, берётся `mesh`.
 - Нет ни того ни другого — `ValueError: inputs.mesh or inputs.blend is required`; файла нет —
   `FileNotFoundError: inputs.mesh not found: <путь>`.
 - Сразу после импорта удаляются служебные объекты импортёра: формы костей и всё из коллекции
@@ -228,7 +228,7 @@ Mixamo-FBX: один меш `Body` без рига, лицом в −Y Blender (
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup \
-    --python scripts/blender/af_run.py -- cleanup request.json
+    --python scripts/blender/imaginarium_run.py -- cleanup request.json
 ```
 ```json
 {"inputs": {"mesh": "C:/.../Corrected-necromancer.glb"},
@@ -248,16 +248,16 @@ Mixamo-FBX: один меш `Body` без рига, лицом в −Y Blender (
 blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- core [-k real] [--list]
 node --test tests/integration/blender.test.mjs          # все модули; FORGE_TEST_MODULE=core — один
 ```
-`run_tests.py` находит `test_*.py`, перед каждым `test_*` вызывает `af_common.reset_scene()`,
+`run_tests.py` находит `test_*.py`, перед каждым `test_*` вызывает `imaginarium_common.reset_scene()`,
 печатает `PASS/FAIL/SKIP имя секунды`, в конце `TESTRESULT {json}`, код выхода 1 при любом
 падении (и при модуле, который не импортируется). SKIP — `unittest.SkipTest` или возврат строки,
-начинающейся с `skip`. Обёртка Node ищет Blender (`ASTRA_BLENDER` или путь по умолчанию),
+начинающейся с `skip`. Обёртка Node ищет Blender (`IMAGINARIUM_BLENDER` или путь по умолчанию),
 пропускается без него, таймаут 40 минут, фильтры `FORGE_TEST_MODULE`, `FORGE_TEST_FILTER`; лежит в
 `tests/integration/`, поэтому `npm test` (`tests/*.test.mjs`) её не трогает.
 
 ## Замеры (Blender 5.0.1, CPU 32 потока, RTX 4070; 10.10, раунд исправлений)
 
-Время: «свежий процесс» — `timings_s.total` из `result.json` отдельного запуска `af_run.py`
+Время: «свежий процесс» — `timings_s.total` из `result.json` отдельного запуска `imaginarium_run.py`
 (без старта Blender ~1–2 с); «тёплый» — тот же прогон внутри `run_tests.py`.
 
 ![Некромант 120k → 30k](img/core/cleanup_necromancer_30k.png)
@@ -323,5 +323,5 @@ node --test tests/integration/blender.test.mjs          # все модули; F
   −Y модель должна смотреть до этого (`rotate_z_deg`), автоматически направление не определяется.
 - `convert` без нормализации сохраняет иерархию как есть (трансформы родителей не применяются);
   OBJ теряет риг и анимацию (предупреждение). `cleanup`/`separate` риг отбрасывают.
-- Отсутствующий `inputs.blend` до шага не доходит: `af_run.py` открывает .blend сам и падает с
+- Отсутствующий `inputs.blend` до шага не доходит: `imaginarium_run.py` открывает .blend сам и падает с
   `RuntimeError: Cannot read file "<путь>"` (путь в сообщении есть).

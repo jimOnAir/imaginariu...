@@ -106,10 +106,10 @@ cleanup → rig_humanoid → retarget → motion_style → render_sprites (heroe
    пол), опускается на эту опору с сохранением 20 % своей высоты над ней: роба ложится на ноги и на пол.
 2. Мировые смещения переводятся в смещения формы в позе покоя через якобиан скиннинга этого кадра, измеренный
    численно (три единичных смещения через модификатор Armature), — форма даёт ровно эту фигуру на лежащем теле.
-3. Форма `af_death_settle` управляется драйвером от свойства кости Hips; клип смерти поднимает его 0 → 1 между
+3. Форма `imaginarium_death_settle` управляется драйвером от свойства кости Hips; клип смерти поднимает его 0 → 1 между
    ударом о землю и оседанием (от ¼ до ⅔ пути после удара), все остальные клипы держат 0 (иначе после смерти
    свойство осталось бы в следующем клипе). В Blender её видят `render_sprites` и превью; экспортёр glTF
-   сэмплирует формы, управляемые арматурой, в анимацию весов морфа: в `styled.glb` морф `af_death_settle`,
+   сэмплирует формы, управляемые арматурой, в анимацию весов морфа: в `styled.glb` морф `imaginarium_death_settle`,
    у смерти веса 0 → 1, у остальных клипов 0 (проверено чтением GLB).
 4. Форма не создаётся, если ткани нет или «колокол» ниже 10 см. Отчёт: `death_info.robe_settle`
    (`bell_height_cm` до, `bell_height_after_cm` после, `max_drop_cm`, вершины, кадры рампы).
@@ -130,7 +130,7 @@ cleanup → rig_humanoid → retarget → motion_style → render_sprites (heroe
 `retarget` и манеры), `_style_lib.ClipDeformQA`:
 
 - каждый `deform_every`-й кадр (по умолчанию 2-й и всегда последний) каждого клипа вычисляется настоящей сеткой
-  (Armature + формы, включая `af_death_settle`); «порвано» — как в проверке позами: доля **площади позы**,
+  (Armature + формы, включая `imaginarium_death_settle`); «порвано» — как в проверке позами: доля **площади позы**,
   занятая треугольниками, выросшими больше чем в 3 раза; заглушки у пола и щепки исключены;
 - пороги — те же, что у проверки позами: **1 %** в кадре, где обе руки не выше 90° от «висят вниз» (опорная
   точка «руки вперёд»), **8 %** при руке, поднятой на 170° (опорная «руки вверх»), между ними — линейно по
@@ -204,7 +204,7 @@ militia-death через `retarget`, затем `motion_style`: весь шаг 
  "out_dir": "abs/out"}
 ```
 
-Запуск: `blender -b --factory-startup --python scripts/blender/af_run.py -- motion_style request.json`.
+Запуск: `blender -b --factory-startup --python scripts/blender/imaginarium_run.py -- motion_style request.json`.
 Тесты: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- motion_style`.
 
 ## Пакет «Врат»: `scripts/forge-concepts.mjs`
@@ -253,11 +253,11 @@ HTTP-режиме пакета, студию нужно перезапустит
 ## Пилот на генерациях пакета (11.10, ночь)
 
 Пока пакет генерировал модели (по одной, ~3–5 мин), пилот собирался тем же скриптом из готовых генераций:
-`node scripts/forge-concepts.mjs --dir C:\AstraForge\incoming\hg_concepts_2026-10-11 --state
-C:\AstraForge\incoming\pilot\pilot<N>.state.json --direct [--no-rig-qa] --only "<regex>"` (студия не
+`node scripts/forge-concepts.mjs --dir C:\Imaginarium\incoming\hg_concepts_2026-10-11 --state
+C:\Imaginarium\incoming\pilot\pilot<N>.state.json --direct [--no-rig-qa] --only "<regex>"` (студия не
 перезапускалась, генерации не запускались, задачи не отменялись). Состояния и отчёты пилота —
-`C:\AstraForge\incoming\pilot\pilot*.state.json` / `*.report.md`, сравнительный лист —
-`C:\AstraForge\incoming\pilot\compare_walk_death.png` (копия: `img/motion_style/pilot_walk_death.png`).
+`C:\Imaginarium\incoming\pilot\pilot*.state.json` / `*.report.md`, сравнительный лист —
+`C:\Imaginarium\incoming\pilot\compare_walk_death.png` (копия: `img/motion_style/pilot_walk_death.png`).
 
 **Главная находка: риг генераций.** До `motion_style` доходит мало персонажей — `rig_humanoid` с
 проверками по умолчанию на 18 готовых гуманоидах пакета:
@@ -302,7 +302,7 @@ C:\AstraForge\incoming\pilot\pilot<N>.state.json --direct [--no-rig-qa] --only "
 
 ## Пилот 11.10, поздняя ночь: мечники и производственная проверка
 
-Тот же скрипт, состояние `C:\AstraForge\incoming\pilot2\pilot2d.state.json` (отчёт `pilot2d.state.report.md`),
+Тот же скрипт, состояние `C:\Imaginarium\incoming\pilot2\pilot2d.state.json` (отчёт `pilot2d.state.report.md`),
 `--direct --qa-render-failed` (клипы меряются, но спрайты делаются для просмотра; рендеры ждали общий мьютекс
 видеокарты между генерациями; рыцарь #5 добавлен как ближайший к порогу). `--watch` проверен отдельным прогоном (`pilot2.state.json`): «Necromancer warrior
 holding sword» ещё генерировался, сборка подхватила его в 19:06:46 через полминуты после конца генерации и
@@ -320,7 +320,7 @@ holding sword» ещё генерировался, сборка подхвати
 сросшаяся между ног (RightUpLeg / LeftUpLeg, мантия до 51 %); рыцарь #3 — предплечье за щитом и подмышка
 поднятой руки (LeftForeArm, LeftHand, Spine1); Healing monk — кулак с булавой, слитый с робой (RightForeArm,
 RightUpLeg); костяной мечник — рваный табард и подмышки (Spine, LeftUpLeg, LeftArm). Превью (строки кадров шага,
-атаки/каста и смерти) — `C:\AstraForge\incoming\hg_concepts_2026-10-11\previews\<имя>.failed.png`, лист —
+атаки/каста и смерти) — `C:\Imaginarium\incoming\hg_concepts_2026-10-11\previews\<имя>.failed.png`, лист —
 `previews\_contact_sheet.png` (копия: `img/motion_style/pilot2_contact_sheet.png`).
 
 ![Пилот: шаг, атака/каст, смерть (сверху вниз — костяной мечник, Healing monk, рыцарь #3, лич; рыцарь #5 не влез в ячейку 448 и в лист не попал)](img/motion_style/pilot2_contact_sheet.png)

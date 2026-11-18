@@ -65,7 +65,7 @@ Consequences, in order of honesty:
    README's disclosure ("`v0.5.0` line produced under the earlier ADR-0003 bar") understates the
    situation; the amended README bullet added with this report points here.
 2. **A module-by-module rewrite campaign is tracked now** — follow-up tickets `09a`…`09j` under
-   `.scratch/astraforge-051-reintroduction/issues/`, each with concrete acceptance criteria, each
+   `.scratch/imaginarium-051-reintroduction/issues/`, each with concrete acceptance criteria, each
    gated by the same per-ticket similarity audit, re-running this tool for evidence.
 3. The alternative levers stay open and are the owner's call, not the tool's: an explicit blessing
    / relicensing from the rights holder (ticket 10), or removing the flagged bodies wholesale.
@@ -77,7 +77,7 @@ decision 4), and the rows are in the evidence file under the same numbers:
 
 | Class | Files | Why allowed |
 |---|---:|---|
-| Vendored third-party code under its own OSS license (`data/runtime/custom_nodes/ComfyUI-MVAdapter/**` — Apache-2.0 HF/diffusers-derived, incl. its LICENSE) | 22 | The match is against the payload's copy of the *same third-party* code (`engine/plugins/mvadapter/vendor/…`); both trees are license-compliant carriers. Disposition note: this runtime folder should not live in git at all — ticket `09i` (remove-from-tracking is a deletion decision → owner confirmation). Files `nodes.py`, `astra_views.py` may be upstream-authored rather than HF — flagged inside `09i`. |
+| Vendored third-party code under its own OSS license (`data/runtime/custom_nodes/ComfyUI-MVAdapter/**` — Apache-2.0 HF/diffusers-derived, incl. its LICENSE) | 22 | The match is against the payload's copy of the *same third-party* code (`engine/plugins/mvadapter/vendor/…`); both trees are license-compliant carriers. Disposition note: this runtime folder should not live in git at all — ticket `09i` (remove-from-tracking is a deletion decision → owner confirmation). Files `nodes.py`, `imagi_views.py` may be upstream-authored rather than HF — flagged inside `09i`. |
 | Grandfathered verbatim artifacts: `installer/notes-0.4.*.txt` (16) | 16 | ADR-0003's explicit historical-record exception; ADR-0004 forbids new additions of this class. Kept as records, never extended. |
 | The product's own license/terms texts: `COMMERCIAL-LICENSE.md`, `LICENSE-0.4.2.md`, `LICENSE-0.4.2.ru.md`, `PRIVACY*`, `REFUND.md` | ~5 | Functional legal documents describing the licensor's Windows-side terms, referenced from README's license table; rewriting them would falsify them. Kept, disclosed, labeled as upstream terms (not this branch's grant). |
 | Canonical license boilerplate: the MIT block in `LICENSE` (193-token run at 0.57 — vs vendor MIT texts), `LICENSE-NOTE.txt` stubs (56) | 5 | Boilerplate required by the licenses themselves. `LICENSE-NOTE` stubs reword as a trivial item in `09i`. |
@@ -89,9 +89,9 @@ decision 4), and the rows are in the evidence file under the same numbers:
 
 | Class of raw hit | Example | Classification |
 |---|---|---|
-| HEAD-inherited prologue lines | `unreal_package.py` opening (68) ≡ our HEAD `godot_package.py` | allowed by the wave protocol (HEAD-inherited), **but** the pool it inherits from is now itself flagged — re-verification obligation after the rewrite lands, ticket `09j`. Known quoted lines: the `params.asset_id must be snake_case ASCII…` prologue, the restart message "The job was interrupted by a restart…" (ticket 02 audit note), the blender test-harness helpers (`_tmp`, `AF_KEEP_TEST_FILES`). |
+| HEAD-inherited prologue lines | `unreal_package.py` opening (68) ≡ our HEAD `godot_package.py` | allowed by the wave protocol (HEAD-inherited), **but** the pool it inherits from is now itself flagged — re-verification obligation after the rewrite lands, ticket `09j`. Known quoted lines: the `params.asset_id must be snake_case ASCII…` prologue, the restart message "The job was interrupted by a restart…" (ticket 02 audit note), the blender test-harness helpers (`_tmp`, `Imaginarium_KEEP_TEST_FILES`). |
 | stdlib / test-harness import blocks | `import { test } from 'node:test' …` (12–43) | universal Node idiom + our suite's own convention; no expression at stake. |
-| engine format keys | `AstraForge.uplugin` fields (35 at 0.35), `data-theme=light` selector (9) | T3 interface facts of public engine formats. |
+| engine format keys | `Imaginarium.uplugin` fields (35 at 0.35), `data-theme=light` selector (9) | T3 interface facts of public engine formats. |
 | name+idiom collisions in tiny pure modules | `src/shell/mode.js saveMode(…)` (22 vs upstream `mode.js`) | function-name facts + the universal localStorage-wrapper shape; decomposition already adjudicated different (ticket 04 audit). |
 
 The per-ticket audits of tickets 01–07 (trail in `docs/product/acceptance-0.5.1.md`) already
@@ -138,7 +138,7 @@ Evidence: [`similarity-audit-0-6-6.evidence.json`](similarity-audit-0-6-6.eviden
 
 The 0.6.x reintroduction wave (tickets 01–17, `linux-support` base `ea96e11`) added 34 files:
 each landed only after its own fresh-context added-line audit (per-ticket records under
-`.scratch/astraforge-060-reintroduction/issues/`, trail table in the
+`.scratch/imaginarium-060-reintroduction/issues/`, trail table in the
 [0.6.6 acceptance report](acceptance-0.6.6.md)); the raw whole-file numbers for those 34 files
 (6 rewrite-band by rule, all containment ≤ 0.148, every run classified junction/idiom/public-pin
 by the ticket audits; 3 clean) are recorded there too. The campaign rows 09a…09j stand — `09j`

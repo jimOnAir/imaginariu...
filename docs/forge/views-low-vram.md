@@ -4,7 +4,7 @@
 MV-Adapter views job actually costs on real cards, measured on this machine
 (2026-11-17, an RTX 5070 12 GB with a desktop session resident and, for the
 before/after row pair, an RTX 5060 Ti 16 GB), and what the tier in
-`astra_views.py` does about it.
+`imagi_views.py` does about it.
 
 ## The problem
 
@@ -18,8 +18,8 @@ refuses the load outright.
 
 ## The tier
 
-When the card is NVIDIA and `currentVramMib() <= ASTRA_VIEWS_FP8_MAX_MIB`
-(default 16384) and `ASTRA_VIEWS_FP8` is `auto`/`1`, the node runs, after
+When the card is NVIDIA and `currentVramMib() <= IMAGINARIUM_VIEWS_FP8_MAX_MIB`
+(default 16384) and `IMAGINARIUM_VIEWS_FP8` is `auto`/`1`, the node runs, after
 loading the adapter and before sampling:
 
     pipe.unet.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn)
@@ -30,7 +30,7 @@ is upcast to compute_dtype for the step it participates in (the first probe
 of this, done as "cast in RAM then move", failed with
 `mat1 is on cuda:0 ... on cpu` and corrected the assumption - casting must
 happen before the upload, which is exactly why the upload shrinks). The VAE
-is NOT cast: its `force_upcast` float32 path collides. `ASTRA_VIEWS_FP8=0`
+is NOT cast: its `force_upcast` float32 path collides. `IMAGINARIUM_VIEWS_FP8=0`
 disables the tier.
 
 Because an fp8 step legitimately runs slower, `views_mvadapter.mjs` passes a

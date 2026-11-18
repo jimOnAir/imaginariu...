@@ -1,6 +1,6 @@
-# Модуль «engines»: AstraForge как интегратор Unity и Godot в Claude Code
+# Модуль «engines»: Imaginarium как интегратор Unity и Godot в Claude Code
 
-AstraForge — студия ассетов (3D, риг, анимации, эффекты, спрайты) и интегратор игровых движков в Claude Code.
+Imaginarium — студия ассетов (3D, риг, анимации, эффекты, спрайты) и интегратор игровых движков в Claude Code.
 Агент проводит цепочку целиком:
 
 **ассет студии → пакет движка → проект Unity или Godot → логика под ассет → тесты в фоне.**
@@ -9,56 +9,56 @@ AstraForge — студия ассетов (3D, риг, анимации, эфф
 
 | Слой | Где | Что |
 |---|---|---|
-| Скилл и агент | `ai/skills/astraforge-integrator` (junction в `~/.claude/skills`), `ai/agents/astraforge-integrator.md` (копия в `~/.claude/agents`) | как вести работу; карта инструментов; рецепты по видам ассетов; тесты; шаблоны кода |
-| MCP `astraforge` | `ai/mcp/server.mjs` | студия + `engine_status`, `engine_project_create`, `engine_project_link`, `engine_send`, `engine_scaffold`, `engine_test`, `engine_mcp_register` |
+| Скилл и агент | `ai/skills/imaginarium-integrator` (junction в `~/.claude/skills`), `ai/agents/imaginarium-integrator.md` (копия в `~/.claude/agents`) | как вести работу; карта инструментов; рецепты по видам ассетов; тесты; шаблоны кода |
+| MCP `imaginarium` | `ai/mcp/server.mjs` | студия + `engine_status`, `engine_project_create`, `engine_project_link`, `engine_send`, `engine_scaffold`, `engine_test`, `engine_mcp_register` |
 | MCP `UnityMCP` | MCP for Unity 10.3.0 (CoplayDev, MIT), stdio, телеметрия выключена | живой редактор Unity: 48 инструментов, пока проект открыт |
 | MCP `godot` | Godot MCP (Vollkorn-Games, MIT), `C:\Dorn\Dops media\tools\godot-mcp` | 75 инструментов; сцены и скрипты — headless-процессами Godot |
-| CLI | `scripts/engines/af_engine.mjs` | `status`, `projects`, `create`, `link`, `send`, `scaffold`, `test`, `mcp-register` |
-| Проверка Godot | `scripts/engines/godot/af_engine_check.gd` | сцены грузятся и работают N кадров; кадр из окна за пределами экрана |
+| CLI | `scripts/engines/imaginarium_engine.mjs` | `status`, `projects`, `create`, `link`, `send`, `scaffold`, `test`, `mcp-register` |
+| Проверка Godot | `scripts/engines/godot/imaginarium_engine_check.gd` | сцены грузятся и работают N кадров; кадр из окна за пределами экрана |
 
 ## Команды
 
 ```
-node scripts/engines/af_engine.mjs status
-node scripts/engines/af_engine.mjs create --engine unity --name "AF Demo" --with-mcp     # ~70 с, batchmode
-node scripts/engines/af_engine.mjs create --engine godot --name "AF Demo"                # ~3 с, headless
-node scripts/engines/af_engine.mjs send --project "AF Demo" --engine unity <пакет unity | zip>
-node scripts/engines/af_engine.mjs send --project "AF Demo" --engine godot <пакет godot | zip>
-node scripts/engines/af_engine.mjs scaffold --project "AF Demo" --engine unity --kind player --asset archer_q
-node scripts/engines/af_engine.mjs test --project "AF Demo" --engine unity --shots [--playmode]
-node scripts/engines/af_engine.mjs test --project "AF Demo" --engine godot --shots
-node scripts/engines/af_engine.mjs mcp-register
+node scripts/engines/imaginarium_engine.mjs status
+node scripts/engines/imaginarium_engine.mjs create --engine unity --name "Imaginarium Demo" --with-mcp     # ~70 с, batchmode
+node scripts/engines/imaginarium_engine.mjs create --engine godot --name "Imaginarium Demo"                # ~3 с, headless
+node scripts/engines/imaginarium_engine.mjs send --project "Imaginarium Demo" --engine unity <пакет unity | zip>
+node scripts/engines/imaginarium_engine.mjs send --project "Imaginarium Demo" --engine godot <пакет godot | zip>
+node scripts/engines/imaginarium_engine.mjs scaffold --project "Imaginarium Demo" --engine unity --kind player --asset archer_q
+node scripts/engines/imaginarium_engine.mjs test --project "Imaginarium Demo" --engine unity --shots [--playmode]
+node scripts/engines/imaginarium_engine.mjs test --project "Imaginarium Demo" --engine godot --shots
+node scripts/engines/imaginarium_engine.mjs mcp-register
 ```
 
-- Реестр: `C:\AstraForge\engines\projects.json` (имя игры, движок, путь, версии). У одной игры может быть и
+- Реестр: `C:\Imaginarium\engines\projects.json` (имя игры, движок, путь, версии). У одной игры может быть и
   Unity-, и Godot-проект; `--engine` выбирает нужный. Свой проект владельца подключается командой `link`.
-- Проекты по умолчанию: `C:\AstraForge\engines\projects\<Игра>_Unity|Godot`.
-- Отчёты: `C:\AstraForge\engines\reports\<игра>_<время>\`.
+- Проекты по умолчанию: `C:\Imaginarium\engines\projects\<Игра>_Unity|Godot`.
+- Отчёты: `C:\Imaginarium\engines\reports\<игра>_<время>\`.
 
 ## Как устроено
 
 - **create Unity:** `Unity -batchmode -createProject <папка> -cloneFromTemplate` — шаблон «Universal 3D» лежит в
-  редакторе, без сети. Затем `af_unity_send` ставит импортёр `com.astraforge.unity` (встроенный пакет), с
+  редакторе, без сети. Затем `imaginarium_unity_send` ставит импортёр `dev.imaginarium3d.unity` (встроенный пакет), с
   `--with-mcp` — MCP for Unity в режиме stdio.
 - **create Godot:** `project.godot` (config_version 5, 4.5, Forward+ / Mobile / GL Compatibility), папки
-  `astraforge/`, `scenes/`, `scripts/`, `tests/`, затем `--headless --import`.
+  `imaginarium/`, `scenes/`, `scripts/`, `tests/`, затем `--headless --import`.
 - **send:**
-  - Unity — пакеты профиля `unity` (`af_unity.json`): см. `unity.md`.
-  - Godot — пакеты `godot` / `space_quest` (`af_package.json`) в `res://astraforge/<id>/` и `--import`.
+  - Unity — пакеты профиля `unity` (`ima_unity.json`): см. `unity.md`.
+  - Godot — пакеты `godot` / `space_quest` (`ima_package.json`) в `res://imaginarium/<id>/` и `--import`.
   - Файлы перезаписываются на месте; `.meta` и `.uid` остаются, поэтому ссылки не рвутся.
-- **scaffold `player`:** шаблоны `ai/skills/astraforge-integrator/templates/<engine>`, `__PLAYER_ID__` → asset_id.
+- **scaffold `player`:** шаблоны `ai/skills/imaginarium-integrator/templates/<engine>`, `__PLAYER_ID__` → asset_id.
   - Unity: `Assets/Game/Scripts/PlayerController.cs` + `Game.asmdef` (Input System или старый Input);
     тесты `Assets/Game/Tests/Editor/GameSmokeTests.cs` + `Game.Tests.asmdef`.
   - Godot: `res://scripts/player_controller.gd` (`CharacterBody3D`) и `res://tests/run_tests.gd`.
   - Существующие файлы без `--force` не трогаются.
 - **test:**
-  - Unity — `AFBatch.Validate` (71 проверка пакетов, скриншоты), затем `-runTests -testPlatform EditMode`
+  - Unity — `ImaginariumBatch.Validate` (71 проверка пакетов, скриншоты), затем `-runTests -testPlatform EditMode`
     (+ PlayMode), NUnit XML → цифры. Если проект открыт в редакторе — отказ с подсказкой про `UnityMCP`.
-  - Godot — `--import`, `af_engine_check.gd` (все сцены, 120 кадров, анимации, размеры, ошибки из вывода),
+  - Godot — `--import`, `imaginarium_engine_check.gd` (все сцены, 120 кадров, анимации, размеры, ошибки из вывода),
     `res://tests/run_tests.gd`. Кадры снимает Godot с окном на позиции −30000, −30000: рендер есть, на экране
     ничего не видно.
 
-## Проверка 31.10.2026 (демо «AF Demo»)
+## Проверка 31.10.2026 (демо «Imaginarium Demo»)
 
 | | Unity 6000.0.64f1 (URP) | Godot 4.5.1 |
 |---|---|---|

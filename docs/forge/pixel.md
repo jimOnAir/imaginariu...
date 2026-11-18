@@ -81,7 +81,7 @@ py -3 -I scripts/pixel/pixelize.py in.png out.png --size 64 --colors 32 --outlin
 ## В. Pixelorama
 
 Pixelorama 1.2.3 (MIT, `github.com/Orama-Interactive/Pixelorama`, Godot): слои, кадры анимации, палитры, экспорт
-PNG и листов спрайтов. Лежит в `C:\AstraForge\tools\vfx\apps\pixelorama\Pixelorama.exe`, запись `pixelorama`
+PNG и листов спрайтов. Лежит в `C:\Imaginarium\tools\vfx\apps\pixelorama\Pixelorama.exe`, запись `pixelorama`
 в `server/vfx-tools-catalog.json` (вид `desktop`), запускается кнопкой во вкладке «VFX» студии. Если её нет —
 `scripts/vfx/Install-VfxTools.ps1 -Only pixelorama`. Палитра из `palette.gpl` (профиль `pixel`) открывается в
 Pixelorama через панель палитр: так ручная доводка листа остаётся в тех же цветах.
@@ -99,4 +99,4 @@ Pixelorama через панель палитр: так ручная довод�
 - Тусклые тёмные модели в профиле `pixel` без `levels` дают грязную палитру; для моделей с очень тонкими деталями
   (копья, древки) без сглаживания тонкое пропадает: поднимите `pixels_per_meter` или `supersample`.
 - Профиль `pixel` в API студии: перечень `profile` в `server/forge-steps.mjs` нужно дополнить значением `pixel` и новыми
-  параметрами, пока шаг можно запускать напрямую через `af_run.py`.
+  параметрами, пока шаг можно запускать напрямую через `imaginarium_run.py`.

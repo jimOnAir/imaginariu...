@@ -1,4 +1,4 @@
-# AstraForge
+# Imaginarium
 
 A local 3D asset studio: one application folder that turns a picture or a prompt into a game-ready
 3D asset. This glossary is the binding vocabulary for new prose and names in this repository.
@@ -6,7 +6,7 @@ A local 3D asset studio: one application folder that turns a picture or a prompt
 ## Language
 
 **Studio**:
-The AstraForge application the user runs: the Node server plus the browser UI on port 3210.
+The Imaginarium application the user runs: the Node server plus the browser UI on port 3210.
 _Avoid_: app, site, frontend
 
 **Engine**:

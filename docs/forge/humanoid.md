@@ -237,10 +237,10 @@ QA не менялись.
 ### Предметы вырезаны до рига, жёсткие латы (12.10)
 
 С пакета 12.10 у генераций предметы вырезаются шагом `extract_props` (docs/forge/extract_props.md) до рига: риг
-получает тело без меча, щита и знамени и **сокеты мест** `socket_prop_<рука>_<n>` (extras `af_bone`, `af_hand`,
-`af_item_kind`, `af_grip_mode`). Что меняется в `rig_humanoid`:
+получает тело без меча, щита и знамени и **сокеты мест** `socket_prop_<рука>_<n>` (extras `imaginarium_bone`, `imaginarium_hand`,
+`imaginarium_item_kind`, `imaginarium_grip_mode`). Что меняется в `rig_humanoid`:
 
-1. **Сокет места — ребёнок своей кости.** `af_bone` из extras важнее выбора по весам (`params.socket_bones` важнее
+1. **Сокет места — ребёнок своей кости.** `imaginarium_bone` из extras важнее выбора по весам (`params.socket_bones` важнее
    его). `attach_prop` потом переносит на него сокет кисти или щита.
 2. **Кисть решается на хвате вырезанного предмета** (`use_placement_grips`, по умолчанию true): сокеты мест
    оружия, посоха, лука, знамени дают `Landmarks` «известный хват» (`params.known_grips_in` → в рамке рига на
@@ -274,7 +274,7 @@ QA не менялись.
 жёстких пластин, чьи треугольники изменились больше чем на 25 %.
 
 Пилот 12.10 на настоящих клипах персонажа (motion_style, худший кадр клипа; idle / walk / attack|cast / hit /
-death). «Мягко» — тот же риг с `hard_surface: off` (`C:\AstraForge\incoming\pilot4\soft\`), «латы» — пакет.
+death). «Мягко» — тот же риг с `hard_surface: off` (`C:\Imaginarium\incoming\pilot4\soft\`), «латы» — пакет.
 
 | Персонаж | Пластин, жёсткой площади | Порвано в клипах, %: мягко → латы | «Резина» пластин в клипах, %: мягко → латы |
 |---|---|---|---|
@@ -357,7 +357,7 @@ death). «Мягко» — тот же риг с `hard_surface: off` (`C:\AstraF
 `src/forge/forge-core.js` → `markerProjection`): `image {width, height}` — весь `markers.png` (1280 × 640),
 `center [x, z]` — метры в центре переднего тайла, `meters_per_px`, `center_px [u, v]` — эта точка в пикселях PNG
 (начало — левый верхний угол, u вправо, v вниз), `front_tile`, формула. Числа берутся из того же габарита и
-`margin` 1,08, которыми `af.render_views` кадрирует передний тайл. Проверка
+`margin` 1,08, которыми `ima.render_views` кадрирует передний тайл. Проверка
 (`test_real_zombie_markers_projection_matches_png`): каждый из 27 суставов зомби, спроецированный блоком, против
 центра своего шарика в контрольных рендерах той же сцены (видна только группа далеко разнесённых шариков, кадр тот
 же, центр — по альфе): **максимум 0,19 px, среднее 0,16 px** (порог 2 px).
@@ -411,7 +411,7 @@ Mixamo `Armature|mixamo.com|Layer0` переименовывается в `<clip
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- rig_humanoid request.json
+  --python scripts/blender/imaginarium_run.py -- rig_humanoid request.json
 ```
 ```json
 {"step": "rig_humanoid", "inputs": {"mesh": "C:/.../Corrected-necromancer.glb"},

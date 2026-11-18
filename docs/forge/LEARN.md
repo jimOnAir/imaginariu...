@@ -4,11 +4,11 @@
 известные параметры шагов для «зомби», «орудия», «здания»… Следующий ассет того же класса стартует с рецепта, а не с
 умолчаний шага. Код — `server/forge-learn.mjs`; встроено в `server/forge-pipeline.mjs` (запуск и журнал),
 `server/forge.mjs` (маршруты), `scripts/forge.mjs learn`, MCP (`ai/mcp/server.mjs`), «Приёмка» → «Журнал и рецепты»
-(`src/forge/ForgeLearn.jsx`). Порядок работы агента — скилл `ai/skills/astraforge-learn`.
+(`src/forge/ForgeLearn.jsx`). Порядок работы агента — скилл `ai/skills/imaginarium-learn`.
 
 ## Файлы
 
-Всё в библиотеке, рядом с паспортами: `<library>/learning/` (по умолчанию `C:\AstraForge\library\learning`).
+Всё в библиотеке, рядом с паспортами: `<library>/learning/` (по умолчанию `C:\Imaginarium\library\learning`).
 
 | Файл | Что | Запись |
 |---|---|---|

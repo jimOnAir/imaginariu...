@@ -1,9 +1,9 @@
-# AstraForge 0.7.10 — acceptance report (the VRM release, folded on Linux, shipped once)
+# Imaginarium 0.7.10 — acceptance report (the VRM release, folded on Linux, shipped once)
 
 This tree (`linux-support`) is version **0.7.10**. It carries everything the
 [0.7.9 acceptance report](acceptance-0.7.9.md) covered — the 0.4.16 feature set, the Windows
 0.5.x/0.6.x/0.7.x lines through 0.7.9 and this branch's performance wave — and adds one fold:
-upstream **v0.7.10, the VRM release** (tickets 61–68, `.scratch/astraforge-1117-0710-fold/`),
+upstream **v0.7.10, the VRM release** (tickets 61–68, `.scratch/imaginarium-1117-0710-fold/`),
 re-derived under Protocol v2 ([ADR-0004](../adr/0004-protocol-v2-clean-room-and-attribution.md)):
 T1 intent from the public notes, T2/T3 facts through the spec channel only; implementing contexts
 never read the extracted payload trees; every code commit gated by an independent fresh-context
@@ -108,7 +108,7 @@ branch, so no row was invented for it.
 Engine + plugins (scoped lift only for the MV-Adapter memory layer — unchanged), the whole
 provenance/licensing/subscription line (Cloud/points/Shop/telemetry/ratings — ⚪/🚫 rows recorded
 in the fold spec), AMD/ROCm, Windows frontends, closed binaries
-(`astraforge-mcp.exe`/`astraforge-rs.exe` halves of rows 1/5). Standing exclusions, unchanged
+(`imaginarium-mcp.exe`/`imaginarium-rs.exe` halves of rows 1/5). Standing exclusions, unchanged
 from the 0.7.9 report.
 
 ## Deviations from the shipped Windows line (this wave's additions, all decisions)
@@ -167,7 +167,7 @@ their ticket commits): [`similarity-audit-0-7-10.evidence.json`](similarity-audi
 - MToon authoring and `VRMC_springBone`: not attempted (report + docs say so; see deviation 25).
 - No VRoid Studio on this machine: the real-file acceptance used UniVRM's shipped test avatar
   (2019, in-repo artifact of the standard's own project) instead of a fresh VRoid export.
-- Carry-overs recorded: `af_common.MESH_EXT` dead constant (tidy pass), marketplace skill
+- Carry-overs recorded: `imaginarium_common.MESH_EXT` dead constant (tidy pass), marketplace skill
   surface absent (probe), integrator VRM row refused until an integration template with tests
   exists (deviation 26).
 

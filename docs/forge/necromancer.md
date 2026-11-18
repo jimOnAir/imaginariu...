@@ -49,7 +49,7 @@ Godot 4.5.1 и два набора спрайтов. Результат срав
 Запуск любого шага:
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- <step> C:/afn/req/<имя>.json
+  --python scripts/blender/imaginarium_run.py -- <step> C:/afn/req/<имя>.json
 ```
 
 ### 1. cleanup — 133 476 → 75 848 треуг. (`s01_clean`)
@@ -425,7 +425,7 @@ Godot 4.5.1.stable.official.f62fdbde1, headless, 8,5 с:
   садится без offset. `points[].sockets: false` пропускает сокеты одной копии. Деталь по умолчанию можно
   задать и в `params.part`.
 - **Регистрация на сервере.** `place_parts` пока не внесён в `server/forge-steps.mjs`: файл сейчас правит
-  другой агент. Нужная запись приведена в разделе v2. До неё шаг запускается через `af_run.py`.
+  другой агент. Нужная запись приведена в разделе v2. До неё шаг запускается через `imaginarium_run.py`.
 - **Выходы**: `placed.glb`, `placed.blend`, `preview.png` (спереди, 3/4 и крупный план каждой точки).
 - **Проверки**: `points_hit` и `no_nan_verts` — ошибки; `part_frame` (геометрия за задней гранью) и
   `penetration` (вершины внутри цели по голосованию трёх лучей, порог 30 % толщины) —
@@ -468,7 +468,7 @@ Godot 4.5.1.stable.official.f62fdbde1, headless, 8,5 с:
 | `necromancer_forge.glb`, `.blend` | итог: риг, 5 клипов, посох на `socket_mount_hand_l`, 12 сокетов |
 | `necromancer_forge_equipped_no_clips.glb` | риг и посох без клипов |
 | `necromancer_forge_rigged_NOT_PASSING_tear_gate.glb` | выход `rig_humanoid` (QA не пройден), без посоха |
-| `godot/necromancer_forge/` | пакет Godot (GLB, `.tscn`, `af_fx_mount.gd`, `fx/magic_cast.tscn`, README); `godot_check.json`, `fx_preview.png` |
+| `godot/necromancer_forge/` | пакет Godot (GLB, `.tscn`, `ima_fx_mount.gd`, `fx/magic_cast.tscn`, README); `godot_check.json`, `fx_preview.png` |
 | `sprites/heroes_gates/` | `idle*.png`, `cast*.png`, `.tres`, `sprites.json`, запись `heroes_gates_sprites_entry.json` |
 | `sprites/iso8/` | `idle.png`, `walk.png`, `.tres`, `sprites.json` |
 | `parts/` | кисти, посох, две застёжки из bone_kit с `part.json` |
@@ -491,7 +491,7 @@ v2 собран заново из того же `replaced.glb`, на этот р
 
 Готовые файлы — `outputs/NecromancerForge/v2/`. Рецепт для повторного прогона — `v2/recipe/` (`recipe.json`,
 `run_recipe.mjs`, шаги `*.json`). Рабочая папка — `C:/afn2/` (`lib3/` — библиотека кузницы финального
-прогона, `runs3/` — запросы и выходы `af_run`, `exp/` — опыты, `tools/` — анализ).
+прогона, `runs3/` — запросы и выходы `imaginarium_run`, `exp/` — опыты, `tools/` — анализ).
 
 ![v1 и v2 в позах проверки: рукав v1 тянется листом, v2 следует за рукой](img/necromancer/v2_poses.jpg)
 
@@ -517,17 +517,17 @@ v2 собран заново из того же `replaced.glb`, на этот р
 `node C:/afn2/recipe/run_recipe.mjs C:/afn2/recipe/recipe.json` (копия — `v2/recipe/`). Каждый шаг идёт через
 CLI кузницы `scripts/forge.mjs --direct`: паспорта, версии, журналы. Исключение — `place_parts`, он не
 внесён в реестр сервера. `server/forge-steps.mjs` во время работы правил агент кораблей: незакоммиченные
-правки до коммита `440d3c4` в 23:11. Движок отклоняет незарегистрированные шаги (`unknown_step`). `place_parts` идёт через `af_run.py`, его
+правки до коммита `440d3c4` в 23:11. Движок отклоняет незарегистрированные шаги (`unknown_step`). `place_parts` идёт через `imaginarium_run.py`, его
 запросы пишутся из шаблонов. Сводка прогона — `runs3/recipe_run.json`.
 
-> Обновление 11.10: `place_parts` внесён в реестр сервера (23 шага, параметры `part_asset` и `points[].asset`), так что шаги 3 и 4 рецепта теперь тоже идут через кузницу (`create`/`run` с `--steps`), без `af_run.py`.
+> Обновление 11.10: `place_parts` внесён в реестр сервера (23 шага, параметры `part_asset` и `points[].asset`), так что шаги 3 и 4 рецепта теперь тоже идут через кузницу (`create`/`run` с `--steps`), без `imaginarium_run.py`.
 
 | # | шаг | через | ассет / параметры |
 |---|---|---|---|
 | 1 | 5 × `bone_kit`: правая кисть `open`, левая `grip` R 20 мм, две застёжки, посох 1,863 м | forge | 5 отдельных ассетов (`bk_*.json`, те же параметры, что k02–k06 v1) |
 | 2 | `cleanup` → `separate` | forge | ассет «Некромант v2» из `replaced.glb` (`a1_prerig.json`): 76 000 треуг.; `delete` старого посоха и «лопат» с крышками; **слэбы 12 мм по кривой** в местах срастания рукавов с робой (правый z 0,845–1,15, левый 1,035–1,13 в рамке старта); `delete` дна робы без крышек (`facing [0, 0, −1]`) |
-| 3 | `place_parts` кисти (явные позы v1) | **af_run** | `p1_hands.json`: части — GLB ассетов шага 1, их `socket_mount_hand_l/r` идут с кистями |
-| 4 | `place_parts` застёжки (на поверхность) | **af_run** | `p2_clasps.json` |
+| 3 | `place_parts` кисти (явные позы v1) | **imaginarium_run** | `p1_hands.json`: части — GLB ассетов шага 1, их `socket_mount_hand_l/r` идут с кистями |
+| 4 | `place_parts` застёжки (на поверхность) | **imaginarium_run** | `p2_clasps.json` |
 | 5 | `rig_humanoid` → `attach_prop` → `retarget` | forge | ассет «Некромант v2 — риг и экспорт» из выхода шага 4 (`b1_rig_clips.json`); посох — `attachments: [{asset: <UUID посоха>, hand: l}]`, без offset |
 | 6 | `render_sprites` iso8 → `render_sprites` heroes_gates → `godot_package` | forge | `b2_export.json`, `run --from latest` |
 

@@ -1,7 +1,7 @@
-# AstraForge 0.5.0 — re-introduction acceptance report (0.4.7 → 0.4.16 on Linux)
+# Imaginarium 0.5.0 — re-introduction acceptance report (0.4.7 → 0.4.16 on Linux)
 
 This tree (`linux-support`) is version **0.5.0**: the studio with everything the shipped Windows
-`AstraForge-Setup-0.4.16.exe` contained, re-developed for Linux as clean-room re-derivations per
+`Imaginarium-Setup-0.4.16.exe` contained, re-developed for Linux as clean-room re-derivations per
 ADR-0003 (`docs/adr/0003-reintroduce-0-4-16-as-clean-room-re-derivations.md`). The source history of
 0.4.7→0.4.16 was lost when git froze at 0.4.6; this report is the artifact that replaces it: every
 bullet of the shipped release notes (`installer/notes-0.4.7.txt` … `installer/notes-0.4.16.txt`,
@@ -16,13 +16,13 @@ How to verify the whole tree:
 
 ```bash
 npm ci
-ASTRA_ENGINE_AUTOSTART=0 npm test      # the full suite (395 tests at the 0.5.0 commit)
+IMAGINARIUM_ENGINE_AUTOSTART=0 npm test      # the full suite (395 tests at the 0.5.0 commit)
 npm run build                          # the frontend build
 installer/install.sh -ScanOnly         # the machine scan, no downloads
 scripts/start.sh --no-browser          # boots the studio at http://127.0.0.1:3210
 ```
 
-Ticket numbers are `.scratch/astraforge-0416-reintroduction/issues/` (the work papers); commits are
+Ticket numbers are `.scratch/imaginarium-0416-reintroduction/issues/` (the work papers); commits are
 on this branch.
 
 ## 0.4.7 — subscription in the installer, 2D engines, computers without NVIDIA
@@ -31,7 +31,7 @@ on this branch.
 |---|---|---|---|---|
 | 1 | Buy a subscription right in the installer; key entry/move | 🚫 | Entire monetization line excluded (license/validation/subscription) | ADR-0003 "The entire monetization and identity line … is excluded"; ticket 01 |
 | 2 | Tab 2D: FLUX.2 klein and Qwen-Image installed and listed under "Engine", with what is missing said under the list; Full installs them (~16 and 23 GB) | ✅ | ticket 06 (`aea39d6`, `b1f3f2b`): both engines download over GGUF loader + pinned weights (`installer/install.sh` ids `gguf,flux2,qwenimg`), `server/art2d.mjs` + `src/Art2dPanel.jsx` engine list shows per-engine missing reasons | `node --test tests/art2d.test.mjs`; `node --test tests/install-scan.test.mjs` (GGUF-loader and weight-set scan rules) |
-| 3 | PC without NVIDIA: pre-download warning + Lite setup ≈3 GB (Blender, rig, animations, sprites, VFX, Godot) | ✅ | ticket 16 (`a7ef9b9`): `install.sh` asks before any download and switches to the `lite` profile (`config/paths.json` gets `profile: lite`); scan marks GPU items `unavailable` with reasons | `node --test tests/install-scan.test.mjs`; the `ASTRA_INSTALL_NO_GPU=1` checklist demo in ticket 16 comments |
+| 3 | PC without NVIDIA: pre-download warning + Lite setup ≈3 GB (Blender, rig, animations, sprites, VFX, Godot) | ✅ | ticket 16 (`a7ef9b9`): `install.sh` asks before any download and switches to the `lite` profile (`config/paths.json` gets `profile: lite`); scan marks GPU items `unavailable` with reasons | `node --test tests/install-scan.test.mjs`; the `IMAGINARIUM_INSTALL_NO_GPU=1` checklist demo in ticket 16 comments |
 | 4 | Error reports and the learning journal on by default; toggles in About → Reports and learning | 🚫+✅ | Reporting/shipping excluded (telemetry line). The **learning journal itself is local and present**: ticket 20 (`af3efc7`) re-derives journal/verdicts/recipes; About → **Learning** toggles the local recording (`knowledge.json.journaling`) — the consent it replaces gated shipping, which does not exist here | `node --test tests/forge-learn.test.mjs` (incl. the journaling-switch test) |
 | 5 | Update check sends a random install id + version + plan | 🚫 | telemetry + auto-update excluded | ADR-0003; EXCLUDED line (license.mjs, update.mjs, telemetry) |
 | 6 | Setup choice lines no longer cut off on the right | ⚪ | Windows `Setup.cs` stays frozen (ADR-0003); the Linux checklist prints full rows (`installer/install.sh`, `ShowChecklist`) | `installer/install.sh -DryRun` transcript in ticket 16 comments |
@@ -40,10 +40,10 @@ on this branch.
 
 | # | Bullet (EN) | Status | Where / why | Proof |
 |---|---|---|---|---|
-| 1 | "What to install" step: every program/model with version, location, download size; outdated marked "update" (old ComfyUI, model of another size, no FLUX.2/Qwen loader) | ✅ | ticket 16 (`a7ef9b9`): scan core `installer/af_scan.mjs` emits the shipped `##ITEM` 13-field contract; `-ScanOnly` prints the verdict table | `node --test tests/install-scan.test.mjs`; live `installer/install.sh -ScanOnly` |
+| 1 | "What to install" step: every program/model with version, location, download size; outdated marked "update" (old ComfyUI, model of another size, no FLUX.2/Qwen loader) | ✅ | ticket 16 (`a7ef9b9`): scan core `installer/imaginarium_scan.mjs` emits the shipped `##ITEM` 13-field contract; `-ScanOnly` prints the verdict table | `node --test tests/install-scan.test.mjs`; live `installer/install.sh -ScanOnly` |
 | 2 | Per-component checkboxes; Quick/Full/Lite presets; Node.js/interface/Blender untickable; dependencies auto-tick; footer download vs free disk | ✅ | ticket 16: `install.sh` checklist (rules re-derived from Setup.cs: mandatory trio, preset letters, dep tick, footer) | same suite + the scripted checklist demo (ticket 16 comments) |
 | 3 | Exactly the ticked set installs, unattended, into the app folder; unavailable items greyed with the reason | ✅ | ticket 16 | real partial install demo: ticks `clips`+`vfx` → exactly those landed (88 clips + VFX apps, comfy untouched) |
-| 4 | A failed computer check installs the chosen set whole | ✅ | ticket 16: `ASTRA_INSTALL_SCAN_FAIL=1` demo; `PresetPlan` fallback | ticket 16 demo transcript |
+| 4 | A failed computer check installs the chosen set whole | ✅ | ticket 16: `IMAGINARIUM_INSTALL_SCAN_FAIL=1` demo; `PresetPlan` fallback | ticket 16 demo transcript |
 
 ## 0.4.9 — free updates install themselves
 
@@ -71,7 +71,7 @@ on this branch.
 
 | # | Bullet (EN) | Status | Where / why | Proof |
 |---|---|---|---|---|
-| 1 | Code 35 (Windows could not check the site's certificate revocation): after the first such error download on without that check; site certificate still verified; model files checksummed | ⚪+✅ | The `--ssl-no-revoke` flip is Windows Schannel-specific. Linux curl (OpenSSL) never performs revocation checks — **not applicable**; the shipped ruling is recorded in ticket 17. Code 35 joins the ordinary flaky-TLS resume set here; checksum verification is unconditional on every checked download | `node --test tests/install-download.test.mjs` (test asserts code 35 retries AND that `--ssl-no-revoke` is never passed); `installer/af_download.sh` header |
+| 1 | Code 35 (Windows could not check the site's certificate revocation): after the first such error download on without that check; site certificate still verified; model files checksummed | ⚪+✅ | The `--ssl-no-revoke` flip is Windows Schannel-specific. Linux curl (OpenSSL) never performs revocation checks — **not applicable**; the shipped ruling is recorded in ticket 17. Code 35 joins the ordinary flaky-TLS resume set here; checksum verification is unconditional on every checked download | `node --test tests/install-download.test.mjs` (test asserts code 35 retries AND that `--ssl-no-revoke` is never passed); `installer/imaginarium_download.sh` header |
 | 2 | A failed download writes a plain-language reason + the exact error text to `installer/install.log` (and into the report) | ✅🚫 | ticket 17 (`da194e6`): one quotable line `Download failed: <url> (curl code N - <reason>; curl: <text>). Run the installer again - the download will resume.`; codes 6/7/18/22/28/33/35/52/56/60/92 decoded like the shipped `CurlReason`; the report channel excluded (telemetry) | `node --test tests/install-download.test.mjs`; the shipped error journal `docs/product/install-errors.md` restored verbatim (ticket 17) |
 
 ## 0.4.13 — PyTorch, Blender and animations install where they fell; updates resume
@@ -122,7 +122,7 @@ studio UI body 14 `60a2ef4` · Unity export line 15 `05f7ed3`.
 |---|---|---|
 | Unity export (`unity/` C# editor scripts, `unity_package` profiles) | ⚠️ | Generated package data, project settings and the export steps are covered by `npm test` (forge suites run headless Blender/Godot stubs); **no Unity editor exists on this machine**, so opening the package in Unity and the C# compile are unverified — the flag also sits in the unity package README and ticket 15 comments |
 | Windows install/start flow (`Setup.cs`, `Install.ps1`, `Start.cmd`) | ⚪ | Frozen at their repo state per ADR-0003; verification on this branch is Linux-only by decision |
-| AMD / non-RTX hardware paths | ⚪ | The AMD installer build is excluded; the scan's RTX-family reasons and no-GPU Lite branch are unit-tested with `ASTRA_INSTALL_NO_GPU=1` instead of real AMD hardware |
+| AMD / non-RTX hardware paths | ⚪ | The AMD installer build is excluded; the scan's RTX-family reasons and no-GPU Lite branch are unit-tested with `IMAGINARIUM_INSTALL_NO_GPU=1` instead of real AMD hardware |
 | License/keys server, support endpoints, auto-update | 🚫 | Not implemented here at all (EXCLUDED line), so nothing to verify |
 
 ## Exclusion list (complete, per ADR-0003)

@@ -1,4 +1,4 @@
-# Устройство и развитие AstraForge
+# Устройство и развитие Imaginarium
 
 ## Реализовано
 
@@ -37,7 +37,7 @@ Tripo: server/tripo-core.mjs проверяет операции и совмес
 
 Reference RGB/alpha and native crop metadata now survive independently of the geometry encoder image. `reference-core.js` supplies calibrated cameras, silhouette/colour metrics, bounded landmark warps and contour suggestions; `reference-tools.js` performs actual preview rendering and geometry updates. `ReferenceCompare.jsx` presents identical views, overlay, automatic camera calibration, proposed contour points, quality-gated deformation and aligned UV projection. All scores explicitly describe a single view rather than anatomical correctness.
 
-The isolated runtime whitelists only the application's `AstraForgeMesh` node while other custom nodes remain disabled. `marching_mesh.py` extracts a Lewiner surface without artificial padding and checks orientation against the exterior. The workflow converts native level 0 to normalized voxel level 0.5 because the installed Comfy VAE wrapper applies `(x+1)/2` and clamping. Runtime logging uses inherited file handles so the worker can survive a web-server restart; explicit Stop still terminates the owned worker.
+The isolated runtime whitelists only the application's `ImaginariumMesh` node while other custom nodes remain disabled. `marching_mesh.py` extracts a Lewiner surface without artificial padding and checks orientation against the exterior. The workflow converts native level 0 to normalized voxel level 0.5 because the installed Comfy VAE wrapper applies `(x+1)/2` and clamping. Runtime logging uses inherited file handles so the worker can survive a web-server restart; explicit Stop still terminates the owned worker.
 
 `mesh-validation.mjs` enforces generated GLB byte/count bounds before import. The optimizer creates a working mesh before UV/rigging. Re-extraction reuses the stored input and available runtime cache, with recomputation when that cache has expired. Failed diagnostic geometry is not offered as a completed character.
 

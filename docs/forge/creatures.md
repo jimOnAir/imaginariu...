@@ -136,13 +136,13 @@ side?}]`, точки в выходной системе), `leg_ratios`, `voxel_r
 ## Запуск
 
 ```
-"C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python scripts/blender/af_run.py -- rig_creature req.json
+"C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python scripts/blender/imaginarium_run.py -- rig_creature req.json
    req.json: {"inputs": {"mesh": ".../warhorse/model.glb"}, "params": {"length_m": 2.4}, "out_dir": ".../rig"}
-"C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python scripts/blender/af_run.py -- anim_creature req2.json
+"C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python scripts/blender/imaginarium_run.py -- anim_creature req2.json
    req2.json: {"inputs": {"blend": ".../rig/rigged.blend"}, "params": {}, "out_dir": ".../anim"}
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup --python scripts/blender/tests/run_tests.py -- creatures
 ```
-`AF_CREATURE_TEST_OUT=<папка>` сохраняет выходы тестов вместо временной папки (путь должен быть коротким:
+`Imaginarium_CREATURE_TEST_OUT=<папка>` сохраняет выходы тестов вместо временной папки (путь должен быть коротким:
 Blender и Windows не открывают пути длиннее 260 символов).
 
 ## Результаты (10.10.2026, Blender 5.0.1, CPU)
@@ -152,7 +152,7 @@ Blender и Windows не открывают пути длиннее 260 симв�
 расправленными крыльями + проверка, что непериодичная петля ловится; птица со сложенными крыльями; собака из 41
 детали под пустышкой с масштабом 0.01 и кватернионом, с параметрами сервера по умолчанию, затем её же `rigged.glb`
 и `rigged.blend` через `inputs.blend`; custom-цепочка) и 4 на ассетах HG (warhorse, warhorse в родном размере
-без `length_m`, undead_horse с `weights: distance`, griffin). Через `af_run.py` отдельно проверены: параметры
+без `length_m`, undead_horse с `weights: distance`, griffin). Через `imaginarium_run.py` отдельно проверены: параметры
 сервера по умолчанию (`head_dir: "auto"`), только `inputs.blend`, собственный `rigged.glb` на входе — все ok.
 
 | ассет | шаблон (авто) | костей | веса | уверенность | риг, с | анимация, с |

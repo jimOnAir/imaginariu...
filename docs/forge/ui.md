@@ -17,7 +17,7 @@
 | `src/forge/StickFigure.jsx` | превью клипа «палочками» на canvas |
 | `src/forge/ForgeJobs.jsx`, `ForgeBatch.jsx` | задачи и пакеты |
 | `src/forge/ForgeUi.jsx` | общие элементы: контекст, поле параметра из реестра, числовое поле, кнопка «в корзину», проверки, превью результатов |
-| `src/forge/forge-api.js` | **все** пути `/api/forge/*` в одном месте; заголовок `x-astra-client: studio` |
+| `src/forge/forge-api.js` | **все** пути `/api/forge/*` в одном месте; заголовок `x-imaginarium-client: studio` |
 | `src/forge/forge-core.js` | чистые функции (тесты: `tests/forge-ui-core.test.mjs`) |
 | `src/forge/forge.css` | стили мастера на токенах `style.css` (грузятся вместе с ленивым чанком) |
 

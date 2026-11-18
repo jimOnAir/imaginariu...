@@ -13,14 +13,14 @@
 4. Если вкладка пишет «Сервер студии ещё не знает маршрут приёмки» — студия запущена до обновления:
    перезапустите её (`Stop.cmd`, затем `Start.cmd`).
 
-Откуда берётся список: файл состояния пакета `C:\AstraForge\incoming\build\build.state.json`
-(его пишет сборщик пакета; путь меняется переменной `ASTRA_FORGE_REVIEW_STATE`). Из него берутся
+Откуда берётся список: файл состояния пакета `C:\Imaginarium\incoming\build\build.state.json`
+(его пишет сборщик пакета; путь меняется переменной `IMAGINARIUM_REVIEW_STATE`). Из него берутся
 **состав пакета**, роль, фракция и концепт. Всё остальное — статус, превью, цифры разрыва сетки,
 итоговая модель — читается из паспортов ассетов (`<библиотека>/assets/<id>/asset.json`) при каждом
 обновлении списка, поэтому перезапуск шага (доработка) виден сразу, даже если файл состояния устарел.
 Если файла состояния нет и пакет не назван, показываются все гуманоиды и существа библиотеки,
 собранные из генераций. Заметки к концептам (`notes`) берутся из `roles.json` папки концептов
-(`ASTRA_FORGE_REVIEW_ROLES`).
+(`IMAGINARIUM_REVIEW_ROLES`).
 
 ## Как смотреть
 
@@ -103,8 +103,8 @@
    Сброс: `{"qa":{"reviewed":false,"decision":null}}` — поля решения удаляются. Остальные данные
    `qa` (`checks`, `notes`) не трогаются.
 2. **В файл — по кнопке «Сохранить решения в файл»** (`POST /api/forge/review/export`).
-   Файл `C:\AstraForge\incoming\build\review_decisions.json` (рядом с файлом состояния; путь
-   меняется переменной `ASTRA_FORGE_REVIEW_DECISIONS`) — JSON-список только решённых персонажей:
+   Файл `C:\Imaginarium\incoming\build\review_decisions.json` (рядом с файлом состояния; путь
+   меняется переменной `IMAGINARIUM_REVIEW_DECISIONS`) — JSON-список только решённых персонажей:
 
    ```json
    [
@@ -134,9 +134,9 @@
 
 | Переменная | По умолчанию | Что |
 |---|---|---|
-| `ASTRA_FORGE_REVIEW_STATE` | `C:\AstraForge\incoming\build\build.state.json` | файл состояния пакета |
-| `ASTRA_FORGE_REVIEW_DECISIONS` | `review_decisions.json` рядом с файлом состояния | куда пишет «Сохранить решения» |
-| `ASTRA_FORGE_REVIEW_ROLES` | `C:\AstraForge\incoming\hg_concepts_2026-10-11\roles.json` | заметки к концептам |
+| `IMAGINARIUM_REVIEW_STATE` | `C:\Imaginarium\incoming\build\build.state.json` | файл состояния пакета |
+| `IMAGINARIUM_REVIEW_DECISIONS` | `review_decisions.json` рядом с файлом состояния | куда пишет «Сохранить решения» |
+| `IMAGINARIUM_REVIEW_ROLES` | `C:\Imaginarium\incoming\hg_concepts_2026-10-11\roles.json` | заметки к концептам |
 
 Другой пакет: `GET /api/forge/review?batch=pilot2` читает `<папка incoming>/pilot2/pilot2.state.json`
 (имя — латиница, цифры, `_`, `-`).

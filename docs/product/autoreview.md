@@ -17,7 +17,7 @@ job completed (GLB) -> orbit render (Blender) -> VLM scores 5 axes -> decide() t
   imports the GLB and renders 8 orthographic Workbench frames at even azimuths (`orbit_00..07.png`,
   the `orbit.json` manifest lists them with their yaw). The same pass reports the **plain mesh
   numbers** — open (boundary), non-manifold and wire edges, loose parts — which the table uses below.
-- **Scores** — the review model is ticket 14's pick (`ASTRA_REVIEW_VLM` > the Connections choice >
+- **Scores** — the review model is ticket 14's pick (`IMAGINARIUM_REVIEW_VLM` > the Connections choice >
   the VRAM tier, see docs/product/ollama.md); `server/vlm.mjs` sends the concept + 4 sampled orbit
   frames and asks for one JSON object: `likeness, silhouette, seams, face, style` (0–10, null when
   an axis cannot apply — a prop has no face). Which model answered **and why it was chosen** is
@@ -26,7 +26,7 @@ job completed (GLB) -> orbit render (Blender) -> VLM scores 5 axes -> decide() t
   `axisFloor` (4) **and** the average must reach `meanFloor` (5.5); the plain mesh numbers *cap* the
   seam score (`seamCap`: open edges → ≤6, non-manifold/wire → ≤5, more than one loose part → ≤7; an
   unopenable model → 0). The table is this branch's own tuning, exported as `THRESHOLDS`
-  (tunable via `ASTRA_REVIEW_TUNE='{"axisFloor":6}'`, clamped — for tuning and demos; production
+  (tunable via `IMAGINARIUM_REVIEW_TUNE='{"axisFloor":6}'`, clamped — for tuning and demos; production
   runs on the table). Retries: `maxAttempts` 4 total.
 - **Journal** — every verdict appends a line to `<library>/learning/autoreview.jsonl` with
   `source: "auto"` (library = the forge library, `data/library` by default): scores, the cap that
@@ -44,7 +44,7 @@ job completed (GLB) -> orbit render (Blender) -> VLM scores 5 axes -> decide() t
   `GET /api/autoreview/journal?limit=` (journal tail),
   `GET /api/autoreview/:id/orbit/a<n>/orbit_<nn>.png` (names whitelisted),
   `POST /api/autoreview {jobId}` (studio header required).
-- **Off switch** — `ASTRA_AUTOREVIEW=0` skips the automatic hook (manual reviews still work).
+- **Off switch** — `IMAGINARIUM_AUTOREVIEW=0` skips the automatic hook (manual reviews still work).
   Child generations (the retries) carry `autoreviewOf` and never open a second review.
 
 ## Live measurement (RTX 5070, 2026-11-08, ollama 0.40.15 + qwen3-vl:8b)

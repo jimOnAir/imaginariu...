@@ -1,4 +1,4 @@
-# Кузница AstraForge — как делать ассеты на автомате и встраивать их в игры
+# Кузница Imaginarium — как делать ассеты на автомате и встраивать их в игры
 
 Состояние на 11.10.2026. Всё работает локально: Blender 5.0.1 без окна, Godot 4.5.1 для проверок,
 Hunyuan3D 2.1 в собственном ComfyUI 8190. Облако не используется.
@@ -8,7 +8,7 @@ Hunyuan3D 2.1 в собственном ComfyUI 8190. Облако не испо
 - Двойной щелчок по `Start.cmd`, адрес http://127.0.0.1:3210. Остановка — `Stop.cmd`.
 - В студии вкладка **«Кузница»**: мастер (что создаём → подготовка → скелет → движения → предметы →
   эффекты → экспорт), «Задачи» (все сборки, кнопка «Показать в сцене»), «Пакет».
-- Командная строка из папки AstraForge: `node scripts/forge.mjs presets`, `create`, `run`, `batch`,
+- Командная строка из папки Imaginarium: `node scripts/forge.mjs presets`, `create`, `run`, `batch`,
   `export`, `clips import`. Флаг `--direct` работает без запущенной студии.
 
 ## 2. Готовые конвейеры (пресеты)
@@ -53,7 +53,7 @@ node scripts/forge.mjs create --kind humanoid --name "Рыцарь" --from-glb m
 Пакет концептов «Врат» (`scripts/forge-concepts.mjs`): cleanup → paint_from_concept → extract_props →
 rig_humanoid → retarget → attach_prop (extracted) → motion_style → render_sprites → godot_package; после сборки —
 проверка предметов в руках по клипам, `--compare <старое состояние>` — листы «было / стало». Тиры юнитов —
-предложение `C:\AstraForge\incoming\hg_concepts_2026-10-11\tiers.md`.
+предложение `C:\Imaginarium\incoming\hg_concepts_2026-10-11\tiers.md`.
 
 Mixamo: скачайте клипы с mixamo.com (FBX, «Without Skin», 30 к/с) и перетащите их во вкладку
 «Движения» или выполните `node scripts/forge.mjs clips import <папка>`. В библиотеке 124 клипа (38 Mixamo и 86 Quaternius/ActionForge, CC0);
@@ -90,15 +90,15 @@ Mixamo: скачайте клипы с mixamo.com (FBX, «Without Skin», 30 к/
 | «Врата Героев» | `heroes_gates` | листы `<clip>.png`, `_nw`, `_se`, запись для `data/sprites.json` | через роль art и обычный порядок слияний «Врат» |
 
 Кузница никогда не пишет в чужие проекты сама: пакеты и записи реестров лежат в
-`C:\AstraForge\library\assets\<id>\exports\`. Все пакеты проверены настоящим Godot 4.5.1.
+`C:\Imaginarium\library\assets\<id>\exports\`. Все пакеты проверены настоящим Godot 4.5.1.
 
 ## 8. Ограничения
 
 - Нейросетевая геометрия мягкая: для крупных планов нужны параметрические детали поверх неё.
 - Цвет из картинки — проекция фото, не PBR; скрытая сторона — догадка генератора или зеркало.
 - Положения деталей и разрезов на нестандартных моделях пока подбираются по замерам.
-- Библиотека кузницы лежит в `C:\AstraForge\library` (короткий путь, перенос 11.10.2026; прежняя копия —
-  `data/library.moved-2026-10-11`). Другую папку задаёт переменная `ASTRA_FORGE_LIBRARY`.
+- Библиотека кузницы лежит в `C:\Imaginarium\library` (короткий путь, перенос 11.10.2026; прежняя копия —
+  `data/library.moved-2026-10-11`). Другую папку задаёт переменная `IMAGINARIUM_LIBRARY`.
 - Tripo подключён, но платные операции без решения владельца не запускаются.
 
 Подробности по модулям — `docs/forge/*.md`, контракт — `docs/FORGE-CONTRACT.md`, API — `docs/forge/API.md`,

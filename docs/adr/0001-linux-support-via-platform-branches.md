@@ -1,6 +1,6 @@
 # Linux support via platform branches, Windows behavior frozen
 
-AstraForge shipped as a Windows-only app (PowerShell installer, DPAPI vault, named-mutex GPU
+Imaginarium shipped as a Windows-only app (PowerShell installer, DPAPI vault, named-mutex GPU
 lock, `.cmd` launchers). To run on Linux we add `process.platform` branches and POSIX
 counterparts (bash installer, `start.sh`/`stop.sh`, `flock` GPU lock, PATH-based Blender/Godot
 discovery) instead of a Linux-only fork, a shim layer over the Windows assumptions, or

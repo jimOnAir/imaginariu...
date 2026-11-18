@@ -84,4 +84,4 @@ preset contains the id (ticket 12 makes the rule visible in the checklist).
 
 Provenance/licensing machinery (the `afmk` chunk, OGG comment marks, `MODEL_LICENSES` rows, the
 core manifest), the AMD/ROCm shim for the sound library, and the Windows frontends stay on the
-Windows side — see `.scratch/astraforge-060-reintroduction/spec.md`.
+Windows side — see `.scratch/imaginarium-060-reintroduction/spec.md`.

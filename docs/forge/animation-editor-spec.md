@@ -1,4 +1,4 @@
-# ТЗ: редактор анимаций в AstraForge по образцу ActionForge
+# ТЗ: редактор анимаций в Imaginarium по образцу ActionForge
 
 Записано 21.10.2026 по просьбе владельца. Делать после сброса лимита Claude (24.10, 12:00 по Бали).
 
@@ -9,7 +9,7 @@
 
 ## Что уже есть
 
-- Все клипы ActionForge: 86 клипов Quaternius (CC0) в `C:\AstraForge\library\animations\quaternius`
+- Все клипы ActionForge: 86 клипов Quaternius (CC0) в `C:\Imaginarium\library\animations\quaternius`
   (FBX + `*.poses.json`), мастер ставит их компонентом `clips` (`installer/Install.ps1`, `InstallClips`).
   На сайте 21.10 — 85 клипов, новых нет.
 - 38 клипов Mixamo, шаги `retarget`, `motion_style`, `clip_library`, `rig_humanoid`, вкладка «Анимация»
@@ -38,7 +38,7 @@
 - Пресеты костей под чужие скелеты — таблицы соответствия имён (Mixamo ↔ Quaternius ↔ UE ↔ Reallusion).
 - Тесты: детерминизм запекания, совпадение длительности и числа ключей, загрузка в Godot 4.5.1 без ошибок,
   ворота осанки (`posture.py`).
-- Обновить скилл `ai/skills/astraforge` (`references/studio.md`) и Obsidian («AstraForge — устройство и инструменты»).
+- Обновить скилл `ai/skills/imaginarium` (`references/studio.md`) и Obsidian («Imaginarium — устройство и инструменты»).
 
 ## Приёмка
 

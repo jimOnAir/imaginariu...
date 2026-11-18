@@ -1,15 +1,15 @@
-# Модуль «unity»: пакеты для Unity и импортёр `com.astraforge.unity`
+# Модуль «unity»: пакеты для Unity и импортёр `dev.imaginarium3d.unity`
 
 Экспорт в Unity устроен как экспорт в Godot: студия собирает **пакет**, движок сам собирает из него рабочий
 **префаб**, а проверка в настоящем движке без окна подтверждает результат.
 
-- Шаг Blender **`unity_package`** (профиль экспорта **`unity`**): FBX, текстуры PNG и паспорт `af_unity.json`.
-- Пакет Unity **`com.astraforge.unity`** (`unity/com.astraforge.unity`, UPM, MIT): импортёр сам собирает префаб из
+- Шаг Blender **`unity_package`** (профиль экспорта **`unity`**): FBX, текстуры PNG и паспорт `ima_unity.json`.
+- Пакет Unity **`dev.imaginarium3d.unity`** (`unity/dev.imaginarium3d.unity`, UPM, MIT): импортёр сам собирает префаб из
   паспорта — без ручной правки.
-- Пакетная проверка: `Unity -batchmode -executeMethod AstraForge.Editor.AFBatch.Validate` на проверочном
-  URP-проекте студии `C:\AstraForge\unity\AFUnityCheck`. Результат — JSON-отчёт и скриншоты префабов.
+- Пакетная проверка: `Unity -batchmode -executeMethod Imaginarium.Editor.ImaginariumBatch.Validate` на проверочном
+  URP-проекте студии `C:\Imaginarium\unity\ImaginariumUnityCheck`. Результат — JSON-отчёт и скриншоты префабов.
 - Отправка в проект владельца **одной командой**: `forge.mjs export … --profile unity --to-unity <проект>`,
-  `scripts/unity/af_unity_send.mjs` или MCP-инструмент `unity_send`.
+  `scripts/unity/imaginarium_unity_send.mjs` или MCP-инструмент `unity_send`.
 
 Unity по умолчанию — **6000.0.64f1 (Unity 6 LTS)**, рендер — **URP 17.0**. Built-in и HDRP поддержаны
 импортёром: он берёт шейдеры активного пайплайна, оговорки см. ниже. Unity 6000.3 тоже найдётся, если LTS нет.
@@ -20,17 +20,17 @@ Unity по умолчанию — **6000.0.64f1 (Unity 6 LTS)**, рендер �
 node scripts/forge.mjs export <assetId> --profile unity                                  # пакет + проверка в Unity
 node scripts/forge.mjs export <assetId> --profile unity --to-unity "D:/Games/MyGame"     # + положить в проект
 node scripts/forge.mjs export <assetId> --profile unity --to-unity "D:/Games/MyGame" --build   # + собрать префаб сразу (проект закрыт)
-node scripts/unity/af_unity_send.mjs --project "D:/Games/MyGame" <папка пакета | unity-v00N.zip> [--build]
+node scripts/unity/imaginarium_unity_send.mjs --project "D:/Games/MyGame" <папка пакета | unity-v00N.zip> [--build]
 py scripts/unity/unity_check.py <папка пакета> [...] --out <папка>                      # проверка набора пакетов одним запуском Unity
 ```
 
-В Unity (меню **AstraForge**): «Пересобрать все пакеты», «Пересобрать выбранный пакет», «Импортировать папку
+В Unity (меню **Imaginarium**): «Пересобрать все пакеты», «Пересобрать выбранный пакет», «Импортировать папку
 пакета…», «Проверить все пакеты». Открытый редактор собирает префаб сам, как только файлы пакета появились или
-обновились (`AFImportPostprocessor` → `AFPrefabBuilder`).
+обновились (`ImaginariumImportPostprocessor` → `ImaginariumPrefabBuilder`).
 
 ## Шаг `unity_package`
 
-Запуск как у остальных шагов (`af_run.py -- unity_package request.json`). На входе `inputs.glb` (или только
+Запуск как у остальных шагов (`imaginarium_run.py -- unity_package request.json`). На входе `inputs.glb` (или только
 `inputs.sprites`), необязательный `inputs.manifest`. Если раньше в той же цепочке был `render_sprites`, сервер
 сам передаёт `inputs.sprites`. Маски сокетов в `fx` сервер разворачивает так же, как для `godot_package`.
 
@@ -42,10 +42,10 @@ py scripts/unity/unity_check.py <папка пакета> [...] --out <папк�
 | `rig` | `auto` | кости Mixamo (Hips, Spine, LeftUpLeg … — не меньше 14 из 15) → **Humanoid**, иначе **Generic** |
 | `collider` | `auto` | имена-коллизии важнее примитивов: меши `*-colonly`, `*-convcolonly`, `COL_*` становятся UCX-оболочками в FBX (см. ниже) и никогда не рендерятся; без них — со скелетом капсула по габариту, дерево (есть листва) — капсула ствола, остальное — коробка; `box`, `capsule`, `convex`, `mesh`, `none` |
 | `lod`, `lod_min_tris`, `lod_ratios`, `lod_screen` | да, 3000, [0.5, 0.2], [0.5, 0.18, 0.04] | LOD1/LOD2 — копии с Decimate у статичных моделей; листовые карточки общие для всех уровней |
-| `wind`, `wind_strength`, `wind_speed`, `flutter` | `auto`, 0,07, 1,4, 0,025 | материалы `Leaves`/`Leaf`/`Foliage` (или со свойством `af_wind`) — шейдер `AstraForge/Foliage` с ветром |
+| `wind`, `wind_strength`, `wind_speed`, `flutter` | `auto`, 0,07, 1,4, 0,025 | материалы `Leaves`/`Leaf`/`Foliage` (или со свойством `imaginarium_wind`) — шейдер `Imaginarium/Foliage` с ветром |
 | `fx`, `fx_auto_scale` | паспорт, да | пресеты `fx_presets.json` на сокетах, масштаб как у `godot_package` |
 | `autoplay` | idle, иначе первая петля | первое состояние Animator Controller |
-| `validate` | да | проверка в Unity; `unity`, `unity_project` — пути вместо умолчаний (`ASTRA_UNITY`, `ASTRA_UNITY_PROJECT`) |
+| `validate` | да | проверка в Unity; `unity`, `unity_project` — пути вместо умолчаний (`IMAGINARIUM_UNITY`, `IMAGINARIUM_UNITY_PROJECT`) |
 
 ### Коллизионные оболочки
 
@@ -60,8 +60,8 @@ py scripts/unity/unity_check.py <папка пакета> [...] --out <папк�
   же FBX с той же мировой матрицей, то есть ориентация оболочки всегда совпадает с родителем;
 * в паспорте это `collider: {"type": "ucx", "hulls": [{mesh, ucx, source, kind, triangles}]}` —
   видно, какая оболочка к какой модели привязана;
-* импортёр подстраховывается: `AFPrefabBuilder` для `ucx` гасит рендер уцелевших UCX-мешей и вешает
-  convex `MeshCollider`, а `AFBatch` в проверке ставит галочку только если коллайдеры есть **и** ни
+* импортёр подстраховывается: `ImaginariumPrefabBuilder` для `ucx` гасит рендер уцелевших UCX-мешей и вешает
+  convex `MeshCollider`, а `ImaginariumBatch` в проверке ставит галочку только если коллайдеры есть **и** ни
   одна оболочка не светится на экране.
 
 Явный `collider=box|capsule|convex|mesh` уважается: hulls всё равно не будут отрисованы, но
@@ -77,7 +77,7 @@ py scripts/unity/unity_check.py <папка пакета> [...] --out <папк�
 | `textures/*.png` | базовый цвет; нормали; маска (R металл, G затенение = 1, A гладкость — подходит и URP, и HDRP); свечение |
 | `fx/textures/*.png` | процедурные текстуры частиц (те же, что в Godot) |
 | `sprites/*.png` | листы `render_sprites` |
-| `af_unity.json` | паспорт `astraforge-unity-package/1`: материалы, клипы с петлями, сокеты (позиции в осях Unity), LOD, коллайдер, эффекты с осями, спрайты, размер |
+| `ima_unity.json` | паспорт `imaginarium-unity-package/1`: материалы, клипы с петлями, сокеты (позиции в осях Unity), LOD, коллайдер, эффекты с осями, спрайты, размер |
 | `README.md` | что соберёт импортёр и итог проверки |
 
 **Оси (измерено 31.10 на Unity 6000.0.64f1).** FBX уходит с `axis_forward=-Z`, `axis_up=Y`, без
@@ -93,8 +93,8 @@ Mix и вершинный цвет), альфа (вырез — если в це
 Импортёр создаёт материал под пайплайн: URP — `Universal Render Pipeline/Lit` (ключевые слова через
 `BaseShaderGUI.SetMaterialKeywords`), Built-in — `Standard`, HDRP — `HDRP/Lit`
 (`HDShaderUtils.ResetMaterialKeywords`). Затем материал привязывается к слоту FBX через `AddRemap` по имени.
-Вершинный цвет и листва идут на шейдер `AstraForge/Foliage URP` / `Foliage Built-in` (в пакете лежит в
-`Shaders~` и копируется в `Assets/AstraForge/_Shaders` только при нужде — проект без URP не ловит ошибок
+Вершинный цвет и листва идут на шейдер `Imaginarium/Foliage URP` / `Foliage Built-in` (в пакете лежит в
+`Shaders~` и копируется в `Assets/Imaginarium/_Shaders` только при нужде — проект без URP не ловит ошибок
 компиляции). Ветер повторяет `leaves_wind.gdshader` Godot: UV2.x — вес ветра, UV2.y — фаза, COLOR — оттенок.
 Если у листвы нет UV2, шаг пишет его сам (вес по высоте кроны, фаза — хэш позиции).
 
@@ -102,10 +102,10 @@ Mix и вершинный цвет), альфа (вырез — если в це
 имя `idle` и `loopTime`. У Humanoid поворот и высота корня запечены в позу, у петель — ещё и XZ: клипы
 играются на месте. Avatar создаётся из модели. Контроллер `<id>_Animator.controller` получает по состоянию на
 клип; при пересборке очищается, а не пересоздаётся, поэтому GUID и ссылки в сценах сохраняются. Компонент
-`AFAnimations.Play("walk")` переключает клипы.
+`ImaginariumAnimations.Play("walk")` переключает клипы.
 
-**Сокеты и эффекты.** `AFSockets` хранит сокеты по именам (`Get`, `Attach`). Сокеты на костях едут вместе с
-анимацией. Пресеты эффектов Godot превращаются в Particle System (`AFFxBuilder`) по таким правилам:
+**Сокеты и эффекты.** `ImaginariumSockets` хранит сокеты по именам (`Get`, `Attach`). Сокеты на костях едут вместе с
+анимацией. Пресеты эффектов Godot превращаются в Particle System (`ImaginariumFxBuilder`) по таким правилам:
 
 | Пресет Godot | Particle System |
 |---|---|
@@ -121,7 +121,7 @@ Mix и вершинный цвет), альфа (вырез — если в це
 | `light` | точечный свет |
 | `blend add/mix` | материал URP Particles Unlit, аддитивный или альфа |
 
-Объект эффекта ставится на сокет. Его +Y — ось «наружу» сокета (у сопел — ось выхлопа, как в Godot), +Z — «вперёд» дула. `AFFxMount.Trigger(сокет)`
+Объект эффекта ставится на сокет. Его +Y — ось «наружу» сокета (у сопел — ось выхлопа, как в Godot), +Z — «вперёд» дула. `ImaginariumFxMount.Trigger(сокет)`
 перезапускает разовые эффекты.
 
 **Спрайты.** Листы режутся по прямоугольникам `sprites.json`: `TextureImporter.spritesheet`, без зависимости от
@@ -129,7 +129,7 @@ Mix и вершинный цвет), альфа (вырез — если в це
 ячейки (земля под моделью). Пиксель-арт получает фильтр Point без сжатия. Дальше строятся клипы по каждому
 направлению (`sprites/anim/<клип>_<N>.anim`) и контроллер: на клип одно состояние с 2D-деревом направлений
 (параметры `DirX`/`DirY`; S = (0, −1), N = (0, 1), E = (1, 0)). Итог — префаб `<id>_sprite.prefab`
-(SpriteRenderer + Animator + `AFSprite8Dir`: `SetDirection`, `SetWorldDirection(вектор, камера)`, `Play`).
+(SpriteRenderer + Animator + `ImaginariumSprite8Dir`: `SetDirection`, `SetWorldDirection(вектор, камера)`, `Play`).
 
 ## Проверка в Unity (batchmode)
 
@@ -137,8 +137,8 @@ Mix и вершинный цвет), альфа (вырез — если в це
 
 1. Если проверочного проекта нет, создаёт его из шаблона редактора «Universal 3D» (`-cloneFromTemplate`, без
    сети) и подключает импортёр ссылкой `file:` на эту папку репозитория.
-2. Копирует пакеты в `Assets/AstraForge/<id>/` и одним запуском Unity выполняет `AFBatch.Validate`.
-3. Проект на это время запирается файлом `.af_unity_check.lock`. Если проект открыт в редакторе — понятное
+2. Копирует пакеты в `Assets/Imaginarium/<id>/` и одним запуском Unity выполняет `ImaginariumBatch.Validate`.
+3. Проект на это время запирается файлом `.imaginarium_unity_check.lock`. Если проект открыт в редакторе — понятное
    предупреждение. Если Unity Hub вышел из аккаунта — предупреждение «нет лицензии».
 
 Проверки для каждого ассета (в шаге — `unity_<имя>`):
@@ -157,22 +157,22 @@ Mix и вершинный цвет), альфа (вырез — если в це
 - для спрайтов: `sprites_sliced`, `sprites_ppu`, `sprites_point_filter`, `sprite_prefab`, `sprite_animator`, `sprite_clips_frames`;
 - `console_errors` — ошибки консоли во время сборки.
 
-Скриншоты (`AFShots`) рендерятся через активный пайплайн (`RenderPipeline.SubmitRenderRequest`): вид 3/4
+Скриншоты (`ImaginariumShots`) рендерятся через активный пайплайн (`RenderPipeline.SubmitRenderRequest`): вид 3/4
 спереди, клип по умолчанию на 35 % длины, частицы прогнаны на 1,5 с. Спрайты — сетка 4 × 2 по направлениям.
 Всё это сводится в `contact_sheet.png`.
 
 ### Прогон 31.10.2026 (Unity 6000.0.64f1, URP 17.0.4)
 
-Ассеты из «AstraForge — уровень с нуля» и библиотеки: дерево `tree_oak_1` (листовые карточки, ветер, LOD
+Ассеты из «Imaginarium — уровень с нуля» и библиотеки: дерево `tree_oak_1` (листовые карточки, ветер, LOD
 5274 / 4335 / 3771, капсула ствола); костёр (`fire` + `sparks` на `socket_fx_fire`); дом (LOD 14970 / 7485 /
 2994, сокет трубы); заяц и олень (Generic, 3 клипа с петлями); заяц ещё и спрайтами pixel (192 спрайта,
 64 px/м); лучник Q (Humanoid, Avatar valid, 6 клипов, 2 сокета на руках); бочка — только спрайт. **7 из 7
 OK, 71 проверка, 19,5 с на весь набор.** Размеры совпадают с паспортом Godot (glTF) в пределах 1 %.
 Сквозной путь `forge.mjs export … --profile unity --to-unity … --build` (костёр из библиотеки) положил
 пакет в новый проект и собрал префаб в batchmode. Тесты: `run_tests.py -- unity` — 4 PASS и 1 SKIP; с
-`AF_UNITY_TESTS=1` пятый тест (настоящий Unity) — PASS за 13,9 с.
+`Imaginarium_UNITY_TESTS=1` пятый тест (настоящий Unity) — PASS за 13,9 с.
 
-Тот же набор в проекте **Built-in** (`unity_check.py --pipeline builtin --project C:/AstraForge/unity/AFUnityCheckBuiltIn`, пустой проект без URP): **7 из 7 OK, 71 проверка, 13,4 с**. Материалы — `Standard`, листва — `AstraForge/Foliage Built-in`, частицы — `Mobile/Particles/Additive`. С `Legacy Shaders/Particles/Additive` огонь костра на снимке не был виден, поэтому эти шейдеры заменены.
+Тот же набор в проекте **Built-in** (`unity_check.py --pipeline builtin --project C:/Imaginarium/unity/ImaginariumUnityCheckBuiltIn`, пустой проект без URP): **7 из 7 OK, 71 проверка, 13,4 с**. Материалы — `Standard`, листва — `Imaginarium/Foliage Built-in`, частицы — `Mobile/Particles/Additive`. С `Legacy Shaders/Particles/Additive` огонь костра на снимке не был виден, поэтому эти шейдеры заменены.
 
 ![Unity: префабы и спрайты](img/unity/contact_sheet.png)
 
@@ -185,25 +185,25 @@ OK, 71 проверка, 19,5 с на весь набор.** Размеры со
 
 | Что | Где |
 |---|---|
-| Рабочий Unity-проект студии | `C:\AstraForge\unity\AstraForgeUnity`: URP, импортёр `com.astraforge.unity` (встроенный), MCP for Unity, пример — костёр из библиотеки |
+| Рабочий Unity-проект студии | `C:\Imaginarium\unity\ImaginariumUnity`: URP, импортёр `dev.imaginarium3d.unity` (встроенный), MCP for Unity, пример — костёр из библиотеки |
 | Сервер в Claude Code | `UnityMCP`, scope user (во всех проектах): `uvx --from mcpforunityserver==10.3.0 mcp-for-unity --transport stdio`, переменные `UNITY_MCP_DISABLE_TELEMETRY=true`, `UNITY_MCP_TRANSPORT=stdio` |
 | Режим | **stdio**: Claude Code запускает сервер, сервер подключается к мосту открытого редактора (TCP `127.0.0.1:6400`, мост стартует вместе с редактором) |
-| Настройка редактора | меню **AstraForge → MCP for Unity: режим stdio для Claude Code** или `AFSetup.ConfigureUnityMcp`: `MCPForUnity.UseHttpTransport=false`, телеметрия выключена (по умолчанию сервер шлёт события на api-prod.coplay.dev) |
+| Настройка редактора | меню **Imaginarium → MCP for Unity: режим stdio для Claude Code** или `ImaginariumSetup.ConfigureUnityMcp`: `MCPForUnity.UseHttpTransport=false`, телеметрия выключена (по умолчанию сервер шлёт события на api-prod.coplay.dev) |
 
 Подключить MCP к другому своему проекту:
-`node scripts/unity/af_unity_send.mjs --project <проект> --with-mcp`. Команда добавит пакет в
+`node scripts/unity/imaginarium_unity_send.mjs --project <проект> --with-mcp`. Команда добавит пакет в
 `Packages/manifest.json` и переключит режим stdio, если проект закрыт; можно сразу вместе с пакетами ассетов.
 
 Инструментов **48**: сцены, объекты, компоненты, префабы, ассеты, материалы, шейдеры, текстуры, скрипты
 (создание, правки, проверка), анимация, камеры, физика, UI, VFX, пакеты, сборка, профайлер, тесты, консоль,
 пункты меню, `execute_code`. Инструменты генерации (`generate_image`, `generate_model`, `generate_audio`)
-обращаются к облачным сервисам — для 3D у нас AstraForge, облачные генераторы только по решению владельца.
+обращаются к облачным сервисам — для 3D у нас Imaginarium, облачные генераторы только по решению владельца.
 
 Проверено 31.10 тестовым MCP-клиентом через тот же `uvx`-сервер:
 
 - `tools/list` — 48 инструментов;
 - `manage_scene get_hierarchy` — живая сцена;
-- `execute_menu_item "AstraForge/Пересобрать все пакеты"`;
+- `execute_menu_item "Imaginarium/Пересобрать все пакеты"`;
 - `manage_gameobject create prefab_path=…/campfire_fx_ea2f91ab.prefab` — костёр в сцене;
 - `read_console` — 0 ошибок.
 
@@ -228,5 +228,5 @@ OK, 71 проверка, 19,5 с на весь набор.** Размеры со
   корня включите его на Animator вручную.
 - **Ткань `cloth_sim`** приходит обычным скиннингом, без запечённой симуляции. Связки «всадник + конь» не
   проверялись.
-- **Built-in `Standard`** не умеет двусторонние материалы — их там рисует `AstraForge/Foliage Built-in`.
+- **Built-in `Standard`** не умеет двусторонние материалы — их там рисует `Imaginarium/Foliage Built-in`.
   HDRP пакетной проверкой не прогонялся (проверены URP и Built-in).

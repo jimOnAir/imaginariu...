@@ -1,11 +1,11 @@
-# AstraForge 0.7.9 — acceptance report (the performance wave + the Windows 0.7.2→0.7.9 fold, re-derived on Linux, shipped once)
+# Imaginarium 0.7.9 — acceptance report (the performance wave + the Windows 0.7.2→0.7.9 fold, re-derived on Linux, shipped once)
 
 This tree (`linux-support`) is version **0.7.9**. It carries everything the
 [0.7.1 acceptance report](acceptance-0.7.1.md) covered — the 0.4.16 feature set, the Windows
 0.5.x/0.6.x lines and the folded Windows 0.6.7→0.7.1 stretch — and adds two more: a
-**performance wave** (tickets 44–49, `.scratch/astraforge-1110-performance/`) driven by this
+**performance wave** (tickets 44–49, `.scratch/imaginarium-1110-performance/`) driven by this
 machine's real cards and a real 4M-triangle mesh, and the fold of the Windows releases
-**0.7.2 through 0.7.9** (tickets 50–60, `.scratch/astraforge-1115-079-fold/`), re-derived under
+**0.7.2 through 0.7.9** (tickets 50–60, `.scratch/imaginarium-1115-079-fold/`), re-derived under
 Protocol v2 ([ADR-0004](../adr/0004-protocol-v2-clean-room-and-attribution.md)): T1 intent from
 the public notes and sanctioned channels, T2/T3 facts through the spec channel only; implementing
 contexts never read the extracted payload trees; every code commit gated by an independent
@@ -48,7 +48,7 @@ or can measure. Every row below carries its own number or its own honest ⚫.
 
 ✅ **Ticket 44 — the fp8 UNet tier, measured on two cards** (`d05175a`): the 0.7.1-era sentinel
 (ticket 43) only caught the paging symptom after minutes; the cause is the fp16 UNet itself. When
-the card is NVIDIA and ≤ `ASTRA_VIEWS_FP8_MAX_MIB` (default 16384, env `ASTRA_VIEWS_FP8=auto`),
+the card is NVIDIA and ≤ `IMAGINARIUM_VIEWS_FP8_MAX_MIB` (default 16384, env `IMAGINARIUM_VIEWS_FP8=auto`),
 the views node now runs `pipe.unet.enable_layerwise_casting(storage_dtype=torch.float8_e4m3fn)`
 per-MODULE (the shipped diffusers do not expose it on pipelines) after the adapter loads and
 before the upload; the VAE is deliberately not cast (its `force_upcast` float32 path collides).
@@ -70,18 +70,18 @@ that still fail after fp8 splits the diffusion step's 2N batch; measured, the wi
 branch picks (512 px, 6 views) peaks at 5.87 GB in fp8 — under the 8 GB-class budget with room —
 so the branch does NOT vendor a split pipeline. The honest caveat is on the record: no 8 GB card
 was physically here; the margin and the sentinel carry the contingency.
-✅ **Ticket 46 — af-mesh-rs: the studio's own decimator** (`795e506` + `31bde28`): a
+✅ **Ticket 46 — imaginarium-mesh-rs: the studio's own decimator** (`795e506` + `31bde28`): a
 branch-original MIT crate over **vendored, pinned** meshoptimizer v1.3 (per-file sha256, built
 offline, never downloaded) with the carry contract proven in Rust tests (rig weights, vertex
 colors, custom normals, shape keys survive 1:1; face attributes refused with `carried.dropped`).
-The salvage chain tries it FIRST (budget→halve logic unchanged, `ASTRA_SALVAGE=blender` forces
+The salvage chain tries it FIRST (budget→halve logic unchanged, `IMAGINARIUM_SALVAGE=blender` forces
 the old route byte-identically); the live before/after on the 3 998 792-triangle fixture: **24.9 s
 → 0.38 s**, exactly 2.5M triangles out. The gate earned its keep twice: it REWRITE-flagged the
 first test-fixture builder (verbatim from the salvage lane — rewritten from scratch), and it
 taught the scanner to classify untracked files and moved lines.
 ✅ **Ticket 47 — closing 0.7.1's Bevy ⚠️ row with a live session** (`f0bea2a`): the bridge was
 installable and the stdio surface proven in 0.7.1, but nobody had driven a RUNNING game. This
-wave did: player starter on xvfb (Vulkan on the 5070), 52 MCP tools, `astraforge/play_clip` live
+wave did: player starter on xvfb (Vulkan on the 5070), 52 MCP tools, `imaginarium/play_clip` live
 in `rpc.discover`, and the attack clip visible in the numbers (x = 0.25·0.633 = 0.15825 captured
 after the agent's call). Defect found and fixed with a regression test: the `installBrpMcp`
 curl fallback had never actually run (`curl … -- <url> -o <file>` reads `-o` as a URL — the unit
@@ -105,7 +105,7 @@ workpaper — a T2/T3 leak the per-ticket gate CAUGHT (it was never in the publi
 was **re-derivation, not disclosure**: branch-native name, default re-chosen from this machine's
 measured cost table (planar dissolves 2.7 s @ 40.8k → 193 s @ 202.5k → killed > 45 min @ 410k;
 default **120000**, just under the cliff). `=0` reproduces the old order exactly. This is also
-the row that motivated af-mesh-rs's sub-second answer (46).
+the row that motivated imaginarium-mesh-rs's sub-second answer (46).
 
 ## Cluster O — the 0.7.2 → 0.7.9 fold (retarget #4; tickets 50–60)
 
@@ -115,7 +115,7 @@ rest shipped; tickets 53 and 59 were never issued (the spec table skips them —
 numbering gap is not read as a lost ticket).
 
 ✅ **Ticket 50 — language parity, guards not strings** (`63ccef8` + `f56f948`): the four surfaces
-(af_scan rows, components.mjs, ComponentsPanel, install.sh `say`) probed clean — so the fix is
+(imaginarium_scan rows, components.mjs, ComponentsPanel, install.sh `say`) probed clean — so the fix is
 structural: an EN-display guard (Cyrillic before a comment marker in the EN-only scan/installer
 surfaces fails), a functional sibling running `scanItems` over three machine shapes asserting
 every display field English, and a JSX text-node guard proving ComponentsPanel has zero raw text
@@ -172,7 +172,7 @@ publisher serves no archive (every candidate path 404, library.json carries no c
 author-published GitHub archive found) — an invented mirror stays the one move worse than a
 failed download, and the v0.6.6 empty-chain note now carries today's probe.
 ✅ **Ticket 56 — LOD files and compact GLB** (`9c19bc1`): `convert` grows `lods` (exact triangle
-fractions — af-mesh-rs primary, proven 512/127 exact with skeleton+clips carried — and gltfpack
+fractions — imaginarium-mesh-rs primary, proven 512/127 exact with skeleton+clips carried — and gltfpack
 `-si` as the honest approximate fallback with its band) and `compress`/`quantize` (separate
 `.compact.glb` with EXT_meshopt_compression; main files stay plain because Godot cannot read the
 compressed form — the auditor had Godot 4.7.2 verify both halves: three plain files import clean,
@@ -189,7 +189,7 @@ segment, not an error badge.
 ✅ **Ticket 58 — Blender 5.0.1 → 5.2.4 LTS** (`1124209` + the lane proof below): the pin half
 landed before the supply-chain gate (Blender 5.2.4 published 2026-11-10 08:36 UTC → download
 allowed 2026-11-17 08:36 UTC): manifest + installer URL/size/sha from the publisher's own
-sha256sums (all 7 mirrors HEAD-verified with byte-equal sizes), runtime path, af_scan candidates,
+sha256sums (all 7 mirrors HEAD-verified with byte-equal sizes), runtime path, imaginarium_scan candidates,
 the docs' version rows. The audit's REWRITE (151-token run of the manifest URL+mirrors+size+sha
 line vs the 0.7.9 corpus) was ruled provenance-mandated: the host list is byte-identical to the
 branch's OWN 5.0.1 line and the corpus line carries a `minVersion` field ours does not — a copy
@@ -226,13 +226,13 @@ parity kept).
 ## Excluded from the fold, with reasons
 
 🚫 **0.7.6's Rust-rewritten Forge hot paths** (fingers 54→16 s, tail 70→35 s, face 131→63 s):
-their host is the closed `astraforge-rs` core's Forge (standing closed-binary posture — no
-published source, checksum or attribution; the af-mesh rule applies automatically). What this
-branch owns stays: this wave's af-mesh-rs + planar-wait + fp8 rows are the honest Linux answer on
+their host is the closed `imaginarium-rs` core's Forge (standing closed-binary posture — no
+published source, checksum or attribution; the imaginarium-mesh rule applies automatically). What this
+branch owns stays: this wave's imaginarium-mesh-rs + planar-wait + fp8 rows are the honest Linux answer on
 the same classes, each with its own measured number.
 🚫 the subscription/content-studio/launcher line (0.7.x, unchanged: the 0.7.1 report's reasons
 stand), 🚫 cloud/points/Shop, 🚫 AMD/ROCm, 🚫 telemetry/journals, 🚫 engine-plugin files beyond
-the perf wave's scoped MV-Adapter memory-layer lift (ticket 44's `astra_views.py` is the branch's
+the perf wave's scoped MV-Adapter memory-layer lift (ticket 44's `imagi_views.py` is the branch's
 own patch copy), 🚫 Windows frontends (⚪ where Linux-irrelevant). Deferred-candidates list for
 the next wave (recorded, not decided): Open-in-Blender + version history, mechanism builder,
 2D-pack line, character pack, motion-from-text, voice input, remote engine, Omni (license
@@ -250,12 +250,12 @@ posture first), AutoRemesher (GPL-external-component posture first).
 17. `shapeModel` default flips to `auto` (theirs: mini is the default on ≤8 GB) — the wave's one
     schema-default flip, per the note's own wording; persisted job records and the explicit
     `default` path stay byte-for-byte.
-18. af-mesh-rs is vendored meshoptimizer built from source, never downloaded; the closed
+18. imaginarium-mesh-rs is vendored meshoptimizer built from source, never downloaded; the closed
     af-mesh.exe stays excluded (ticket 46 answers the speed rows branch-Originally).
 19. Clips stay per-file: the 0.7.4 "one archive" claim could not be verified against any source
     this branch is allowed to trust (⚫ recorded, probe in the ticket).
 20. `gltfpack -si` approximations land inside a declared band (warned in step stats), never
-    silently relabeled as exact; af-mesh-rs stays primary where it exists.
+    silently relabeled as exact; imaginarium-mesh-rs stays primary where it exists.
 21. No 8 GB card exists on this machine: ticket 44/45/54's small-card claims are carried by
     measured headroom (5.87/6.45 GB peaks), the 9216-MiB seam's unit matrix, and the sentinel —
     not by an 8 GB live run (⚠️ rows below).

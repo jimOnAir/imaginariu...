@@ -1,4 +1,4 @@
-# 2D в AstraForge
+# 2D в Imaginarium
 
 Вкладка **«2D»**, CLI `scripts/art2d/art2d.mjs` и API `/api/art2d/*`. Всё локально: ComfyUI студии (:8190), веса с диска
 `D:\ComfyUI\models`, обработка на CPU. Облако не используется.
@@ -93,7 +93,7 @@ node scripts/art2d/art2d.mjs make --recipe concept --engine qwen --prompt "..." 
 node scripts/art2d/art2d.mjs redo <id> walk_03 --new-seed   # перерисовать кадр
 node scripts/art2d/art2d.mjs resume <id>                    # продолжить после ошибки / отмены
 ```
-`--comfy URL` — другой ComfyUI (по умолчанию `ASTRA_COMFY_URL` или :8190), `--root` — другая папка наборов, `--dry` — только показать промпты.
+`--comfy URL` — другой ComfyUI (по умолчанию `IMAGINARIUM_COMFY_URL` или :8190), `--root` — другая папка наборов, `--dry` — только показать промпты.
 
 ## Связь с 3D
 

@@ -82,4 +82,4 @@ has three image slots: the first three bible pictures ride as references, the de
 the rest in words.
 
 Measured on the RTX 5070 (11.6 GiB, passes the gate): live demo recorded on
-`.scratch/astraforge-060-reintroduction/issues/07-style-generation-qwenedit-comfy.md`.
+`.scratch/imaginarium-060-reintroduction/issues/07-style-generation-qwenedit-comfy.md`.

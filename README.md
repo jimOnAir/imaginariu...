@@ -1,12 +1,12 @@
-# AstraForge: a local 3D asset studio
+# Imaginarium: a local 3D asset studio
 
 [Русская версия: README.ru.md](README.ru.md)
 
 > **Free base version · Commercial license by subscription** — https://snodrod.github.io/AstraForge/
 >
 > - **Free:** [AstraForge-Setup.exe](https://github.com/Snodrod/AstraForge/releases/latest) (0.4.6, *Quick* ≈ 30 GB or *Full* ≈ 95 GB). Personal, educational and other **noncommercial** use only, no updates — [PolyForm Noncommercial 1.0.0](LICENSE-0.4.2.md).
-> - **Subscription — $5/month or $49/year:** use AstraForge and everything you make with it **commercially**, and get every update on release day — [subscription license](COMMERCIAL-LICENSE.md). [Subscribe](https://snodrod.github.io/AstraForge/#subscribe).
-> - **This branch (`linux-support`) is a Linux studio for AstraForge, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** AstraForge itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the AstraForge name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.10** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
+> - **Subscription — $5/month or $49/year:** use Imaginarium and everything you make with it **commercially**, and get every update on release day — [subscription license](COMMERCIAL-LICENSE.md). [Subscribe](https://snodrod.github.io/AstraForge/#subscribe).
+> - **This branch (`linux-support`) is a Linux studio for Imaginarium, an independent MIT-licensed re-implementation ([LICENSE](LICENSE), © 2026 Dmitry Belozerov).** Imaginarium itself is a 3D asset studio created by Artem Doronin (Dops Media); this branch re-derives its *documented behavior* for Linux from scratch under the strict clean-room protocol of [ADR-0004](docs/adr/0004-protocol-v2-clean-room-and-attribution.md) — it contains no source code under the PolyForm or subscription licenses above, is not affiliated with Dops Media, and grants no rights in the Imaginarium name. The monetization line (license validation, auto-update, telemetry) is out of scope by design. Version **0.7.10** carries, on top of the Windows 0.4.16 feature set (0.5.0/0.5.1 waves), the
 re-derived behavior of the shipped Windows 0.6.0 → 0.7.10 line — 0.6.6 folded the first seven
 releases into one, 0.7.1 the fourteen patches after it, 0.7.9 the eight after that together with
 a performance wave measured on Linux hardware, and this release the VRM line after that; the
@@ -34,7 +34,7 @@ third-party avatar's 128-bone skeleton recognized at **52 bones, zero required m
 closed. Highlights of the previous stretches: an **fp8 UNet tier for cards ≤16 GB, measured on both this
 machine's cards** — the 12 GB card refuses the fp16 shape before step 1 and runs fp8 at a 6.45 GB
 peak, the 16 GB card holds 5.87 GB on the widest shape, so the line's low-VRAM cures land here
-without an 8 GB card in the room; **af-mesh-rs** — the studio's own MIT decimator over vendored
+without an 8 GB card in the room; **imaginarium-mesh-rs** — the studio's own MIT decimator over vendored
 pinned meshoptimizer (built offline; rig weights, colors, normals and shape keys survive
 simplification 1:1), a 3 998 792-triangle salvage in 24.9 s → 0.38 s, exactly 2.5M triangles out;
 the **Bevy bridge driven against a running game** — 0.7.1's honest ⚠️ closed with a live session
@@ -45,7 +45,7 @@ first (`planar_wait_above_tris`, default chosen from this machine's measured cos
 **Hunyuan3D-2mini** — the small shape model (live run: 22 s, ~4.5 GB net on this card) with
 `auto` as the new default, picking it only on a small card that actually has the file;
 **network honesty** — PyTorch's official R2 wheel mirror and one named Hugging Face verdict per
-run; **LOD files and a compact GLB** in the convert step (exact triangle fractions via af-mesh-rs;
+run; **LOD files and a compact GLB** in the convert step (exact triangle fractions via imaginarium-mesh-rs;
 EXT_meshopt_compression lands in a separate file, because Godot cannot read it — verified with
 Godot 4.7.2); **Blender 5.2.4 LTS** pinned through the 7-day supply-chain gate, the full
 22-module Blender lane run on it as the "same result" proof; **language-parity guards** that
@@ -59,7 +59,7 @@ self-healing venvs, installer concurrency — see the [0.7.1 acceptance
 report](docs/product/acceptance-0.7.1.md)) all stay shipped here.
 Excluded with reasons: the 0.6.12 native speedups (closed binaries, no published source or
 checksum), the textured Pixal3D (C++) component, **the 0.7.6 Rust rewrites of the Forge hot
-paths** (their host is that closed core — this wave's af-mesh-rs, fp8 tier and planar-wait are
+paths** (their host is that closed core — this wave's imaginarium-mesh-rs, fp8 tier and planar-wait are
 the measured branch-own answer on the same classes), and **the 0.7.0 closed Rust core** — the host
 of the node editor and content studio, gated on Windows by an active subscription: the
 monetization line and unpublished native code are standing exclusions of this branch. See the
@@ -69,7 +69,7 @@ monetization line and unpublished native code are standing exclusions of this br
 [0.5.1](docs/product/acceptance-0.5.1.md)) for what
 shipped, what is deliberately excluded and what is unverified here. The `v0.5.0` line (feature set of shipped Windows 0.4.16) was produced under the earlier ADR-0003 bar; the retroactive audit has now run and found that pre-existing body to be verbatim payload material rather than re-derived code — disclosed in full in the [similarity audit](docs/product/similarity-audit-0-5-1.md), with a module-by-module rewrite campaign open; until it lands, the MIT grant above covers the original code of this branch (everything added under ADR-0004, audit-gated per ticket), and the rest stays under the rights holder's terms. See also the [0.5.0 acceptance report](docs/product/acceptance-0.5.0.md). The `master` source stays the older 0.3.0; released Windows installers are distributed under the licenses above.
 
-AstraForge is a Windows app that turns a picture or a text prompt into a game-ready 3D asset on your own machine: concept → geometry → editor → rig and animation → effects → export (GLB, OBJ, WebM, PNG, isometric sprite sheets, Godot packages). The server listens on `127.0.0.1` only. The UI is available in English and Russian (English by default, switch in the app).
+Imaginarium is a Windows app that turns a picture or a text prompt into a game-ready 3D asset on your own machine: concept → geometry → editor → rig and animation → effects → export (GLB, OBJ, WebM, PNG, isometric sprite sheets, Godot packages). The server listens on `127.0.0.1` only. The UI is available in English and Russian (English by default, switch in the app).
 
 ## Requirements
 
@@ -83,7 +83,7 @@ AstraForge is a Windows app that turns a picture or a text prompt into a game-re
 | Network | Internet for the first install (downloads of models and tools) | |
 | Rights | No administrator rights needed | |
 
-Use a short Latin-only install path such as `C:\AstraForge`.
+Use a short Latin-only install path such as `C:\Imaginarium`.
 
 ## Quick start with Claude Code
 
@@ -92,12 +92,12 @@ Use a short Latin-only install path such as `C:\AstraForge`.
 You need [Claude Code](https://claude.com/claude-code).
 
 ```powershell
-git clone https://github.com/Snodrod/AstraForge C:\AstraForge
-cd C:\AstraForge
+git clone https://github.com/Snodrod/AstraForge C:\Imaginarium
+cd C:\Imaginarium
 claude
 ```
 
-Then tell Claude Code: **"Install and set up AstraForge for me."** The repository contains a `CLAUDE.md` with the exact procedure. Claude Code will:
+Then tell Claude Code: **"Install and set up Imaginarium for me."** The repository contains a `CLAUDE.md` with the exact procedure. Claude Code will:
 
 1. **Scan your computer without downloading anything:**
    `powershell -NoProfile -ExecutionPolicy Bypass -File installer\Install.ps1 -ScanOnly`
@@ -123,15 +123,15 @@ Then tell Claude Code: **"Install and set up AstraForge for me."** The repositor
 
 3. **Run the installer unattended** (`-Yes -Only <ids>`) in the background, because the wizard is interactive and cannot be answered inside Claude Code. Downloads take tens of minutes; if one is interrupted, rerun the same command and it resumes.
 4. **Verify the result** with `-ScanOnly` again and by reading `config\paths.json`.
-5. **Start the studio** with `Start.cmd` and check `http://127.0.0.1:3210/api/health`, which must answer `"app":"AstraForge"`.
+5. **Start the studio** with `Start.cmd` and check `http://127.0.0.1:3210/api/health`, which must answer `"app":"Imaginarium"`.
 6. **Troubleshoot** from `installer\install.log`, `data\runtime\server-error.log` and `data\runtime\comfy.log`, reinstalling only the broken component with `Install.ps1 -Yes -Only <id>`.
 
 The API key for the custom OpenAI-compatible endpoint and the Tripo key are optional. Enter them in the app's **Connections** tab, where Windows DPAPI encrypts them. Never paste keys into a chat or commit them to the repository.
 
 ## Manual install
 
-1. Clone or download this repository to a short path, for example `C:\AstraForge`.
-2. Double-click **Install AstraForge.cmd** and answer the wizard's questions. It scans your PC, shows what is missing with sizes and licences, and downloads everything into this same folder (`runtime\`, `data\models\`). An interrupted download continues on the next run. A desktop shortcut **AstraForge** is created at the end.
+1. Clone or download this repository to a short path, for example `C:\Imaginarium`.
+2. Double-click **Install Imaginarium.cmd** and answer the wizard's questions. It scans your PC, shows what is missing with sizes and licences, and downloads everything into this same folder (`runtime\`, `data\models\`). An interrupted download continues on the next run. A desktop shortcut **Imaginarium** is created at the end.
 3. Start the studio with **Start.cmd**.
 
 No git? Download **AstraForge-Setup-&lt;version&gt;.exe** from [Releases](https://github.com/Snodrod/AstraForge/releases/latest), run it and choose a folder: it unpacks the app and starts the same wizard. The file is not code-signed, so Windows SmartScreen may warn you: click *More info → Run anyway*.
@@ -147,7 +147,7 @@ Log: `installer\install.log`.
 
 ## Run and stop
 
-1. Double-click **Start.cmd** (or the **AstraForge** desktop shortcut). The studio opens at **http://127.0.0.1:3210**. It runs its own ComfyUI on port 8190; wait for the Hunyuan3D status to appear.
+1. Double-click **Start.cmd** (or the **Imaginarium** desktop shortcut). The studio opens at **http://127.0.0.1:3210**. It runs its own ComfyUI on port 8190; wait for the Hunyuan3D status to appear.
 2. Stop with **Stop.cmd**. It stops this studio's processes and leaves any other ComfyUI and Ollama you run untouched.
 
 Do not delete `data` if you want to keep your projects, models and connections.
@@ -162,7 +162,7 @@ Do not delete `data` if you want to keep your projects, models and connections.
 - **Bones.** Humanoid, Quadruped, Mechanical and Custom skeleton templates, hierarchy editing, rest/pose, distance-based skinning, a weights brush and a library of named clips. See `GODOT-RIGGING.md`.
 - **Animation and effects.** Keyframes, ready-made clips (Quaternius CC0, Mixamo), particles (sparks, engine trail, energy field), and a VFX texture workshop (`docs/vfx-tools.md`).
 - **Forge.** A Blender-based pipeline for parts, items in hands, rigs, motion styles, kitbash and procedural sci-fi ships and turrets (`docs/forge/`).
-- **Export.** GLB, OBJ, WebM, PNG, `.astra.json` projects, isometric sprite sheets (PNG + Godot SpriteFrames) and game packages: Godot, Unity and Unreal Engine 5 (an `af_unreal.json` deliverable for the Python importer plugin). Export profiles: `godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`, `unreal`. Everything is also saved to `data/exports`.
+- **Export.** GLB, OBJ, WebM, PNG, `.imaginarium.json` projects, isometric sprite sheets (PNG + Godot SpriteFrames) and game packages: Godot, Unity and Unreal Engine 5 (an `ima_unreal.json` deliverable for the Python importer plugin). Export profiles: `godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`, `unreal`. Everything is also saved to `data/exports`.
 - **Tripo.** An optional tab that connects the official Tripo cloud API (generation, mesh processing, textures, auto-rig, motion, formats). It needs your own API key and credits. See `TRIPO-CAPABILITIES.md`.
 - **AI assistant.** Local Ollama by default, or any OpenAI-compatible API endpoint: you give the base URL and the model name, the key is optional (local servers often need none). The assistant only returns a limited set of validated actions (material, transform, motion, effects) that you apply with a button. It never runs arbitrary code or OS commands.
 
@@ -172,19 +172,19 @@ Keyboard shortcuts: W move, E rotate, R scale, F frame, Space play, Delete remov
 
 | Component | What it gives | Size | Requirements |
 |---|---|---|---|
-| **MV-Adapter** (`mvadapter`) | Builds left/back/right views from one front picture locally and offline. Node `huanngzh/ComfyUI-MVAdapter` (with AstraForge patches) goes to `data\runtime\custom_nodes`, weights to `data\models\mvadapter` | about 3.8 GB (+ SDXL 6.9 GB if missing) | NVIDIA, 10+ GB VRAM preferred |
-| **qwen3-vl:8b** (`vlm`) | Local vision model for texture and animation checks (`ASTRA_QA_VLM` changes the model); installed through Ollama | 6.1 GB | Ollama |
-| **Pixal3D** (`pixal3d` engine, `pixal3dw` weights, `pixal3dtest` smoke test) | A separate portable ComfyUI on port 8191 (`127.0.0.1` only) with TRELLIS.2 and Pixal3D. Default folder `runtime\ComfyUI-Pixal3D`; override with `ASTRA_PIXAL3D_DIR` (`pixal3dDir` in `config\paths.json`) | about 42 GB download, 48.5 GB on disk (52 GB free recommended) | NVIDIA RTX 30/40/50, 10+ GB VRAM (8 GB with a warning); short path without non-Latin characters |
+| **MV-Adapter** (`mvadapter`) | Builds left/back/right views from one front picture locally and offline. Node `huanngzh/ComfyUI-MVAdapter` (with Imaginarium patches) goes to `data\runtime\custom_nodes`, weights to `data\models\mvadapter` | about 3.8 GB (+ SDXL 6.9 GB if missing) | NVIDIA, 10+ GB VRAM preferred |
+| **qwen3-vl:8b** (`vlm`) | Local vision model for texture and animation checks (`IMAGINARIUM_QA_VLM` changes the model); installed through Ollama | 6.1 GB | Ollama |
+| **Pixal3D** (`pixal3d` engine, `pixal3dw` weights, `pixal3dtest` smoke test) | A separate portable ComfyUI on port 8191 (`127.0.0.1` only) with TRELLIS.2 and Pixal3D. Default folder `runtime\ComfyUI-Pixal3D`; override with `IMAGINARIUM_PIXAL3D_DIR` (`pixal3dDir` in `config\paths.json`) | about 42 GB download, 48.5 GB on disk (52 GB free recommended) | NVIDIA RTX 30/40/50, 10+ GB VRAM (8 GB with a warning); short path without non-Latin characters |
 | **VFX texture generators** (`vfx`) | Material Maker, PixaFlux, KumoWorks, Slate, FlowMap Painter, Pseudo Volume Generator and four offline web generators (`scripts\vfx\Install-VfxTools.ps1`, catalog `server\vfx-tools-catalog.json`) | about 330 MB download, 500 MB on disk | Node.js with npm for DisplacementX |
 
-Pixal3D is installed by a pinned recipe: Python 3.12.10 (signature checked), ComfyUI 0.39.0 and `visualbruno/ComfyUI-Trellis2` at pinned commits, PyTorch 2.8.0+cu128, pinned PyPI packages (`installer\pixal3d\requirements-lock.txt`), FlashAttention 2.8.3, `utils3d` 1.7 from GitHub, and weights from Hugging Face verified with sha256. DINOv3 is taken only from the official timm copy and converted locally; the node's automatic download from a third-party mirror is disabled by the `ASTRAFORGE PATCH`.
+Pixal3D is installed by a pinned recipe: Python 3.12.10 (signature checked), ComfyUI 0.39.0 and `visualbruno/ComfyUI-Trellis2` at pinned commits, PyTorch 2.8.0+cu128, pinned PyPI packages (`installer\pixal3d\requirements-lock.txt`), FlashAttention 2.8.3, `utils3d` 1.7 from GitHub, and weights from Hugging Face verified with sha256. DINOv3 is taken only from the official timm copy and converted locally; the node's automatic download from a third-party mirror is disabled by the `IMAGINARIUM PATCH`.
 
 ## Licences
 
 - **Hunyuan3D** models are distributed under the [Tencent Hunyuan Community License](https://github.com/Tencent-Hunyuan/Hunyuan3D-2), which **does not apply in the European Union, the United Kingdom and South Korea**. Do not use them there.
-- **Pixal3D environment:** the Trellis2 node imports **nvdiffrast** and **nvdiffrec_render** (NVIDIA, **non-commercial licence**) and PyMeshLab (GPL-3.0). AstraForge does not call nvdiffrast, nvdiffrec_render or any texturing step. For commercial work, check these licences yourself and do not use the Trellis2/Pixal3D texturing nodes.
+- **Pixal3D environment:** the Trellis2 node imports **nvdiffrast** and **nvdiffrec_render** (NVIDIA, **non-commercial licence**) and PyMeshLab (GPL-3.0). Imaginarium does not call nvdiffrast, nvdiffrec_render or any texturing step. For commercial work, check these licences yourself and do not use the Trellis2/Pixal3D texturing nodes.
 - Blender and ComfyUI are GPL; Quaternius / ActionForge animations are CC0.
-- **The code on this branch** is MIT © 2026 Dmitry Belozerov (see `LICENSE`, with the provenance and attribution block); it re-implements documented behavior only and is not a work of Dops Media. The Windows AstraForge product and its source stay under PolyForm Noncommercial / subscription licenses (see `LICENSE-0.4.2.md`). Other licences are listed in `THIRD_PARTY_NOTICES.md`.
+- **The code on this branch** is MIT © 2026 Dmitry Belozerov (see `LICENSE`, with the provenance and attribution block); it re-implements documented behavior only and is not a work of Dops Media. The Windows Imaginarium product and its source stay under PolyForm Noncommercial / subscription licenses (see `LICENSE-0.4.2.md`). Other licences are listed in `THIRD_PARTY_NOTICES.md`.
 
 Generated results depend on the licence of the model that produced them. Check it before shipping anything commercially.
 
@@ -202,4 +202,4 @@ Skills for Claude Code, Codex and other agents are in `ai/skills/` (see `ai/skil
 
 ## Development
 
-Node.js 22.12+; `npm install`, `npm run build`, `npm start` (or `npm run dev`). Tests: `npm test`. Logs: `data/runtime/server-error.log` and `data/runtime/comfy.log`. Point to an existing ComfyUI with `ASTRA_COMFY_DIR`. Without ComfyUI the editor still works, but neural generation is unavailable. Forge module docs are in `docs/forge/`.
+Node.js 22.12+; `npm install`, `npm run build`, `npm start` (or `npm run dev`). Tests: `npm test`. Logs: `data/runtime/server-error.log` and `data/runtime/comfy.log`. Point to an existing ComfyUI with `IMAGINARIUM_COMFY_DIR`. Without ComfyUI the editor still works, but neural generation is unavailable. Forge module docs are in `docs/forge/`.

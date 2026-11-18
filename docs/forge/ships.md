@@ -174,7 +174,7 @@ gunship: auto|none|stub), `greeble_density` 0–1 (0.6), `livery` {armor|graphit
 шестигранные плиты, производные от запечённой текстуры Space Quest — источник и способ сборки записаны в kits.json,
 скрипт `build_sq_armor_textures.py`) и `sq_armor_plain`. На `SQ_Armor` — альбедо (с множителем под цвет палитры) и
 карта нормалей, UV — box-развёртка в метрах / `tile_m`; `regions` с `box` дают отдельный материал
-(`SQ_ArmorPlain`) — кормовой блок SQ-03 гладкий, как на концепте. Размер плитки хранится на материале (`af_tile_m`).
+(`SQ_ArmorPlain`) — кормовой блок SQ-03 гладкий, как на концепте. Размер плитки хранится на материале (`imaginarium_tile_m`).
 
 **Надписи (`params.decals`).** `{text, side: port | starboard | both | top, position: [y, z] | [x, y], size: [w, h],
 font, bold, align, color, wear, line_scales, slashed_zero}`. Текст рисуется движком шрифтов Blender (Workbench,
@@ -213,7 +213,7 @@ LOD0 / LOD1. Броня: шестигранная `sq_armor_hex` впереди,
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- ship_gen request.json
+  --python scripts/blender/imaginarium_run.py -- ship_gen request.json
 ```
 ```json
 {"step": "ship_gen", "params": {"class": "frigate", "seed": 2, "faction": "military"}, "out_dir": "D:/out/frigate"}
@@ -221,8 +221,8 @@ LOD0 / LOD1. Броня: шестигранная `sq_armor_hex` впереди,
 {"step": "ship_from_mesh", "inputs": {"mesh": "D:/gen/ship.glb"}, "params": {"class": "gunship"}, "out_dir": "D:/out/fm"}
 ```
 Тесты: `blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- ships` — 23 теста, ~25 с.
-Временные папки тестов удаляются после успешного теста; превью больше не оставляют `af_ship_prev_*` в %TEMP%.
-Путь к Space Quest — переменная `ASTRA_SQ_ROOT` (по умолчанию `C:/Dorn/Dops media/space_quest`); нет файлов —
+Временные папки тестов удаляются после успешного теста; превью больше не оставляют `imaginarium_ship_prev_*` в %TEMP%.
+Путь к Space Quest — переменная `IMAGINARIUM_SQ_ROOT` (по умолчанию `C:/Dorn/Dops media/space_quest`); нет файлов —
 инспектор и схема пропускаются.
 
 ## Замеры (10.10.2026, Blender 5.0.1, CPU)
@@ -334,7 +334,7 @@ ship_from_mesh**. Манифесты проходят `manifest.schema.json`. Т
 копий + проверка силуэтов. Сиды давали клоны → три раскладки на роль, ГСЧ по crc32(сид, роль), тест по силуэтам.
 Сопла на симметричном примитиве (4 вместо 2), пустые плоскости → точки по площади, разрез по двум пикам, зеркалирование.
 Происхождение и `asset_id` по умолчанию, сироты в .blend, `fore` → `forward`, выбор рамки сопла, временные папки,
-предупреждения о зажатых параметрах, переменная `ASTRA_SQ_ROOT`, швы alien, когти, остров носителя, люки.
+предупреждения о зажатых параметрах, переменная `IMAGINARIUM_SQ_ROOT`, швы alien, когти, остров носителя, люки.
 
 ## Ограничения (честно)
 

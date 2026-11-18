@@ -14,7 +14,7 @@
 | SDXL base 1.0 и его собственный VAE | уже были: `D:/ComfyUI/models/checkpoints/sd_xl_base_1.0.safetensors` | — | — |
 
 Узел внесён в белый список запуска: `server/runtime.mjs` теперь стартует ComfyUI с
-`--whitelist-custom-nodes AstraForgeMesh ComfyUI-MVAdapter` и переменными `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`
+`--whitelist-custom-nodes ImaginariumMesh ComfyUI-MVAdapter` и переменными `HF_HUB_OFFLINE=1`, `TRANSFORMERS_OFFLINE=1`
 (страховка: ни один узел этого движка не пойдёт в сеть).
 
 ## Python-пакеты (`D:/ComfyUI/.venv`)
@@ -61,7 +61,7 @@
 1. `utils.local_sdxl_config()` и `LdmPipelineLoader`: `from_single_file(config=<локальная папка>, local_files_only=True)`.
    Без этого diffusers идёт за конфигами SDXL на huggingface.co.
 2. `enable_vae_slicing/tiling` в diffusers 0.40 переехали с pipeline на `pipeline.vae`: добавлен запасной путь.
-3. Новый узел `AstraMVAdapterViews` (`astra_views.py`): загрузка, генерация и освобождение видеопамяти одним узлом.
+3. Новый узел `ImagiMVAdapterViews` (`imagi_views.py`): загрузка, генерация и освобождение видеопамяти одним узлом.
    Штатные узлы держат весь pipeline (≈8 ГБ) на видеокарте между заданиями, что мешает Hunyuan3D в том же процессе.
    Узел: `unload_all_models()` до работы, ручной offload текстовых энкодеров и VAE (`offload=text+vae`), полный возврат памяти после.
 

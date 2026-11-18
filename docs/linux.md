@@ -1,6 +1,6 @@
-# AstraForge on Linux
+# Imaginarium on Linux
 
-AstraForge shipped as a Windows application; the `linux-support` branch has grown into the Linux
+Imaginarium shipped as a Windows application; the `linux-support` branch has grown into the Linux
 studio — since 0.5.0 it carries the full feature set of the shipped Windows 0.4.16 re-derived for
 Linux, since 0.5.1 the re-derived behavior of the shipped Windows 0.5.x line, since 0.6.6 the
 Windows 0.6.0 → 0.6.6 line as one release, since 0.7.1 the Windows 0.6.7 → 0.7.1 patches as a
@@ -16,11 +16,11 @@ ADR-0001/0002). The Windows side stays untouched: every shared-code change is be
 
 ## 0.5.0 — the 0.4.16 re-introduction
 
-Version 0.5.0 of this branch re-introduces everything the shipped `AstraForge-Setup-0.4.16.exe`
+Version 0.5.0 of this branch re-introduces everything the shipped `Imaginarium-Setup-0.4.16.exe`
 contained, as clean-room re-derivations (ADR-0003): the installer "What to install" checklist with
 presets, dependency auto-tick and the Lite setup for machines without an NVIDIA GPU
-(`installer/af_scan.mjs` + `install.sh`); the download core with mirrors, resume and plain-language
-reasons in `installer/install.log` (`installer/af_download.sh`); the integrity gates (node/Blender
+(`installer/imaginarium_scan.mjs` + `install.sh`); the download core with mirrors, resume and plain-language
+reasons in `installer/install.log` (`installer/imaginarium_download.sh`); the integrity gates (node/Blender
 sha+size pins, Ollama installed only on a checksum match against the vendor's own
 `sha256sum.txt`, PixaFlux https + pinned sums); the in-app **Studio components** window with
 background installs; the **local self-learning** journal (verdicts, class recipes, pitfalls —
@@ -41,7 +41,7 @@ each row, is the [0.5.0 acceptance report](product/acceptance-0.5.0.md).
 
 ## 0.5.1 — the Windows 0.5.x wave, re-derived under Protocol v2
 
-Version 0.5.1 adds the behavior of the shipped `AstraForge-Setup-0.5.0.exe` … `0.5.3.exe`
+Version 0.5.1 adds the behavior of the shipped `Imaginarium-Setup-0.5.0.exe` … `0.5.3.exe`
 (parity artifact: **0.5.3**, the union; Windows builds stamp FileVersion 0.4.17 internally),
 re-derived under the strict clean-room protocol of
 [ADR-0004](adr/0004-protocol-v2-clean-room-and-attribution.md): paraphrased intent, observed
@@ -56,13 +56,13 @@ extracted payload; every commit gated by an independent similarity audit:
   to rewrite (ticket 17). Saving from the Connections window is still strictly validated: the
   tolerant path only ever reads what is already there;
 - **installer honesty** — Ollama below 0.12.7 refused with a recovery sentence, vanished downloads
-  name the antivirus/folder-sync cause, `ASTRA_INSTALL_ISOLATED=1` keeps a check run out of the
+  name the antivirus/folder-sync cause, `IMAGINARIUM_INSTALL_ISOLATED=1` keeps a check run out of the
   user's model library, `-v` and every banner print the real `package.json` version (ticket 03);
 - **Hybrid UI** — dark/light/follow-system theme applied before first paint, Simple/Detailed view
   modes, top-bar switches, the whole palette tokenized so light theme works everywhere, Inter +
   Oswald + JetBrains Mono bundled under OFL (ticket 04);
-- **Unreal Engine 5 export** — `unreal_package` builds `af_unreal.json` (SM_/SK_, UCX hulls, LODs,
-  BaseColor/DirectX-Normal/ORM, MI_ instances), the Python-only `unreal/AstraForge` plugin
+- **Unreal Engine 5 export** — `unreal_package` builds `ima_unreal.json` (SM_/SK_, UCX hulls, LODs,
+  BaseColor/DirectX-Normal/ORM, MI_ instances), the Python-only `unreal/Imaginarium` plugin
   materializes it, the engine bridge gained create/send/test/mcp-register for `.uproject`
   projects — verified at the data level, in-editor run flagged unverified here (ticket 05);
 - **MCP `generator_*`** — status/nodes/graphs/run/restart for the ComfyUI backend through the
@@ -87,7 +87,7 @@ channels only, payload quarantined, every commit gated by a fresh-context simila
 - **TripoSG — the third shape engine** (ticket 01/02): a standalone venv worker (weights + code
   installed as checklist components, per-file resumable checksummed downloads), `auto` resolves the
   shape engine by card — TripoSG ≤ 9216 MiB, else Pixal3D, else Hunyuan — all through the
-  `ASTRA_VRAM_MIB` seam; Windows ships it as an Engine plugin, this branch keeps the worker shape
+  `IMAGINARIUM_VRAM_MIB` seam; Windows ships it as an Engine plugin, this branch keeps the worker shape
   (deviation recorded);
 - **SkinTokens refused on license grounds** (ticket 03): the released checkpoint hard-asserts a
   GPL-vendored mesh encoder, so the engine slot stays open and `skintokens` is rejected before
@@ -127,7 +127,7 @@ The bullet-by-bullet evidence, ⚠️ rows and the audit trail are the
 Everything this branch classes as experimental — **TripoSG**, **Sound**, **Qwen-Image-Edit**
 (and **SkinTokens**, the day it lands; ticket 03 kept it out on license grounds) — is listed in
 the checklist and the Studio components window with a «new - a try» badge, but **no preset
-(quick / full / lite) ever ticks it**: `installer/af_scan.mjs` (`EXPERIMENTAL`) filters the
+(quick / full / lite) ever ticks it**: `installer/imaginarium_scan.mjs` (`EXPERIMENTAL`) filters the
 manifest profiles, and the -Profile fallback in `install.sh` mirrors the same lists. Ticking one
 by hand works exactly like any other row. Upstream's one exception — forcing TripoSG into the
 low-VRAM quick set — stays on the Windows side; on this branch the opt-in is unconditional,
@@ -143,11 +143,11 @@ fresh-context similarity audit. Full per-ticket evidence:
 [acceptance-0.6.12](product/acceptance-0.6.12.md).
 
 - **Bevy is the fourth export target** (tickets 28–31): profile "Bevy 0.20" ships the same GLB as
-  Godot plus an `af_bevy.json` passport; `bevy/astraforge_bevy/` (branch-original MIT) plays a
-  package in Bevy 0.20 with one `add_astraforge_asset` line — default-clip autostart, blended
-  clips, socket effects, `af_sounds.json` sound banks, hot model reload. With Rust on PATH the
-  step also runs a **headless check** (the crate's `af_bevy_check` proves the passport against the
-  live world and captures `shots/forward.png` + `shots/clip.png`; env `ASTRA_CARGO*`, shared
+  Godot plus an `ima_bevy.json` passport; `bevy/imaginarium_bevy/` (branch-original MIT) plays a
+  package in Bevy 0.20 with one `add_imaginarium_asset` line — default-clip autostart, blended
+  clips, socket effects, `ima_sounds.json` sound banks, hot model reload. With Rust on PATH the
+  step also runs a **headless check** (the crate's `imaginarium_bevy_check` proves the passport against the
+  live world and captures `shots/forward.png` + `shots/clip.png`; env `IMAGINARIUM_CARGO*`, shared
   target cache, first check pays the compile); without Rust the export is byte-identical minus
   the check. `node scripts/engines/bevy.mjs status` tells which half this machine gets.
 - **MCP parity**: `bevy` in the engine enums and every engine verb; `sound_export
@@ -185,21 +185,21 @@ v0.6.12/v0.6.18/v0.7.0 tag ever existed. Per-ticket evidence:
   interrupt the engine, "Full" unticks what does not fit — and the new **paging sentinel**: a
   ComfyUI step whose progress goes nowhere for 5 minutes means the card is swapping, the job
   stops at once with the diagnosis, the measured step and the real levers
-  (`ASTRA_VIEWS_STEP_MAX_SEC` tunes it, 0 disables).
+  (`IMAGINARIUM_VIEWS_STEP_MAX_SEC` tunes it, 0 disables).
 - **`keep_rig` in `replace_part`** (39): opt-in — a rigged body keeps its armature through a
   part swap; the part, eye spheres and seam band are weighted by barycentric transfer from the
   removed old surface, and `replaced.glb` exports skinned. Default off: the classic static swap.
-- **Weight reuse** (40): `installer/af_weights.mjs` finds weights a sibling ComfyUI / the HF
-  cache / `ASTRA_WEIGHT_DIRS` already hold, matches name + exact bytes, verifies the pinned
+- **Weight reuse** (40): `installer/imaginarium_weights.mjs` finds weights a sibling ComfyUI / the HF
+  cache / `IMAGINARIUM_WEIGHT_DIRS` already hold, matches name + exact bytes, verifies the pinned
   sha256 at accept, and connects by a symlink + a `weightLinks` record — never a copy, never a
   move. The checklist and the Components window show `installed (external)`; `install.sh` offers
-  the found files with the download size saved (`ASTRA_CONNECT_EXISTING=0` opts out).
+  the found files with the download size saved (`IMAGINARIUM_CONNECT_EXISTING=0` opts out).
 - **Honest degraded start** (42): a subsystem that fails at startup never bricks the studio —
   engine-down is visible live in the status dots and badges, old-card refusals name their
   reasons in both checklists, and a missing Blender now answers with the installer remedy
-  (`install.sh -Yes -Only blender` / `ASTRA_BLENDER`) instead of `spawn blender ENOENT`.
+  (`install.sh -Yes -Only blender` / `IMAGINARIUM_BLENDER`) instead of `spawn blender ENOENT`.
 - **What 0.7 did NOT bring**: the content studio and node editor are hosted by a **closed Rust
-  core** (`bin/astraforge-rs.exe`/`bin/astraforge-mcp.exe`, no published source/checksum) behind
+  core** (`bin/imaginarium-rs.exe`/`bin/imaginarium-mcp.exe`, no published source/checksum) behind
   a subscription — the standing exclusions apply (author questions Q11/Q12); the engine-side
   fp8/eviction machinery is engine files; the `ffmpeg` installer component has no consumer on
   this branch. The self-learning idle gate has nothing to gate here — this branch's learning is
@@ -220,12 +220,12 @@ Per-ticket evidence: [acceptance-0.7.9](product/acceptance-0.7.9.md) (clusters N
   at 6.45 GB, the 16 GB card at 5.87 GB on the widest shape — which is why the note's CFG-batch
   halves close ⚫ without vendoring a split pipeline. Mechanism and table:
   [`views-low-vram.md`](forge/views-low-vram.md).
-- **af-mesh-rs** (46, 56): a branch-original MIT crate over **vendored pinned meshoptimizer**
+- **imaginarium-mesh-rs** (46, 56): a branch-original MIT crate over **vendored pinned meshoptimizer**
   (per-file sha256, built offline, never downloaded), carry contract proven in Rust tests — and
   the convert step now writes **LOD files** (exact triangle fractions) and a separate
   **`.compact.glb`** (EXT_meshopt_compression; mains stay plain — Godot cannot read it, verified
   on Godot 4.7.2); `gltfpack` joins as a new sha256-pinned installer component. Salvage tries
-  af-mesh first: 24.9 s → 0.38 s on the 3 998 792-triangle fixture.
+  imaginarium-mesh first: 24.9 s → 0.38 s on the 3 998 792-triangle fixture.
 - **Bevy live session** (47): the bridge driven against a RUNNING game (xvfb, 52 MCP tools, a
   clip change visible in captured state) — 0.7.1's ⚠️ row closed; the session's first defect was
   real: the BRP install's curl fallback had never actually run (argument order) — fixed with a
@@ -314,7 +314,7 @@ quarantined (the 0.7.10 tree joins the audit corpus — seventeen trees now). Pe
 ## Quick start (Linux)
 
 ```bash
-git clone https://github.com/jimOnAir/AstraForge AstraForge && cd AstraForge
+git clone https://github.com/jimOnAir/Imaginarium Imaginarium && cd Imaginarium
 installer/install.sh -ScanOnly      # report GPU, VRAM, disk, what is already installed
 installer/install.sh                # wizard; or: installer/install.sh -Yes
 scripts/start.sh                    # http://127.0.0.1:3210
@@ -325,7 +325,7 @@ scripts/stop.sh
 `-ScanOnly` / `-DryRun` / `-Only a,b` / `-Yes` semantics, app-local installs (`runtime/`,
 `data/models/`), no administrator rights, resumable downloads (`installer/install.log`).
 `scripts/start.sh` / `stop.sh` mirror `Start.ps1` / `Stop.ps1` (paths from `config/paths.json`
-into `ASTRA_*`, PID files in `data/runtime/`, shutdown through `POST /api/shutdown`, only the
+into `IMAGINARIUM_*`, PID files in `data/runtime/`, shutdown through `POST /api/shutdown`, only the
 studio's own ComfyUI/Pixal3D processes are stopped).
 
 Requirements: NVIDIA GPU with the proprietary driver (`nvidia-smi` visible), Node.js ≥ 22.12 or
@@ -337,7 +337,7 @@ the installer downloads it, ~20–40 GB free disk (about 52 GB more with Pixal3D
 | Area | Windows | Linux |
 |---|---|---|
 | Secrets (Connections tab) | DPAPI vault | environment variables only: `CUSTOM_LLM_API_KEY`, `TRIPO_API_KEY` (persist them in the gitignored `.env` — `scripts/start.sh` exports it); entering a key in the tab refuses with an explanation (ADR-0002, key list per ADR-0005) |
-| GPU lock | named mutex via PowerShell holder | `flock(1)` lock file via an `sh` holder (`$XDG_RUNTIME_DIR`/tmp `astraforge-gpu-*.lock`), kernel-released when the holder dies; `ASTRA_GPU_LOCK_FILE` overrides the file |
+| GPU lock | named mutex via PowerShell holder | `flock(1)` lock file via an `sh` holder (`$XDG_RUNTIME_DIR`/tmp `imaginarium-gpu-*.lock`), kernel-released when the holder dies; `IMAGINARIUM_GPU_LOCK_FILE` overrides the file |
 | Process launch | `taskkill /T /F` | process groups: `detached` spawn + `kill -KILL -<pid>` (already the POSIX branch) |
 | "Open folder" buttons | `explorer.exe` | `xdg-open` |
 | VFX desktop tools | Material Maker, FlowMap Painter, PixaFlux, KumoWorks, Slate, Pseudo Volume Generator | **to the vendor limit**: Material Maker (official linux tar) and the 4 web generators work; Pseudo Volume has a Linux zip on itch.io (manual download into `runtime/vfx/downloads`, then rerun); FlowMap Painter / PixaFlux / KumoWorks / Slate show as unavailable (their vendors ship no Linux binary) and are never run through Wine (ADR-0001 context) |
@@ -354,7 +354,7 @@ the installer downloads it, ~20–40 GB free disk (about 52 GB more with Pixal3D
   frozen constraints). The installer retries unpinned while keeping the constraint file, so
   torch/transformers are never upgraded; the "packages added / versions unchanged" line tells
   you it worked.
-- **Blender 5.x minor drift is tolerated**: any 5.x from `ASTRA_BLENDER`/PATH is used
+- **Blender 5.x minor drift is tolerated**: any 5.x from `IMAGINARIUM_BLENDER`/PATH is used
   (`install.sh` scans it first, the app-local 5.2.4 portable is the fallback);
   `scripts/forge-smoke.mjs` arbitrates — all generator presets pass on 5.2.2.
 - **Godot 4.7 from distro packages validates fine**, but the forge targets 4.5 semantics;

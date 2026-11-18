@@ -115,10 +115,10 @@ Hunyuan3D 2.1 в собственном ComfyUI даёт **только геом
 | `flat` | false | один цвет на треугольник |
 | `flat_palette` | 0 | с `flat`: палитра из N цветов (k-means), 0 — выкл. |
 | `qa_vlm` | `auto` | `auto` — отзыв модели, если она есть; `off` — только метрики |
-| `qa_model` | `qwen3-vl:8b` | env `ASTRA_QA_VLM` |
-| `qa_url` | `http://127.0.0.1:11434` | Ollama; env `ASTRA_OLLAMA_URL` |
+| `qa_model` | `qwen3-vl:8b` | env `IMAGINARIUM_QA_VLM` |
+| `qa_url` | `http://127.0.0.1:11434` | Ollama; env `IMAGINARIUM_OLLAMA_URL` |
 | `qa_min_score` | 6 | ниже — предупреждение `texture_qa` (оценка 0–10) |
-| `qa_free_comfy` | true | перед отзывом `POST /free` ComfyUI (env `ASTRA_COMFY_URL`, `http://127.0.0.1:8190`) |
+| `qa_free_comfy` | true | перед отзывом `POST /free` ComfyUI (env `IMAGINARIUM_COMFY_URL`, `http://127.0.0.1:8190`) |
 | `qa_wait_comfy_s` | 0 | ждать занятую очередь ComfyUI столько секунд; иначе отзыв пропускается |
 | `qa_size`, `qa_timeout_s` | 384, 300 | плитка листа, px; таймаут вызова модели |
 | `emission`, `emission_strength` | `auto`, 3 | карта свечения |
@@ -293,12 +293,12 @@ Hunyuan3D 2.1 в собственном ComfyUI даёт **только геом
 
 Полная сборка (как была, теперь с покраской):
 ```
-node scripts/forge-concepts.mjs --dir C:\AstraForge\incoming\hg_concepts_2026-10-11 --state C:\AstraForge\incoming\build\build.state.json --direct --watch --qa-render-failed
+node scripts/forge-concepts.mjs --dir C:\Imaginarium\incoming\hg_concepts_2026-10-11 --state C:\Imaginarium\incoming\build\build.state.json --direct --watch --qa-render-failed
 ```
 Прогон отдельного шага:
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- paint_from_concept request.json
+  --python scripts/blender/imaginarium_run.py -- paint_from_concept request.json
 ```
 ```json
 {"inputs": {"blend": "C:/.../01_cleanup/clean.blend", "concept": "C:/.../data/assets/<reference>.png",
@@ -372,7 +372,7 @@ node scripts/forge-concepts.mjs --dir C:\AstraForge\incoming\hg_concepts_2026-10
 Статусы пилота — не про цвет: все трое помечены `failed_qa` проверкой разрывов на клипах (idle: рыцарь 3,3 %, скелет
 1,7 %, маг 16,7 % порванной поверхности при пороге 1 %) — это риг и веса (у мага ещё и плита под ногами), спрайты
 отрисованы для просмотра (`--qa-render-failed`), превью — `previews/<имя>.failed.png` папки концептов, отчёт —
-`C:/AstraForge/incoming/pilot3/p.state.report.md`.
+`C:/Imaginarium/incoming/pilot3/p.state.report.md`.
 
 Тесты: `run_tests.py -- paint_from_concept` — 8 тестов, все PASS, 17 с (синтетика, сокеты и светящиеся сетки,
 повтор с камерой из `paint_camera.json`, уменьшение концепта, растр/z-буфер/pull-push, маска свечения, развёртка и

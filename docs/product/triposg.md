@@ -20,7 +20,7 @@ component is opt-in — the installer fetches it only when you ask.
 ## What has to be on disk
 
 The status line (connections panel, `/api/status.triposg`, `engine_status`) checks three things
-under the install folder (`ASTRA_TRIPOSG_DIR` or `config/paths.json → triposgDir`, default
+under the install folder (`IMAGINARIUM_TRIPOSG_DIR` or `config/paths.json → triposgDir`, default
 `runtime/triposg`):
 
 | Piece | Where | What it is |
@@ -63,7 +63,7 @@ the live 5070 ran a full job in ~30 s). The auto rule is the low-VRAM seam: with
 (view-set jobs never land on TripoSG). `/api/status` carries the current verdict as `shapeAuto`
 (engine + why), and the installer checklist knows the row too: `full` always offers TripoSG, and
 on a ≤9216 MiB card the quick preset trades the two multi-view Hunyuan models for it. The
-`ASTRA_VRAM_MIB` environment variable overrides the card reading (tests, odd setups).
+`IMAGINARIUM_VRAM_MIB` environment variable overrides the card reading (tests, odd setups).
 
 Installing it: `installer/install.sh -Only triposg,triposgvae,triposgdino` — one row in the
 checklist, three resumable components (Python env + pinned code + transformer / VAE / DINOv2

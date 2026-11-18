@@ -11,7 +11,7 @@
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-    --python scripts/blender/af_run.py -- bone_kit request.json
+    --python scripts/blender/imaginarium_run.py -- bone_kit request.json
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
     --python scripts/blender/tests/run_tests.py -- bone_kit
 ```
@@ -27,8 +27,8 @@
  "out_dir": "abs/out"}
 ```
 Выходы одной части: `part.glb`, `part.blend`, `part.json` (габариты, треугольники, сокеты с мировыми рамками, кости,
-список деталей, веса, контакт хвата, материалы, сводка GLB), `preview.png` (`af.render_views`, `color='MATERIAL'`;
-для стиля `aged` — `VERTEX`, чтобы были видны вершинные цвета). `result.json` / `AFRESULT` — по контракту §3.
+список деталей, веса, контакт хвата, материалы, сводка GLB), `preview.png` (`ima.render_views`, `color='MATERIAL'`;
+для стиля `aged` — `VERTEX`, чтобы были видны вершинные цвета). `result.json` / `IMAGINARIUM_RESULT` — по контракту §3.
 
 Общие параметры: `part` (`skeleton_hand | bone_staff | bone_toggle`), `style` (`clean | aged`), `seed`,
 `palette` (`bone`, `gold`, `crystal`, `crystal_glow` — `#rrggbb`; `crystal_emission` — число), `budget_tris`,

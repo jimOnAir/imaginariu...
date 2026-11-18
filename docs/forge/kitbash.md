@@ -13,9 +13,9 @@
 
 | | |
 |---|---|
-| `inputs.blend` | `ship.blend` шага `ship_from_mesh` (или прошлого `kitbash`): LOD0 + корни `<id>_lod1/2`, сокеты, материалы SQ и метаданные кузницы `scene["af_ship"]` (манифест SQ, класс бюджета, длина, рамка сопел) |
+| `inputs.blend` | `ship.blend` шага `ship_from_mesh` (или прошлого `kitbash`): LOD0 + корни `<id>_lod1/2`, сокеты, материалы SQ и метаданные кузницы `scene["imaginarium_ship"]` (манифест SQ, класс бюджета, длина, рамка сопел) |
 | `inputs.mesh` | `ship.glb`; рядом берутся `ship_lod1.glb`, `ship_lod2.glb` и `ship.json`, если они есть (материалы `SQ_*.001` второго импорта сводятся к материалам LOD0) |
-| выходы | `ship.glb`, `ship_lod1.glb`, `ship_lod2.glb`, `ship.blend` (с обновлёнными метаданными), `ship.json` (манифест SQ: треугольники, сокеты, габарит, хеш, `generator_version += af_kitbash_v1`), `preview.png`, `lod_strip.png` |
+| выходы | `ship.glb`, `ship_lod1.glb`, `ship_lod2.glb`, `ship.blend` (с обновлёнными метаданными), `ship.json` (манифест SQ: треугольники, сокеты, габарит, хеш, `generator_version += imaginarium_kitbash_v1`), `preview.png`, `lod_strip.png` |
 
 В конвейере кузницы шаг получает `.blend` предыдущего модельного шага (слоты `blend, mesh`); `godot_package`
 после него берёт GLB `kitbash`.
@@ -44,7 +44,7 @@
 размещаются (гнездо гатлинга — медиана лучей вокруг вырезанной заглушки; антенны — на крышу; под заглушкой
 ИИ-антенны крыша ищется лучами вокруг неё, разрез закрывается крышкой) → для каждого LOD свой `Kit(lod)` →
 разрез по материалам и слияние в объект LOD с тем же материалом (UV — метрическая box-развёртка, размер
-плитки берётся из `af_tile_m` материала, т. е. броня с текстурой `ship_from_mesh` ложится без шва масштаба).
+плитки берётся из `imaginarium_tile_m` материала, т. е. броня с текстурой `ship_from_mesh` ложится без шва масштаба).
 
 ## Сокеты
 
@@ -67,7 +67,7 @@
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- kitbash request.json
+  --python scripts/blender/imaginarium_run.py -- kitbash request.json
 ```
 ```json
 {"step": "kitbash", "inputs": {"blend": "C:/afq2/v2/01_ship_from_mesh/ship.blend"},

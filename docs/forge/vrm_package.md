@@ -47,14 +47,14 @@ CLI (the lane's runner, as for every step):
 
 ```
 runtime/blender/blender-5.2.4-linux-x64/blender -b --factory-startup \
-    --python scripts/blender/af_run.py -- vrm_package request.json
+    --python scripts/blender/imaginarium_run.py -- vrm_package request.json
 runtime/blender/blender-5.2.4-linux-x64/blender -b --factory-startup \
     --python scripts/blender/tests/run_tests.py -- vrm_package
 ```
 
 ```json
 {"step": "vrm_package", "params": {"profile": "vrm1", "meta_name": "Char One",
-  "meta_version": "0.1.0", "meta_author": "AstraForge studio",
+  "meta_version": "0.1.0", "meta_author": "Imaginarium studio",
   "expressions": "auto", "validate": true},
  "inputs": {"glb": "abs/character.glb", "manifest": "abs/asset.json"},
  "out_dir": "abs/out"}
@@ -83,11 +83,11 @@ proves the rig survives a stock glTF re-import of those bytes.
 | `profile` | `vrm1` | the only value; reserved by the profile machinery |
 | `meta_name` | asset name | the VRM meta name |
 | `meta_version` | `0.1.0` | the VRM meta version |
-| `meta_author` | `AstraForge studio` | the VRM meta author |
+| `meta_author` | `Imaginarium studio` | the VRM meta author |
 | `expressions` | `auto` | `auto` wires what the face supports; `off` ships rig and materials only |
 | `validate` | true | re-read the produced `.vrm` as a container and re-import it in Blender |
 
 The component: **VRM Add-on for Blender 4.10.5** — the studio installer puts it in
 `runtime/vrm-addon` (`installer -Only vrmaddon`, config key `vrm_addon`, env override
-`ASTRA_VRM_ADDON`). Without it the step fails with the named remedy, not a crash, and the
+`IMAGINARIUM_VRM_ADDON`). Without it the step fails with the named remedy, not a crash, and the
 preset help says it is needed.

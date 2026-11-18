@@ -23,7 +23,7 @@
 1. Кости обеих сторон приводятся к каноническим коротким именам Mixamo, схема выбирается голосованием.
    Поддерживаются:
    - `mixamorig:`, `mixamorig1:` и имена без префикса;
-   - шаблон AstraForge: `Root, Hips, Spine, Chest→Spine2, Neck, Head, HeadEnd→HeadTop_End,
+   - шаблон Imaginarium: `Root, Hips, Spine, Chest→Spine2, Neck, Head, HeadEnd→HeadTop_End,
      *UpperArm→*Arm, *LowerArm→*ForeArm, *UpperLeg→*UpLeg, *LowerLeg→*Leg, *Toes→*ToeBase,
      *ToesEnd→*Toe_End`; `Root` и `*HandEnd` не сопоставляются;
    - Rigify `DEF-`/`ORG-`/метариг (`spine`=Hips … `spine.006`=Head, `upper_arm.L` …);
@@ -65,7 +65,7 @@
 |---|---|---|
 | Направление кости = её хвост | направление к голове дочерней кости по цепи; у листовых костей (кисть без пальцев, носок) — взмах родителя | хвосты листовых костей FBX эвристичны: на T-позе Mixamo кисть «смотрит» на 27° в сторону, запястья ломались |
 | `C` по оси Шея−Таз | `C` = только поворот вокруг вертикали | у сутулого A-покоя и прямого T-покоя одного скелета `C` получал наклон, и весь клип заваливался |
-| `k` по высоте головы Hips | `k` по тазобедренным суставам (головы UpLeg) | у шаблона AstraForge суставы на 5 см ниже Hips: ноги не доставали |
+| `k` по высоте головы Hips | `k` по тазобедренным суставам (головы UpLeg) | у шаблона Imaginarium суставы на 5 см ниже Hips: ноги не доставали |
 | IK только на лодыжку | при контакте подушечки прибивается подушечка (ToeBase), иначе лодыжка | при другой длине стопы подушечка скользила на отрыве пятки |
 | — | кость источника нулевой длины (у лучника HG `Neck` совпадает с `Head`) не копируется, кость цели следует за родителем | её поворот на источнике ничего не двигает, а на 12-см шее ангела складывал голову в грудь |
 | — | шея и голова без годного ориентира сохраняют мировую ориентацию своего покоя | в любом покое голова прямо и смотрит вперёд |
@@ -208,8 +208,8 @@
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- retarget <request.json>
-"…/blender.exe" -b --factory-startup --python scripts/blender/af_run.py -- clip_library <request.json>
+  --python scripts/blender/imaginarium_run.py -- retarget <request.json>
+"…/blender.exe" -b --factory-startup --python scripts/blender/imaginarium_run.py -- clip_library <request.json>
 "…/blender.exe" -b --factory-startup --python scripts/blender/tests/run_tests.py -- mixamo
 ```
 
@@ -228,7 +228,7 @@
 - чужие действия в `.blend` и вне GLB;
 - предупреждение о масштабе рига и `apply_transforms`.
 
-`test_real_*` используют ассеты HG: зомби, ангела, риг с руками вниз, шаблон AstraForge, удар ангела и
+`test_real_*` используют ассеты HG: зомби, ангела, риг с руками вниз, шаблон Imaginarium, удар ангела и
 idle_lookaround на зомби, плюс `index.json`.
 
 Каждый тест на исправление проверен мутацией: если вернуть старое поведение, тест падает. Проверено семь
@@ -328,7 +328,7 @@ militia и собственная ходьба зомби, `lock` по умол�
 | hit | keep | 1.1 / 1.1 | 0.3 / 0.3 |
 | death | keep | 7.7 / 7.7 | 2.6 / 2.7 |
 
-**(d) Шаблон AstraForge** (имена из `src/rig-core.js`, ширина модели = росту, как у T-позы; вход через
+**(d) Шаблон Imaginarium** (имена из `src/rig-core.js`, ширина модели = росту, как у T-позы; вход через
 `.blend`, `extract` на собственную `Root`). Сопоставлено 24 кости из 27; `Root`, `LeftHandEnd` и
 `RightHandEnd` не сопоставлены, как и задумано.
 
@@ -370,7 +370,7 @@ zombie walk — 9.6 против 57.7 (источник 9.6), militia — 2.7 п
 
 ![Ангел (b): клипы лучника, root motion на кости root](img/mixamo/mixamo_angel_archer_rootmotion.png)
 
-![Сверху (c) риг с руками вниз, снизу (d) шаблон AstraForge](img/mixamo/mixamo_synthetic_template.png)
+![Сверху (c) риг с руками вниз, снизу (d) шаблон Imaginarium](img/mixamo/mixamo_synthetic_template.png)
 
 ![Следы лодыжек удара ангела, вид сверху, сетка 10 см: слева strict (старый lock), справа новый lock](img/mixamo/mixamo_planted_feet.png)
 

@@ -78,7 +78,7 @@
 
 Оба шага — модуль `qa` реестра (`GET /api/forge/steps`), вид `humanoid`, вход `inputs.blend` (предпочтительно) или
 `inputs.mesh` (GLB). Сам расчёт идёт отдельным Python с numpy / cv2 / scikit-image / scipy
-(`params.python` → `ASTRA_QA_PYTHON` → `D:\ComfyUI\.venv\Scripts\python.exe`); Blender для рендеров — тот же, что
+(`params.python` → `IMAGINARIUM_QA_PYTHON` → `D:\ComfyUI\.venv\Scripts\python.exe`); Blender для рендеров — тот же, что
 выполняет шаг. Видеокарту шаги не блокируют: перед опросом модели зрения проверяльщик сам выгружает модели ComfyUI
 (`POST :8191/free`), как `paint_from_concept`.
 
@@ -137,18 +137,18 @@ D:\ComfyUI\.venv\Scripts\python.exe scripts\qa\face_loop.py --start <painted.ble
 Коды возврата `face_match.py`: 0 — pass, 1 — fail, 2 — ошибка; `face_loop.py`: 0 — pass, 1 — лимит, 2 — ошибка,
 3 — плато.
 
-**Шаг кузницы вручную** (тот же протокол, что у Blender-шагов: `result.json` + строка `AFRESULT`):
+**Шаг кузницы вручную** (тот же протокол, что у Blender-шагов: `result.json` + строка `IMAGINARIUM_RESULT`):
 ```
 py -I scripts\qa\face_step.py run face_match <request.json>
 py -I scripts\qa\face_step.py run face_fix_loop <request.json>
-"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" -b --factory-startup --python scripts\blender\af_run.py -- face_match <request.json>
+"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" -b --factory-startup --python scripts\blender\imaginarium_run.py -- face_match <request.json>
 ```
 `request.json`:
 ```json
 {
-  "inputs": {"blend": "C:/AstraForge/incoming/units_1013/archer/v5/best/painted.blend"},
-  "params": {"refs_dir": "C:/AstraForge/incoming/units_1013/archer/v3/in", "vlm": "off", "min_score": 50},
-  "out_dir": "C:/AstraForge/runtime/face_smoke/01_face_match"
+  "inputs": {"blend": "C:/Imaginarium/incoming/units_1013/archer/v5/best/painted.blend"},
+  "params": {"refs_dir": "C:/Imaginarium/incoming/units_1013/archer/v3/in", "vlm": "off", "min_score": 50},
+  "out_dir": "C:/Imaginarium/runtime/face_smoke/01_face_match"
 }
 ```
 Сводка готового отчёта: `py -I scripts\qa\face_step.py summary <face_report.json> [--min-score 50]` (код 0 — ворота
@@ -166,9 +166,9 @@ node scripts/forge.mjs run <assetId> --steps steps.json --direct
 ## Проверено (17.10.2026)
 
 - `npm test`: 301 проверка зелёные (было 299; +2: реестр / пресет и разбор `face_report.json`).
-- `face_match` через `af_run.py` в Blender 5.0.1 на `v5/best/painted.blend` без модели зрения: 46 с, балл 57,5,
-  4 blocker + 7 minor, `AFRESULT ok=true` при `min_score 50`, выходы на месте.
+- `face_match` через `imaginarium_run.py` в Blender 5.0.1 на `v5/best/painted.blend` без модели зрения: 46 с, балл 57,5,
+  4 blocker + 7 minor, `IMAGINARIUM_RESULT ok=true` при `min_score 50`, выходы на месте.
 - `face_fix_loop` отдельным Python (`face_step.py run`), 2 итерации без модели зрения, `thresholds {ssim_gray: 0.8}`,
   `min_score 50`: 64 с, баллы 57,5 → 54,0, лучшая — итерация 1 (та же модель), `best/` с `painted.blend`,
   `archer_painted.glb`, `face_report.json/.jpg`, `texture_check.jpg`; `ok=true`, проверка `face_loop_pass`
-  предупреждением, в `warnings` — «pass не достигнут за 2 итерации». Прогресс по итерациям виден в AFLOG (`done/total`).
+  предупреждением, в `warnings` — «pass не достигнут за 2 итерации». Прогресс по итерациям виден в IMAGINARIUM_LOG (`done/total`).

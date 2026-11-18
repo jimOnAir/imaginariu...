@@ -19,10 +19,10 @@ address. If the local server is installed but silent, the studio spawns `ollama 
 one attempt per address at a time — concurrent callers wait for the same start) and waits up to 20 s
 for `/api/tags` to answer. Auto-start is only ever for `http://127.0.0.1:11434` (or `localhost`):
 an Ollama at another address belongs to somebody else's setup, so the studio probes it and says so
-instead of starting a process. The background path never blocks a request, and `ASTRA_ENGINE_AUTOSTART=0`
+instead of starting a process. The background path never blocks a request, and `IMAGINARIUM_ENGINE_AUTOSTART=0`
 or a test context turns the whole mechanism off.
 
-**Where the program is** (`ollamaExecutable`): `ASTRA_OLLAMA_EXE`, else `config/paths.json` (key
+**Where the program is** (`ollamaExecutable`): `IMAGINARIUM_OLLAMA_EXE`, else `config/paths.json` (key
 `ollama`, written by `installer/install.sh`), else the usual locations (`/usr/local/bin`,
 `/usr/bin`, `~/.ollama/bin`), else `PATH`. First hit wins; no candidate is a guess — a dead path
 from an older install is skipped.
@@ -64,7 +64,7 @@ values across untouched).
 
 The pick precedence, `pickReviewModel(vramMiB, installed, env, chosen)`:
 
-1. `ASTRA_REVIEW_VLM` — a hand-set override, wins over everything;
+1. `IMAGINARIUM_REVIEW_VLM` — a hand-set override, wins over everything;
 2. the configured `reviewModel` when it is installed (any generation — this is the 0.6.6 rule: after
    an upgrade the previous vision model is still on disk and still useful);
 3. the tier for this card: `qwen3.5:9b` at ≥ 11 GiB, `qwen3.5:4b` below;
@@ -73,7 +73,7 @@ The pick precedence, `pickReviewModel(vramMiB, installed, env, chosen)`:
 6. nothing installed: the model is reported with `installed: false` and the reason names the
    installer row. No download, ever.
 
-The resolved pick is published into `ASTRA_QA_VLM`, the variable the Blender paint-QA step
+The resolved pick is published into `IMAGINARIUM_QA_VLM`, the variable the Blender paint-QA step
 (`scripts/blender/steps/_paint_qa.py`) reads — a variable that was already in the studio's
 environment at startup is the user's own and is never overwritten; when no vision model is usable
 the published value is cleared so the step reports it instead of guessing.

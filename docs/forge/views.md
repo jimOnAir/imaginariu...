@@ -94,7 +94,7 @@ python scripts/views/contact_sheet.py views_sheet.jpg "ChatGPT=views/codex" "MV-
 
 ## Результат на ополченце (T-поза, без оружия)
 
-Вход: `C:/AstraForge/incoming/units_1013/militia/front_tpose.png`. Результаты в `…/militia/views/`: `views_sheet.jpg` (виды двух источников),
+Вход: `C:/Imaginarium/incoming/units_1013/militia/front_tpose.png`. Результаты в `…/militia/views/`: `views_sheet.jpg` (виды двух источников),
 `views_3d_compare.png` и `views_3d_compare_seed11.png` (модели без текстур: спереди, слева, сзади, 3/4), `views_3d_compare*.json` (числа),
 `codex/` и `mvadapter/` (наборы со всеми файлами и `views.json`). Лучшая модель по четырём видам: `…/militia/mv/mesh_mv_views4.glb`
 (ChatGPT, seed 703; нормировка та же, что у остальных `mesh_mv_*.glb`: сырой выход ComfyUI, ось по высоте ±1).
@@ -145,4 +145,4 @@ IoU силуэта (рендер модели без текстуры проти
 `scripts/views/` — `views_generate.mjs` (вход `views_generate`), `views_3d.mjs`, `codex_image.mjs`, `views_mvadapter.mjs`, `views_prompts.mjs`,
 `views_prep.py` (вырезание и общий кадр), `make_sdxl_config.py`, `compare_render.py`, `compare_sheet.py`, `contact_sheet.py`, `comfy_client.mjs`.
 Сервер: `server/views.mjs` (маршруты `/api/views`), `server/schema.mjs` (`hunyuanMultiViewWorkflow`, `viewSetId`), `server/jobs.mjs` (ветка многоракурсной задачи).
-Интерфейс: `src/ViewsPanel.jsx`, `src/views.css`. Узел ComfyUI: `data/runtime/custom_nodes/ComfyUI-MVAdapter/` (`astra_views.py`). Тесты: `tests/views.test.mjs`.
+Интерфейс: `src/ViewsPanel.jsx`, `src/views.css`. Узел ComfyUI: `data/runtime/custom_nodes/ComfyUI-MVAdapter/` (`imagi_views.py`). Тесты: `tests/views.test.mjs`.

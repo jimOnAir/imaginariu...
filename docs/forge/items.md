@@ -66,7 +66,7 @@ metallic / roughness / emission экспортируются в glTF), разв�
 проушины 2,7 см (был плоский клин). Энарм щита — ремень 7 мм × 36 мм с заклёпками, отстоит от доски. Проверка
 `materials_principled` теперь действительно проверяет, что Principled BSDF подключён к Material Output.
 
-Выходы: `item.glb` (сокеты-узлы с extras, `af_item_type` и `af_forward` в extras меша), `item.blend`, `item.json`,
+Выходы: `item.glb` (сокеты-узлы с extras, `imaginarium_item_type` и `imaginarium_forward` в extras меша), `item.blend`, `item.json`,
 `preview.png`.
 
 ### Замеры (все типы, ornament 2, seed 0)
@@ -291,7 +291,7 @@ medieval ≤ 1,1 см, elven ≤ 0,5 см, dark ≤ 2,9 см.
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-    --python scripts/blender/af_run.py -- item_kit request.json        (item_from_mesh / attach_prop так же)
+    --python scripts/blender/imaginarium_run.py -- item_kit request.json        (item_from_mesh / attach_prop так же)
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
     --python scripts/blender/tests/run_tests.py -- items
 ```

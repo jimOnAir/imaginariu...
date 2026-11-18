@@ -4,7 +4,7 @@
 
 | Файл | Что делает |
 |---|---|
-| `server/blender.mjs` | поиск Blender/Godot и их версии (кеш), запуск шага, разбор `AFLOG`/`AFRESULT`/`AFERROR`, журналы, таймауты, снятие дерева процессов, очередь FIFO со «слотами» |
+| `server/blender.mjs` | поиск Blender/Godot и их версии (кеш), запуск шага, разбор `IMAGINARIUM_LOG`/`IMAGINARIUM_RESULT`/`IMAGINARIUM_ERROR`, журналы, таймауты, снятие дерева процессов, очередь FIFO со «слотами» |
 | `server/gpu-lock.mjs` | межпроцессный замок видеокарты `Global\HG_GPU_RENDER` (общий с «Вратами Героев») |
 | `server/forge-steps.mjs` | реестр 24 шагов (11.10: + `motion_style`, см. `docs/forge/motion_style.md`; 11.10, ночь: + `rig_humanoid.deform_gate`, `motion_style.robe_settle/deform_qa/deform_every/deform_gate/deform_limits`, `render_sprites.adaptive_cell`) и 8 пресетов (данные), проверка параметров |
 | `server/forge-pipeline.mjs` | движок: паспорта, версии, разрешение входов, задачи, экспорт, клипы, замок библиотеки клипов, пакеты, раздача файлов |
@@ -16,7 +16,7 @@
 
 Правки чужих файлов: `server/index.mjs` — одна строка импорта и один вызов
 `registerForge(app,asyncRoute,{getGenerationJob:getJob})` сразу после `registerTripo`, то есть после защитного
-middleware (loopback Host/Origin, `x-astra-client: studio`). `server/jobs.mjs` — замок GPU только вокруг
+middleware (loopback Host/Origin, `x-imaginarium-client: studio`). `server/jobs.mjs` — замок GPU только вокруг
 отправки промпта ComfyUI и ожидания результата (`waitPrompt`): три строки. В раунде исправлений эти два
 файла не менялись.
 
@@ -24,14 +24,14 @@ middleware (loopback Host/Origin, `x-astra-client: studio`). `server/jobs.mjs` �
 
 | Переменная | По умолчанию | Смысл |
 |---|---|---|
-| `ASTRA_BLENDER` | `C:/Program Files/Blender Foundation/Blender 5.0/blender.exe` | путь к Blender |
-| `ASTRA_BLENDER_CONCURRENCY` | 1 | одновременных процессов Blender |
-| `ASTRA_FORGE_JOB_CONCURRENCY` | как у Blender | одновременных задач (задача = цепочка шагов) |
-| `ASTRA_GODOT` | поиск `Godot_v*-stable_win64[_console].exe` в `C:/Program Files/Godot`, `C:/Godot`, `C:/Dorn/Game Dev`, `%LOCALAPPDATA%/Programs/Godot` | только для `/status` |
-| `ASTRA_GPU_MUTEX` | `Global\HG_GPU_RENDER` | имя мьютекса (тесты используют свои `Local\AF_TEST_*`) |
-| `ASTRA_FORGE_LIBRARY` | `data/library` | библиотека (паспорта, задачи, клипы, корзина) |
-| `ASTRA_FORGE_RUNTIME` | `data/runtime` | журналы Blender и рабочие папки |
-| `ASTRA_FORGE_URL`, `PORT` | `http://127.0.0.1:3210` | адрес сервера для CLI |
+| `IMAGINARIUM_BLENDER` | `C:/Program Files/Blender Foundation/Blender 5.0/blender.exe` | путь к Blender |
+| `IMAGINARIUM_BLENDER_CONCURRENCY` | 1 | одновременных процессов Blender |
+| `IMAGINARIUM_JOB_CONCURRENCY` | как у Blender | одновременных задач (задача = цепочка шагов) |
+| `IMAGINARIUM_GODOT` | поиск `Godot_v*-stable_win64[_console].exe` в `C:/Program Files/Godot`, `C:/Godot`, `C:/Dorn/Game Dev`, `%LOCALAPPDATA%/Programs/Godot` | только для `/status` |
+| `IMAGINARIUM_GPU_MUTEX` | `Global\HG_GPU_RENDER` | имя мьютекса (тесты используют свои `Local\Imaginarium_TEST_*`) |
+| `IMAGINARIUM_LIBRARY` | `data/library` | библиотека (паспорта, задачи, клипы, корзина) |
+| `IMAGINARIUM_RUNTIME` | `data/runtime` | журналы Blender и рабочие папки |
+| `IMAGINARIUM_URL`, `PORT` | `http://127.0.0.1:3210` | адрес сервера для CLI |
 
 Путь библиотеки лучше держать коротким: Blender (Python) на Windows не открывает файлы с путём длиннее
 260 символов, а внутри ассета добавляется ещё ~110 символов (`assets/<uuid>/v001/02_godot_package/…`).
@@ -65,12 +65,12 @@ data/runtime/forge/jobs/<jobId>/01_clip_library/ out_dir задач без ас�
    встаёт в очередь впереди обычных шагов — видеокарта простаивает не дольше текущего шага. Замок
    освобождается в `finally` (и при ошибке, и при отмене).
 3. В слоте: `out_dir/request.json`, затем
-   `blender -b --factory-startup --python scripts/blender/af_run.py -- <step> <out_dir>/request.json`.
-4. stdout/stderr читаются построчно (UTF-8, `\r\n`), всё пишется в журнал. `AFLOG {json}` → `onLog`;
+   `blender -b --factory-startup --python scripts/blender/imaginarium_run.py -- <step> <out_dir>/request.json`.
+4. stdout/stderr читаются построчно (UTF-8, `\r\n`), всё пишется в журнал. `IMAGINARIUM_LOG {json}` → `onLog`;
    прогресс берётся из `progress` (0..1 или 0..100), `pct`, `done/total` или `frame/frames`.
-   `AFRESULT` — итог (если строки нет, но `result.json` записан в этом запуске — берётся он).
-   `AFERROR` — ошибка шага с трассой. Нет ни результата, ни `AFERROR` (скрипт `--python` упал раньше
-   обработчика af_run, Blender при этом выходит с кодом 0) — в тексте ошибки последняя строка Python-
+   `IMAGINARIUM_RESULT` — итог (если строки нет, но `result.json` записан в этом запуске — берётся он).
+   `IMAGINARIUM_ERROR` — ошибка шага с трассой. Нет ни результата, ни `IMAGINARIUM_ERROR` (скрипт `--python` упал раньше
+   обработчика imaginarium_run, Blender при этом выходит с кодом 0) — в тексте ошибки последняя строка Python-
    исключения из stderr, например `… (код 0): FileNotFoundError: … request.json`.
 5. Таймаут: из реестра (`timeoutSec`), иначе 15 мин, GPU-шаги 60 мин. Таймаут и отмена снимают
    всё дерево процессов: `taskkill /PID <pid> /T /F` (в тесте проверено, что погибает и внук).
@@ -334,8 +334,8 @@ GLB). **Шаги экспорта (`godot_package`, `render_sprites`) модел
 Проверка «есть ли вход у первого шага», наличие клипов для `retarget`/`attach_prop` и предметов для `attach_prop`
 делается до запуска (ответ 400/404 сразу).
 
-**Ошибки шагов.** `AFERROR` шага попадает в задачу без изменений: `result.error` = «Шаг «…» завершился ошибкой:
-<текст шага>», `result.af_error` = сам текст шага, `result.trace` — трасса. Например, `render_sprites` при неверных
+**Ошибки шагов.** `IMAGINARIUM_ERROR` шага попадает в задачу без изменений: `result.error` = «Шаг «…» завершился ошибкой:
+<текст шага>», `result.imaginarium_error` = сам текст шага, `result.trace` — трасса. Например, `render_sprites` при неверных
 единицах падает до рендера с `ValueError: projected model is only … px (… fix the units with params.height_m …)`;
 интерфейс показывает русскую рамку с этим текстом как есть (`humanizeError` не переписывает текст с кириллицей).
 
@@ -430,7 +430,7 @@ node scripts/forge.mjs clips | clips import <папка FBX> | clips remove <cli
 ```
 
 Общие ключи: `--direct` (без сервера), `--json`, `--server URL`, `--no-wait`. Без `--direct` CLI ходит на
-сервер с заголовком `x-astra-client: studio`; прогресс опрашивается раз в секунду. `--no-wait` вместе с
+сервер с заголовком `x-imaginarium-client: studio`; прогресс опрашивается раз в секунду. `--no-wait` вместе с
 `--direct` игнорируется с предупреждением в stderr: без сервера задача живёт только в этом процессе, и ранний
 выход её бы убил. Ctrl+C в `--direct` отменяет задачу (Blender снимается), в режиме сервера — только
 прекращает слежение. Коды выхода: 0 — успех, 1 — ошибка задачи/сервера, 2 — неверные аргументы.
@@ -447,15 +447,15 @@ node scripts/forge.mjs clips | clips import <папка FBX> | clips remove <cli
   `bone_kit`/`replace_part` в реестре и `inputs.part` из ассета или файла (CLI), `bone_kit` как генератор;
   тесты убирают за собой временные папки. Раунд интеграции добавил 10: сверка реестра с модулями (core, retarget,
   существа, предметы, корабли/экспорт, пресеты), `attach_prop` с FBX/несколькими предметами/клипами, спрайты в
-  пакете Godot, текст `AFERROR` через настоящий раннер Blender (поддельный Blender), замок библиотеки клипов.
+  пакете Godot, текст `IMAGINARIUM_ERROR` через настоящий раннер Blender (поддельный Blender), замок библиотеки клипов.
 - Дымовой прогон всех пресетов в настоящих Blender 5.0.1 и Godot 4.5.1: `node scripts/forge-smoke.mjs`
   (`--root C:/afs` — короткая рабочая папка из-за MAX_PATH, `--only id,id` — часть случаев). Результат —
   `docs/forge/SMOKE.md` (таблица: пресет, вход, статус, секунды, ключевые проверки, ошибки с текстом шага) и
   `docs/forge/SMOKE.json`.
 - Сборка `npm run build` — зелёная (только прежнее предупреждение о большом чанке).
 - Реальные прогоны (Blender 5.0.1, Godot 4.5.1):
-  - `place_parts` через CLI `--direct` (10.10, ночь; короткая библиотека `ASTRA_FORGE_LIBRARY=C:/afr/lib`,
-    `ASTRA_FORGE_RUNTIME=C:/afr/rt`, запросы — `C:/afr/req/`): ассет `bone_kit` (`part: bone_toggle`, `gold: rings`, `aged`,
+  - `place_parts` через CLI `--direct` (10.10, ночь; короткая библиотека `IMAGINARIUM_LIBRARY=C:/afr/lib`,
+    `IMAGINARIUM_RUNTIME=C:/afr/rt`, запросы — `C:/afr/req/`): ассет `bone_kit` (`part: bone_toggle`, `gold: rings`, `aged`,
     seed 2) `342787c8-3869-4db6-a134-82de4a143bc6`, затем ассет из `work/skull_roi/runs/seed1234/replaced.glb` с шагом
     `place_parts` (`part_asset` = застёжка, две точки `[x, z]` на застёжке робы, `normal_patch` 2, `rest_percentile` 70):
     `9b720ba2-2861-48f6-9dc2-8e9e032ffe1e/v001`, 2,25 с в Blender. `inputs.part` = `part.glb` версии застёжки,
@@ -519,7 +519,7 @@ node scripts/forge.mjs clips | clips import <папка FBX> | clips remove <cli
   время ожидания видеокарты и рендера; пакет из 20 элементов идёт последовательно.
 - После сна/гибернации дольше 2 минут другой процесс (например, CLI) может пометить ещё живую задачу
   сервера прерванной; сервер при следующей записи перепишет её состояние и итог версии сам.
-- Прогресс внутри шага есть только там, где шаг печатает `AFLOG` с прогрессом.
+- Прогресс внутри шага есть только там, где шаг печатает `IMAGINARIUM_LOG` с прогрессом.
 - Живой захват GPU-замка одновременно с реальным рендером HG и генерацией ComfyUI не проверялся —
   проверены сериализация, брошенный мьютекс, таймаут и отмена на тестовых именах мьютекса.
 - В `%TEMP%` лежат ~800 папок `af-*` от прошлых прогонов тестов (до этого раунда тесты их не удаляли);

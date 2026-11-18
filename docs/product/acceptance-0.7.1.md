@@ -1,4 +1,4 @@
-# AstraForge 0.7.1 — acceptance report (Windows 0.6.6→0.7.1 behavior, re-derived on Linux, shipped once)
+# Imaginarium 0.7.1 — acceptance report (Windows 0.6.6→0.7.1 behavior, re-derived on Linux, shipped once)
 
 This tree (`linux-support`) is version **0.7.1**. It carries everything the
 [0.6.6 acceptance report](acceptance-0.6.6.md) covered — the 0.4.16 feature set, the Windows
@@ -7,7 +7,7 @@ more stretches: the shipped Windows patches **0.6.7 through 0.7.1**, re-derived 
 ([ADR-0004](../adr/0004-protocol-v2-clean-room-and-attribution.md)): T1 intent / T2 observed
 behavior / T3 interface facts through the spec channel only; implementing contexts never read
 the extracted payloads; every commit gated by an independent fresh-context similarity audit
-recorded per ticket under `.scratch/astraforge-0610-reintroduction/issues/`.
+recorded per ticket under `.scratch/imaginarium-0610-reintroduction/issues/`.
 
 **Parity line and artifacts.** Windows shipped fourteen patches after 0.6.6; the installers that
 actually arrived are **`AstraForge-Setup-0.6.8.exe`** (61 121 536 B, md5
@@ -85,19 +85,19 @@ pre-0.3.0 inline block; own-HEAD lineage). Commit `6904984`.
 ## Cluster K — Bevy joins as the fourth engine (0.6.10 line, the largest ticket set)
 
 ✅ **Ticket 28** — the `bevy_package` export profile: the same GLB the Godot profile ships plus
-the `af_bevy.json` asset passport (clips `{name,loop,seconds}`, sockets, collider plan, fx,
+the `ima_bevy.json` asset passport (clips `{name,loop,seconds}`, sockets, collider plan, fx,
 rig/scene facts) written by `scripts/blender/steps/bevy_package.py` + `_bevy_lib.py`; clip names
 are read back from the shipped GLB's JSON chunk (bpy's `.001` renames cannot lie).
 Commit `f26b392`.
-✅ **Ticket 29** — `bevy/astraforge_bevy/`: the consumer crate, **branch-original MIT written
-from the interface facts only** (pins: `astraforge_bevy 0.20.0`, edition 2024, rust-version
+✅ **Ticket 29** — `bevy/imaginarium_bevy/`: the consumer crate, **branch-original MIT written
+from the interface facts only** (pins: `imaginarium_bevy 0.20.0`, edition 2024, rust-version
 1.97.1, bevy 0.20.1 default-features=false `3d`+`audio`, serde/serde_json 1) — one
-`add_astraforge_asset` line brings default-clip autostart, transition-blended clips,
-socket-mounted effects, `af_sounds.json` banks and hot model reload; every 0.20 API was grepped
+`add_imaginarium_asset` line brings default-clip autostart, transition-blended clips,
+socket-mounted effects, `ima_sounds.json` banks and hot model reload; every 0.20 API was grepped
 from the vendored crates, not guessed. Plus the integrator template + player starter (compiles
 against the real 0.20 API). Commit `fa9f385`.
 ✅ **Ticket 30** — headless validation: `scripts/engines/bevy.mjs` drives the crate's
-`af_bevy_check` (behind the crate's `check` feature) when cargo exists — the package's passport
+`imaginarium_bevy_check` (behind the crate's `check` feature) when cargo exists — the package's passport
 promises are verified against the live Bevy world, two preview frames through the screenshot
 pass, four contract tokens (`bevy_check`/`bevy_shots`/`bevy_log`/`bevy_forward`) on the step —
 and exports byte-identical-minus-check honestly when Rust is absent. The live check earned its
@@ -107,8 +107,8 @@ static 690k-tri package and a rigged two-clip package, both 5/5 checks, warm cac
 Commit `a1e4cf5`.
 ✅ **Ticket 31** — MCP + sound parity: `bevy` in the engine enums and every engine verb, the
 export profile list, `sound_export {engine:"bevy"}` laying down the
-`assets/astraforge/sounds/<slug>/` bank + `af_sounds.json` manifest exactly as the crate parses
-it (`astraforge-soundbank/1`, replace-wholesale), the integrator skill updated, and the
+`assets/imaginarium/sounds/<slug>/` bank + `ima_sounds.json` manifest exactly as the crate parses
+it (`imaginarium-soundbank/1`, replace-wholesale), the integrator skill updated, and the
 `bevy_brp_mcp 0.23.0` bridge installable **only** from the checksum-pinned crates.io file
 (sha256 `a6ec60a2…af11`, live-verified against the real download; a tampered file refuses and
 cargo never runs — never a bare index install). A live stdio MCP session test proves the agent
@@ -160,7 +160,7 @@ pointless re-fetch, no scary tamper wording. Commit `f1630f7`.
 ## Cluster M — the 0.7.0/0.7.1 fold: what lives outside the closed core (retarget #3)
 
 The 0.7.0 headline is architectural: the Windows studio gained a **closed Rust core**
-(`bin/astraforge-rs.exe`, hosting the new node editor and content studio). That whole body sits
+(`bin/imaginarium-rs.exe`, hosting the new node editor and content studio). That whole body sits
 on the standing closed-binary posture (🚫 rows below, author questions Q11/Q12). What this
 cluster kept is everything the notes state that lives in files this branch owns — each one
 audited against the 0.7.x payloads that contain their upstream originals.
@@ -178,29 +178,29 @@ flag became the seam). Lane tests +3: rigged-GLB fixture, default drops, opt-in 
 on the RE-IMPORTED GLB: armature, bones, every vertex weighted, body weights exact), static
 body + opt-in warns and falls back. Commit `07134ca`.
 ✅ **Ticket 40 — model-weight reuse** (0.7.0: "weights other programs already downloaded are
-connected without copying"): `installer/af_weights.mjs` — a branch-designed scanner over the
-**Linux** homes where weights already lie (`ASTRA_WEIGHT_DIRS`, a sibling `~/ComfyUI`, the
-Hugging Face hub cache, StabilityMatrix data, a sibling AstraForge), matched by name + exact
+connected without copying"): `installer/imaginarium_weights.mjs` — a branch-designed scanner over the
+**Linux** homes where weights already lie (`IMAGINARIUM_WEIGHT_DIRS`, a sibling `~/ComfyUI`, the
+Hugging Face hub cache, StabilityMatrix data, a sibling Imaginarium), matched by name + exact
 byte size, the manifest's pinned sha256 verified **only at accept**, then connected by a symlink
 in `data/models` + a `weightLinks` record in the existing `config/paths.json` layer — the user's
 files are never moved, copied or touched (their Windows mechanism is hardlinks + folder
 registration; the symlink is the Linux shape). `install.sh` offers the found files with the
-download size saved (`ASTRA_CONNECT_EXISTING=0` opts out), and af_scan rows read **`installed
+download size saved (`IMAGINARIUM_CONNECT_EXISTING=0` opts out), and imaginarium_scan rows read **`installed
 (external)`** down to the Components window (en/ru) so nothing re-downloads them. Live machine:
 report empty (nothing missing to offer). Tests 8/8 on fake trees, incl. wrong-size refusal,
 tampered-bytes refusal, no-pin refusal, real-file-never-replaced. Commit `c85e0ee`.
 ✅ **Ticket 42 — degraded start, honest messages** (0.7.0: the studio opens even when a server
 fails; clear messages for missing Blender / too-old card): probe-first over the three branch
 shapes — engine-down at startup is **already honest** (live `/api/status` probe feeds the dots,
-engine badges and setup path), old-card refusals **already honest** (af_scan reasons flow into
+engine badges and setup path), old-card refusals **already honest** (imaginarium_scan reasons flow into
 both checklists), and the one bricked shape fixed: a Forge step spawning missing Blender
 answered `spawn blender ENOENT`; it now names the real remedy (`install.sh -Yes -Only blender`
-or `ASTRA_BLENDER`), in the ticket-25 idiom, with the errno kept to the log. Commit `cd752f6`.
+or `IMAGINARIUM_BLENDER`), in the ticket-25 idiom, with the errno kept to the log. Commit `cd752f6`.
 ✅ **Ticket 43 — the paging sentinel on views** (0.7's low-VRAM post-mortem: on an RTX 5060
 8 GB a **single** MV-Adapter step ran 24 minutes — the card was swapping — and the job waited
 out its 20-minute cap doing nothing): their cures (fp8 layerwise casting, encoder/VAE eviction,
 CFG-halves) live in engine files 🚫; the orchestrator fact is branch-owned: `runWorkflow` now
-watches ComfyUI's own WS progress frames, and a step outliving 5 minutes (`ASTRA_VIEWS_STEP_MAX_SEC`)
+watches ComfyUI's own WS progress frames, and a step outliving 5 minutes (`IMAGINARIUM_VIEWS_STEP_MAX_SEC`)
 interrupts the engine and fails with the paging diagnosis, the measured step and the real
 levers. Their guard is engine-side Python with Russian strings; the branch's is client-side JS
 — zero shared lines. Tests 4/4 against a real HTTP+WebSocket fake engine. Commit `398ce60`.
@@ -210,7 +210,7 @@ self-learning (`server/forge-learn.mjs`) is a local event-driven journal + recip
 background GPU work at all** — a gate would have nothing to gate; the note governs their
 engine-side trainer (standing exclusion). Inventing an idle job to gate it would have been the
 wave's first fabricated feature; the number 41 stays retired. Recorded in the spec digest.
-⚫ 0.7.1 "Bevy: the engine check no longer fails" — this branch's `af_bevy_check` was live-run
+⚫ 0.7.1 "Bevy: the engine check no longer fails" — this branch's `imaginarium_bevy_check` was live-run
 5/5 at ticket 30 and the 0.7.0→0.7.1 diff touches no `bevy.mjs` line: their failure lived in a
 path this branch never had. No ticket.
 
@@ -229,8 +229,8 @@ engine" row of 0.6.15. Their `check.rs` frame fix is covered by this branch's ti
 🚫 **0.7.0 content studio (Brand / Video / Publishing) and the node editor** — the fold's
 headline exclusion: the subscription line (the notes themselves: "7-day trial, then works with
 an active subscription" — the monetization standing exclusion), their host being the **closed
-Rust core** (`bin/astraforge-rs.exe` / `bin/astraforge-mcp.exe`, no published source, checksum
-or attribution — the af-mesh rule applies automatically), plus engine capture files and brand
+Rust core** (`bin/imaginarium-rs.exe` / `bin/imaginarium-mcp.exe`, no published source, checksum
+or attribution — the imaginarium-mesh rule applies automatically), plus engine capture files and brand
 font/panel plumbing. Covers the 0.7.1 content-studio fixes too. Re-enters only if the author
 publishes the component (questions Q11/Q12).
 🚫 0.7 engine-side low-VRAM machinery (fp8 layerwise casting, encoder/VAE eviction, CFG-halves,
@@ -263,7 +263,7 @@ the posture).
 4. Concurrency: POSIX `flock` replaces the Windows exclusive-open (ticket 24).
 5. Venv repair is a rebuild, never a junction/relief of `python.exe` trampolines (ticket 25).
 6. The 530 KB phrase-map is not ported; the key-based i18n layer stays (tickets 26/27).
-7. `astraforge_bevy` is a branch-original MIT crate; the Bevy passport schema is this branch's
+7. `imaginarium_bevy` is a branch-original MIT crate; the Bevy passport schema is this branch's
    (documented in `docs/forge/bevy.md`), differing from the upstream crate's format by design.
 8. The headless check's window renders off-screen; audio is checked as files; the first check
    pays the Bevy compile, later ones reuse the shared target cache.
@@ -287,7 +287,7 @@ Every ticket of the wave carries its own fresh-context audit PASS on its ticket 
 `git diff -U0` added runs), the clean/review/rewrite bands, and dual-tree scans always including
 the newest payloads (0.6.18 from retarget #2, **0.7.0 + 0.7.1 from retarget #3** on).
 Highlights of what the audits proved: our driver vs theirs (different return shapes, kill
-mechanisms, English vs Russian); our check design vs their `ASTRAFORGE_CHECK` sentinel; the
+mechanisms, English vs Russian); our check design vs their `IMAGINARIUM_CHECK` sentinel; the
 `install.sh` free-space port with zero added-start runs against any tree; ticket 34 vs their
 real `mesh-fit.mjs` (in-process meshoptimizer vs tagged-error + Blender budget-halving: zero
 overlap); ticket 37 vs their 8 GB machinery (process-naming probe absent from all 12 trees;
@@ -308,7 +308,7 @@ per-module verdict: filled at the release commit below.
 
 ## ⚠️ rows and carry-overs
 
-- ⚠️ The closed native speedups (af-mesh/af_raster), the Pixal3D-C++ component, and the 0.7.0
+- ⚠️ The closed native speedups (imaginarium-mesh/imaginarium_raster), the Pixal3D-C++ component, and the 0.7.0
   closed Rust core (node editor + content studio): excluded, so large-mesh cleanup stays
   Blender-slow, one-image color models are absent, and the node editor / content studio are not
   on this branch until the next-wave decision lands (author Q8; Rust component Q11; content
@@ -354,11 +354,11 @@ grew 276→279 with ticket 39's three keep_rig tests, every touched lane green. 
 audit** (k=8, corpus = **fourteen** trees 0.4.6→0.7.1, base `886ca18`, 20 051 reference files ×
 580 tracked): 568 tracked files share a run ≥ 8 tokens — overwhelmingly the disclosed pre-0.5.0
 campaign body. The wave's own (post-v0.6.6) files at ≥ 8: **37**, unchanged in character from
-the 0.6.18-era run — worst are `bevy/astraforge_bevy/LICENSE` 194 tokens × 0.96 containment
+the 0.6.18-era run — worst are `bevy/imaginarium_bevy/LICENSE` 194 tokens × 0.96 containment
 (the standard MIT text, present in every payload — boilerplate by definition), `bevy_package.py`
 124 × 0.13 and `mesh-salvage.test.mjs` 69 × 0.09; 9 wave files sit in the ≥40-token band, 28 in
 8–39, all carrying their per-ticket audit PASS lines and trivial public-idiom containment. Every
-0.7.1-fold addition lands at or below 39 tokens × ≤ 0.05 (`af_weights.mjs` 39×0.03; the new
+0.7.1-fold addition lands at or below 39 tokens × ≤ 0.05 (`imaginarium_weights.mjs` 39×0.03; the new
 test files 31–32 × ≤ 0.05), and `replace_part.py`, `comfy_client.mjs` and `forge-steps.mjs`
 show **no** ≥8-token run against any of the fourteen trees at all.
 

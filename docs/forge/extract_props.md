@@ -78,9 +78,9 @@ cleanup → paint_from_concept → extract_props → rig_humanoid (тело, har
 - `socket_grip_off` — вторая кисть на оси предмета (если запястье другой руки рядом с осью) или правило длинных
   предметов (посох/копьё/знамя > 1,15 м: 0,14 длины ниже; двуручный меч: 11 см ниже). `socket_fx_tip` — у посохов,
   жезлов, факелов, фонарей на дальнем конце.
-- Предмет стоит на z = 0, центр по X/Y, `af_item_type` в extras (как у `item_kit`).
-- **Место на теле**: пустышка `socket_prop_<рука>_<n>` (extras `af_bone`, `af_hand`, `af_item`, `af_item_kind`,
-  `af_grip_mode`) в мировой рамке хвата. `rig_humanoid` держит сокеты входа и делает его ребёнком `af_bone`;
+- Предмет стоит на z = 0, центр по X/Y, `imaginarium_item_type` в extras (как у `item_kit`).
+- **Место на теле**: пустышка `socket_prop_<рука>_<n>` (extras `imaginarium_bone`, `imaginarium_hand`, `imaginarium_item`, `imaginarium_item_kind`,
+  `imaginarium_grip_mode`) в мировой рамке хвата. `rig_humanoid` держит сокеты входа и делает его ребёнком `imaginarium_bone`;
   `attach_prop` переносит на него сокет кисти (`refit_socket`) или сокет щита и удаляет.
 
 ## Проверка качества и замена набором

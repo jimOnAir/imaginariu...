@@ -135,7 +135,7 @@
 
 Предел 2.5 млн рассчитан на полную фигуру; ROI-деталь заполняет всю сетку 512³, и треугольников
 получается больше. Для двух задач исходные GLB взяты копией из выходной папки собственного Comfy
-(`data/runtime/output/astra/`), серверные файлы не менялись. Все три сетки — чёткие черепа:
+(`data/runtime/output/imaginarium/`), серверные файлы не менялись. Все три сетки — чёткие черепа:
 глубокие глазницы с шарами-глазами, отдельные зубы, скуловые дуги, обрубок позвонков и плоская
 «подставка» из полоски мантии внизу кропа.
 
@@ -206,7 +206,7 @@ RMS — расстояние до **старой** сглаженной голо
 
 ```
 "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe" -b --factory-startup ^
-  --python scripts/blender/af_run.py -- replace_part request.json
+  --python scripts/blender/imaginarium_run.py -- replace_part request.json
 ```
 ```json
 {"step": "replace_part",
