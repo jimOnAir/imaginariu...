@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" font-family="Inter, system-ui, sans-serif">
+  <rect width="1200" height="640" fill="#131719"/>
+  <defs>
+    <linearGradient id="pv" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#0E3B45"/><stop offset=".5" stop-color="#14B8A6"/><stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <linearGradient id="pv2" x1="0" y1="1" x2="1" y2="0">
+      <stop offset="0" stop-color="#14B8A6"/><stop offset="1" stop-color="#8B5CF6"/>
+    </linearGradient>
+    <g id="prism">
+      <polygon points="64,8 118,40 118,104 64,136 10,104 10,40" fill="none"/>
+      <polygon points="64,8 118,40 64,72 10,40" fill="#14B8A6"/>
+      <polygon points="10,40 64,72 64,136 10,104" fill="#0E3B45"/>
+      <polygon points="118,40 118,104 64,136 64,72" fill="#8B5CF6"/>
+      <polyline points="64,8 64,72" stroke="#E2E8F0" stroke-width="2" fill="none" opacity=".55"/>
+      <polyline points="10,104 64,72 118,104" stroke="#E2E8F0" stroke-width="2" fill="none" opacity=".35"/>
+    </g>
+  </defs>
+  <text x="60" y="70" fill="#94A3B8" font-size="20" letter-spacing="4">DIRECTION A — FORGE PRISM</text>
+  <text x="60" y="96" fill="#475569" font-size="14">generated geometry, engineered light · dark-first</text>
+
+  <g transform="translate(60,140) scale(1.4)"><use href="#prism"/></g>
+  <g transform="translate(300,340)"><g transform="scale(.3125)"><use href="#prism"/></g></g>
+  <g transform="translate(360,392)"><g transform="scale(.09375)"><use href="#prism"/></g></g>
+  <text x="300" y="404" fill="#475569" font-size="12">64px</text>
+  <text x="358" y="418" fill="#475569" font-size="12">16px</text>
+
+  <text x="60" y="480" font-size="72" font-weight="700"><tspan fill="#E2E8F0">imagi</tspan><tspan fill="url(#pv2)">narium</tspan></text>
+  <text x="62" y="512" fill="#64748B" font-size="16" letter-spacing="6">LOCAL 3D STUDIO</text>
+
+  <g transform="translate(760,140)">
+    <text x="0" y="0" fill="#94A3B8" font-size="14" letter-spacing="2">PALETTE</text>
+    <g transform="translate(0,16)">
+      <rect width="88" height="56" rx="8" fill="#131719" stroke="#334155"/><text x="6" y="86" fill="#64748B" font-size="12">#131719</text>
+      <rect x="104" width="88" height="56" rx="8" fill="#0E3B45"/><text x="110" y="86" fill="#64748B" font-size="12">#0E3B45</text>
+      <rect x="208" width="88" height="56" rx="8" fill="#14B8A6"/><text x="214" y="86" fill="#64748B" font-size="12">#14B8A6</text>
+      <rect x="312" width="88" height="56" rx="8" fill="#8B5CF6"/><text x="318" y="86" fill="#64748B" font-size="12">#8B5CF6</text>
+    </g>
+    <g transform="translate(0,140)">
+      <text x="0" y="0" fill="#94A3B8" font-size="14" letter-spacing="2">FAVICON IN CONTEXT</text>
+      <g transform="translate(0,16)">
+        <rect width="260" height="40" rx="10" fill="#0B0E10" stroke="#334155"/>
+        <rect x="10" y="6" width="40" height="28" rx="6" fill="#131719"/>
+        <g transform="translate(22,12) scale(.03125)"><use href="#prism"/></g>
+        <text x="58" y="25" fill="#CBD5E1" font-size="13">Imaginarium — local 3D studio</text>
+      </g>
+      <text x="0" y="90" fill="#94A3B8" font-size="14" letter-spacing="2">APP TILE</text>
+      <g transform="translate(0,102)">
+        <rect width="64" height="64" rx="14" fill="url(#pv)"/>
+        <g transform="translate(9,9) scale(.072)"><use href="#prism"/></g>
+      </g>
+    </g>
+  </g>
+  <text x="60" y="588" fill="#475569" font-size="13">Same vectors serve favicon (16px), installer icon and docs; no third-party art, MIT by default.</text>
+</svg>
