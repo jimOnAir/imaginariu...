@@ -56,7 +56,7 @@ def check_nodes():
         v = http("GET", "/af/vram", timeout=15)
         print("VRAM probe ok: %.0f of %.0f MB in use" % (v["used_mb"], v["total_mb"]))
     except Exception as e:
-        print("VRAM probe (af_vram_probe.py) not available:", e)
+        print("VRAM probe (imaginarium_vram_probe.py) not available:", e)
         missing.append("/af/vram")
     return 0 if not missing else 1
 
@@ -137,7 +137,7 @@ def build(mode, names, a):
         shape_common, pipeline=["6", 2], image_cond=["4", 1], shape_slat=["6", 0], from_resolution=["6", 1],
         to_resolution=1024, sparse_structure_resolution=["5", 1], max_num_tokens=999999, **shape_extra)}
     g.update(decode_chain({"pipeline": ["7", 2], "shape_slat": ["7", 0], "resolution": ["7", 1]},
-                          "astraforge/" + a.tag, a.target_faces, not a.no_meshlib))
+                          "imaginarium/" + a.tag, a.target_faces, not a.no_meshlib))
     return g
 
 
@@ -150,7 +150,7 @@ def generate(a):
     names = {}
     COMFY_IN.mkdir(parents=True, exist_ok=True)
     for v in need:
-        dst = f"af_smoke_{v}.png"
+        dst = f"imaginarium_smoke_{v}.png"
         shutil.copyfile(views[v], COMFY_IN / dst)
         names[v] = dst
     out = Path(a.out)
@@ -160,7 +160,7 @@ def generate(a):
     if a.dry:
         print("graph written:", out / (a.tag + ".api.json"))
         return 0
-    d = COMFY_OUT / "astraforge"
+    d = COMFY_OUT / "imaginarium"
     before = set(p.name for p in d.iterdir()) if d.is_dir() else set()
     try:
         http("POST", "/af/vram/start")

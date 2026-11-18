@@ -1,4 +1,4 @@
-AstraForge 0.4.6 — установка, которая не зависает
+Imaginarium 0.4.6 — установка, которая не зависает
 
 • Установка больше не стоит на 5 %, когда на компьютере есть Ollama. Раньше проверка компьютера сама запускала Ollama в трее и ждала, пока её закроют; при полной установке то же случалось после установки Ollama. Теперь закрывать ничего не нужно.
 • Установка не обрывается на проверке компьютера, если драйвер видеокарты NVIDIA не отвечает (например, после обновления драйвера без перезагрузки). Раньше она завершалась с ошибкой сразу после строки «Свободно на диске». Теперь установка идёт дальше, ставит PyTorch для видеокарты и советует перезагрузить компьютер или обновить драйвер. Если не удалась проверка одного компонента, остальное тоже ставится.
@@ -12,7 +12,7 @@ AstraForge 0.4.6 — установка, которая не зависает
 
 —
 
-AstraForge 0.4.6 — setup that does not hang
+Imaginarium 0.4.6 — setup that does not hang
 
 • Setup no longer stops at 5% when Ollama is on the computer. The system check used to start Ollama in the tray and wait until it was closed; the full setup did the same after installing Ollama. Now there is nothing to close.
 • Setup no longer aborts at the system check when the NVIDIA driver does not respond (for example, after a driver update without a restart). It used to fail right after the "Free on disk" line. Now it continues, installs PyTorch for the GPU and advises restarting or updating the driver. If one component check fails, everything else still installs.

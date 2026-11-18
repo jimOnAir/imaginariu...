@@ -1,4 +1,4 @@
-AstraForge 0.4.16 — студия учится на общем опыте: общие рецепты в обновлении
+Imaginarium 0.4.16 — студия учится на общем опыте: общие рецепты в обновлении
 
 • Общие рецепты студий. Журнал самообучения, который студии присылают (если обучение не выключено в «О программе»), теперь сводится в рецепты по умолчанию и приходит с обновлением. Новый ассет того класса, где у других уже есть принятый результат, сразу стартует с проверенных параметров — например, пиксельные спрайты зомби с нормальными цветами и тёмной обводкой.
 • Ваш опыт главнее общего: параметры, которые вы задали сами, ваши принятые запуски и закреплённые рецепты всегда важнее общих. Общий рецепт заполняет только то, что не задано, и каждое значение проверяется.
@@ -9,7 +9,7 @@ AstraForge 0.4.16 — студия учится на общем опыте: об
 
 —
 
-AstraForge 0.4.16 — the studio learns from shared experience: shared recipes in the update
+Imaginarium 0.4.16 — the studio learns from shared experience: shared recipes in the update
 
 • Shared studio recipes. The self-learning journal that studios send (unless learning is turned off in "About") is now summed up into default recipes that come with the update. A new asset of a class where others already have an accepted result starts right away with proven settings — for example, pixel sprites of zombies with normal colours and a dark outline.
 • Your own experience comes first: settings you set yourself, your accepted runs and pinned recipes always win over shared ones. A shared recipe only fills what is not set, and every value is checked.

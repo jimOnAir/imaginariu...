@@ -10,10 +10,10 @@
 // lighter recommendation (Windows side forces TripoSG into the low-VRAM quick set; this branch
 // only recommends, ticket 12's opt-in rule stays unconditional).
 //
-//   node af_natten_probe.mjs <python of the env>    # probe one environment (##NATTEN json line)
-//   node af_natten_probe.mjs --plan <cc> [torch cuda]  # machine-readable plan line, no env needed
+//   node imaginarium_natten_probe.mjs <python of the env>    # probe one environment (##NATTEN json line)
+//   node imaginarium_natten_probe.mjs --plan <cc> [torch cuda]  # machine-readable plan line, no env needed
 //
-// Test seams (ASTRA_VRAM_MIB style): ASTRA_GPU_CC overrides the compute capability, ASTRA_NATTEN_PROBE=0
+// Test seams (IMAGINARIUM_VRAM_MIB style): IMAGINARIUM_GPU_CC overrides the compute capability, IMAGINARIUM_NATTEN_PROBE=0
 // skips the live forward pass (unit-testable logic, no hardware). Failure to probe degrades to
 // today's behavior (the pinned wheel) with a clear reason, never to a fake green.
 import { spawnSync } from 'node:child_process';
@@ -93,14 +93,14 @@ export async function probe(dir, { manifest, env = process.env, spawnFn = spawnS
   const man = manifest || JSON.parse(readFileSync(path.join(HERE, 'manifest.json'), 'utf8'));
   const matrix = (man.linux.nattenMatrix || []).map((r) => ({ ...r, ...pinOf(man, r.id) }));
   const py = path.join(dir, '.venv', 'bin', 'python');
-  const info = readEnv(py, { forward: env.ASTRA_NATTEN_PROBE !== '0', spawnFn });
+  const info = readEnv(py, { forward: env.IMAGINARIUM_NATTEN_PROBE !== '0', spawnFn });
   if (!info || info.torchError || info.probeFailed) {
     const why = (info && (info.torchError || (info.probeFailed
       ? `the environment's python probe died without answering (exit ${info.exitCode ?? '?'}${info.signal ? ', signal ' + info.signal : ''}) - keeping the pinned wheel; on an RTX 50 a probe like this often means an NVIDIA driver below 570 (the studio gates Pixal3D on that floor) - see the scan's driver line`
       : null))) || 'the environment answered nothing - keeping the pinned wheel';
     return { dir, verdict: 'probe-failed', reason: why, matrix };
   }
-  const ccRaw = env.ASTRA_GPU_CC || info.cc;
+  const ccRaw = env.IMAGINARIUM_GPU_CC || info.cc;
   const cc = ccRaw === null || ccRaw === undefined ? null : Number(ccRaw);
   const installed = (() => {
     const r = spawnFn(py, ['-c', "import importlib.metadata as m;print(m.version('natten'))"], { encoding: 'utf8', timeout: 30000 });
@@ -127,7 +127,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     const { file, url, size, sha256 } = r.wheel || {};
     console.log(`##NATTEN ${JSON.stringify({ ...r, wheel: file || null, url: url || null, size: size || null, sha256: sha256 || null })}`);
   } else {
-    console.error('usage: af_natten_probe.mjs <env dir with .venv> | --plan <cc> [torch cuda]');
+    console.error('usage: imaginarium_natten_probe.mjs <env dir with .venv> | --plan <cc> [torch cuda]');
     process.exit(2);
   }
 }

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# AstraForge installer for Linux (the counterpart of installer/Install.ps1).
+# Imaginarium installer for Linux (the counterpart of installer/Install.ps1).
 #
 #   installer/install.sh                 check the computer, the "What to install" checklist, install
 #   installer/install.sh -ScanOnly       only inspect the computer, download nothing (verdict table)
@@ -11,14 +11,14 @@
 #   installer/install.sh -Yes            no questions: the preset of -Profile ticks as a whole
 #   installer/install.sh -v              print the installer version - always the app version in package.json
 #
-# Isolated check mode: ASTRA_INSTALL_ISOLATED=1 runs the installer as a check that leaves no trace on
+# Isolated check mode: IMAGINARIUM_INSTALL_ISOLATED=1 runs the installer as a check that leaves no trace on
 # this computer beyond the application folder (models pulled by the studio land in runtime/models/ollama
 # instead of the shared user library; a serve process started by this run is stopped on exit).
 #
 # The checklist ticks every missing/outdated row of the preset, Node.js, npm and Blender are
 # untickable, ticking a row pulls in its dependencies, a computer without an NVIDIA card is offered
 # the Lite set, and the footer shows the download size against the free disk. A failed computer
-# check falls back to installing the chosen preset as a whole. Scan logic: installer/af_scan.mjs.
+# check falls back to installing the chosen preset as a whole. Scan logic: installer/imaginarium_scan.mjs.
 # Everything installs into this application folder (runtime/, data/models/), needs no root, and an
 # interrupted download resumes on the next run. Ids: node, npm, blender, comfy, comfydeps, hy2,
 # hymv, hy21, hy2mini, sdxl, u2net, godot, clips, ollama, llm, vlm, mvadapter, pixal3d, pixal3dw,
@@ -101,7 +101,7 @@ for arg in "$@"; do
     -Profile=*|--profile=*) Profile="${arg#*=}" ;;
     -Only=*|--only=*) Only="${arg#*=}" ;;
     -h|--help) sed -n '2,25p' "$0"; exit 0 ;;
-    -v|--version) printf 'AstraForge installer %s\n' "$InstallerVersion"; exit 0 ;;
+    -v|--version) printf 'Imaginarium installer %s\n' "$InstallerVersion"; exit 0 ;;
     *) if [ "$prev" = '-Only' ] || [ "$prev" = '--only' ]; then Only="$arg"
        elif [ "$prev" = '-Profile' ] || [ "$prev" = '--profile' ]; then Profile="$arg"; fi ;;
   esac
@@ -109,7 +109,7 @@ for arg in "$@"; do
 done
 case "$Profile" in quick|full|lite) ;; *) printf 'Unknown profile: %s (quick, full, lite)\n' "$Profile" >&2; exit 2 ;; esac
 # an unattended run (or -Only): curl works quietly and the download loop prints '##PROGRESS' lines
-if [ "$Yes" = 1 ] || [ -n "$Only" ]; then ASTRA_UNATTENDED=1; export ASTRA_UNATTENDED; fi
+if [ "$Yes" = 1 ] || [ -n "$Only" ]; then IMAGINARIUM_UNATTENDED=1; export IMAGINARIUM_UNATTENDED; fi
 
 # ---------------------------------------------------------------- helpers
 say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
@@ -132,9 +132,9 @@ Ask() {
 }
 
 # the download core (Download/FileOk/DownloadChecked/DownloadMirrors/CurlReason/UvTry) is shared
-# with the pixal3d and vfx installers: installer/af_download.sh
-# shellcheck source=af_download.sh
-. "$ROOT/installer/af_download.sh"
+# with the pixal3d and vfx installers: installer/imaginarium_download.sh
+# shellcheck source=imaginarium_download.sh
+. "$ROOT/installer/imaginarium_download.sh"
 
 # mirror URL list of a program from installer/manifest.json, rewritten from the pinned Windows
 # archive to this Linux one (the mirrors carry the whole release folder); primary site first
@@ -174,10 +174,10 @@ FreeText() { local f="$1"; if [ -n "$f" ]; then Gb "$f"; else printf 'unknown'; 
 FreeUnder() { # true only when the reading EXISTS and falls short (an unknown never does)
   [ -n "$1" ] && [ "$(awk -v f="$1" -v d="$2" 'BEGIN{print (f<d)?1:0}')" = 1 ]; }
 
-# ---------------------------------------------------------------- scan (installer/af_scan.mjs is the scan core)
+# ---------------------------------------------------------------- scan (installer/imaginarium_scan.mjs is the scan core)
 ITEMS_FILE="$DL/scan-items.tsv"
 
-ScanCore() {   # af_scan.mjs --sh -> the S_* scan state + the ##ITEM checklist rows; SCAN_OK=0 on any failure
+ScanCore() {   # imaginarium_scan.mjs --sh -> the S_* scan state + the ##ITEM checklist rows; SCAN_OK=0 on any failure
   SCAN_OK=0
   local n; n="$(NodeBin)"
   if [ -z "$n" ]; then
@@ -186,7 +186,7 @@ ScanCore() {   # af_scan.mjs --sh -> the S_* scan state + the ##ITEM checklist r
   fi
   local out="$DL/scan-sh.txt"
   mkdir -p "$DL"
-  if ! "$n" "$ROOT/installer/af_scan.mjs" --sh >"$out" 2>"$DL/scan-err.txt"; then
+  if ! "$n" "$ROOT/installer/imaginarium_scan.mjs" --sh >"$out" 2>"$DL/scan-err.txt"; then
     say "  The computer check failed: $(head -1 "$DL/scan-err.txt" 2>/dev/null)"
     say '  The chosen preset will be installed as a whole.'
     return 1
@@ -201,13 +201,13 @@ ScanCore() {   # af_scan.mjs --sh -> the S_* scan state + the ##ITEM checklist r
 ScanTable() {  # -ScanOnly: the per-component verdict table of the scan core
   local n; n="$(NodeBin)"
   if [ -z "$n" ]; then say '  Node.js is needed for the computer check (installer/install.sh -Only node first).'; return 2; fi
-  "$n" "$ROOT/installer/af_scan.mjs" --table
+  "$n" "$ROOT/installer/imaginarium_scan.mjs" --table
 }
 
 ScanList() {   # -ScanList: the ##ITEM frontend contract (the same lines Setup.cs parses on Windows)
   local n; n="$(NodeBin)"
   if [ -z "$n" ]; then say '  Node.js is needed for the computer check (installer/install.sh -Only node first).'; return 2; fi
-  "$n" "$ROOT/installer/af_scan.mjs" --items
+  "$n" "$ROOT/installer/imaginarium_scan.mjs" --items
 }
 
 RecommendLlm() {
@@ -264,9 +264,9 @@ InstallGodot() {
   S_GODOT="$RT/Godot/$GodotBin"; CfgSet godot "$S_GODOT"
 }
 # gltfpack (0.7.9 fold wave ticket 56): the official zeux/meshoptimizer v1.3 Linux binary - the
-# same release whose sources native/af_mesh_rs vendors. 2 MB, sha256-pinned from the manifest:
+# same release whose sources native/imaginarium_mesh_rs vendors. 2 MB, sha256-pinned from the manifest:
 # the convert step's LOD fallback and the EXT_meshopt_compression (compact.glb) writer. Without
-# it convert still writes plain LODs through af-mesh-rs and simply reports the missing tool.
+# it convert still writes plain LODs through imaginarium-mesh-rs and simply reports the missing tool.
 InstallGltfpack() {
   local n leaf url size sha
   n="$(NodeBin)"
@@ -344,7 +344,7 @@ InstallComfyDeps() { # <dir> — the venv and PyTorch (CUDA when an NVIDIA GPU w
     UvTorch 'PyTorch' "$UV_BIN" "$py" "$torchIndex" torch torchvision torchaudio || return 1
   fi
   UvTry 'ComfyUI libraries' 3 "$UV_BIN" pip install --python "$py" -r "$dir/requirements.txt" || return 1
-  UvTry 'AstraForge libraries (background removal, meshing, unwrapping)' 3 \
+  UvTry 'Imaginarium libraries (background removal, meshing, unwrapping)' 3 \
     "$UV_BIN" pip install --python "$py" rembg onnxruntime numba scikit-image xatlas || return 1
 }
 InstallComfy() {
@@ -448,7 +448,7 @@ modelBytes() { local n out=''; n="$(NodeBin)"; if [ -n "$n" ]; then
    const m=require(process.argv[1]);const name=process.argv[2];
    for(const t of (m.llm||{}).byVram||[])if(t.model===name)process.stdout.write(String(t.size));
    if((m.llm.vlm||{}).model===name)process.stdout.write(String((m.llm.vlm||{}).size||""));
-  ' "${ASTRA_MANIFEST:-$ROOT/installer/manifest.json}" "$1" 2>/dev/null)"
+  ' "${IMAGINARIUM_MANIFEST:-$ROOT/installer/manifest.json}" "$1" 2>/dev/null)"
 fi; printf '%s' "$out"; }
 # The device a path lives on (df's source column); '' when df cannot say.
 deviceOf() { df -P "$1" 2>/dev/null | awk 'NR==2{print $1}'; }
@@ -574,7 +574,7 @@ EnsureOllama() {
       fi
       return 0
     fi
-    if [ "$started" != 1 ]; then "$S_OLLAMA" serve >/dev/null 2>&1 & disown; started=1; ASTRA_SERVE_PID=$!; ASTRA_SERVE_OWNED=1; fi
+    if [ "$started" != 1 ]; then "$S_OLLAMA" serve >/dev/null 2>&1 & disown; started=1; IMAGINARIUM_SERVE_PID=$!; IMAGINARIUM_SERVE_OWNED=1; fi
     sleep 2
   done
   say '  Ollama did not answer on http://127.0.0.1:11434 - the model step was skipped; check this Ollama can serve (ollama --version, ollama serve), then run the installer again.'
@@ -638,13 +638,13 @@ InstallClips() {
    const fs=require("fs");const man=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
    for(const k of Object.keys(man.clips))console.log(man.clips[k].file.split("?")[0])' "$src/manifests/library.json")
   local fbx="$DL/actionforge_fbx"
-  Run "$S_BLENDER" 'converting clips to FBX (Blender)' -b --factory-startup --python "$ROOT/installer/af_clips_to_fbx.py" -- "$src" "$fbx" --library || return 1
+  Run "$S_BLENDER" 'converting clips to FBX (Blender)' -b --factory-startup --python "$ROOT/installer/imaginarium_clips_to_fbx.py" -- "$src" "$fbx" --library || return 1
   mkdir -p "$fbx/_import"
   "$n" -e '
    const files=require(process.argv[1]);
    require("fs").writeFileSync(process.argv[2],JSON.stringify({step:"clip_library",inputs:{},params:{action:"import",files,library:process.argv[3]},out_dir:process.argv[4]},null,2))' \
     "$fbx/files.json" "$fbx/_import/request.json" "$S_LIBRARY/animations" "$fbx/_import" || return 1
-  Run "$S_BLENDER" 'importing clips into the AstraForge library' -b --factory-startup --python "$ROOT/scripts/blender/af_run.py" -- clip_library "$fbx/_import/request.json" || return 1
+  Run "$S_BLENDER" 'importing clips into the Imaginarium library' -b --factory-startup --python "$ROOT/scripts/blender/imaginarium_run.py" -- clip_library "$fbx/_import/request.json" || return 1
 }
 # The 0.4.15 gate, Linux form: Windows verifies the OllamaSetup.exe Authenticode signature of
 # 'Ollama Inc.' before running it; on Linux nothing is ever run as an installer, so the equivalent
@@ -679,8 +679,8 @@ OllamaVersionOk() { # <binary>
 
 InstallOllama() {
   local got cfgn arch asset
-  # ASTRA_INSTALL_NO_OLLAMA=1 forces the download path for tests, like ASTRA_INSTALL_NO_GPU for the scan
-  got=""; [ "${ASTRA_INSTALL_NO_OLLAMA:-}" = 1 ] || got="$(command -v ollama || true)"
+  # IMAGINARIUM_INSTALL_NO_OLLAMA=1 forces the download path for tests, like IMAGINARIUM_INSTALL_NO_GPU for the scan
+  got=""; [ "${IMAGINARIUM_INSTALL_NO_OLLAMA:-}" = 1 ] || got="$(command -v ollama || true)"
   if [ -n "$got" ] && OllamaVersionOk "$got"; then S_OLLAMA="$got"; CfgSet ollama "$got"; return 0; fi
   [ -n "$got" ] && say "  Ollama at $got is older than $OllamaMinVersion - not used; the checksum-verified copy goes into runtime/ollama instead."
   cfgn="$(CfgGet ollama)"; if [ -n "$cfgn" ] && [ -x "$cfgn" ] && OllamaVersionOk "$cfgn"; then S_OLLAMA="$cfgn"; return 0; fi
@@ -717,7 +717,7 @@ InstallOllama() {
 # TripoSG as a standalone install (docs/product/triposg.md, ticket 02): its own venv, the
 # commit-pinned MIT clone and the HF snapshot split into three verified download steps, each
 # resumable on its own. configs=small json files (checksummed) land next to their weights.
-TriposgDir() { local dir; dir="$(CfgGet triposgDir)"; [ -n "$dir" ] || dir="${ASTRA_TRIPOSG_DIR:-$RT/triposg}"; CfgSet triposgDir "$dir"; printf '%s' "$dir"; }
+TriposgDir() { local dir; dir="$(CfgGet triposgDir)"; [ -n "$dir" ] || dir="${IMAGINARIUM_TRIPOSG_DIR:-$RT/triposg}"; CfgSet triposgDir "$dir"; printf '%s' "$dir"; }
 TriposgConfig() { # <url> <dst> <sha>
   DownloadChecked "$1" "$2" 0 "$3" || return 1
 }
@@ -766,7 +766,7 @@ TriposgComponent() { # env|code|tf|vae|dino
 # wants its own transformers line), the two commit-pinned open-source archives, and the weight
 # snapshots - every file by pinned revision, size and sha256 from installer/sound/manifest.json.
 # The code step comes first: the two libraries are installed from the checkouts.
-SoundDir() { local dir; dir="$(CfgGet soundDir)"; [ -n "$dir" ] || dir="${ASTRA_SOUND_DIR:-$RT/sound}"; CfgSet soundDir "$dir"; printf '%s' "$dir"; }
+SoundDir() { local dir; dir="$(CfgGet soundDir)"; [ -n "$dir" ] || dir="${IMAGINARIUM_SOUND_DIR:-$RT/sound}"; CfgSet soundDir "$dir"; printf '%s' "$dir"; }
 SoundManifest() { printf '%s' "$ROOT/installer/sound/manifest.json"; }
 SoundWeights() { # <moss|ace> - the manifest files of one engine, each verified before it is accepted
   local dir="$1" key="$2" n url dst size sha
@@ -821,7 +821,7 @@ SoundComponent() { # code|env|moss|ace
 }
 
 Pixal3dComponent() { # engine|weights|test
-  local dir; dir="$(CfgGet pixal3dDir)"; [ -n "$dir" ] || dir="${ASTRA_PIXAL3D_DIR:-$RT/ComfyUI-Pixal3D}"
+  local dir; dir="$(CfgGet pixal3dDir)"; [ -n "$dir" ] || dir="${IMAGINARIUM_PIXAL3D_DIR:-$RT/ComfyUI-Pixal3D}"
   CfgSet pixal3dDir "$dir"
   "$ROOT/installer/pixal3d/install-pixal3d.sh" "$1" "$dir"
 }
@@ -835,7 +835,7 @@ InstallMvadapter() {
   Uv || return 1
   say '  MV-Adapter node'
   if ! grep -q local_sdxl_config "$ROOT/data/runtime/custom_nodes/ComfyUI-MVAdapter/utils.py" 2>/dev/null; then
-    say '  The bundled MV-Adapter node with the AstraForge patches is missing from the checkout.'; return 1
+    say '  The bundled MV-Adapter node with the Imaginarium patches is missing from the checkout.'; return 1
   fi
   say '  Python packages in the studio ComfyUI environment'
   local modules missing
@@ -1077,12 +1077,12 @@ ChecklistFlow() {   # the interactive checklist; returns with a confirmed plan
 
 ConnectExistingWeights() {   # ticket 40 (0.7.1 wave): weights other programs already downloaded
   # are CONNECTED (symlink after a pinned-sha256 check), never moved or copied; the studio then
-  # sees installed (external) rows and skips those downloads. ASTRA_CONNECT_EXISTING=0 opts out.
+  # sees installed (external) rows and skips those downloads. IMAGINARIUM_CONNECT_EXISTING=0 opts out.
   local n out tot
   [ "$SCAN_OK" = 1 ] && [ -z "$Only" ] && [ "$DryRun" != 1 ] || return 0
-  [ "${ASTRA_CONNECT_EXISTING:-1}" = 0 ] && return 0
+  [ "${IMAGINARIUM_CONNECT_EXISTING:-1}" = 0 ] && return 0
   n="$(NodeBin)"; [ -n "$n" ] || return 0
-  out="$("$n" "$ROOT/installer/af_weights.mjs" --report 2>/dev/null)" || return 0
+  out="$("$n" "$ROOT/installer/imaginarium_weights.mjs" --report 2>/dev/null)" || return 0
   printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{let j;try{j=JSON.parse(s)}catch(e){process.exit(1)}process.exit((j.items||[]).length?0:1)})' 2>/dev/null || return 0
   say ''
   say '  Model weights already on this computer (they will be linked, not copied; the pinned sha256 is verified first):'
@@ -1090,7 +1090,7 @@ ConnectExistingWeights() {   # ticket 40 (0.7.1 wave): weights other programs al
   tot="$(printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>console.log(JSON.parse(s).total))')"
   say "  Reusing them saves $(Human "${tot:-0}") of downloads."
   if Ask 'Connect these weights instead of downloading them again?' y; then
-    out="$("$n" "$ROOT/installer/af_weights.mjs" --connect 2>/dev/null)" || return 0
+    out="$("$n" "$ROOT/installer/imaginarium_weights.mjs" --connect 2>/dev/null)" || return 0
     printf '%s' "$out" | "$n" -e 'let s="";process.stdin.on("data",d=>s+=d).on("end",()=>{const j=JSON.parse(s);for(const r of j.connected||[])console.log(`    [linked]   ${r.file}`);for(const r of j.failed||[])console.log(`    [skipped]  ${r.file}: ${r.reason}`)})'
     ScanCore   # the checklist below must show the freshly connected weights
   fi
@@ -1147,7 +1147,7 @@ TakeInstallLock() {
   if ! flock -n 19; then
     other="$(head -c 40 "$lock" 2>/dev/null | tr -dc '0-9')"
     printf '##BUSY\n'
-    say "  Another AstraForge installer is already running${other:+ (pid $other)}: two at once would fight over the same files. Wait for it to finish - the Components window follows its progress; start this one after it is done."
+    say "  Another Imaginarium installer is already running${other:+ (pid $other)}: two at once would fight over the same files. Wait for it to finish - the Components window follows its progress; start this one after it is done."
     exit 1
   fi
   printf '%s\n' "$$" >&19 2>/dev/null || true
@@ -1165,10 +1165,10 @@ if [ "$ScanList" = 1 ]; then ScanList; exit $?; fi
 # isolated check mode keeps this computer as it found it (behavior per ADR-0004, ticket 03): the
 # Windows check mode also silences telemetry and the journal - this branch has neither, so
 # isolation here means the shared user model library and leftover processes.
-say "AstraForge installer $InstallerVersion (Linux)"
-if [ "${ASTRA_INSTALL_ISOLATED:-}" = 1 ]; then
+say "Imaginarium installer $InstallerVersion (Linux)"
+if [ "${IMAGINARIUM_INSTALL_ISOLATED:-}" = 1 ]; then
   export OLLAMA_MODELS="${OLLAMA_MODELS:-$RT/models/ollama}"
-  trap '[ "${ASTRA_SERVE_OWNED:-}" = 1 ] && kill "${ASTRA_SERVE_PID:-}" 2>/dev/null || true' EXIT
+  trap '[ "${IMAGINARIUM_SERVE_OWNED:-}" = 1 ] && kill "${IMAGINARIUM_SERVE_PID:-}" 2>/dev/null || true' EXIT
   say '  isolated check mode: pulled models go to runtime/models/ollama, a serve this run starts is stopped on exit, shared user folders stay untouched'
 fi
 
@@ -1221,7 +1221,7 @@ fi
 if [ "${#plan[@]}" = 0 ]; then
   if [ -z "$(CfgGet library)" ] && [ -n "${S_LIBRARY:-}" ]; then CfgSet library "$S_LIBRARY"; fi
   if [ "$DryRun" != 1 ] && { [ "$Yes" = 1 ] || [ "$Lite" = 1 ] || [ -z "$(CfgGet profile)" ]; }; then CfgSet profile "$Profile"; fi
-  [ "${ASTRA_UNATTENDED:-}" = 1 ] && printf '##DONE\n'
+  [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ] && printf '##DONE\n'
   say 'Done - launch with scripts/start.sh.'
   exit 0
 fi
@@ -1285,44 +1285,44 @@ for e in "${plan[@]}"; do
   fi
 done
 if [ "$DryRun" = 1 ]; then
-  if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
+  if [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ]; then
     if [ -n "$failed_ids" ]; then WriteInstallStatus 100 "failed" 1 "$(dl_join_failed)"; printf '##FAILED %s\n' "$(dl_join_failed)"; exit 1; fi
     WriteInstallStatus 100 "done" 0; printf '##DONE\n'
   fi
   exit 0
 fi
 # the machine contract for the calling frontend (server/components.mjs): what failed and where it ended
-if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
+if [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ]; then
   if [ -n "$failed_ids" ]; then WriteInstallStatus 100 "failed" 1 "$(dl_join_failed)"; printf '##FAILED %s\n' "$(dl_join_failed)"; exit 1; fi
   WriteInstallStatus 100 "done" 0
   printf '##DONE\n'
 fi
 
 if [ -z "$(CfgGet library)" ]; then CfgSet library "$S_LIBRARY"; fi
-if [ -z "$(CfgGet forgeRuntime)" ] && [ -z "${ASTRA_FORGE_RUNTIME:-}" ]; then CfgSet forgeRuntime "$ROOT/data/runtime/forge"; fi
+if [ -z "$(CfgGet forgeRuntime)" ] && [ -z "${IMAGINARIUM_RUNTIME:-}" ]; then CfgSet forgeRuntime "$ROOT/data/runtime/forge"; fi
 if [ -n "$S_COMFY" ] && [ -z "$(CfgGet comfyDir)" ]; then CfgSet comfyDir "$S_COMFY"; fi
 if [ -n "$S_BLENDER" ] && [ -z "$(CfgGet blender)" ]; then CfgSet blender "$S_BLENDER"; fi
 if [ -n "$S_GODOT" ] && [ -z "$(CfgGet godot)" ]; then CfgSet godot "$S_GODOT"; fi
 if [ -n "${S_GLTFPACK:-}" ] && [ -z "$(CfgGet gltfpack)" ]; then CfgSet gltfpack "$S_GLTFPACK"; fi
 if [ -n "${S_VRMADDON:-}" ] && [ -z "$(CfgGet vrm_addon)" ]; then CfgSet vrm_addon "$S_VRMADDON"; fi
 if [ -n "$S_NODE" ] && [ -z "$(CfgGet node)" ]; then CfgSet node "$S_NODE"; fi
-# ---------------------------------------------------------------- af-mesh-rs (0.7.9 performance wave ticket 46)
-# The studio's own GLB decimator (native/af_mesh_rs: Rust over vendored pinned meshoptimizer) is
+# ---------------------------------------------------------------- imaginarium-mesh-rs (0.7.9 performance wave ticket 46)
+# The studio's own GLB decimator (native/imaginarium_mesh_rs: Rust over vendored pinned meshoptimizer) is
 # the salvage fast path. It is BUILT from source, never downloaded: when cargo is on PATH the
-# release binary is compiled (shared target cache, ASTRA_CARGO_TARGET_DIR) and recorded in
+# release binary is compiled (shared target cache, IMAGINARIUM_CARGO_TARGET_DIR) and recorded in
 # config/paths.json (key afMesh); without cargo it simply does not exist and mesh salvage keeps
 # the Blender route exactly as before the ticket (the ticket-30 absence posture).
 AfMeshBuild() {
   local cargo tgt bin
   cargo="$(command -v cargo || true)"
-  if [ -z "$cargo" ]; then say '  af-mesh-rs: cargo not found - the fast mesh-salvage path stays off (the Blender path is untouched)'; return 0; fi
-  tgt="${ASTRA_CARGO_TARGET_DIR:-$ROOT/native/af_mesh_rs/target}"
-  say '  af-mesh-rs: building native/af_mesh_rs (release, from vendored sources)'
-  if ( cd "$ROOT/native/af_mesh_rs" && CARGO_TARGET_DIR="$tgt" "$cargo" build --release ) >>"$LOG" 2>&1; then
-    bin="$tgt/release/af-mesh-rs"
-    if [ -x "$bin" ]; then CfgSet afMesh "$bin"; say "  af-mesh-rs: $bin"; else say '  af-mesh-rs: the build produced no binary - mesh salvage stays on the Blender path'; fi
+  if [ -z "$cargo" ]; then say '  imaginarium-mesh-rs: cargo not found - the fast mesh-salvage path stays off (the Blender path is untouched)'; return 0; fi
+  tgt="${IMAGINARIUM_CARGO_TARGET_DIR:-$ROOT/native/imaginarium_mesh_rs/target}"
+  say '  imaginarium-mesh-rs: building native/imaginarium_mesh_rs (release, from vendored sources)'
+  if ( cd "$ROOT/native/imaginarium_mesh_rs" && CARGO_TARGET_DIR="$tgt" "$cargo" build --release ) >>"$LOG" 2>&1; then
+    bin="$tgt/release/imaginarium-mesh-rs"
+    if [ -x "$bin" ]; then CfgSet afMesh "$bin"; say "  imaginarium-mesh-rs: $bin"; else say '  imaginarium-mesh-rs: the build produced no binary - mesh salvage stays on the Blender path'; fi
   else
-    say '  af-mesh-rs: build failed (see install.log) - mesh salvage stays on the Blender path'
+    say '  imaginarium-mesh-rs: build failed (see install.log) - mesh salvage stays on the Blender path'
   fi
 }
 AfMeshBuild

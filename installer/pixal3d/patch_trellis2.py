@@ -1,13 +1,13 @@
-"""AstraForge patches for ComfyUI-Trellis2 (idempotent, each patch has its own marker).
+"""Imaginarium patches for ComfyUI-Trellis2 (idempotent, each patch has its own marker).
 
 1. DINOv3: upstream (nodes.py, class Trellis2LoadModel) silently downloads the DINOv3 weights from the third-party mirror
    `visualbruno/dinov3-vitl16-pretrain-lvd1689m` when `models/facebook/dinov3-vitl16-pretrain-lvd1689m/model.safetensors`
-   is missing. AstraForge accepts only the official weights (timm/vit_large_patch16_dinov3.lvd1689m converted with
+   is missing. Imaginarium accepts only the official weights (timm/vit_large_patch16_dinov3.lvd1689m converted with
    tools/dinov3_timm_to_hf.py, or the gated facebook repo), so the node must fail loudly instead. A `raise` is inserted
    right after `if not os.path.exists(dinov3_model_path):`; the old download code stays as dead code.
 2. meshlib: upstream imports `meshlib` (MeshLib, AMV Consulting — non-commercial / educational licence only) at module
-   load. AstraForge fills holes with CuMesh (MIT) and does not install meshlib, so the imports become optional; only the
-   meshlib nodes (never used by AstraForge) fail when called.
+   load. Imaginarium fills holes with CuMesh (MIT) and does not install meshlib, so the imports become optional; only the
+   meshlib nodes (never used by Imaginarium) fail when called.
 
     python_embeded\\python.exe -I patch_trellis2.py <ComfyUI-Trellis2 folder>      # exit 0 = patched or already patched
     python_embeded\\python.exe -I patch_trellis2.py <ComfyUI-Trellis2 folder> --check
@@ -17,7 +17,7 @@ import sys
 from pathlib import Path
 
 DINO_DONE = "Automatic download from a third-party mirror is disabled"
-MARKER_MESHLIB = "ASTRAFORGE PATCH meshlib"
+MARKER_MESHLIB = "IMAGINARIUM PATCH meshlib"
 ANCHOR = re.compile(r"^(?P<indent>[ \t]*)if not os\.path\.exists\(dinov3_model_path\):[ \t]*(?P<nl>\r?\n)", re.M)
 MESHLIB_IMPORTS = re.compile(r"^import meshlib\.(?P<mod>mrmesh\w+) as (?P<alias>\w+)[ \t]*(?P<nl>\r?\n)", re.M)
 
@@ -30,9 +30,9 @@ def patch_dinov3(text):
         raise SystemExit("anchor `if not os.path.exists(dinov3_model_path):` not found: upstream changed, re-check by hand")
     ind, nl = m.group("indent") + "    ", m.group("nl")
     lines = [
-        "# ASTRAFORGE PATCH: upstream silently downloads DINOv3 from a third-party mirror",
+        "# IMAGINARIUM PATCH: upstream silently downloads DINOv3 from a third-party mirror",
         "# (visualbruno/dinov3-vitl16-pretrain-lvd1689m). We only accept the official weights, placed by the installer",
-        "# (see ASTRAFORGE_README.md), so fail loudly instead of downloading.",
+        "# (see IMAGINARIUM_README.md), so fail loudly instead of downloading.",
         "raise Exception('DINOv3 weights missing: expected ' + dinov3_model_path +",
         "                ' (official facebook/dinov3-vitl16-pretrain-lvd1689m or the converted timm copy). '",
         "                '" + DINO_DONE + " in this install.')",
@@ -49,7 +49,7 @@ def patch_meshlib(text):
         return text, "meshlib: no top-level imports (nothing to do)"
     for m in reversed(found):
         nl = m.group("nl")
-        repl = ("try:  # " + MARKER_MESHLIB + ": meshlib is non-commercial only and not installed by AstraForge" + nl +
+        repl = ("try:  # " + MARKER_MESHLIB + ": meshlib is non-commercial only and not installed by Imaginarium" + nl +
                 "    import meshlib." + m.group("mod") + " as " + m.group("alias") + nl +
                 "except ImportError:" + nl +
                 "    " + m.group("alias") + " = None" + nl)

@@ -1,4 +1,4 @@
-AstraForge 0.4.13 — PyTorch, Blender и анимации ставятся там, где раньше падали; обновление докачивается
+Imaginarium 0.4.13 — PyTorch, Blender и анимации ставятся там, где раньше падали; обновление докачивается
 
 • «PyTorch — ошибка (код 2)», а следом не ставились ComfyUI и MV-Adapter: исправлено. PyTorch для видеокарты весит около 3 ГБ, и на медленной или нестабильной связи установщик раньше сдавался через полминуты ожидания. Теперь он ждёт дольше, повторяет загрузку и при сбое сети пробует шаг ещё два раза. Если не вышло и так, в окне и в отчёте видна настоящая причина.
 • Blender не скачивался («код 22», сайт ответил 403): исправлено. Сайт Blender не пускает часть сетей — теперь установщик берёт тот же файл с официальных зеркал Blender и сверяет его контрольную сумму.
@@ -12,7 +12,7 @@ AstraForge 0.4.13 — PyTorch, Blender и анимации ставятся та
 
 —
 
-AstraForge 0.4.13 — PyTorch, Blender and animations install where they used to fail; updates resume
+Imaginarium 0.4.13 — PyTorch, Blender and animations install where they used to fail; updates resume
 
 • "PyTorch — error (code 2)", after which ComfyUI and MV-Adapter were not installed: fixed. PyTorch for NVIDIA cards is about 3 GB, and on a slow or unstable connection the installer used to give up after half a minute of waiting. It now waits longer, retries the download and, if the network fails, tries the step two more times. If that still fails, the window and the report show the real reason.
 • Blender failed to download ("code 22", the site answered 403): fixed. The Blender site blocks some networks — the installer now takes the same file from the official Blender mirrors and verifies its checksum.

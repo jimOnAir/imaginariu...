@@ -1,26 +1,26 @@
-AstraForge 0.4.4 — для всех: студия учится на ваших оценках, экспорт в Unity, вкладка «2D»
+Imaginarium 0.4.4 — для всех: студия учится на ваших оценках, экспорт в Unity, вкладка «2D»
 
 • Самообучение. Студия ведёт журнал производства: что делали, с какими настройками и что вы сказали о результате. Из него складываются рецепты по классам ассетов. Смотреть и править — «Приёмка → Журнал и рецепты».
-• Экспорт в Unity 6. Новый профиль «unity» и пакет-импортёр com.astraforge.unity: модель, риг и анимации приходят в проект Unity готовыми. Для Claude Code — связка с MCP for Unity и агент astraforge-integrator, который ведёт ассет от студии до работающей сцены в Unity или Godot.
+• Экспорт в Unity 6. Новый профиль «unity» и пакет-импортёр dev.imaginarium3d.unity: модель, риг и анимации приходят в проект Unity готовыми. Для Claude Code — связка с MCP for Unity и агент imaginarium-integrator, который ведёт ассет от студии до работающей сцены в Unity или Godot.
 • Вкладка «2D»: картинки, ракурсы персонажа, части тела, кадры анимации и раскадровки для игры.
   Важно: из коробки «2D» работает на SDXL. Модели FLUX.2 klein и Qwen-Image и узел ComfyUI-GGUF для них установщик пока не ставит, поэтому вкладка прямо пишет, чего не хватает. Рисование по референсу (FLUX.2) появится, когда модели будут в установщике. Выбор моделей при установке и генерация через GPT по подписке ChatGPT — в следующей версии.
 • Генераторы для игр: дома с разрушением, зомби, орудия и 16 сторон для пиксель-спрайтов.
 • Оплата подписки картой в рублях, долларах или евро (lava.top) на keys.dops.media/buy.
 
-Бесплатно для всех — для личного и другого некоммерческого использования: скачайте AstraForge-Setup-0.4.4.exe ниже (поставьте поверх старой версии в ту же папку — проекты, модели и настройки сохранятся).
+Бесплатно для всех — для личного и другого некоммерческого использования: скачайте Imaginarium-Setup-0.4.4.exe ниже (поставьте поверх старой версии в ту же папку — проекты, модели и настройки сохранятся).
 Подписка (5 $/мес или 49 $/год; 490 ₽ / 4800 ₽) — коммерческое использование студии и всего, что в ней сделано, и каждое обновление в день выхода: подписчикам 0.4.4 уже пришла сама, при запуске студии. Один ключ — один компьютер.
 
 Подписка и условия: https://snodrod.github.io/AstraForge/
 
 —
 
-AstraForge 0.4.4 — for everyone: the studio learns from your ratings, Unity export, the "2D" tab.
+Imaginarium 0.4.4 — for everyone: the studio learns from your ratings, Unity export, the "2D" tab.
 
 • Self-learning: a production journal (what was made, with which settings, and your verdict) turns into recipes per asset class — see "Review → Journal and recipes".
-• Unity 6 export: a new "unity" profile and the com.astraforge.unity importer bring the model, rig and animations into a Unity project ready to use. For Claude Code: MCP for Unity support and the astraforge-integrator agent that takes an asset from the studio to a working scene in Unity or Godot.
+• Unity 6 export: a new "unity" profile and the dev.imaginarium3d.unity importer bring the model, rig and animations into a Unity project ready to use. For Claude Code: MCP for Unity support and the imaginarium-integrator agent that takes an asset from the studio to a working scene in Unity or Godot.
 • "2D" tab: images, character views, body parts, animation frames and storyboards for games. Note: out of the box "2D" runs on SDXL. The installer does not yet set up FLUX.2 klein, Qwen-Image or the ComfyUI-GGUF node they need, so the tab tells you what is missing. Drawing from a reference (FLUX.2) arrives once those models are in the installer. Picking models during setup and generating through GPT with a ChatGPT subscription come in the next version.
 • Game generators: destructible houses, zombies, turrets, 16 directions for pixel sprites.
 • Pay for the subscription by card in RUB, USD or EUR (lava.top) at keys.dops.media/buy.
 
-Free for everyone for personal and other noncommercial use: download AstraForge-Setup-0.4.4.exe below (install over the old version into the same folder; projects, models and settings are kept).
+Free for everyone for personal and other noncommercial use: download Imaginarium-Setup-0.4.4.exe below (install over the old version into the same folder; projects, models and settings are kept).
 Subscription ($5/month or $49/year): commercial use of the studio and everything made in it, plus every update on release day. Subscribers already got 0.4.4 automatically on studio start. One key — one computer.

@@ -9,7 +9,7 @@ and verify numerically that the converted model reproduces the timm model throug
 the node uses (embeddings -> rope -> layers -> F.layer_norm without affine; token order
 [CLS, 4 registers, patches]).
 
-AstraForge installer copy. Run with the portable interpreter of the Pixal3D install, e.g.
+Imaginarium installer copy. Run with the portable interpreter of the Pixal3D install, e.g.
 
     python_embeded\\python.exe -I tools\\dinov3_timm_to_hf.py ^
         --timm-dir ComfyUI\\models\\timm\\vit_large_patch16_dinov3.lvd1689m ^

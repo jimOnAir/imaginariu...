@@ -1,6 +1,6 @@
-"""AstraForge addition to ComfyUI-MVAdapter (Apache-2.0): one self-contained node for the "views" feature.
+"""Imaginarium addition to ComfyUI-MVAdapter (Apache-2.0): one self-contained node for the "views" feature.
 
-`AstraMVAdapterViews` loads SDXL base + the MV-Adapter image-to-multiview weights from LOCAL files only,
+`ImagiMVAdapterViews` loads SDXL base + the MV-Adapter image-to-multiview weights from LOCAL files only,
 generates the requested azimuths from one reference image and hands every byte of GPU memory back, so the
 next Hunyuan3D job in the same ComfyUI process finds the card free. The stock nodes keep the whole pipeline
 cached on the GPU between prompts, which is not an option on a 12 GB card shared with Hunyuan3D.
@@ -25,14 +25,14 @@ def _default_adapter_dir():
 
 
 def _fp8_tier(device):
-    """Ticket 44 (views low-VRAM): NVIDIA cards up to ASTRA_VIEWS_FP8_MAX_MIB (default 16384)
+    """Ticket 44 (views low-VRAM): NVIDIA cards up to IMAGINARIUM_VIEWS_FP8_MAX_MIB (default 16384)
     store the UNet as fp8 (e4m3) masters ON THE CARD - ~2.9 GB instead of ~5.4 GB of fp16, with
-    each block upcast to fp16 on the fly for the step it participates in. ASTRA_VIEWS_FP8=0/off
+    each block upcast to fp16 on the fly for the step it participates in. IMAGINARIUM_VIEWS_FP8=0/off
     disables the whole path. Per-MODULE call - the shipped diffusers (0.40/0.42) does not expose
     layerwise casting on pipelines, only on ModelMixin parts, so this applies to pipe.unet
     alone. The VAE is deliberately NOT cast: its force_upcast float32 path collides with fp8
     storage."""
-    mode = (os.environ.get("ASTRA_VIEWS_FP8") or "auto").strip().lower()
+    mode = (os.environ.get("IMAGINARIUM_VIEWS_FP8") or "auto").strip().lower()
     if mode in ("0", "off", "no"):
         return False
     if getattr(torch.version, "hip", None) or not torch.cuda.is_available():
@@ -41,7 +41,7 @@ def _fp8_tier(device):
         total_mib = torch.cuda.get_device_properties(device).total_memory / 2 ** 20
     except Exception:
         return False
-    max_mib = int(os.environ.get("ASTRA_VIEWS_FP8_MAX_MIB", "16384") or 0)
+    max_mib = int(os.environ.get("IMAGINARIUM_VIEWS_FP8_MAX_MIB", "16384") or 0)
     return max_mib <= 0 or total_mib <= max_mib
 
 
@@ -84,7 +84,7 @@ def _manual_offload(pipe, device, dtype, unet_dtype=...):
     pipe.__class__ = OnDevice
 
 
-class AstraMVAdapterViews:
+class ImagiMVAdapterViews:
     @classmethod
     def INPUT_TYPES(cls):
         return {
@@ -110,7 +110,7 @@ class AstraMVAdapterViews:
 
     RETURN_TYPES = ("IMAGE",)
     FUNCTION = "run"
-    CATEGORY = "AstraForge/3D"
+    CATEGORY = "Imaginarium/3D"
 
     def run(self, reference, ckpt_name, azimuths, width, height, steps, cfg, seed, prompt, negative_prompt,
             offload, adapter_dir="", adapter_name="mvadapter_i2mv_sdxl.safetensors", shift_scale=8.0):
@@ -179,7 +179,7 @@ class AstraMVAdapterViews:
             )[0]
             wall = time.time() - t_run
             peak = torch.cuda.max_memory_allocated() / 2 ** 30
-            print("[AstraMVAdapterViews] views=%s size=%dx%d steps=%d peak VRAM %.2f GB wall %.1f s"
+            print("[ImagiMVAdapterViews] views=%s size=%dx%d steps=%d peak VRAM %.2f GB wall %.1f s"
                   " (%.1f s/step)%s" % (azimuth_list, width, height, steps, peak, wall,
                                         wall / max(1, steps), " fp8-layerwise" if fp8 else ""), flush=True)
             return (images.cpu(),)
@@ -196,5 +196,5 @@ class AstraMVAdapterViews:
             torch.cuda.empty_cache()
 
 
-NODE_CLASS_MAPPINGS = {"AstraMVAdapterViews": AstraMVAdapterViews}
-NODE_DISPLAY_NAME_MAPPINGS = {"AstraMVAdapterViews": "AstraForge · MV-Adapter views (local, frees GPU)"}
+NODE_CLASS_MAPPINGS = {"ImagiMVAdapterViews": ImagiMVAdapterViews}
+NODE_DISPLAY_NAME_MAPPINGS = {"ImagiMVAdapterViews": "Imaginarium · MV-Adapter views (local, frees GPU)"}

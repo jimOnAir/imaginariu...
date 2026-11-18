@@ -1,4 +1,4 @@
-AstraForge 0.4.8 — установщик сам смотрит, что уже есть, и ставит выбранное
+Imaginarium 0.4.8 — установщик сам смотрит, что уже есть, и ставит выбранное
 
 • Новый шаг «Что установить». После выбора папки установщик проверяет компьютер и показывает каждую программу и модель: что уже стоит, какая версия и где, что нужно скачать и сколько. Уже установленное не скачивается повторно. Устаревшее помечено «обновить»: старая версия ComfyUI, файл модели другой версии, нет загрузчика для FLUX.2 и Qwen-Image.
 • Галочки по каждому компоненту. Кнопки «Быстрая», «Полная — всё» и «Облегчённая» расставляют их сами. По умолчанию — «Полная», в ней отмечено всё; без видеокарты NVIDIA — «Облегчённая». Без Node.js, интерфейса и Blender студия не работает, их галочки не снимаются; то, без чего не работает отмеченное, отмечается само. Внизу — сколько скачать и сколько свободно на диске.
@@ -10,7 +10,7 @@ AstraForge 0.4.8 — установщик сам смотрит, что уже �
 
 —
 
-AstraForge 0.4.8 — the installer checks what you already have and installs what you choose
+Imaginarium 0.4.8 — the installer checks what you already have and installs what you choose
 
 • New step "What to install". After you pick the folder, the installer checks the computer and lists every program and model: what is already installed, which version and where, what needs to be downloaded and how big it is. Anything already installed is not downloaded again. Outdated items are marked "update": an old ComfyUI, a model file of a different version, a missing loader for FLUX.2 and Qwen-Image.
 • A checkbox for each component. The "Quick", "Full — everything" and "Lite" buttons set them for you. The default is Full, where everything is ticked; without an NVIDIA card it is Lite. The studio cannot work without Node.js, the interface and Blender, so they cannot be unticked; anything a ticked item needs is ticked automatically. The bottom line shows how much to download and how much disk space is free.

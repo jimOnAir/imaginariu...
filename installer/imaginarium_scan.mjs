@@ -1,23 +1,23 @@
 #!/usr/bin/env node
-// AstraForge scan core: what this computer already has and what the installer would download.
+// Imaginarium scan core: what this computer already has and what the installer would download.
 //
 // Platform-neutral and dependency-free (it must run before `npm ci` too): the same scan serves
 // every frontend - the interactive `installer/install.sh` (--sh / --table), the studio's Components
 // window (ticket 19 imports scanComponents/scanItems) and tests. The Windows frontends
 // (Install.ps1 -ScanList, Setup.cs) stay frozen and keep their own copy of this contract.
 //
-//   node installer/af_scan.mjs --items   one "##ITEM" line per component (13 tab-separated fields):
+//   node installer/imaginarium_scan.mjs --items   one "##ITEM" line per component (13 tab-separated fields):
 //        ##ITEM id group status have need bytes name license presets deps only note
 //        status: installed | outdated | missing | unavailable;
 //        presets: which sets contain this component (letters q=quick, f=full, l=lite);
 //        deps: ids of other rows a ticked row pulls in; only: the component ids that -Only installs
 //        for this row (empty = the row's own id); note: why an item is outdated/unavailable, or a warning.
-//   node installer/af_scan.mjs --table   the same verdicts as a human-readable table (-ScanOnly)
-//   node installer/af_scan.mjs --state   KEY=VALUE shell assignments of the scan state
-//   node installer/af_scan.mjs --sh      the state assignments followed by the ##ITEM lines (install.sh)
+//   node installer/imaginarium_scan.mjs --table   the same verdicts as a human-readable table (-ScanOnly)
+//   node installer/imaginarium_scan.mjs --state   KEY=VALUE shell assignments of the scan state
+//   node installer/imaginarium_scan.mjs --sh      the state assignments followed by the ##ITEM lines (install.sh)
 //
-// Test hooks: ASTRA_INSTALL_NO_GPU=1 pretends the machine has no NVIDIA card (the Lite branch),
-// ASTRA_INSTALL_SCAN_FAIL=1 makes the check fail - the frontend then installs its preset as a whole.
+// Test hooks: IMAGINARIUM_INSTALL_NO_GPU=1 pretends the machine has no NVIDIA card (the Lite branch),
+// IMAGINARIUM_INSTALL_SCAN_FAIL=1 makes the check fail - the frontend then installs its preset as a whole.
 import { existsSync, lstatSync, readFileSync, readdirSync, realpathSync, statSync, statfsSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
@@ -148,7 +148,7 @@ function modelDirs(root, comfy, sub) {
 }
 
 /**
- * A symlink the weight-connector (installer/af_weights.mjs, ticket 40) left behind points outside
+ * A symlink the weight-connector (installer/imaginarium_weights.mjs, ticket 40) left behind points outside
  * the studio's own folders: that file is reused, not owned - say so in the status and the human
  * column. A real file, or a link into data/ or the configured ComfyUI, is the plain installed.
  */
@@ -231,7 +231,7 @@ export function mvScan(s) {
   const wPath = path.join(s.root, 'data', 'models', 'mvadapter', man.files[0].path);
   const nodeDir = path.join(s.root, 'data', 'runtime', 'custom_nodes', 'ComfyUI-MVAdapter');
   try {
-    r.node = existsSync(path.join(nodeDir, 'astra_views.py')) && /local_sdxl_config/.test(readFileSync(path.join(nodeDir, 'utils.py'), 'utf8'));
+    r.node = existsSync(path.join(nodeDir, 'imagi_views.py')) && /local_sdxl_config/.test(readFileSync(path.join(nodeDir, 'utils.py'), 'utf8'));
   } catch { r.node = false; }
   r.weights = sizeOf(wPath) === wSize;
   r.config = existsSync(path.join(s.root, 'data', 'models', 'mvadapter', 'sdxl-config', 'model_index.json'));
@@ -258,16 +258,16 @@ export function p3Scan(s) {
   let man;
   try { man = readJson(path.join(s.root, 'installer', 'pixal3d', 'manifest.json')); } catch { r.offer = false; r.reason = 'installer/pixal3d/manifest.json is missing'; return r; }
   const env = s.env;
-  const cands = env.ASTRA_PIXAL3D_DIR
-    ? [env.ASTRA_PIXAL3D_DIR]
-    : candidates('pixal3dDir', 'ASTRA_PIXAL3D_DIR', s.cfg, env, path.join(s.rt, 'ComfyUI-Pixal3D'));
+  const cands = env.IMAGINARIUM_PIXAL3D_DIR
+    ? [env.IMAGINARIUM_PIXAL3D_DIR]
+    : candidates('pixal3dDir', 'IMAGINARIUM_PIXAL3D_DIR', s.cfg, env, path.join(s.rt, 'ComfyUI-Pixal3D'));
   const probe = (dir) => {
     const p = { dir, exists: existsSync(dir), python: false, comfy: false, node: false, patched: false, weights: false, missingBytes: 0 };
     p.python = isExe(path.join(dir, '.venv', 'bin', 'python'));           // the uv venv (python_embeded on Windows)
     p.comfy = existsSync(path.join(dir, 'ComfyUI', 'main.py'));
     const nodes = path.join(dir, 'ComfyUI', 'custom_nodes', 'ComfyUI-Trellis2', 'nodes.py');
     p.node = existsSync(nodes);
-    try { p.patched = p.node && readFileSync(nodes, 'utf8').includes('ASTRAFORGE PATCH'); } catch { p.patched = false; }
+    try { p.patched = p.node && readFileSync(nodes, 'utf8').includes('IMAGINARIUM PATCH'); } catch { p.patched = false; }
     p.engine = p.python && p.comfy && p.node && p.patched;
     const md = path.join(dir, 'ComfyUI', 'models');
     const files = [];
@@ -305,9 +305,9 @@ export function p3Scan(s) {
 /** TripoSG state (docs/product/triposg.md): venv + pinned clone + snapshot weights on disk. */
 export function triposgScan(s) {
   const r = { dir: '', env: false, code: false, weights: false, complete: false, offer: true, reason: '', missingBytes: 0 };
-  const cands = s.env.ASTRA_TRIPOSG_DIR
-    ? [s.env.ASTRA_TRIPOSG_DIR]
-    : candidates('triposgDir', 'ASTRA_TRIPOSG_DIR', s.cfg, s.env, path.join(s.rt, 'triposg'));
+  const cands = s.env.IMAGINARIUM_TRIPOSG_DIR
+    ? [s.env.IMAGINARIUM_TRIPOSG_DIR]
+    : candidates('triposgDir', 'IMAGINARIUM_TRIPOSG_DIR', s.cfg, s.env, path.join(s.rt, 'triposg'));
   const probe = (dir) => {
     const p = { dir, env: isExe(path.join(dir, '.venv', 'bin', 'python')), code: existsSync(path.join(dir, 'src', 'TripoSG', 'triposg', 'pipelines', 'pipeline_triposg.py')) };
     p.missingBytes = TS_WEIGHTS.reduce((n, [rel, sz]) => n + (sizeOf(path.join(dir, 'models', 'TripoSG', rel)) === sz ? 0 : sz), 0);
@@ -333,9 +333,9 @@ export function soundScan(s) {
   const files = Object.values(man.models).flatMap((m) => m.files.map((f) => [path.join(m.dst, f.path), f.size]));
   r.codeBytes = Object.values(man.code).reduce((n, c) => n + c.size, 0);
   r.weightBytes = files.reduce((n, [, sz]) => n + sz, 0);
-  const cands = s.env.ASTRA_SOUND_DIR
-    ? [s.env.ASTRA_SOUND_DIR]
-    : candidates('soundDir', 'ASTRA_SOUND_DIR', s.cfg, s.env, path.join(s.rt, 'sound'));
+  const cands = s.env.IMAGINARIUM_SOUND_DIR
+    ? [s.env.IMAGINARIUM_SOUND_DIR]
+    : candidates('soundDir', 'IMAGINARIUM_SOUND_DIR', s.cfg, s.env, path.join(s.rt, 'sound'));
   const probe = (dir) => {
     const p = { dir, env: isExe(path.join(dir, '.venv', 'bin', 'python')) };
     p.code = existsSync(path.join(dir, 'src', 'MOSS-TTS', 'moss_soundeffect_v2', 'pyproject.toml'))
@@ -357,12 +357,12 @@ export function soundScan(s) {
 
 /**
  * Scan the machine. opts = { root, env, noGpu, fail }. Throws when the check fails
- * (ASTRA_INSTALL_SCAN_FAIL=1 / opts.fail) or the folder is not the application folder -
+ * (IMAGINARIUM_INSTALL_SCAN_FAIL=1 / opts.fail) or the folder is not the application folder -
  * frontends fall back to installing their preset as a whole.
  */
 export function scanComponents(opts = {}) {
   const env = opts.env || process.env;
-  if (opts.fail || env.ASTRA_INSTALL_SCAN_FAIL) throw new Error('ASTRA_INSTALL_SCAN_FAIL=1: the computer check failed on purpose');
+  if (opts.fail || env.IMAGINARIUM_INSTALL_SCAN_FAIL) throw new Error('IMAGINARIUM_INSTALL_SCAN_FAIL=1: the computer check failed on purpose');
   const root = opts.root || APP_ROOT;
   const rt = path.join(root, 'runtime');
   let man;
@@ -376,7 +376,7 @@ export function scanComponents(opts = {}) {
     gguf: false, godot: '', godotVer: '', gltfpack: '', gltfpackVer: '', vrmaddon: '', clips: 0, library: '', vfxDir: '', vfxOk: false, ollama: '', llms: [], vlm: false };
 
   // --- GPU: name/VRAM/compute capability from nvidia-smi; lspci only names the cards in the warning
-  if (env.ASTRA_INSTALL_NO_GPU || opts.noGpu) {
+  if (env.IMAGINARIUM_INSTALL_NO_GPU || opts.noGpu) {
     s.adapters = ['AMD Radeon (test)'];
   } else {
     const smi = which('nvidia-smi') || (process.platform === 'win32'
@@ -389,7 +389,7 @@ export function scanComponents(opts = {}) {
         // [N/A] on old nvidia-smi: /proc/driver/nvidia/version is the second source before
         // the version counts as unknown (ticket 36; env seam for the tests).
         let procText = '';
-        if (process.platform !== 'win32') { try { procText = readFileSync(env.ASTRA_NVIDIA_VERSION_FILE || '/proc/driver/nvidia/version', 'utf8'); } catch { procText = ''; } }
+        if (process.platform !== 'win32') { try { procText = readFileSync(env.IMAGINARIUM_NVIDIA_VERSION_FILE || '/proc/driver/nvidia/version', 'utf8'); } catch { procText = ''; } }
         Object.assign(s, nvidiaDriverFacts(parts[3], procText));
       }
       else s.gpuBroken = `nvidia-smi answered unexpectedly: ${parts.join(', ') || 'no output'}`;
@@ -403,7 +403,7 @@ export function scanComponents(opts = {}) {
   s.noGpu = !s.gpu && !s.gpuBroken;
 
   // --- Node.js >= 22.12, the studio build, Blender 5.x
-  for (const n of candidates('node', 'ASTRA_NODE', cfg, env, path.join(rt, 'node', 'bin', 'node'), path.join(rt, 'node', 'node.exe'), which('node'))) {
+  for (const n of candidates('node', 'IMAGINARIUM_NODE', cfg, env, path.join(rt, 'node', 'bin', 'node'), path.join(rt, 'node', 'node.exe'), which('node'))) {
     if (!isExe(n)) continue;
     const v = spawnText(n, ['-v'], 10000).out.trim().replace(/^v/, '');
     const [maj, min] = v.split('.').map((x) => parseInt(x, 10) || 0);
@@ -411,7 +411,7 @@ export function scanComponents(opts = {}) {
   }
   s.npmDeps = existsSync(path.join(root, 'node_modules', 'express'));
   s.ui = existsSync(path.join(root, 'dist', 'index.html'));
-  for (const b of candidates('blender', 'ASTRA_BLENDER', cfg, env,
+  for (const b of candidates('blender', 'IMAGINARIUM_BLENDER', cfg, env,
     path.join(rt, 'blender', 'blender-5.2.4-linux-x64', 'blender'), path.join(rt, 'blender', 'blender-5.2.4-windows-x64', 'blender.exe'), which('blender'))) {
     if (!isExe(b)) continue;
     const out = spawnText(b, ['--version'], 30000).out.split('\n')[0] || '';
@@ -421,7 +421,7 @@ export function scanComponents(opts = {}) {
 
   // --- ComfyUI of the studio: venv + main.py + the Hunyuan3D nodes mark the app's copy
   const comfyOk = (c) => c && isExe(path.join(c, pyRel)) && existsSync(path.join(c, 'main.py')) && existsSync(path.join(c, 'comfy_extras', 'nodes_hunyuan3d.py'));
-  s.comfy = candidates('comfyDir', 'ASTRA_COMFY_DIR', cfg, env, path.join(rt, 'ComfyUI')).find(comfyOk) || '';
+  s.comfy = candidates('comfyDir', 'IMAGINARIUM_COMFY_DIR', cfg, env, path.join(rt, 'ComfyUI')).find(comfyOk) || '';
   if (s.comfy) {
     try { const m = /__version__\s*=\s*"([\d.]+)"/.exec(readFileSync(path.join(s.comfy, 'comfyui_version.py'), 'utf8')); if (m) s.comfyVer = m[1]; } catch { /* no version file: treated as current */ }
     s.comfyDeps = spawnText(path.join(s.comfy, pyRel), ['-c',
@@ -431,7 +431,7 @@ export function scanComponents(opts = {}) {
     s.comfy ? path.join(s.comfy, 'custom_nodes', 'ComfyUI-GGUF', 'nodes.py') : ''].some((p) => p && existsSync(p));
 
   // --- Godot, models, clip library, VFX, Ollama, MV-Adapter, Pixal3D
-  s.godot = candidates('godot', 'ASTRA_GODOT', cfg, env,
+  s.godot = candidates('godot', 'IMAGINARIUM_GODOT', cfg, env,
     path.join(rt, 'Godot', 'Godot_v4.5.1-stable_linux.x86_64'), path.join(rt, 'godot'), which('godot'), which('godot4')).find((g) => isExe(g)) || '';
   if (s.godot) {
     const out = spawnText(s.godot, ['--version'], 15000).out.split('\n')[0] || '';
@@ -439,7 +439,7 @@ export function scanComponents(opts = {}) {
   }
   // gltfpack (0.7.9 fold wave ticket 56): the LOD fallback and the compact.glb writer of the
   // convert step; the installer unpacks the pinned official release into runtime/gltfpack
-  s.gltfpack = candidates('gltfpack', 'ASTRA_GLTFPACK', cfg, env,
+  s.gltfpack = candidates('gltfpack', 'IMAGINARIUM_GLTFPACK', cfg, env,
     path.join(rt, 'gltfpack', 'gltfpack'), which('gltfpack')).find((g) => isExe(g)) || '';
   s.gltfpackVer = s.gltfpack ? String(man.programs.gltfpack.version || '') : '';
   // vrmaddon (0.7.10 fold wave ticket 61): the VRM Add-on for Blender extension zip that the
@@ -447,7 +447,7 @@ export function scanComponents(opts = {}) {
   // official release into runtime/vrm-addon - an extension folder is the one holding its
   // blender_manifest.toml (the zip root is the folder named by the extension id, `vrm`)
   const isExtDir = (d) => { try { return statSync(path.join(d, 'blender_manifest.toml')).isFile(); } catch { return false; } };
-  s.vrmaddon = candidates('vrm_addon', 'ASTRA_VRM_ADDON', cfg, env,
+  s.vrmaddon = candidates('vrm_addon', 'IMAGINARIUM_VRM_ADDON', cfg, env,
     path.join(rt, 'vrm-addon', 'vrm'), path.join(rt, 'vrm-addon')).find((d) => isExtDir(d)) || '';
   for (const id of ['hy2', 'hymv', 'hy21', 'hy2mini', 'sdxl', 'u2net']) s[id] = modelState(root, s.comfy, man, id);
   // the 2D engines install as a set (weights + text encoder + VAE): one verdict per engine
@@ -463,14 +463,14 @@ export function scanComponents(opts = {}) {
     try { return readdirSync(dir).filter((f) => /flux-2-klein.*9b.*\.gguf$/i.test(f)).map((f) => ({ name: f, size: statSync(path.join(dir, f)).size })); } catch { return []; }
   })();
   s.qwenimg = multiState(root, s.comfy, man, ['qwenimg', 'qwente', 'qwenvae']);
-  s.library = cfg.library || env.ASTRA_FORGE_LIBRARY || path.join(root, 'library');
+  s.library = cfg.library || env.IMAGINARIUM_LIBRARY || path.join(root, 'library');
   const quats = path.join(s.library, 'animations', 'quaternius');
   try { s.clips = readdirSync(quats).filter((f) => f.endsWith('.fbx')).length; } catch { s.clips = 0; }
   s.vfxDir = cfg.vfxTools || path.join(rt, 'vfx');
   // the same marker as the Windows Scan (apps/material-maker/material_maker.exe), Linux builds included
   s.vfxOk = ['material_maker.exe', 'material_maker.x86_64', 'material_maker']
     .some((n) => existsSync(path.join(s.vfxDir, 'apps', 'material-maker', n)));
-  s.ollama = candidates('ollama', 'ASTRA_OLLAMA', cfg, env, which('ollama')).find((o) => isExe(o)) || '';
+  s.ollama = candidates('ollama', 'IMAGINARIUM_OLLAMA', cfg, env, which('ollama')).find((o) => isExe(o)) || '';
   s.llms = s.ollama ? ollamaModels(env) : [];
   s.vlm = s.llms.includes(VLM);
   s.mv = mvScan(s);
@@ -512,7 +512,7 @@ export function scanItems(s) {
   add('godot', G_P, s.godot ? 'installed' : 'missing', s.godot ? `${s.godotVer} · ${s.godot}` : '', '4.5.1', SIZE.godot, 'Godot 4.5 (game package validation)', 'MIT');
   add('gltfpack', G_P, s.gltfpack ? 'installed' : 'missing', s.gltfpack || '', 'v1.3', SIZE.gltfpack,
     'gltfpack (LOD levels and compact GLB)', man.programs.gltfpack.license, '', '',
-    'the convert step writes LOD files and compact.glb with it (af-mesh-rs stays primary for LODs)');
+    'the convert step writes LOD files and compact.glb with it (imaginarium-mesh-rs stays primary for LODs)');
   add('vrmaddon', G_P, s.vrmaddon ? 'installed' : 'missing', s.vrmaddon || '', String(man.programs.vrmaddon.version || ''), SIZE.vrmaddon,
     'VRM Add-on for Blender (VRM 1.0 character files)', man.programs.vrmaddon.license, 'blender', '',
     'the vrm_package step enables it in its own Blender to export the character as one .vrm');
@@ -671,7 +671,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     else if (mode === 'state') process.stdout.write(`${stateLines(s)}\n`);
     else if (mode === 'sh') process.stdout.write(`${stateLines(s)}\n${itemLines(items).join('\n')}\n`);
     else {
-      const head = ['', `AstraForge scan: ${s.root}`];
+      const head = ['', `Imaginarium scan: ${s.root}`];
       if (s.gpu) head.push(`  [found]    GPU: ${s.gpu} (${Math.round(s.vram / 1024)} GB${s.cc ? `, compute ${s.cc}` : ''}${s.driver ? `, driver ${s.driver}` : ''})`);
       else if (s.gpuBroken) head.push(`  [driver]   the NVIDIA driver does not answer (${s.gpuBroken}) - generation starts only after a reboot or a driver update`);
       else head.push(`  [no GPU]   NVIDIA graphics card not found${s.adapters.length ? ` (this computer has: ${s.adapters.join(', ')})` : ''} - 3D generation from a picture will be unavailable (the interface and Blender still work)`);

@@ -1,4 +1,4 @@
-﻿# AstraForge: Pixal3D (TRELLIS.2). A separate portable ComfyUI on port 8191, shape only (no textures).
+﻿# Imaginarium: Pixal3D (TRELLIS.2). A separate portable ComfyUI on port 8191, shape only (no textures).
 # The file is dot-sourced from installer\Install.ps1 and uses its helpers: Say/Ok/Miss/Opt, Download, Unzip,
 # Run, Native, Gb, Mb, FileOk, DownloadChecked, JsonUrl, HfTree, FreeOn and the variables $Root, $Rt, $Dl, $Cfg.
 # Reproduces a verified installation of ComfyUI-Pixal3D; all versions, links and checksums live
@@ -18,9 +18,9 @@ $P3Required = @('torch-2.8.0+cu128.dist-info', 'flash_attn-2.8.3.dist-info', 'ut
 
 # ---------------------------------------------------------------- finding and checking an existing installation
 function P3Candidates() {
-  # an explicitly given folder (environment variable) is the only candidate; otherwise: config\paths.json, the default folder, C:\AstraForge
-  if ($env:ASTRA_PIXAL3D_DIR) { return @($env:ASTRA_PIXAL3D_DIR) }
-  $c = @($Cfg.pixal3dDir, (Join-Path $Rt 'ComfyUI-Pixal3D'), 'C:\AstraForge\ComfyUI-Pixal3D') | Where-Object { $_ }
+  # an explicitly given folder (environment variable) is the only candidate; otherwise: config\paths.json, the default folder, C:\Imaginarium
+  if ($env:IMAGINARIUM_PIXAL3D_DIR) { return @($env:IMAGINARIUM_PIXAL3D_DIR) }
+  $c = @($Cfg.pixal3dDir, (Join-Path $Rt 'ComfyUI-Pixal3D'), 'C:\Imaginarium\ComfyUI-Pixal3D') | Where-Object { $_ }
   return @($c)
 }
 
@@ -46,7 +46,7 @@ function P3Probe($dir) {
   $r.comfy = Test-Path -LiteralPath (Join-Path $dir 'ComfyUI\main.py')
   $nodes = Join-Path $dir 'ComfyUI\custom_nodes\ComfyUI-Trellis2\nodes.py'
   $r.node = Test-Path -LiteralPath $nodes
-  $r.patched = $r.node -and [bool](Select-String -LiteralPath $nodes -SimpleMatch 'ASTRAFORGE PATCH' -Quiet)
+  $r.patched = $r.node -and [bool](Select-String -LiteralPath $nodes -SimpleMatch 'IMAGINARIUM PATCH' -Quiet)
   $sp = Join-Path $dir 'python_embeded\Lib\site-packages'
   $r.libs = $r.python
   if ($r.python) { foreach ($p in $P3Required) { if (!(Get-ChildItem -LiteralPath $sp -Filter $p -Directory -ErrorAction SilentlyContinue | Select-Object -First 1)) { $r.libs = $false; break } } }
@@ -243,7 +243,7 @@ function P3InstallEngine($dir, $cc) {
       P3Pip $dir @('install', '--no-deps', '--no-build-isolation', $uz) 'utils3d 1.7 (GitHub EasternJournalist/utils3d)'
     }
     Say '  node patch: automatic DINOv3 download from a third-party mirror disabled'
-    Run $py @('-I', (Join-Path $P3Src 'patch_trellis2.py'), $node) 'patching nodes.py (ASTRAFORGE PATCH)'
+    Run $py @('-I', (Join-Path $P3Src 'patch_trellis2.py'), $node) 'patching nodes.py (IMAGINARIUM PATCH)'
     P3Extras $dir
     # utils3d is installed without dependencies (as in the verified installation), so pip check is expected to complain about moderngl: MoGe does not need it
     Native { & $py -I -m pip check 2>&1 | ForEach-Object { Say ('    pip check: ' + $_) } }
@@ -255,7 +255,7 @@ function P3Extras($dir) {
   # own helpers: video memory probe, tools, launch bat file, installation description
   foreach ($d in 'tools', 'logs', 'cache\huggingface', 'cache\torch\hub\checkpoints') { New-Item -ItemType Directory -Force -Path (Join-Path $dir $d) | Out-Null }
   New-Item -ItemType Directory -Force -Path (Join-Path $dir 'ComfyUI\custom_nodes') | Out-Null
-  Copy-Item -LiteralPath (Join-Path $P3Src 'af_vram_probe.py') -Destination (Join-Path $dir 'ComfyUI\custom_nodes\af_vram_probe.py') -Force
+  Copy-Item -LiteralPath (Join-Path $P3Src 'imaginarium_vram_probe.py') -Destination (Join-Path $dir 'ComfyUI\custom_nodes\imaginarium_vram_probe.py') -Force
   foreach ($f in 'dinov3_timm_to_hf.py', 'normalize_seed_mesh.py', 'smoke_test.py', 'patch_trellis2.py') { Copy-Item -LiteralPath (Join-Path $P3Src $f) -Destination (Join-Path $dir ('tools\' + $f)) -Force }
   Copy-Item -LiteralPath (Join-Path $P3Src 'Start ComfyUI (Pixal3D, 8191).bat') -Destination (Join-Path $dir 'Start ComfyUI (Pixal3D, 8191).bat') -Force
   # the node writes this json itself on first start, but does not create the folder
@@ -264,10 +264,10 @@ function P3Extras($dir) {
   $rj = Join-Path $dir 'ComfyUI\custom_nodes\ComfyUI-Trellis2\reconviagen_pipeline.json'
   if ((Test-Path -LiteralPath $rj) -and !(Test-Path -LiteralPath (Join-Path $rd 'reconviagen_pipeline.json'))) { Copy-Item -LiteralPath $rj -Destination $rd }
   $txt = @'
-# ComfyUI-Pixal3D for AstraForge
+# ComfyUI-Pixal3D for Imaginarium
 
 A separate portable ComfyUI with TRELLIS.2 + Pixal3D (shape only, no texturing), port 127.0.0.1:8191.
-Installed by the AstraForge installer; the studio ComfyUI (port 8190) and the system Python are not touched.
+Installed by the Imaginarium installer; the studio ComfyUI (port 8190) and the system Python are not touched.
 
 Start: double-click `Start ComfyUI (Pixal3D, 8191).bat`. Stop: close the console window.
 Check: `python_embeded\python.exe -I tools\smoke_test.py` (with ComfyUI running).
@@ -283,17 +283,17 @@ Licenses: Pixal3D, TRELLIS.2 and the node wrapper, MoGe: MIT; NAF: Apache-2.0; F
 violating trade restrictions are prohibited; when redistributing the weights the license text must be included).
 
 IMPORTANT: nvdiffrast and nvdiffrec_render (NVIDIA) are distributed under a non-commercial license. They are installed only because
-the Trellis2 node imports them on load; AstraForge does not call them. Do not use in production the nodes
+the Trellis2 node imports them on load; Imaginarium does not call them. Do not use in production the nodes
 `MeshTexturing*`, `TexSlatGenerator`, `RenderMultiViewNvdiffrast`, `UnWrapAndRasterizer`,
 `PostProcessAndUnWrapAndRasterizer`, `Multi-View Texturing` and Trellis2/Pixal3D texturing.
 The `meshlib` package (MeshLib, AMV Consulting; non-commercial license only) is not installed: the nodes are patched
 (`patch_trellis2.py`), holes are filled by CuMesh (MIT). `pymeshlab` is GPL-3.0.
 
-Node patch: `ComfyUI\custom_nodes\ComfyUI-Trellis2\nodes.py` is marked `ASTRAFORGE PATCH`: the automatic DINOv3 download from a
+Node patch: `ComfyUI\custom_nodes\ComfyUI-Trellis2\nodes.py` is marked `IMAGINARIUM PATCH`: the automatic DINOv3 download from a
 third-party mirror is replaced by an error. Peak video memory (RTX 4070, 12 GB): one view about 6.5 GB, four views about 9.7 GB.
 '@
   $txt = $txt.Replace('@COMFY@', $P3Man.comfy.commit.Substring(0, 8)).Replace('@NODE@', $P3Man.trellis2.commit.Substring(0, 8))
-  [IO.File]::WriteAllText((Join-Path $dir 'ASTRAFORGE_README.md'), $txt, (New-Object Text.UTF8Encoding($true)))
+  [IO.File]::WriteAllText((Join-Path $dir 'IMAGINARIUM_README.md'), $txt, (New-Object Text.UTF8Encoding($true)))
 }
 
 # ---------------------------------------------------------------- installing the weights

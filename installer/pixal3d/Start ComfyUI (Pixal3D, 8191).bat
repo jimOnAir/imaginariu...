@@ -1,7 +1,7 @@
 @echo off
 cd /D "%~dp0"
 title ComfyUI-Pixal3D (127.0.0.1:8191)
-rem Self-contained portable ComfyUI for AstraForge Pixal3D / TRELLIS.2 experiments.
+rem Self-contained portable ComfyUI for Imaginarium Pixal3D / TRELLIS.2 experiments.
 rem Port 8191, loopback only. The studio Hunyuan ComfyUI stays on 8190.
 set CUDA_PATH=
 set CUDA_HOME=

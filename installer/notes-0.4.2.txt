@@ -1,7 +1,7 @@
-AstraForge 0.4.2 — базовая бесплатная версия и новая лицензия
+Imaginarium 0.4.2 — базовая бесплатная версия и новая лицензия
 
 • Бесплатно — для личного и другого некоммерческого использования (PolyForm Noncommercial 1.0.0), без обновлений.
-• Подписка (5 $ в месяц или 49 $ в год; 490 ₽ / 4800 ₽) разрешает использовать AstraForge и всё, что в нём сделано, в коммерческих целях и даёт каждое обновление в день выхода. Новые версии получают только подписчики.
+• Подписка (5 $ в месяц или 49 $ в год; 490 ₽ / 4800 ₽) разрешает использовать Imaginarium и всё, что в нём сделано, в коммерческих целях и даёт каждое обновление в день выхода. Новые версии получают только подписчики.
 • Установщик показывает лицензию на русском и английском; без согласия установка не начнётся.
 • В «О программе» видно, разрешено ли вам коммерческое использование.
 • Версии 0.4.1 и старше вышли под MIT и сохраняют эту лицензию.
@@ -10,5 +10,5 @@ AstraForge 0.4.2 — базовая бесплатная версия и нов�
 
 —
 
-AstraForge 0.4.2 — free base version and new license.
-Free: personal and other noncommercial use (PolyForm Noncommercial 1.0.0), no updates. Subscription ($5/month or $49/year): commercial use of AstraForge and everything you make with it, plus every update on release day. New versions are for subscribers only. The installer shows the license in Russian and English and requires your consent. Versions 0.4.1 and older remain MIT.
+Imaginarium 0.4.2 — free base version and new license.
+Free: personal and other noncommercial use (PolyForm Noncommercial 1.0.0), no updates. Subscription ($5/month or $49/year): commercial use of Imaginarium and everything you make with it, plus every update on release day. New versions are for subscribers only. The installer shows the license in Russian and English and requires your consent. Versions 0.4.1 and older remain MIT.

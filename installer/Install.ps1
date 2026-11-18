@@ -1,5 +1,5 @@
-﻿# AstraForge - setup wizard (Windows 10/11 x64).
-# Run: double-click "Install AstraForge.cmd" in the application root.
+﻿# Imaginarium - setup wizard (Windows 10/11 x64).
+# Run: double-click "Install Imaginarium.cmd" in the application root.
 #   -ScanOnly   only check the computer and show what is missing (downloads nothing)
 #   -Yes        install everything required without asking (for reinstalls)
 #   -DryRun     walk through the wizard and show the plan, without downloading or changing anything
@@ -166,13 +166,13 @@ function Scan() {
   $s.npmDeps = Test-Path -LiteralPath (Join-Path $Root 'node_modules\express')
   $s.ui = Test-Path -LiteralPath (Join-Path $Root 'dist\index.html')
   # Blender 5.x
-  $bl = @($Cfg.blender, $env:ASTRA_BLENDER)
+  $bl = @($Cfg.blender, $env:IMAGINARIUM_BLENDER)
   $bl += (Get-ChildItem -Path (Join-Path $Rt 'blender') -Filter blender.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
   $bl += (Get-ChildItem -Path 'C:\Program Files\Blender Foundation' -Directory -Filter 'Blender 5*' -ErrorAction SilentlyContinue | ForEach-Object { Join-Path $_.FullName 'blender.exe' })
   $s.blender = FirstExisting $bl
   # ComfyUI (the application's own copy: .venv + main.py + Hunyuan3D nodes)
   $s.comfy = $null
-  foreach ($c in @($Cfg.comfyDir, $env:ASTRA_COMFY_DIR, (Join-Path $Rt 'ComfyUI'), 'D:\ComfyUI', 'C:\ComfyUI', (Join-Path $HOME 'ComfyUI'))) {
+  foreach ($c in @($Cfg.comfyDir, $env:IMAGINARIUM_COMFY_DIR, (Join-Path $Rt 'ComfyUI'), 'D:\ComfyUI', 'C:\ComfyUI', (Join-Path $HOME 'ComfyUI'))) {
     if ($c -and (Test-Path -LiteralPath (Join-Path $c '.venv\Scripts\python.exe')) -and (Test-Path -LiteralPath (Join-Path $c 'main.py')) -and (Test-Path -LiteralPath (Join-Path $c 'comfy_extras\nodes_hunyuan3d.py'))) { $s.comfy = (Resolve-Path -LiteralPath $c).Path; break }
   }
   $s.comfyDeps = $false
@@ -183,7 +183,7 @@ function Scan() {
     $s.comfyDeps = ($LASTEXITCODE -eq 0)
   }
   # Godot 4.5 (optional)
-  $gd = @($Cfg.godot, $env:ASTRA_GODOT)
+  $gd = @($Cfg.godot, $env:IMAGINARIUM_GODOT)
   foreach ($d in @((Join-Path $Rt 'godot'), 'C:\Program Files\Godot', 'C:\Godot', (Join-Path $env:LOCALAPPDATA 'Programs\Godot'))) {
     $gd += (Get-ChildItem -Path $d -Filter 'Godot_v4.5*console.exe' -ErrorAction SilentlyContinue | Select-Object -ExpandProperty FullName)
   }
@@ -209,7 +209,7 @@ function Scan() {
   $s.p3 = P3Scan $s
   $s.mv = MvScan $s
   # clip library (Quaternius / ActionForge animations, CC0)
-  $s.library = FirstExisting @($Cfg.library, $env:ASTRA_FORGE_LIBRARY, 'C:\AstraForge\library')
+  $s.library = FirstExisting @($Cfg.library, $env:IMAGINARIUM_LIBRARY, 'C:\Imaginarium\library')
   if (!$s.library) { $s.library = Join-Path $Root 'library' }
   $s.clips = (Get-ChildItem -Path (Join-Path $s.library 'animations\quaternius') -Filter *.fbx -ErrorAction SilentlyContinue | Measure-Object).Count
   return $s
@@ -315,7 +315,7 @@ function InstallComfyDeps($dir, $hasGpu) {
   Native { & $py -c "import torch" 2>$null | Out-Null }
   if ($LASTEXITCODE -ne 0) { Run $uv @('pip', 'install', '--python', $py, 'torch', 'torchvision', 'torchaudio', '--index-url', $torchIndex) 'PyTorch' }
   Run $uv @('pip', 'install', '--python', $py, '-r', (Join-Path $dir 'requirements.txt')) 'ComfyUI libraries'
-  Run $uv @('pip', 'install', '--python', $py, 'rembg', 'onnxruntime', 'numba', 'scikit-image', 'xatlas') 'AstraForge libraries (background removal, meshing, unwrapping)'
+  Run $uv @('pip', 'install', '--python', $py, 'rembg', 'onnxruntime', 'numba', 'scikit-image', 'xatlas') 'Imaginarium libraries (background removal, meshing, unwrapping)'
 }
 function InstallComfy($hasGpu) {
   $zip = Join-Path $Dl "ComfyUI-$ComfyTag.zip"
@@ -365,18 +365,18 @@ function InstallClips($blender, $library) {
   $man = Get-Content -LiteralPath (Join-Path $src 'manifests\library.json') -Raw -Encoding UTF8 | ConvertFrom-Json
   foreach ($p in $man.clips.PSObject.Properties) { $f = $p.Value.file; Download "$base/$f" (Join-Path $src ($f.Split('?')[0] -replace '/', '\')) }
   $fbx = Join-Path $Dl 'actionforge_fbx'
-  Run $blender @('-b', '--factory-startup', '--python', (Join-Path $PSScriptRoot 'af_clips_to_fbx.py'), '--', $src, $fbx, '--library') 'converting clips to FBX (Blender)'
+  Run $blender @('-b', '--factory-startup', '--python', (Join-Path $PSScriptRoot 'imaginarium_clips_to_fbx.py'), '--', $src, $fbx, '--library') 'converting clips to FBX (Blender)'
   $files = Get-Content -LiteralPath (Join-Path $fbx 'files.json') -Raw -Encoding UTF8 | ConvertFrom-Json
   $req = @{ step = 'clip_library'; inputs = @{}; params = @{ action = 'import'; files = $files; library = (Join-Path $library 'animations') }; out_dir = (Join-Path $fbx '_import') }
   New-Item -ItemType Directory -Force -Path (Join-Path $fbx '_import') | Out-Null
   ($req | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath (Join-Path $fbx '_import\request.json') -Encoding UTF8
-  Run $blender @('-b', '--factory-startup', '--python', (Join-Path $Root 'scripts\blender\af_run.py'), '--', 'clip_library', (Join-Path $fbx '_import\request.json')) 'importing clips into the AstraForge library'
+  Run $blender @('-b', '--factory-startup', '--python', (Join-Path $Root 'scripts\blender\imaginarium_run.py'), '--', 'clip_library', (Join-Path $fbx '_import\request.json')) 'importing clips into the Imaginarium library'
 }
 function Shortcut() {
-  $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'AstraForge.lnk'
+  $lnk = Join-Path ([Environment]::GetFolderPath('Desktop')) 'Imaginarium.lnk'
   $s = (New-Object -ComObject WScript.Shell).CreateShortcut($lnk)
   $s.TargetPath = Join-Path $Root 'Start.cmd'; $s.WorkingDirectory = $Root
-  $s.IconLocation = (Join-Path $Root 'assets\astraforge.ico') + ',0'; $s.Description = 'AstraForge - 3D character studio'; $s.WindowStyle = 7
+  $s.IconLocation = (Join-Path $Root 'assets\imaginarium.ico') + ',0'; $s.Description = 'Imaginarium - 3D character studio'; $s.WindowStyle = 7
   $s.Save()
   Say ("  desktop shortcut: " + $lnk) 'Green'
 }
@@ -384,7 +384,7 @@ function Shortcut() {
 # ---------------------------------------------------------------- wizard
 if ($MyInvocation.InvocationName -eq '.') { return }
 Clear-Host
-Say 'AstraForge - setup' 'White'
+Say 'Imaginarium - setup' 'White'
 Say ("Application folder: " + $Root)
 $drive = (Get-Item -LiteralPath $Root).PSDrive
 Say ("Free space on drive " + $drive.Name + ": " + (Gb $drive.Free))
@@ -476,7 +476,7 @@ if (!$p3.complete -and $p3.offer) {
   Say '  Pixal3D (TRELLIS.2) builds the character shape from 1-4 views: geometry only, no textures. It is a separate ComfyUI on port 8191.' 'White'
   Say ('  Needs an NVIDIA RTX 30/40/50 GPU, preferably 10 GB of video memory or more. Folder: ' + $p3.dir)
   if ($p3.warn) { Say ('  Warning: ' + $p3.warn) 'Yellow' }
-  if ($p3.dir.Length -gt 90) { Say '  Warning: the path is long, Windows may fail to create deeply nested files (260-character limit). Better set a short path: the ASTRA_PIXAL3D_DIR variable, for example C:\AstraForge\ComfyUI-Pixal3D.' 'Yellow' }
+  if ($p3.dir.Length -gt 90) { Say '  Warning: the path is long, Windows may fail to create deeply nested files (260-character limit). Better set a short path: the IMAGINARIUM_PIXAL3D_DIR variable, for example C:\Imaginarium\ComfyUI-Pixal3D.' 'Yellow' }
   $p3n = P3DiskNeed $p3
   $p3dl = $(if ($p3.engine) { 0 } else { $P3EngineDownload }) + $(if ($p3.weights) { 0 } else { $p3.missingBytes })
   if (Ask ('Install Pixal3D? Download about ' + (Gb $p3dl) + ', ' + (Gb $p3n) + ' on disk.') $false) {
@@ -511,7 +511,7 @@ if ($plan | Where-Object { $_.id -like 'pixal3d*' }) {
   Say '  Pixal3D: DINOv3 is taken from the official timm copy under the DINOv3 license (royalty-free, commercial use allowed;' 'Yellow'
   Say '  military purposes and violating trade restrictions are prohibited). The Trellis2 nodes pull in libraries with special licenses:' 'Yellow'
   Say '  nvdiffrast and nvdiffrec_render (NVIDIA) - non-commercial and research use only, PyMeshLab - GPL-3.0.' 'Yellow'
-  Say '  AstraForge does not call nvdiffrast, nvdiffrec_render or Trellis2 texturing; holes are filled by CuMesh (MIT).' 'Yellow'
+  Say '  Imaginarium does not call nvdiffrast, nvdiffrec_render or Trellis2 texturing; holes are filled by CuMesh (MIT).' 'Yellow'
   Say '  The meshlib library (non-commercial license only) is not installed: the nodes are patched to work without it.' 'Yellow'
 }
 if ($plan | Where-Object { $_.lic -like 'Tencent*' }) {
@@ -522,7 +522,7 @@ if ($plan.Count -eq 0) {
   # a ready Pixal3D that was found is remembered in config\paths.json (key pixal3dDir) so the studio knows where it is
   if (!$DryRun -and $p3.complete -and !$Cfg.pixal3dDir) { $Cfg.pixal3dDir = $p3.dir; SaveCfg }
   if (!$DryRun) { Shortcut }
-  Say 'Done - launch the AstraForge shortcut.' 'Green'; exit 0
+  Say 'Done - launch the Imaginarium shortcut.' 'Green'; exit 0
 }
 if (!(Ask 'Start the installation?' $true -Confirm)) { Say 'Cancelled.'; exit 0 }
 
@@ -565,7 +565,7 @@ foreach ($p in $plan) {
 }
 if ($DryRun) { exit 0 }
 if (!$Cfg.library) { $Cfg.library = $s.library }
-if (!$Cfg.forgeRuntime -and !$env:ASTRA_FORGE_RUNTIME -and (!(Test-Path -LiteralPath 'C:\AstraForge\runtime') -or $Root.TrimEnd('\') -eq 'C:\AstraForge')) { $Cfg.forgeRuntime = Join-Path $Root 'data\runtime\forge' }
+if (!$Cfg.forgeRuntime -and !$env:IMAGINARIUM_RUNTIME -and (!(Test-Path -LiteralPath 'C:\Imaginarium\runtime') -or $Root.TrimEnd('\') -eq 'C:\Imaginarium')) { $Cfg.forgeRuntime = Join-Path $Root 'data\runtime\forge' }
 if ($s.comfy -and !$Cfg.comfyDir) { $Cfg.comfyDir = $s.comfy }
 if ($s.blender -and !$Cfg.blender) { $Cfg.blender = $s.blender }
 if ($s.godot -and !$Cfg.godot) { $Cfg.godot = $s.godot }
@@ -575,4 +575,4 @@ SaveCfg
 Title 'Post-install check'
 Show (Scan)
 Shortcut
-if (Ask 'Start AstraForge now?' $true -Confirm) { Start-Process (Join-Path $Root 'Start.cmd') }
+if (Ask 'Start Imaginarium now?' $true -Confirm) { Start-Process (Join-Path $Root 'Start.cmd') }

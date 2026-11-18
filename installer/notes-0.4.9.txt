@@ -1,4 +1,4 @@
-AstraForge 0.4.9 — бесплатные обновления ставятся сами
+Imaginarium 0.4.9 — бесплатные обновления ставятся сами
 
 • Бесплатные версии больше не ждут кнопки. Когда выходит бесплатное обновление, студия сама скачивает его в фоне и ставит при следующем запуске — так же, как у подписчиков. Проекты, модели и настройки сохраняются.
 • Выключатель — в «О программе → Обновления»: «Ставить бесплатные обновления сами». Если выключить, обновление ставится кнопкой «Обновить бесплатно», как раньше.
@@ -9,7 +9,7 @@ AstraForge 0.4.9 — бесплатные обновления ставятся 
 
 —
 
-AstraForge 0.4.9 — free updates install themselves
+Imaginarium 0.4.9 — free updates install themselves
 
 • Free versions no longer wait for a button. When a free update comes out, the studio downloads it in the background and installs it on the next start, just like for subscribers. Projects, models and settings are kept.
 • The switch is in About → Updates: "Install free updates automatically". Turn it off and the update installs with the "Update for free" button, as before.

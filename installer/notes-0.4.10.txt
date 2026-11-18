@@ -1,4 +1,4 @@
-AstraForge 0.4.10 — после обновления студия проверяет, всё ли установлено
+Imaginarium 0.4.10 — после обновления студия проверяет, всё ли установлено
 
 • Окно «Компоненты студии». После обновления студия сама проверяет компьютер и показывает каждую программу и модель: что уже стоит и какой версии, чего не хватает и что пора обновить. Отметьте галочками, что докачать, и нажмите «Установить отмеченное»: всё скачается в фоне, в папку программы, работать можно дальше. Уже установленное не трогается. После установки перезапустите студию (Stop.cmd → Start.cmd), чтобы новые модели появились в списках.
 • Наборы «Быстрая», «Полная — всё» и «Облегчённая» расставляют галочки сами; то, без чего не работает отмеченное, отмечается само. «Позже» закрывает окно — открыть его снова можно в «О программе → Компоненты студии».
@@ -10,7 +10,7 @@ AstraForge 0.4.10 — после обновления студия провер�
 
 —
 
-AstraForge 0.4.10 — after an update the studio checks that everything is installed
+Imaginarium 0.4.10 — after an update the studio checks that everything is installed
 
 • The "Studio components" window. After an update the studio checks the computer and lists every program and model: what is installed and which version, what is missing and what should be updated. Tick what to download and press "Install selected": everything downloads in the background into the program folder, and you can keep working. Anything already installed is left alone. After the install, restart the studio (Stop.cmd → Start.cmd) so the new models appear in the lists.
 • The "Quick", "Full — everything" and "Lite" presets set the ticks for you; anything a ticked item needs is ticked automatically. "Later" closes the window; reopen it in About → Studio components.

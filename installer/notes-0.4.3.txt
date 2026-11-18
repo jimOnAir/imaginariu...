@@ -1,4 +1,4 @@
-AstraForge 0.4.3 — базовая бесплатная версия; ключ подписки закрепляется за компьютером
+Imaginarium 0.4.3 — базовая бесплатная версия; ключ подписки закрепляется за компьютером
 
 • Один ключ — одна копия — один компьютер: при вводе ключ подписки закрепляется за этим компьютером и на других не работает.
 • Перенос лицензии: «Отвязать от этого компьютера» на старом или «Перенести лицензию на этот компьютер» на новом (самостоятельно — раз в 30 дней, чаще — через support@dops.media).
@@ -9,4 +9,4 @@ AstraForge 0.4.3 — базовая бесплатная версия; ключ 
 
 —
 
-AstraForge 0.4.3 — free base version; the subscription key is bound to one computer. One key — one copy — one computer; move your license with "Unbind from this computer" or "Move license to this computer" (once per 30 days, more often via support@dops.media). Free: noncommercial use, no updates. Subscription ($5/month or $49/year): commercial use and every update on release day.
+Imaginarium 0.4.3 — free base version; the subscription key is bound to one computer. One key — one copy — one computer; move your license with "Unbind from this computer" or "Move license to this computer" (once per 30 days, more often via support@dops.media). Free: noncommercial use, no updates. Subscription ($5/month or $49/year): commercial use and every update on release day.

@@ -1,5 +1,5 @@
 {
-  "_comment": "Pixal3D engine pins. Reproduces C:AstraForgeComfyUI-Pixal3D as verified on 2026-10-14. Hashes of Hugging Face files are taken from the HF file listing (lfs.oid = sha256); the installer re-checks them against the live listing when it is reachable.",
+  "_comment": "Pixal3D engine pins. Reproduces C:ImaginariumComfyUI-Pixal3D as verified on 2026-10-14. Hashes of Hugging Face files are taken from the HF file listing (lfs.oid = sha256); the installer re-checks them against the live listing when it is reachable.",
   "generated": "2026-10-14",
   "python": {
     "version": "3.12.10",
@@ -40,12 +40,12 @@
       {
         "file": "nvdiffrast-0.4.0-cp312-cp312-win_amd64.whl",
         "sha256": "e19fd7a34ce07cd0b5b7ecb6f79d956149ea4d9bdd83bf9ece9e77e13947f208",
-        "note": "NVIDIA non-commercial licence; imported by the node pack, not used by AstraForge"
+        "note": "NVIDIA non-commercial licence; imported by the node pack, not used by Imaginarium"
       },
       {
         "file": "nvdiffrec_render-0.0.0-cp312-cp312-win_amd64.whl",
         "sha256": "4318a7c0051ce6f2d7be3ca0a8076210049c3fd7ee24da391e558b0516c1325e",
-        "note": "NVIDIA non-commercial licence; not used by AstraForge"
+        "note": "NVIDIA non-commercial licence; not used by Imaginarium"
       },
       {
         "file": "flex_gemm-0.0.1-cp312-cp312-win_amd64.whl",
@@ -252,7 +252,7 @@
     },
     "nattenMatrix": [
       {
-        "_comment": "ticket 11 (0.6.x wave): rows are (torch, CUDA) pairs with a pinned linux_x86_64 wheel under linux.nattenPins; verified on this branch 2026-11-08: sm_120 (RTX 5070) runs a real na2d forward with this wheel (Blackwell backends inside). CUDA 12.6 builds carry no sm_120 kernels; cards below sm_75 get no NATTEN at all - af_natten_probe.mjs turns that into the honest lighter recommendation.",
+        "_comment": "ticket 11 (0.6.x wave): rows are (torch, CUDA) pairs with a pinned linux_x86_64 wheel under linux.nattenPins; verified on this branch 2026-11-08: sm_120 (RTX 5070) runs a real na2d forward with this wheel (Blackwell backends inside). CUDA 12.6 builds carry no sm_120 kernels; cards below sm_75 get no NATTEN at all - imaginarium_natten_probe.mjs turns that into the honest lighter recommendation.",
         "id": "torch290cu128",
         "version": "0.21.5",
         "torch": "2.9",

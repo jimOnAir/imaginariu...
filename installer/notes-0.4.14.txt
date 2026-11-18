@@ -1,7 +1,7 @@
-AstraForge 0.4.14 — Node.js ставится и там, где nodejs.org не отвечает; понятные сообщения при запуске
+Imaginarium 0.4.14 — Node.js ставится и там, где nodejs.org не отвечает; понятные сообщения при запуске
 
-• После установки ярлык AstraForge писал «Node.js was not found» и красный текст PowerShell: исправлено. Node.js — основа студии — раньше качался только с nodejs.org; если сайт не отвечал, студия не запускалась. Теперь установщик берёт тот же файл с запасных зеркал Node.js и сверяет его контрольную сумму.
-• Если студии всё-таки чего-то не хватает, при запуске написано по-русски, что случилось и что сделать: запустить «Установить AstraForge.cmd» в папке приложения (он докачает только недостающее) или прислать файл installer\install.log на support@dops.media.
+• После установки ярлык Imaginarium писал «Node.js was not found» и красный текст PowerShell: исправлено. Node.js — основа студии — раньше качался только с nodejs.org; если сайт не отвечал, студия не запускалась. Теперь установщик берёт тот же файл с запасных зеркал Node.js и сверяет его контрольную сумму.
+• Если студии всё-таки чего-то не хватает, при запуске написано по-русски, что случилось и что сделать: запустить «Установить Imaginarium.cmd» в папке приложения (он докачает только недостающее) или прислать файл installer\install.log на support@dops.media.
 • Студия находит Node.js из своей папки runtime\node, даже если файл настроек не сохранился.
 
 Если у вас ярлык пишет «Node.js was not found»: скачайте установщик https://github.com/Snodrod/AstraForge/releases/latest и поставьте поверх в ту же папку. Уже скачанное заново не качается, проекты и настройки сохранятся.
@@ -11,10 +11,10 @@ AstraForge 0.4.14 — Node.js ставится и там, где nodejs.org не
 
 —
 
-AstraForge 0.4.14 — Node.js installs even where nodejs.org does not answer; clear messages on start
+Imaginarium 0.4.14 — Node.js installs even where nodejs.org does not answer; clear messages on start
 
-• After setup the AstraForge shortcut showed "Node.js was not found" and red PowerShell text: fixed. Node.js, which the studio runs on, used to come only from nodejs.org; if the site did not answer, the studio could not start. The installer now takes the same file from backup Node.js mirrors and verifies its checksum.
-• If the studio is still missing something, the start window says what happened and what to do: run "Установить AstraForge.cmd" in the application folder (it downloads only what is missing) or send installer\install.log to support@dops.media.
+• After setup the Imaginarium shortcut showed "Node.js was not found" and red PowerShell text: fixed. Node.js, which the studio runs on, used to come only from nodejs.org; if the site did not answer, the studio could not start. The installer now takes the same file from backup Node.js mirrors and verifies its checksum.
+• If the studio is still missing something, the start window says what happened and what to do: run "Установить Imaginarium.cmd" in the application folder (it downloads only what is missing) or send installer\install.log to support@dops.media.
 • The studio finds Node.js in its own runtime\node folder even if the settings file was not saved.
 
 If your shortcut says "Node.js was not found": download the installer at https://github.com/Snodrod/AstraForge/releases/latest and install over the old version into the same folder. Anything already downloaded is not downloaded again; projects and settings are kept.

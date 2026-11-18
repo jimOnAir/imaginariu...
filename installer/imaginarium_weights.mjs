@@ -2,16 +2,16 @@
 // Model weights already on this computer, connected without copying (0.7.1 wave ticket 40, after
 // the Windows 0.7 note "weights other programs already downloaded are connected without copying").
 // The branch's own shape: scan well-known Linux homes (extra folders the user names in
-// ASTRA_WEIGHT_DIRS, a sibling ~/ComfyUI, the Hugging Face hub cache, a StabilityMatrix data
-// folder, a sibling AstraForge), match the installer manifest's model pins by NAME + BYTE SIZE
+// IMAGINARIUM_WEIGHT_DIRS, a sibling ~/ComfyUI, the Hugging Face hub cache, a StabilityMatrix data
+// folder, a sibling Imaginarium), match the installer manifest's model pins by NAME + BYTE SIZE
 // first, verify the pinned sha256 only at ACCEPT time (hashing tens of GB at scan time is not
 // free), and connect by a symlink in data/models + a weightLinks record in config/paths.json.
-// The user's files are never moved, copied or touched; the studio's own download logic (af_scan
+// The user's files are never moved, copied or touched; the studio's own download logic (imaginarium_scan
 // status -> install.sh checklist / Components window) sees the model as installed and simply
 // does not fetch it.
 //
-//   node installer/af_weights.mjs --report    JSON {items:[{id,file,bytes,source,target}],total}
-//   node installer/af_weights.mjs --connect   same scan, then verify + link + record each one
+//   node installer/imaginarium_weights.mjs --report    JSON {items:[{id,file,bytes,source,target}],total}
+//   node installer/imaginarium_weights.mjs --connect   same scan, then verify + link + record each one
 // Exit 0 with empty items when nothing was found; exit 2 (stderr) only on a scan failure.
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
@@ -19,19 +19,19 @@ import { existsSync, lstatSync, mkdirSync, readdirSync, readFileSync, realpathSy
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { modelState, scanComponents } from './af_scan.mjs';
+import { modelState, scanComponents } from './imaginarium_scan.mjs';
 
 export const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const readJson = (p) => JSON.parse(readFileSync(p, 'utf8'));
 const sizeOf = (p) => { try { return statSync(p).size; } catch { return -1; } };
 
-/** Where weights may already lie, given the user's HOME and their ASTRA_WEIGHT_DIRS. Every entry
+/** Where weights may already lie, given the user's HOME and their IMAGINARIUM_WEIGHT_DIRS. Every entry
  * is a FOLDER TO LOOK UNDER (a walk finds the file by name below it); non-existent ones drop out. */
 export function weightSearchDirs({ env = process.env, home = env.HOME || os.homedir(), root = APP_ROOT } = {}) {
   const out = [];
   const push = (d) => { if (d) { const p = path.resolve(d); if (!out.includes(p)) out.push(p); } };
-  for (const d of String(env.ASTRA_WEIGHT_DIRS || '').split(path.delimiter)) push(d);
+  for (const d of String(env.IMAGINARIUM_WEIGHT_DIRS || '').split(path.delimiter)) push(d);
   if (home) {
     push(path.join(home, 'ComfyUI', 'models'));             // the classic second ComfyUI
     push(path.join(home, 'comfyui', 'models'));
@@ -39,7 +39,7 @@ export function weightSearchDirs({ env = process.env, home = env.HOME || os.home
     push(path.join(home, 'StabilityMatrix', 'Data', 'Models'));
     push(path.join(home, '.stabilitymatrix'));
   }
-  push(path.join(path.dirname(root), 'AstraForge', 'data', 'models'));  // a sibling studio copy
+  push(path.join(path.dirname(root), 'Imaginarium', 'data', 'models'));  // a sibling studio copy
   return out;
 }
 
@@ -132,7 +132,7 @@ export async function connectWeight({ id, file, bytes, source, target, man }) {
 }
 
 /** Record of everything this connector created (for listing/cleanup; an additive paths.json key
- * the studio ignores and af_scan does not need - the links themselves carry the truth). */
+ * the studio ignores and imaginarium_scan does not need - the links themselves carry the truth). */
 export function recordLinks(root, rows) {
   if (!rows.length) return;
   const f = path.join(root, 'config', 'paths.json');

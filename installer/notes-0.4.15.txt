@@ -1,4 +1,4 @@
-AstraForge 0.4.15 — проверка подписи Ollama и защищённая загрузка PixaFlux
+Imaginarium 0.4.15 — проверка подписи Ollama и защищённая загрузка PixaFlux
 
 • Установщик Ollama (локальный ИИ-помощник) теперь запускается, только если он подписан цифровой подписью Ollama Inc. Подменённый или повреждённый файл не запускается и удаляется; остальная установка идёт как обычно.
 • PixaFlux (вкладка «VFX») скачивается по защищённому соединению https, а не по http, и сверяется по контрольной сумме — вместе с дополнением для Blender и примерами. Студия запускает установщик PixaFlux, только если файл совпал с суммой; уже скачанный файл с другой суммой установщик скачает заново.
@@ -9,7 +9,7 @@ AstraForge 0.4.15 — проверка подписи Ollama и защищённ
 
 —
 
-AstraForge 0.4.15 — Ollama signature check and secure PixaFlux download
+Imaginarium 0.4.15 — Ollama signature check and secure PixaFlux download
 
 • The Ollama installer (local AI assistant) now runs only if it carries the Ollama Inc. digital signature. A tampered or damaged file is not run and is deleted; the rest of the setup continues as usual.
 • PixaFlux (VFX tab) is downloaded over a secure https connection instead of http and verified against a checksum, together with the Blender add-on and the samples. The studio runs the PixaFlux installer only if the file matches the checksum; an already downloaded file with a different checksum is downloaded again.

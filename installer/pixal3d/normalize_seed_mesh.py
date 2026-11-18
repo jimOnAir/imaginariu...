@@ -1,12 +1,12 @@
 """
-Normalise a generated character mesh like the other AstraForge seed meshes (Hunyuan-style, mesh_mv_703.glb):
+Normalise a generated character mesh like the other Imaginarium seed meshes (Hunyuan-style, mesh_mv_703.glb):
 
   * glTF convention: +Y up, the character looks toward +Z (= -Y after Blender's glTF import), its left side is +X
   * bounding box centred on the origin, HEIGHT (Y extent) = 2.0
   * geometry only, no texture
 
 The orientation is found automatically: all 24 proper axis-aligned rotations are tried and the one whose four
-orthographic silhouettes (front / left / back / right, the same camera convention as AstraForge compare_render.py)
+orthographic silhouettes (front / left / back / right, the same camera convention as Imaginarium compare_render.py)
 best match the cut-outs <views-dir>/cut_<view>.png (RGBA, alpha = silhouette) wins. The score is printed for every candidate so the
 choice can be audited; the profile views (left/right) are what separates front from back.
 

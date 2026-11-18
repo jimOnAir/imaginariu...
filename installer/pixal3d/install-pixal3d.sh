@@ -21,12 +21,12 @@ PORT=8191
 
 say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
 Title() { say ''; say "== $1 =="; }
-NodeBin() { local n; n="${ASTRA_NODE:-$(command -v node || true)}"; printf '%s' "$n"; }
+NodeBin() { local n; n="${IMAGINARIUM_NODE:-$(command -v node || true)}"; printf '%s' "$n"; }
 Mv() { local n; n="$(NodeBin)"; "$n" -e 'const m=require(process.argv[1]);const g=process.argv[2].split(".").reduce((o,k)=>o&&o[k],m);console.log(typeof g==="string"?g:JSON.stringify(g??null))' "$MAN" "$1"; }
 
 # the shared download core (reason table, resume/retry loop, checksums, mirrors, UvTry)
-# shellcheck source=../af_download.sh
-. "$APP/installer/af_download.sh"
+# shellcheck source=../imaginarium_download.sh
+. "$APP/installer/imaginarium_download.sh"
 Repo() { # <url> <name> <dest>  GitHub archive -> folder (top directory stripped)
   local zip="$DL/$2.zip" tmp
   Download "$1" "$zip" || return 1
@@ -57,7 +57,7 @@ Uv() {
 # ---------------------------------------------------------------- NATTEN (ticket 11)
 NattenPlan() { # <dir> -> the probe's machine line (##NATTEN json), empty when it says nothing
   local n; n="$(NodeBin)"; [ -n "$n" ] || return 0
-  "$n" "$SRC/af_natten_probe.mjs" "$1" 2>>"$LOG" | grep '^##NATTEN' | tail -1 | sed 's/^##NATTEN //'
+  "$n" "$SRC/imaginarium_natten_probe.mjs" "$1" 2>>"$LOG" | grep '^##NATTEN' | tail -1 | sed 's/^##NATTEN //'
 }
 NattenEval() { # <json> -> shell assignments AR_* (values quoted by JSON.stringify)
   local n; n="$(NodeBin)"
@@ -179,10 +179,10 @@ Extras() { # <dir>  own helpers: vram probe, tools, launch script, installation 
   local d
   for d in tools logs cache/huggingface cache/torch/hub/checkpoints; do mkdir -p "$dir/$d"; done
   mkdir -p "$dir/ComfyUI/custom_nodes"
-  cp -f "$SRC/af_vram_probe.py" "$dir/ComfyUI/custom_nodes/af_vram_probe.py"
+  cp -f "$SRC/imaginarium_vram_probe.py" "$dir/ComfyUI/custom_nodes/imaginarium_vram_probe.py"
   local f
   for f in dinov3_timm_to_hf.py normalize_seed_mesh.py smoke_test.py patch_trellis2.py; do cp -f "$SRC/$f" "$dir/tools/$f"; done
-  cp -f "$SRC/af_natten_probe.mjs" "$dir/tools/af_natten_probe.mjs"
+  cp -f "$SRC/imaginarium_natten_probe.mjs" "$dir/tools/imaginarium_natten_probe.mjs"
   cat > "$dir/start-pixal3d.sh" <<'EOF'
 #!/usr/bin/env bash
 # Start the Pixal3D engine (ComfyUI on 127.0.0.1:8191). Stop: Ctrl+C. The studio starts it on its own.
@@ -196,11 +196,11 @@ EOF
   mkdir -p "$rd"
   [ -f "$dir/ComfyUI/custom_nodes/ComfyUI-Trellis2/reconviagen_pipeline.json" ] && [ ! -f "$rd/reconviagen_pipeline.json" ] && cp "$dir/ComfyUI/custom_nodes/ComfyUI-Trellis2/reconviagen_pipeline.json" "$rd/"
   local nodec; nodec="$(Mv trellis2.commit | cut -c1-8)"
-  cat > "$dir/ASTRAFORGE_README.md" <<EOF
-# ComfyUI-Pixal3D for AstraForge (Linux)
+  cat > "$dir/IMAGINARIUM_README.md" <<EOF
+# ComfyUI-Pixal3D for Imaginarium (Linux)
 
 A separate portable ComfyUI with TRELLIS.2 + Pixal3D (shape only, no texturing), port 127.0.0.1:8191.
-Installed by the AstraForge installer; the studio ComfyUI (port 8190) and the system Python are not touched.
+Installed by the Imaginarium installer; the studio ComfyUI (port 8190) and the system Python are not touched.
 
 Start: \`.\/start-pixal3d.sh\` (the studio also starts it). Stop: Ctrl+C.
 Check: \`.venv/bin/python tools/smoke_test.py\` (with ComfyUI running).
@@ -214,16 +214,16 @@ DINOv3: the DINOv3 license (\`ComfyUI/models/facebook/.../LICENSE.md\`; royalty-
 military purposes and violating trade restrictions are prohibited; redistribution must include the license text).
 
 IMPORTANT: nvdiffrast and nvdiffrec_render (NVIDIA) are non-commercial. They are installed only because the
-Trellis2 node imports them on load; AstraForge does not call them. Do not use in production the nodes
+Trellis2 node imports them on load; Imaginarium does not call them. Do not use in production the nodes
 MeshTexturing*, TexSlatGenerator, RenderMultiViewNvdiffrast, UnWrapAndRasterizer, PostProcessAndUnWrapAndRasterizer,
 Multi-View Texturing and Trellis2/Pixal3D texturing. The meshlib package (non-commercial only) is not installed:
 the nodes are patched (patch_trellis2.py), holes are filled by CuMesh (MIT). pymeshlab is GPL-3.0.
 
-Node patch: ComfyUI/custom_nodes/ComfyUI-Trellis2/nodes.py is marked ASTRAFORGE PATCH: the automatic DINOv3
+Node patch: ComfyUI/custom_nodes/ComfyUI-Trellis2/nodes.py is marked IMAGINARIUM PATCH: the automatic DINOv3
 download from a third-party mirror is replaced by an error.
 EOF
-  sed -i "s/@NODE@/$nodec/" "$dir/ASTRAFORGE_README.md"
-  sed -i "s/@COMFY@/$(Mv comfy.commit | cut -c1-8)/" "$dir/ASTRAFORGE_README.md"
+  sed -i "s/@NODE@/$nodec/" "$dir/IMAGINARIUM_README.md"
+  sed -i "s/@COMFY@/$(Mv comfy.commit | cut -c1-8)/" "$dir/IMAGINARIUM_README.md"
 }
 
 # ---------------------------------------------------------------- weights

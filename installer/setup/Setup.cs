@@ -1,5 +1,5 @@
 ﻿// AstraForge-Setup.exe - a single distributable file: unpacks the application (the embedded payload.zip) into the chosen
-// folder and starts the "Install AstraForge.cmd" wizard, which downloads the programs and models.
+// folder and starts the "Install Imaginarium.cmd" wizard, which downloads the programs and models.
 // Built by installer\build-release.ps1 with the compiler (csc) that ships with Windows (.NET Framework 4.x, C# 5).
 //   AstraForge-Setup.exe                  folder selection window
 //   AstraForge-Setup.exe /extract <folder>  only unpack, no window and no wizard (build check)
@@ -12,15 +12,15 @@ using System.Reflection;
 using System.Threading;
 using System.Windows.Forms;
 
-[assembly: AssemblyTitle("AstraForge Setup")]
-[assembly: AssemblyProduct("AstraForge")]
+[assembly: AssemblyTitle("Imaginarium Setup")]
+[assembly: AssemblyProduct("Imaginarium")]
 [assembly: AssemblyCopyright("Copyright (c) 2026 Snodrod, MIT License")]
 [assembly: AssemblyVersion("0.3.0.0")]
 [assembly: AssemblyFileVersion("0.3.0.0")]
 
 static class Setup
 {
-    public const string Wizard = "Install AstraForge.cmd";
+    public const string Wizard = "Install Imaginarium.cmd";
 
     [STAThread]
     static int Main(string[] args)
@@ -75,7 +75,7 @@ class SetupForm : Form
 
     public SetupForm()
     {
-        Text = "AstraForge 0.3 Setup";
+        Text = "Imaginarium 0.3 Setup";
         try { Icon = Icon.ExtractAssociatedIcon(Application.ExecutablePath); } catch { }
         FormBorderStyle = FormBorderStyle.FixedDialog;
         MaximizeBox = false;
@@ -84,7 +84,7 @@ class SetupForm : Form
         Font = new Font("Segoe UI", 9.5f);
         ClientSize = new Size(580, 250);
 
-        Label title = new Label { Text = "AstraForge - local 3D character studio", AutoSize = true,
+        Label title = new Label { Text = "Imaginarium - local 3D character studio", AutoSize = true,
             Font = new Font("Segoe UI", 13f, FontStyle.Bold), Location = new Point(20, 16) };
         Label hint = new Label { AutoSize = true, Location = new Point(20, 54),
             Text = "The application will be unpacked into this folder. Then the setup wizard will check your computer\n" +
@@ -105,10 +105,10 @@ class SetupForm : Form
         {
             using (FolderBrowserDialog d = new FolderBrowserDialog())
             {
-                d.Description = "Folder for AstraForge";
+                d.Description = "Folder for Imaginarium";
                 d.SelectedPath = folder.Text;
                 if (d.ShowDialog(this) == DialogResult.OK)
-                    folder.Text = Path.Combine(d.SelectedPath, "AstraForge");
+                    folder.Text = Path.Combine(d.SelectedPath, "Imaginarium");
             }
         };
         cancel.Click += delegate { Close(); };
@@ -117,14 +117,14 @@ class SetupForm : Form
 
     static string DefaultFolder()
     {
-        foreach (string c in new[] { @"C:\AstraForge", @"C:\AstraForgeStudio" })
+        foreach (string c in new[] { @"C:\Imaginarium", @"C:\ImaginariumStudio" })
             if (!Directory.Exists(c) || File.Exists(Path.Combine(c, "Start.cmd"))) return c;
-        return @"C:\AstraForgeStudio";
+        return @"C:\ImaginariumStudio";
     }
 
     bool Confirm(string text)
     {
-        return MessageBox.Show(this, text, "AstraForge", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
+        return MessageBox.Show(this, text, "Imaginarium", MessageBoxButtons.YesNo, MessageBoxIcon.Warning) == DialogResult.Yes;
     }
 
     void Start()
@@ -132,22 +132,22 @@ class SetupForm : Form
         string dir = folder.Text.Trim();
         if (dir.Length == 0 || !Path.IsPathRooted(dir))
         {
-            MessageBox.Show(this, "Enter a full folder path, for example C:\\AstraForge.", "AstraForge");
+            MessageBox.Show(this, "Enter a full folder path, for example C:\\Imaginarium.", "Imaginarium");
             return;
         }
         // paths inside the folder reach ~100 characters (node_modules), Python/PyTorch in runtime\ are even longer,
         // and most Windows programs cannot open paths longer than 260 characters
         if (Path.GetFullPath(dir).Length > 60)
         {
-            MessageBox.Show(this, "The folder path is too long - choose a shorter one, for example C:\\AstraForge " +
-                "(at most 60 characters, now " + Path.GetFullPath(dir).Length + ").", "AstraForge");
+            MessageBox.Show(this, "The folder path is too long - choose a shorter one, for example C:\\Imaginarium " +
+                "(at most 60 characters, now " + Path.GetFullPath(dir).Length + ").", "Imaginarium");
             return;
         }
         foreach (char ch in dir)
             if (ch > 127)
             {
                 if (!Confirm("The path contains non-Latin characters. Blender and Python sometimes " +
-                             "misbehave with such paths. It is better to choose a Latin-only path, for example C:\\AstraForge.\n\nContinue anyway?")) return;
+                             "misbehave with such paths. It is better to choose a Latin-only path, for example C:\\Imaginarium.\n\nContinue anyway?")) return;
                 break;
             }
         try
@@ -160,7 +160,7 @@ class SetupForm : Form
         catch { }
         if (Directory.Exists(dir) && !File.Exists(Path.Combine(dir, "Start.cmd")) &&
             Directory.GetFileSystemEntries(dir).Length > 0 &&
-            !Confirm("The folder is not empty. Unpack AstraForge into it?")) return;
+            !Confirm("The folder is not empty. Unpack Imaginarium into it?")) return;
 
         foreach (Control c in new Control[] { folder, browse, install, cancel }) c.Enabled = false;
         status.ForeColor = SystemColors.ControlText;
@@ -180,7 +180,7 @@ class SetupForm : Form
             {
                 BeginInvoke((Action)delegate
                 {
-                    MessageBox.Show(this, "Could not unpack: " + e.Message, "AstraForge", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    MessageBox.Show(this, "Could not unpack: " + e.Message, "Imaginarium", MessageBoxButtons.OK, MessageBoxIcon.Error);
                     foreach (Control c in new Control[] { folder, browse, install, cancel }) c.Enabled = true;
                     status.Text = "";
                 });
@@ -200,7 +200,7 @@ class SetupForm : Form
         catch (Exception e)
         {
             MessageBox.Show(this, "The application was unpacked into " + dir + ", but the wizard did not start: " + e.Message +
-                "\n\nRun \"" + Setup.Wizard + "\" in this folder manually.", "AstraForge");
+                "\n\nRun \"" + Setup.Wizard + "\" in this folder manually.", "Imaginarium");
         }
         Close();
     }

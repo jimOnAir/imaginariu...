@@ -1,9 +1,9 @@
-"""ActionForge clips (GLB, Quaternius skeleton, CC0) -> FBX for the AstraForge clip library (clip_library imports FBX).
+"""ActionForge clips (GLB, Quaternius skeleton, CC0) -> FBX for the Imaginarium clip library (clip_library imports FBX).
 
-    blender -b --factory-startup --python af_clips_to_fbx.py -- <actionforge_dl> <out_fbx_dir>
+    blender -b --factory-startup --python imaginarium_clips_to_fbx.py -- <actionforge_dl> <out_fbx_dir>
 
 Each animations/*.glb: skeleton and a single animation only -> <out>/<id>.fbx (bones kept as-is: pelvis, upperarm_l, fingers;
-AstraForge maps them to the Mixamo canon itself, _anim_lib._ue_table). Writes <out>/files.json for clip_library import
+Imaginarium maps them to the Mixamo canon itself, _anim_lib._ue_table). Writes <out>/files.json for clip_library import
 (name, category, tags, source=quaternius) from the ActionForge manifest.
 """
 import json

@@ -1,8 +1,8 @@
-﻿# AstraForge: MV-Adapter (local views from a single image) in the studio's own ComfyUI.
+﻿# Imaginarium: MV-Adapter (local views from a single image) in the studio's own ComfyUI.
 # The file is dot-sourced from installer\Install.ps1 and uses its helpers: Say, Download, Unzip, Run, Native, Uv,
 # FileOk, DownloadChecked, HfTree and the variables $Root, $Dl. What is installed and how: docs\forge\views_install.md.
 #
-#   node      huanngzh/ComfyUI-MVAdapter (Apache-2.0), pinned commit, plus the AstraForge patches from installer\mvadapter\patch
+#   node      huanngzh/ComfyUI-MVAdapter (Apache-2.0), pinned commit, plus the Imaginarium patches from installer\mvadapter\patch
 #   weights   huanngzh/mv-adapter -> mvadapter_i2mv_sdxl.safetensors (3.6 GB, Apache-2.0) -> data\models\mvadapter
 #   Python packages the node lacks are installed INTO THE SAME environment WITHOUT upgrading the ones already there (constraints = the current freeze)
 #   SDXL configs (without weights) are built by scripts\views\make_sdxl_config.py; SDXL itself (sd_xl_base_1.0.safetensors) is required.
@@ -32,7 +32,7 @@ function MvMissingModules($comfy) {
 function MvScan($s) {
   $p = MvPaths
   $r = @{ nodeDir = $p.node }
-  $r.node = (Test-Path -LiteralPath (Join-Path $p.node 'astra_views.py')) -and (Test-Path -LiteralPath (Join-Path $p.node 'utils.py')) -and [bool](Select-String -LiteralPath (Join-Path $p.node 'utils.py') -SimpleMatch 'local_sdxl_config' -Quiet)
+  $r.node = (Test-Path -LiteralPath (Join-Path $p.node 'imagi_views.py')) -and (Test-Path -LiteralPath (Join-Path $p.node 'utils.py')) -and [bool](Select-String -LiteralPath (Join-Path $p.node 'utils.py') -SimpleMatch 'local_sdxl_config' -Quiet)
   $r.weights = FileOk $p.weights ([long]$MvMan.files[0].size) $null
   $r.config = Test-Path -LiteralPath (Join-Path $p.config 'model_index.json')
   $r.missingModules = @()
@@ -71,11 +71,11 @@ function MvInstallNode() {
     Move-Item -LiteralPath $top.FullName -Destination $p.node
     Remove-Item -LiteralPath $tmp -Recurse -Force
   }
-  # AstraForge patches on top of the original (list in NOTICE-ASTRAFORGE.md): local SDXL configs, VAE slicing for diffusers 0.40, the AstraMVAdapterViews node
+  # Imaginarium patches on top of the original (list in NOTICE-ASTRAFORGE.md): local SDXL configs, VAE slicing for diffusers 0.40, the ImagiMVAdapterViews node
   foreach ($d in $n.removeDirs) { $x = Join-Path $p.node $d; if (Test-Path -LiteralPath $x) { Remove-Item -LiteralPath $x -Recurse -Force } }
   Copy-Item -Path (Join-Path (Join-Path $MvSrc $n.patchDir) '*') -Destination $p.node -Force
-  if (!(Select-String -LiteralPath (Join-Path $p.node 'utils.py') -SimpleMatch 'local_sdxl_config' -Quiet)) { throw 'The AstraForge patches were not applied to the MV-Adapter node.' }
-  Say ('    node ComfyUI-MVAdapter ' + $n.version + ' (' + $n.commit.Substring(0, 8) + ') + AstraForge patches: ' + $p.node)
+  if (!(Select-String -LiteralPath (Join-Path $p.node 'utils.py') -SimpleMatch 'local_sdxl_config' -Quiet)) { throw 'The Imaginarium patches were not applied to the MV-Adapter node.' }
+  Say ('    node ComfyUI-MVAdapter ' + $n.version + ' (' + $n.commit.Substring(0, 8) + ') + Imaginarium patches: ' + $p.node)
 }
 
 function MvFreeze($uv, $py) {

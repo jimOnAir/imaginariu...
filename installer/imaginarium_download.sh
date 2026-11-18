@@ -1,36 +1,36 @@
 #!/usr/bin/env bash
-# af_download.sh - the AstraForge download core for the Linux scripts: installer/install.sh,
+# imaginarium_download.sh - the Imaginarium download core for the Linux scripts: installer/install.sh,
 # installer/pixal3d/install-pixal3d.sh and scripts/vfx/install-vfx.sh all source this file.
 # It re-derives, for Linux and with no code copied (ADR-0003), the network survival of 0.4.12-0.4.14
 # from installer/Install.ps1: Download's reason/retry loop, DownloadMirrors, DownloadChecked/FileOk
 # and the uv retry Uvx. The Windows certificate-revocation workaround (curl code 35 with
-# --ssl-no-revoke + ASTRA_CURL_NO_REVOKE) has no Linux twin: curl here is built against OpenSSL,
+# --ssl-no-revoke + IMAGINARIUM_CURL_NO_REVOKE) has no Linux twin: curl here is built against OpenSSL,
 # which does not ask CAs about revoked certificates at all, so there is nothing to turn off -
 # code 35 on this platform is an ordinary flaky-TLS failure and joins the resume-and-retry set.
 #
-# WriteInstallStatus <progress> <text> [code] appends one JSON line to $ASTRA_INSTALL_STATUS
+# WriteInstallStatus <progress> <text> [code] appends one JSON line to $IMAGINARIUM_INSTALL_STATUS
 # when it is set (0.6.10 wave ticket 24): the Components window re-attaches to a run that outlived
 # its studio by reading this file - the installer owns the truth, the studio is just a viewer.
 # The other two installers that source this file never set the variable: they pay nothing.
 WriteInstallStatus() {
-  [ -n "${ASTRA_INSTALL_STATUS:-}" ] || return 0
+  [ -n "${IMAGINARIUM_INSTALL_STATUS:-}" ] || return 0
   local esc; esc="$(printf '%s' "${2:-}" | sed 's/\\/\\\\/g; s/"/\\"/g' | tr -d '\n\r')"
   printf '{"at":"%s","pid":%s,"progress":%s,"text":"%s"%s%s}\n' \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "${1:-0}" "$esc" "${3:+,\"code\":$3}" "${4:+,\"failed\":\"$4\"}" >> "$ASTRA_INSTALL_STATUS" 2>/dev/null || true
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$$" "${1:-0}" "$esc" "${3:+,\"code\":$3}" "${4:+,\"failed\":\"$4\"}" >> "$IMAGINARIUM_INSTALL_STATUS" 2>/dev/null || true
 }
 
 # The sourcing script must define say(). Optional:
 #   DL_USER_AGENT            sent as -A on every request (itch.io and friends want one)
-#   ASTRA_UNATTENDED=1       curl goes quiet, the loop prints '##PROGRESS <pct>|<text>' lines
+#   IMAGINARIUM_UNATTENDED=1       curl goes quiet, the loop prints '##PROGRESS <pct>|<text>' lines
 #                            instead of the progress bar (what install.sh does with -Yes/-Only;
 #                            the studio Components window reads these lines)
-# Test hook: ASTRA_INSTALL_CURL=<path> replaces the curl binary (the same name Windows uses).
+# Test hook: IMAGINARIUM_INSTALL_CURL=<path> replaces the curl binary (the same name Windows uses).
 
 # pip/uv tolerate slow links the same way Install.ps1 pins it (0.4.13)
 : "${PIP_DEFAULT_TIMEOUT:=120}"; export PIP_DEFAULT_TIMEOUT
 : "${PIP_RETRIES:=10}"; export PIP_RETRIES
 
-CurlBin() { printf '%s' "${ASTRA_INSTALL_CURL:-curl}"; }
+CurlBin() { printf '%s' "${IMAGINARIUM_INSTALL_CURL:-curl}"; }
 
 # what a curl exit code means in plain words (the CurlReason table of Install.ps1)
 CurlReason() { case "$1" in
@@ -61,7 +61,7 @@ Download() {
   say "    downloading $url"
   local part="$dst.part" err="$dst.part.err" resume=() ua=() bar=(--progress-bar) try=1 code=0 msg got pid
   [ -n "${DL_USER_AGENT:-}" ] && ua=(-A "$DL_USER_AGENT")
-  [ "${ASTRA_UNATTENDED:-}" = 1 ] && bar=(-sS)
+  [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ] && bar=(-sS)
   while :; do
     resume=()
     [ -f "$part" ] && resume=(-C -)   # resume only with an existing partial: some hosts refuse byte ranges
@@ -69,7 +69,7 @@ Download() {
       --speed-limit 1024 --speed-time 120 "${resume[@]}" --stderr "$err" -o "$part" "$url" &
     pid=$!
     while kill -0 "$pid" 2>/dev/null; do
-      if [ "${ASTRA_UNATTENDED:-}" = 1 ]; then
+      if [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ]; then
         got="$(stat -c%s "$part" 2>/dev/null || echo 0)"   # the file length: curl is quiet in this mode
         local pct text
         pct="$(awk -v g="$got" -v s="$size" 'BEGIN{printf "%d", (s>0)?(g/s*99):0}')"
@@ -145,20 +145,20 @@ HfMirrorUrl() { # <url> - the hf-mirror.com twin of a huggingface.co URL, '' for
 # to huggingface.co is dead, the old shape was every model of a set timing out on its own: four
 # tries, thirty-second connects, the same dead wire each time. Instead: the first HF download
 # probes both hosts once (huggingface.co, then hf-mirror.com) and the run remembers the verdict;
-# while both stay silent the reason is named ONCE and the probe repeats every ASTRA_HF_PROBE_S
+# while both stay silent the reason is named ONCE and the probe repeats every IMAGINARIUM_HF_PROBE_S
 # seconds (60 by default) - files already downloaded are simply not affected. An interactive run
 # waits for the site (Ctrl+C is the exit); an unattended one (the Components window, install.sh
-# -Yes) refuses after ASTRA_HF_GATE_TRIES probe rounds (3) instead of hanging a job nobody sees.
+# -Yes) refuses after IMAGINARIUM_HF_GATE_TRIES probe rounds (3) instead of hanging a job nobody sees.
 # Any HTTP answer counts as reachable - this judges the wire, not the file. Non-HF URLs pass
-# through untouched; the fake-curl test hook (ASTRA_INSTALL_CURL) replaces the probe curl too.
-: "${ASTRA_HF_PROBE_S:=60}"
+# through untouched; the fake-curl test hook (IMAGINARIUM_INSTALL_CURL) replaces the probe curl too.
+: "${IMAGINARIUM_HF_PROBE_S:=60}"
 HF_GATE=''        # '' unknown · 1 a host answers · 0 both silent (the verdict of this run)
 HF_GATE_TRIED=0
 HfProbe() { "$(CurlBin)" -s -m 8 -o /dev/null -I "$1" 2>/dev/null; }   # exit 0 = any HTTP answer
 HfGate() {
   case "$1" in https://huggingface.co/*) ;; *) return 0 ;; esac
   [ "$HF_GATE" = 1 ] && return 0
-  local cap="${ASTRA_HF_GATE_TRIES:-$( [ "${ASTRA_UNATTENDED:-}" = 1 ] && echo 3 || echo 0 )}"
+  local cap="${IMAGINARIUM_HF_GATE_TRIES:-$( [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ] && echo 3 || echo 0 )}"
   while :; do
     if HfProbe https://huggingface.co/ || HfProbe https://hf-mirror.com/; then
       [ "$HF_GATE" = 0 ] && say '  huggingface.co (or hf-mirror.com) answers again - continuing'
@@ -167,15 +167,15 @@ HfGate() {
     HF_GATE=0; HF_GATE_TRIED=$((HF_GATE_TRIED+1))
     if [ "$HF_GATE_TRIED" = 1 ]; then
       say '  Neither huggingface.co nor hf-mirror.com answers: this network does not let the site through (DNS down or a blocked route).'
-      local wait='  The installer will not time out on every model one by one: it probes again every '"${ASTRA_HF_PROBE_S}"'s and downloads continue the moment a host answers.'
-      [ "${ASTRA_UNATTENDED:-}" = 1 ] || wait+=' Ctrl+C stops the wait.'
+      local wait='  The installer will not time out on every model one by one: it probes again every '"${IMAGINARIUM_HF_PROBE_S}"'s and downloads continue the moment a host answers.'
+      [ "${IMAGINARIUM_UNATTENDED:-}" = 1 ] || wait+=' Ctrl+C stops the wait.'
       say "$wait"
     fi
     if [ "$cap" != 0 ] && [ "$HF_GATE_TRIED" -ge "$cap" ]; then
       say "  huggingface.co and hf-mirror.com are still silent after ${HF_GATE_TRIED} probes - stopping here. Run the installer again once the site answers: files already downloaded are not downloaded a second time."
       return 1
     fi
-    sleep "${ASTRA_HF_PROBE_S}"
+    sleep "${IMAGINARIUM_HF_PROBE_S}"
   done
 }
 
@@ -259,7 +259,7 @@ DownloadMirrors() {
 UvTry() {
   local what="$1" tries="$2" outf code try=1 why net wait
   shift 2
-  outf="$(mktemp "${TMPDIR:-/tmp}/af-uv.XXXXXX")"
+  outf="$(mktemp "${TMPDIR:-/tmp}/imaginarium-uv.XXXXXX")"
   while :; do
     say "    $what$( [ "$try" -gt 1 ] && printf ' - try %s of %s' "$try" "$tries" )"
     "$@" > >(tee "$outf" >/dev/null) 2>&1; code=$?
@@ -277,7 +277,7 @@ UvTry() {
       fi
       rm -f "$outf"; return "$code"
     fi
-    wait=$(( ${ASTRA_UV_WAIT:-20} * try ))
+    wait=$(( ${IMAGINARIUM_UV_WAIT:-20} * try ))
     say "    the network faltered (${why:-no error line}) - waiting ${wait}s and trying again"
     sleep "$wait"
     try=$((try+1))

@@ -1,4 +1,4 @@
-# Pixal3D engine: PyPI packages of the verified install (pip freeze of C:/AstraForge/ComfyUI-Pixal3D, 2026-10-14, Python 3.12.10, Windows x64).
+# Pixal3D engine: PyPI packages of the verified install (pip freeze of C:/Imaginarium/ComfyUI-Pixal3D, 2026-10-14, Python 3.12.10, Windows x64).
 # Installed with: pip install --no-deps -r requirements-lock.txt   (the set is complete, so nothing is resolved or upgraded).
 # NOT in this file, installed separately: torch/torchvision/torchaudio 2.8.0/0.23.0/2.8.0 (+cu128, download.pytorch.org),
 # flash_attn 2.8.3 and utils3d 1.7 (GitHub), cumesh/flex_gemm/o_voxel/NATTEN/nvdiffrast/nvdiffrec_render (prebuilt wheels from the Trellis2 node pack).

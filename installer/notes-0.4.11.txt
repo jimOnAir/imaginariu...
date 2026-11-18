@@ -1,4 +1,4 @@
-AstraForge 0.4.11 — исправлен запуск студии после «Полной» установки
+Imaginarium 0.4.11 — исправлен запуск студии после «Полной» установки
 
 • Студия снова запускается после «Полной» установки с локальным помощником. Установщик записывал файл настроек помощника (data\config.json) так, что студия не могла его прочитать и закрывалась при каждом запуске. Теперь студия читает такие файлы, а установщик их правильно записывает.
 • Путь к Pixal3D, который записывает установщик, больше не теряется.
@@ -10,7 +10,7 @@ AstraForge 0.4.11 — исправлен запуск студии после «
 
 —
 
-AstraForge 0.4.11 — the studio starts again after a Full setup
+Imaginarium 0.4.11 — the studio starts again after a Full setup
 
 • The studio starts again after a Full setup with the local assistant. The installer wrote the assistant settings file (data\config.json) in a way the studio could not read, so the studio closed on every start. Now the studio reads such files and the installer writes them correctly.
 • The Pixal3D path written by the installer is no longer lost.
