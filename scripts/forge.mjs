@@ -1,9 +1,9 @@
 #!/usr/bin/env node
-// AstraForge Forge CLI (docs/forge/API.md, "Command line").
+// Imaginarium Forge CLI (docs/forge/API.md, "Command line").
 //
 //   node scripts/forge.mjs <command> [options] [--direct] [--json] [--server URL]
 //
-// By default it talks to a running studio server (header x-astra-client: studio);
+// By default it talks to a running studio server (header x-imaginarium-client: studio);
 // --direct runs the same pipeline engine in-process without the server.
 import path from 'node:path';
 import os from 'node:os';
@@ -17,7 +17,7 @@ const ROOT = path.resolve(HERE, '..');
 // server records its real port, and this CLI follows the same answer scripts/studio-port.mjs gives.
 const studioPort = () => { try { return Number(JSON.parse(readFileSync(path.join(ROOT, 'data', 'runtime', 'port.json'), 'utf8')).port) || 0; } catch { return 0; } };
 
-const HELP = `AstraForge Forge — command line
+const HELP = `Imaginarium Forge — command line
 
 Usage: node scripts/forge.mjs <command> [options]
 
@@ -30,7 +30,7 @@ Commands:
          source: --from-glb <path> (GLB/FBX/OBJ/VRM) | --from-job <jobId> | --from-asset <id> | --params <json|file>
   run <assetId> (--steps file.json | --preset id) [--from source|latest|v003] [--class <c>] [--no-recipes]
   export <assetId> --profile godot|space_quest|heroes_gates|iso8|unity|unreal|bevy|vrm1 [--params <json|file>] [--out <folder>]
-         [--to-unity <Unity project> [--build]]   the unity profile: put the package into <project>/Assets/AstraForge/<id>/
+         [--to-unity <Unity project> [--build]]   the unity profile: put the package into <project>/Assets/Imaginarium/<id>/
   batch <file.json>                        batch: {"items":[{name, kind, source, preset|steps}]}
   clips [list] | clips import <folder> | clips remove <clipId>
   jobs | job <jobId> [--wait] | cancel <jobId>
@@ -108,7 +108,7 @@ class HttpClient {
   }
 
   async request(method, url, body) {
-    const headers = { 'x-astra-client': 'studio' };
+    const headers = { 'x-imaginarium-client': 'studio' };
     let payload;
     if (body instanceof FormData) payload = body;
     else if (body !== undefined) { headers['content-type'] = 'application/json'; payload = JSON.stringify(body); }
@@ -168,7 +168,7 @@ class HttpClient {
   }
 
   async download(fileUrl, dest) {
-    const res = await fetch(this.base + fileUrl, { headers: { 'x-astra-client': 'studio' } });
+    const res = await fetch(this.base + fileUrl, { headers: { 'x-imaginarium-client': 'studio' } });
     if (!res.ok) throw new CliError(`Failed to download ${fileUrl}: HTTP ${res.status}`);
     await fs.writeFile(dest, Buffer.from(await res.arrayBuffer()));
     return dest;
@@ -649,11 +649,11 @@ async function cmdExport(client, out, id, flags) {
     for (const e of exported) out.info(`Archive: ${e.path}`);
   }
   if (flags['to-unity']) {
-    const { sendToUnity } = await import('./unity/af_unity_send.mjs');
+    const { sendToUnity } = await import('./unity/imaginarium_unity_send.mjs');
     const sources = [];
     for (const e of exported) {
       if (e.path && existsSync(e.path)) { sources.push(e.path); continue; }
-      const dest = path.join(os.tmpdir(), `af_unity_${job.id}_${path.basename(e.path || 'export.zip')}`);
+      const dest = path.join(os.tmpdir(), `imaginarium_unity_${job.id}_${path.basename(e.path || 'export.zip')}`);
       await client.download(e.url, dest);
       sources.push(dest);
     }
@@ -754,7 +754,7 @@ export async function main(argv = process.argv.slice(2)) {
     await engine.init();
     client = new DirectClient(engine);
   } else {
-    const base = (flags.server && flags.server !== true ? String(flags.server) : null) || process.env.ASTRA_FORGE_URL || `http://127.0.0.1:${process.env.PORT || studioPort() || 3210}`;
+    const base = (flags.server && flags.server !== true ? String(flags.server) : null) || process.env.IMAGINARIUM_URL || `http://127.0.0.1:${process.env.PORT || studioPort() || 3210}`;
     client = new HttpClient(base);
   }
   switch (command) {

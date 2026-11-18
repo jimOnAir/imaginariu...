@@ -13,7 +13,7 @@ import tempfile
 
 import bpy
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _vrm_lib as V
 
 
@@ -101,7 +101,7 @@ def _fake_ext_dir():
 
 
 def _cube_glb(path):
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("cube")
     import bmesh
     bm = bmesh.new()
@@ -119,8 +119,8 @@ def test_no_skeleton_names_the_rig_step():
     """The t60/t64 remedy family, VRM edition: a skeletonless input must name rig_humanoid."""
     from steps import vrm_package as VP
     d = _fake_ext_dir()
-    old = os.environ.get("ASTRA_VRM_ADDON")
-    os.environ["ASTRA_VRM_ADDON"] = d
+    old = os.environ.get("IMAGINARIUM_VRM_ADDON")
+    os.environ["IMAGINARIUM_VRM_ADDON"] = d
     try:
         glb = _cube_glb(os.path.join(d, "cube.glb"))
         VP.run({"step": "vrm_package", "params": {}, "inputs": {"glb": glb}, "out_dir": d})
@@ -129,9 +129,9 @@ def test_no_skeleton_names_the_rig_step():
         assert "run rig_humanoid first" in str(e), str(e)
     finally:
         if old is None:
-            os.environ.pop("ASTRA_VRM_ADDON", None)
+            os.environ.pop("IMAGINARIUM_VRM_ADDON", None)
         else:
-            os.environ["ASTRA_VRM_ADDON"] = old
+            os.environ["IMAGINARIUM_VRM_ADDON"] = old
         import shutil
         shutil.rmtree(d, ignore_errors=True)
 
@@ -141,10 +141,10 @@ def test_missing_required_bones_are_named():
     lists exactly which VRM bones are missing (an export without them would not load)."""
     from steps import vrm_package as VP
     d = _fake_ext_dir()
-    old = os.environ.get("ASTRA_VRM_ADDON")
-    os.environ["ASTRA_VRM_ADDON"] = d
+    old = os.environ.get("IMAGINARIUM_VRM_ADDON")
+    os.environ["IMAGINARIUM_VRM_ADDON"] = d
     try:
-        af.reset_scene()
+        ima.reset_scene()
         arm_data = bpy.data.armatures.new("a")
         arm = bpy.data.objects.new("Rig", arm_data)
         bpy.context.scene.collection.objects.link(arm)
@@ -164,9 +164,9 @@ def test_missing_required_bones_are_named():
         assert "run rig_humanoid" in msg, msg
     finally:
         if old is None:
-            os.environ.pop("ASTRA_VRM_ADDON", None)
+            os.environ.pop("IMAGINARIUM_VRM_ADDON", None)
         else:
-            os.environ["ASTRA_VRM_ADDON"] = old
+            os.environ["IMAGINARIUM_VRM_ADDON"] = old
         import shutil
         shutil.rmtree(d, ignore_errors=True)
 
@@ -174,8 +174,8 @@ def test_missing_required_bones_are_named():
 def test_missing_component_names_the_installer():
     """Ticket 64's family rule: the error names the next action, not the class of problem."""
     from steps import vrm_package as VP
-    old = os.environ.get("ASTRA_VRM_ADDON")
-    os.environ["ASTRA_VRM_ADDON"] = os.path.join(tempfile.gettempdir(), "no-such-vrm-addon-dir")
+    old = os.environ.get("IMAGINARIUM_VRM_ADDON")
+    os.environ["IMAGINARIUM_VRM_ADDON"] = os.path.join(tempfile.gettempdir(), "no-such-vrm-addon-dir")
     try:
         VP.run({"step": "vrm_package", "params": {}, "inputs": {}, "out_dir": tempfile.gettempdir()})
         raise AssertionError("expected the not-installed remedy error")
@@ -185,9 +185,9 @@ def test_missing_component_names_the_installer():
         assert "install" in msg.lower(), msg
     finally:
         if old is None:
-            os.environ.pop("ASTRA_VRM_ADDON", None)
+            os.environ.pop("IMAGINARIUM_VRM_ADDON", None)
         else:
-            os.environ["ASTRA_VRM_ADDON"] = old
+            os.environ["IMAGINARIUM_VRM_ADDON"] = old
 
 
 def test_bad_profile_rejected_before_anything_else():
@@ -209,7 +209,7 @@ def _synthetic_character_glb(path, shape_keys=False):
     spec's chains: Spine>Spine1>Spine2>Neck>Head, Shoulder>Arm>ForeArm>Hand>fingers,
     UpLeg>Leg>Foot>Toes.)"""
     from steps import _anim_lib as AL
-    af.reset_scene()
+    ima.reset_scene()
     arm_data = bpy.data.armatures.new("Armature")
     arm = bpy.data.objects.new("mixamorig", arm_data)
     bpy.context.scene.collection.objects.link(arm)
@@ -277,12 +277,12 @@ def test_vrm_export_round_trip():
     VRMC_vrm, and the rig re-imports. Ran live first on 2026-11-17 (component installed by
     owner order); still skips honestly if the addon is missing."""
     from steps import vrm_package as VP
-    old = os.environ.pop("ASTRA_VRM_ADDON", None)
+    old = os.environ.pop("IMAGINARIUM_VRM_ADDON", None)
     try:
         ext_dir = VP._addon_dir()
     finally:
         if old is not None:
-            os.environ["ASTRA_VRM_ADDON"] = old
+            os.environ["IMAGINARIUM_VRM_ADDON"] = old
     if not ext_dir:
         return "skip: vrm addon not installed (ticket 61: installer -Only vrmaddon)"
     tmp = tempfile.mkdtemp(prefix="vrm-e2e-")
@@ -309,12 +309,12 @@ def test_manifest_input_is_a_path_to_asset_json():
     (AttributeError: 'str' object has no attribute 'get'). The passport name becomes the
     VRM meta name and the .vrm file name."""
     from steps import vrm_package as VP
-    old = os.environ.pop("ASTRA_VRM_ADDON", None)
+    old = os.environ.pop("IMAGINARIUM_VRM_ADDON", None)
     try:
         ext_dir = VP._addon_dir()
     finally:
         if old is not None:
-            os.environ["ASTRA_VRM_ADDON"] = old
+            os.environ["IMAGINARIUM_VRM_ADDON"] = old
     if not ext_dir:
         return "skip: vrm addon not installed (ticket 61: installer -Only vrmaddon)"
     tmp = tempfile.mkdtemp(prefix="vrm-manifest-")
@@ -338,12 +338,12 @@ def test_expressions_bound_in_the_exported_vrm():
     them in the file (VRMC_vrm.expressions.preset.<name>.morphTargetBinds). The report count
     is checked against what the BYTES show, not against what the matcher found."""
     from steps import vrm_package as VP
-    old = os.environ.pop("ASTRA_VRM_ADDON", None)
+    old = os.environ.pop("IMAGINARIUM_VRM_ADDON", None)
     try:
         ext_dir = VP._addon_dir()
     finally:
         if old is not None:
-            os.environ["ASTRA_VRM_ADDON"] = old
+            os.environ["IMAGINARIUM_VRM_ADDON"] = old
     if not ext_dir:
         return "skip: vrm addon not installed (ticket 61: installer -Only vrmaddon)"
     tmp = tempfile.mkdtemp(prefix="vrm-bind-")

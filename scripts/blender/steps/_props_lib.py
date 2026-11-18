@@ -23,8 +23,8 @@ Item frame (contract §6 grip frame): socket_grip_main at the grip, +Z along the
 hand (the rig's prop_grip_dir rule), -Y the edge / face; shields: +Z up in the board, -Y the face, grip
 3.5 cm behind the back centre (the frame of socket_mount_shield_*); socket_grip_off for two-handed
 items, socket_fx_tip on staffs and wands. The placement (where the item sat on the body) is written
-as a socket empty socket_prop_<hand>_<n> on the body (extras af_bone, af_hand, af_item): rig_humanoid
-keeps input sockets (keep_input_sockets) as children of af_bone, attach_prop moves the hand / shield
+as a socket empty socket_prop_<hand>_<n> on the body (extras imaginarium_bone, imaginarium_hand, imaginarium_item): rig_humanoid
+keeps input sockets (keep_input_sockets) as children of imaginarium_bone, attach_prop moves the hand / shield
 mount onto it (refit) - the item comes back exactly where the concept had it.
 """
 import json
@@ -39,7 +39,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.kdtree import KDTree
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _humanoid_lib as hl
 
 # ----------------------------------------------------------------------------- hints / types
@@ -1196,7 +1196,7 @@ def cut(body, lab, items, H):
     me = body.data
     bm = bmesh.new()
     bm.from_mesh(me)
-    lay = bm.verts.layers.int.new("af_lab")
+    lay = bm.verts.layers.int.new("imaginarium_lab")
     for v, l_ in zip(bm.verts, lab.tolist()):
         v[lay] = int(l_) + 1
     eps = 1e-5 * H
@@ -1245,7 +1245,7 @@ def cut(body, lab, items, H):
         ok = all((v[lay] - 1) == i or i in on.get(v.index, ()) for v in f.verts)
         if ok:
             face_lab[f.index] = i
-    open_layer = bm.edges.layers.int.new("af_open")
+    open_layer = bm.edges.layers.int.new("imaginarium_open")
     for e in bm.edges:
         e[open_layer] = 1 if (e.is_boundary or len(e.link_faces) > 2) else 0
     out = []
@@ -1261,13 +1261,13 @@ def cut(body, lab, items, H):
         bmesh.ops.delete(b2, geom=[f for j, f in enumerate(b2.faces) if j not in keep], context="FACES")
         bmesh.ops.delete(b2, geom=[v for v in b2.verts if not v.link_faces], context="VERTS")
         uvl = b2.loops.layers.uv.active
-        ol = b2.edges.layers.int.get("af_open")
+        ol = b2.edges.layers.int.get("imaginarium_open")
         caps, left = _cap_open_loops(b2, ol, uvl)
-        for ly in (b2.edges.layers.int.get("af_open"), ):
+        for ly in (b2.edges.layers.int.get("imaginarium_open"), ):
             if ly is not None:
                 b2.edges.layers.int.remove(ly)
-        if b2.verts.layers.int.get("af_lab") is not None:
-            b2.verts.layers.int.remove(b2.verts.layers.int.get("af_lab"))
+        if b2.verts.layers.int.get("imaginarium_lab") is not None:
+            b2.verts.layers.int.remove(b2.verts.layers.int.get("imaginarium_lab"))
         pme = bpy.data.meshes.new("prop_" + it["type"])
         b2.to_mesh(pme)
         b2.free()
@@ -1282,7 +1282,7 @@ def cut(body, lab, items, H):
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
     body_caps, body_left = _cap_open_loops(bm, open_layer, bm.loops.layers.uv.active)
     bm.edges.layers.int.remove(open_layer)
-    bm.verts.layers.int.remove(bm.verts.layers.int.get("af_lab"))
+    bm.verts.layers.int.remove(bm.verts.layers.int.get("imaginarium_lab"))
     bm.to_mesh(me)
     bm.free()
     me.update()
@@ -1730,7 +1730,7 @@ def write_item(ob, sockets, it, out_dir, info, preview=True, size=320):
     from steps import _items_lib as IL
     os.makedirs(out_dir, exist_ok=True)
     objs = [ob] + list(sockets)
-    glb = af.export_glb(os.path.join(out_dir, "item.glb"), objects=objs, animations=False, skins=False)
+    glb = ima.export_glb(os.path.join(out_dir, "item.glb"), objects=objs, animations=False, skins=False)
     summ = IL.glb_summary(glb)
     info["glb"] = {"sockets": sorted(summ["sockets"]), "materials": summ["materials"], "bytes": summ["bytes"]}
     blend = os.path.join(out_dir, "item.blend")
@@ -1742,20 +1742,20 @@ def write_item(ob, sockets, it, out_dir, info, preview=True, size=320):
         out["preview"] = render_only(os.path.join(out_dir, "preview.png"), [ob], views=views, size=size,
                                      color="TEXTURE")
     with open(os.path.join(out_dir, "item.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(info), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable(info), fh, ensure_ascii=False, indent=2)
     out["json"] = os.path.join(out_dir, "item.json")
     return out
 
 
 def render_only(path, objs, color="TEXTURE", **kw):
-    """af.render_views with every other mesh hidden for the render (items and the body overlap in place)."""
+    """ima.render_views with every other mesh hidden for the render (items and the body overlap in place)."""
     hidden = []
     for o in bpy.context.scene.objects:
         if o.type == "MESH" and o not in objs and not o.hide_render:
             o.hide_render = True
             hidden.append(o)
     try:
-        return af.render_views(path, objs, color=color, **kw)
+        return ima.render_views(path, objs, color=color, **kw)
     finally:
         for o in hidden:
             o.hide_render = False
@@ -1773,9 +1773,9 @@ def closeup(path, objs, coloured, lo, hi, size=320, views=("front", "left", "thr
         keep[o] = tuple(o.color)
         o.color = ITEM_COLOURS[coloured[o] % len(ITEM_COLOURS)] if o in coloured else (0.78, 0.78, 0.76, 1.0)
     v, f = IL.box(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2], tuple(((np.asarray(lo) + np.asarray(hi)) / 2).tolist()))
-    me = bpy.data.meshes.new("af_frame_box")
+    me = bpy.data.meshes.new("imaginarium_frame_box")
     me.from_pydata(v, [], f)
-    fr = bpy.data.objects.new("af_frame_box", me)
+    fr = bpy.data.objects.new("imaginarium_frame_box", me)
     bpy.context.scene.collection.objects.link(fr)
     fr.hide_render = True
     hidden = []
@@ -1784,7 +1784,7 @@ def closeup(path, objs, coloured, lo, hi, size=320, views=("front", "left", "thr
             o.hide_render = True
             hidden.append(o)
     try:
-        af.render_views(path, [fr], views=tuple(views), size=size, margin=1.0, color="OBJECT")
+        ima.render_views(path, [fr], views=tuple(views), size=size, margin=1.0, color="OBJECT")
     finally:
         bpy.data.objects.remove(fr)
         bpy.data.meshes.remove(me)
@@ -1853,8 +1853,8 @@ def _depth_inside(bvh, pts, max_d, enclose_m=0.6, min_hits=7):
 
 def clip_props_qa(frames_per_clip=12, pen_tol_m=0.02, grip_tol_m=0.01, max_depth_m=0.1, samples=600):
     """Items in the hands over the final clips of the open scene (styled.blend). Items: meshes skinned 100 % to
-    one hand bone with extras af_prop_item (attach_prop skin_separate), or objects under a mount socket
-    (bone_child, extras af_attached_hand). Per clip, at sampled frames:
+    one hand bone with extras imaginarium_prop_item (attach_prop skin_separate), or objects under a mount socket
+    (bone_child, extras imaginarium_attached_hand). Per clip, at sampled frames:
       grip drift - how far any item vertex is from where the hand bone carries its rest position (m): a rigid
                    item in the hand stays at 0;
       penetration - item vertices behind the nearest skinned-body face (inside), depth up to max_depth_m;
@@ -1874,7 +1874,7 @@ def clip_props_qa(frames_per_clip=12, pen_tol_m=0.02, grip_tol_m=0.01, max_depth
     items, bodies = [], []
     for ob in meshes:
         hand_vg = [g for g in ob.vertex_groups if g.name.endswith("Hand") and g.name.startswith("mixamorig:")]
-        if ob.get("af_prop_item") and len(hand_vg) == 1:
+        if ob.get("imaginarium_prop_item") and len(hand_vg) == 1:
             items.append((ob, hand_vg[0].name))
         else:
             bodies.append(ob)
@@ -1883,8 +1883,8 @@ def clip_props_qa(frames_per_clip=12, pen_tol_m=0.02, grip_tol_m=0.01, max_depth
             continue
         p = ob
         while p is not None and p is not rig:
-            if p.get("af_attached_hand"):
-                items.append((ob, "mixamorig:%sHand" % ("Right" if str(p["af_attached_hand"]) == "r" else "Left")))
+            if p.get("imaginarium_attached_hand"):
+                items.append((ob, "mixamorig:%sHand" % ("Right" if str(p["imaginarium_attached_hand"]) == "r" else "Left")))
                 break
             p = p.parent
     if not items or not bodies:
@@ -1963,7 +1963,7 @@ def plate_rubber_qa(mask=None, frames_per_clip=12, limit=0.25):
     from steps import _anim_lib as A
     scene = bpy.context.scene
     rig = next(o for o in scene.objects if o.type == "ARMATURE")
-    body = max((m for m in A.skinned_meshes(rig) if not m.get("af_prop_item")), key=lambda m: len(m.data.vertices))
+    body = max((m for m in A.skinned_meshes(rig) if not m.get("imaginarium_prop_item")), key=lambda m: len(m.data.vertices))
     if mask is None:
         hard = {hl.b(n) for n in hl.HARD_BONES if "Hand" not in n}
         groups = {g.index: g.name for g in body.vertex_groups}

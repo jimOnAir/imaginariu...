@@ -1,7 +1,7 @@
 // Ticket 40 (0.7.1 wave): model-weight reuse. Windows 0.7 "weights other programs already
 // downloaded are connected without copying" - the branch's own scanner/connector. A fake tree
 // (studio root + an external ComfyUI + an HF-shaped cache) drives every rule: name+size match,
-// sha256 only at accept, symlink (never copy), paths.json record, and the af_scan side reporting
+// sha256 only at accept, symlink (never copy), paths.json record, and the imaginarium_scan side reporting
 // the result as `installed (external)` so no frontend offers to re-download it.
 import test from 'node:test';
 import assert from 'node:assert/strict';
@@ -9,13 +9,13 @@ import { createHash } from 'node:crypto';
 import { existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { connectWeight, findByName, recordLinks, reportWeights, studioTarget, weightSearchDirs } from '../installer/af_weights.mjs';
-import { modelState, scanItems } from '../installer/af_scan.mjs';
+import { connectWeight, findByName, recordLinks, reportWeights, studioTarget, weightSearchDirs } from '../installer/imaginarium_weights.mjs';
+import { modelState, scanItems } from '../installer/imaginarium_scan.mjs';
 
 const sha = (buf) => createHash('sha256').update(buf).digest('hex');
 
 function fixture() {
-  const root = mkdtempSync(path.join(tmpdir(), 'af-wt-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'imaginarium-wt-'));
   const man = {
     profiles: { quick: [], full: [], lite: [] },
     programs: { node: { version: '22.0.0' }, blender: { version: '5.0.1' }, comfy: { version: 'v0.3.0' } },
@@ -48,7 +48,7 @@ function fixture() {
   writeFileSync(path.join(ext, 'comfy', 'models', 'checkpoints', 'sd_xl_base_1.0.safetensors'), Buffer.alloc(998, 3));
   writeFileSync(path.join(ext, 'hf', 'Qwen-snap', 'snapshots', 'main', 'hunyuan3d-dit-v2-mv.safetensors'), Buffer.alloc(700, 9));
   writeFileSync(path.join(ext, 'comfy', 'models', 'node_modules', 'hunyuan3d-dit-v2.safetensors'), content);
-  const env = { ASTRA_INSTALL_NO_GPU: '1', ASTRA_WEIGHT_DIRS: ext, HOME: path.join(root, 'no-home') };
+  const env = { IMAGINARIUM_INSTALL_NO_GPU: '1', IMAGINARIUM_WEIGHT_DIRS: ext, HOME: path.join(root, 'no-home') };
   return { root, ext, man, env, content };
 }
 
@@ -127,7 +127,7 @@ test('a real file at the target is never replaced by a link', async () => {
   } finally { rmSync(f.root, { recursive: true, force: true }); }
 });
 
-test('af_scan: a connected link reads installed (external) with the owner path, and no frontend re-downloads it', () => {
+test('imaginarium_scan: a connected link reads installed (external) with the owner path, and no frontend re-downloads it', () => {
   const f = fixture();
   try {
     const it = reportWeights({ root: f.root, env: f.env }).items[0];
@@ -164,11 +164,11 @@ test('scanItems: the model row carries installed (external) through the frontend
   assert.equal(row.have, '/home/u/ComfyUI/models/checkpoints');
 });
 
-test('search dirs: ASTRA_WEIGHT_DIRS first, then the known homes, never the studio data twice', () => {
-  const dirs = weightSearchDirs({ env: { ASTRA_WEIGHT_DIRS: '/a:/b', HOME: '/h' }, root: '/x/Studio' });
+test('search dirs: IMAGINARIUM_WEIGHT_DIRS first, then the known homes, never the studio data twice', () => {
+  const dirs = weightSearchDirs({ env: { IMAGINARIUM_WEIGHT_DIRS: '/a:/b', HOME: '/h' }, root: '/x/Studio' });
   assert.deepEqual(dirs.slice(0, 2), ['/a', '/b']);
   assert.ok(dirs.includes(path.join('/h', '.cache', 'huggingface', 'hub')));
   assert.ok(dirs.includes(path.join('/h', 'ComfyUI', 'models')));
-  assert.ok(dirs.includes('/x/AstraForge/data/models'), 'a sibling AstraForge copy is searched');
+  assert.ok(dirs.includes('/x/Imaginarium/data/models'), 'a sibling Imaginarium copy is searched');
   assert.equal(new Set(dirs).size, dirs.length, 'no duplicates');
 });

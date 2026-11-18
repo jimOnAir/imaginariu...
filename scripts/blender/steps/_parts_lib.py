@@ -16,7 +16,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import _paint_lib as pl
 from steps import _replace_lib as rl
@@ -409,7 +409,7 @@ def boolean(ob, other, operation="INTERSECT"):
     last = None
     for solver in solvers:
         cp = ob.data.copy()
-        mod = ob.modifiers.new("af_bool", "BOOLEAN")
+        mod = ob.modifiers.new("imaginarium_bool", "BOOLEAN")
         mod.operation = operation
         mod.operand_type = "OBJECT"
         mod.object = other
@@ -592,7 +592,7 @@ def export_hunyuan(ob, path, long_side=2.0):
     """GLB of `ob` in the normalisation of the whole-body generator's meshes: bbox centred at the
     origin on every axis, longest side `long_side` (mesh_mv_703.glb: X +-0.968, Z +-0.999)."""
     cp = ml.duplicate(ob, ob.name + "_mv")
-    lo, hi = af.world_bbox([cp])
+    lo, hi = ima.world_bbox([cp])
     size = max(hi - lo) if hi != lo else 1.0
     k = long_side / float(size)
     c = (lo + hi) / 2.0
@@ -600,6 +600,6 @@ def export_hunyuan(ob, path, long_side=2.0):
     cp.data.transform(M)
     cp.data.update()
     ml.shade_smooth(cp)          # no sharp edges: the exporter must not split vertices (the generator's GLBs are plain indexed meshes)
-    af.export_glb(path, objects=[cp], animations=False, skins=False, export_normals=False)
+    ima.export_glb(path, objects=[cp], animations=False, skins=False, export_normals=False)
     ml.remove_object(cp)
     return {"scale": round(k, 6), "shift": [round(float(x), 6) for x in (-c)]}

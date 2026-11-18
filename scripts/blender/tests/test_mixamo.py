@@ -6,9 +6,9 @@ return early when they are missing.
 
 Run (until the shared runner exists):
   blender -b --factory-startup --python-expr "import sys;sys.path[:0]=[r'<root>/scripts/blender',
-    r'<root>/scripts/blender/tests'];import test_mixamo as t;import af_common as af
+    r'<root>/scripts/blender/tests'];import test_mixamo as t;import imaginarium_common as ima
   for n in sorted(dir(t)):
-      if n.startswith('test_'): af.reset_scene(); getattr(t,n)(); print('PASS',n)"
+      if n.startswith('test_'): ima.reset_scene(); getattr(t,n)(); print('PASS',n)"
 """
 import json
 import math
@@ -20,14 +20,14 @@ import tempfile
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _anim_lib as lib
 from steps import clip_library
 from steps import retarget
 
 LIBRARY = lib.DEFAULT_LIBRARY
 # folder of the raw unit folders (model.fbx/glb, anims/, mixamo_rigged.fbx) for the real-asset tests
-RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+RAW = os.environ.get("Imaginarium_ART_RAW") or r"C:/Imaginarium/test-assets/art/raw"
 
 
 def raw(unit, *parts):
@@ -36,7 +36,7 @@ def raw(unit, *parts):
 
 
 def tmpdir(tag):
-    return tempfile.mkdtemp(prefix="af_mx_%s_" % tag)
+    return tempfile.mkdtemp(prefix="imaginarium_mx_%s_" % tag)
 
 
 def request(out_dir, inputs, params):
@@ -44,8 +44,8 @@ def request(out_dir, inputs, params):
 
 
 def finish(req, res):
-    """Same normalisation af_run applies (writes result.json, decides ok)."""
-    return af.finish(req, res)
+    """Same normalisation imaginarium_run applies (writes result.json, decides ok)."""
+    return ima.finish(req, res)
 
 
 # =========================================================================== builders
@@ -93,7 +93,7 @@ for _s, _x in (("Left", 1), ("Right", -1)):
     })
 
 
-def astraforge_template(h=1.8, w=None):
+def imaginarium_template(h=1.8, w=None):
     """Bone layout of src/rig-core.js createSkeleton(type='humanoid') in Blender axes
     (three.js x, y-up, z-forward -> Blender x, -z, y); tails go to the first child.
     w = model width: createSkeleton uses max(bbox width, 0.35 h); a T-pose model is ~h wide
@@ -139,7 +139,7 @@ def build_armature(name, layout, prefix="", roll=0.0, deform_skip=()):
     arm_data = bpy.data.armatures.new(name)
     rig = bpy.data.objects.new(name, arm_data)
     bpy.context.scene.collection.objects.link(rig)
-    af.select_only([rig])
+    ima.select_only([rig])
     bpy.ops.object.mode_set(mode="EDIT")
     eb = arm_data.edit_bones
     for n, (h, t, p) in layout.items():
@@ -241,7 +241,7 @@ def _export_clip(rig, folder, name, keep):
     path = os.path.join(folder, name)
     bpy.context.scene.frame_start = 1
     bpy.context.scene.frame_set(0)  # rest written from frame 0, clip baked from 1
-    af.select_only([rig])
+    ima.select_only([rig])
     bpy.ops.export_scene.fbx(filepath=path, use_selection=True, object_types={"ARMATURE"},
                              add_leaf_bones=False, bake_anim=True, bake_anim_use_all_actions=False,
                              bake_anim_use_nla_strips=False, bake_anim_force_startend_keying=True,
@@ -362,10 +362,10 @@ def skinned_target(layout, prefix="", roll=0.0, name="Target", deform_skip=()):
 
 
 def save_target_blend(folder, layout, **kw):
-    af.reset_scene()
+    ima.reset_scene()
     skinned_target(layout, **kw)
     path = os.path.join(folder, "target.blend")
-    af.save_blend(path)
+    ima.save_blend(path)
     return path
 
 
@@ -483,8 +483,8 @@ def test_map_bone_names_schemes():
     assert m["mixamorig1:Hips"] == "Hips" and m["mixamorig1:LeftUpLeg"] == "LeftUpLeg"
     sch, m = lib.map_bone_names(["Hips", "Spine", "Spine1", "LeftArm", "LeftHandIndex1"])
     assert sch == "mixamo" and m["LeftHandIndex1"] == "LeftHandIndex1"
-    sch, m = lib.map_bone_names(list(astraforge_template()))
-    assert sch == "astraforge", sch
+    sch, m = lib.map_bone_names(list(imaginarium_template()))
+    assert sch == "imaginarium", sch
     assert m["Chest"] == "Spine2" and m["LeftUpperArm"] == "LeftArm"
     assert m["LeftLowerLeg"] == "LeftLeg" and m["RightToes"] == "RightToeBase"
     assert m["HeadEnd"] == "HeadTop_End" and "Root" not in m and "LeftHandEnd" not in m
@@ -690,16 +690,16 @@ def test_planted_feet_default_lock():
 
 def test_sockets_and_children_survive_export():
     """Review: animated.glb must keep the rig's whole hierarchy - contract section 6 sockets on
-    bones (af.add_socket, as rig_humanoid makes them), a prop on a socket, a mesh parented to the
+    bones (ima.add_socket, as rig_humanoid makes them), a prop on a socket, a mesh parented to the
     body mesh."""
     d = tmpdir("sock")
     src = synthetic_clip_fbx(d)
-    af.reset_scene()
+    ima.reset_scene()
     rig = skinned_target(ARMS_DOWN, prefix="mixamorig:")
     body = bpy.data.objects["Target_body"]
-    hand = af.add_socket("socket_mount_hand_r", parent=rig, bone="mixamorig:RightHand",
+    hand = ima.add_socket("socket_mount_hand_r", parent=rig, bone="mixamorig:RightHand",
                          location=(0, 0.04, 0), kind="mount", size_class="M")
-    af.add_socket("socket_fx_head", parent=rig, bone="mixamorig:Head", kind="fx")
+    ima.add_socket("socket_fx_head", parent=rig, bone="mixamorig:Head", kind="fx")
     for name, parent in (("Prop_sword", hand), ("Belt_pouch", body)):
         me = bpy.data.meshes.new(name)
         me.from_pydata([(0, 0, 0), (0.05, 0, 0), (0, 0.05, 0), (0, 0, 0.3)], [],
@@ -708,7 +708,7 @@ def test_sockets_and_children_survive_export():
         bpy.context.scene.collection.objects.link(ob)
         ob.parent = parent
     blend = os.path.join(d, "target.blend")
-    af.save_blend(blend)
+    ima.save_blend(blend)
     req = request(os.path.join(d, "out"), {"blend": blend}, {"preview": False, "clips": [
         {"source": src, "name": "walk", "loop": True}]})
     res = finish(req, retarget.run(req))
@@ -731,7 +731,7 @@ def test_foreign_actions_kept_out_of_glb():
     armature's action stay in animated.blend and do not leak into animated.glb."""
     d = tmpdir("acts")
     src = synthetic_clip_fbx(d)
-    af.reset_scene()
+    ima.reset_scene()
     rig = skinned_target(ARMS_DOWN, prefix="mixamorig:")
     pb = rig.pose.bones["mixamorig:Spine"]
     pb.rotation_mode = "QUATERNION"
@@ -756,7 +756,7 @@ def test_foreign_actions_kept_out_of_glb():
         ob.keyframe_insert("rotation_quaternion", frame=f)
     other.animation_data.action.name = "OtherWave"
     blend = os.path.join(d, "target.blend")
-    af.save_blend(blend)
+    ima.save_blend(blend)
     req = request(os.path.join(d, "o1"), {"blend": blend}, {"preview": False, "clips": [
         {"source": src, "name": "walk", "loop": True}]})
     res = finish(req, retarget.run(req))
@@ -782,16 +782,16 @@ def test_rig_transform_warning_and_apply():
     params.apply_transforms, baked so the GLB armature node carries no scale."""
     d = tmpdir("xform")
     src = synthetic_clip_fbx(d)
-    af.reset_scene()
+    ima.reset_scene()
     rig = skinned_target(ARMS_DOWN, prefix="mixamorig:")
-    sock = af.add_socket("socket_mount_hand_r", parent=rig, bone="mixamorig:RightHand",
+    sock = ima.add_socket("socket_mount_hand_r", parent=rig, bone="mixamorig:RightHand",
                          location=(0, 0.04, 0), kind="mount")
     rig.scale = (1.5, 1.5, 1.5)
     bpy.context.view_layer.update()
     rest_box = _rest_bbox(rig, [bpy.data.objects["Target_body"]])
     sock_rest = _rest_world(rig, sock)
     blend = os.path.join(d, "target.blend")
-    af.save_blend(blend)
+    ima.save_blend(blend)
     clip = [{"source": src, "name": "walk", "loop": True}]
     req = request(os.path.join(d, "o1"), {"blend": blend}, {"preview": False, "clips": clip})
     res = finish(req, retarget.run(req))
@@ -1040,8 +1040,8 @@ def test_real_synthetic_arms_down_rig():
     shutil.rmtree(d, ignore_errors=True)
 
 
-def test_real_astraforge_template_rig():
-    """(d) AstraForge browser template names (Root/Hips/Chest/LeftUpperArm...) via .blend input,
+def test_real_imaginarium_template_rig():
+    """(d) Imaginarium browser template names (Root/Hips/Chest/LeftUpperArm...) via .blend input,
     root motion extracted onto the template's own Root bone."""
     clips = _real_clipset(raw("militia", "anims", "idle.fbx"), raw("militia", "anims", "walk.fbx"),
                           raw("militia", "anims", "attack.fbx"), raw("militia", "anims", "hit.fbx"),
@@ -1049,14 +1049,14 @@ def test_real_astraforge_template_rig():
     if not clips:
         return "skip: raw fixtures missing under " + RAW
     d = tmpdir("template")
-    blend = save_target_blend(d, astraforge_template(), deform_skip=("Root", "HeadEnd",
+    blend = save_target_blend(d, imaginarium_template(), deform_skip=("Root", "HeadEnd",
                                                                      "LeftHandEnd", "RightHandEnd",
                                                                      "LeftToesEnd", "RightToesEnd"))
     req = request(os.path.join(d, "out"), {"blend": blend}, {"clips": clips,
                                                              "root_motion": "extract"})
     res = finish(req, retarget.run(req))
     doc, summ = assert_common(res, NAMES5, res["outputs"]["clips"])
-    assert doc["scheme"] == "astraforge" and doc["root_bone"] == "Root", (doc["scheme"],
+    assert doc["scheme"] == "imaginarium" and doc["root_bone"] == "Root", (doc["scheme"],
                                                                          doc["root_bone"])
     tm = doc["target_mapped"]
     assert tm["Chest"] == "Spine2" and tm["LeftUpperArm"] == "LeftArm" and \
@@ -1123,7 +1123,7 @@ def turned_clip_fbx(folder, name="turned.fbx", frames=21, yaw_deg=40.0, drop=0.0
 
 
 def _eval(blend, action, frame, bones):
-    af.open_blend(blend)
+    ima.open_blend(blend)
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     lib.assign_action(rig, bpy.data.actions[action])
     bpy.context.scene.frame_set(frame)

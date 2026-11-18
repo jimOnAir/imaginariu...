@@ -48,13 +48,13 @@ test('the i18n layer: the OS default applies only while nothing is stored, and i
     assert.equal(i18n.hasStoredLang(), false);
     i18n.applyOsLang('ru');
     assert.equal(i18n.getLang(), 'ru', 'first paint speaks the machine');
-    assert.equal(store.has('astra.lang'), false, 'the detection is not a pick');
+    assert.equal(store.has('imaginarium.lang'), false, 'the detection is not a pick');
     assert.equal(globalThis.document.documentElement.lang, 'ru', '<html lang> follows');
     i18n.setLang('en');                                   // the user chooses
-    assert.equal(store.get('astra.lang'), 'en');
+    assert.equal(store.get('imaginarium.lang'), 'en');
     i18n.applyOsLang('ru');
     assert.equal(i18n.getLang(), 'en', 'the pick outranks the OS, forever after');
-    assert.equal(store.get('astra.lang'), 'en');
+    assert.equal(store.get('imaginarium.lang'), 'en');
     assert.match(i18n.t('app.save'), /./);                // dictionaries answer in the picked language
   } finally { delete globalThis.window; delete globalThis.document; }
 });

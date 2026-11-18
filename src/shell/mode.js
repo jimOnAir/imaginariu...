@@ -1,10 +1,10 @@
 // The Hybrid UI view modes (behavior per ADR-0004, ticket 04): "Simple" (the default) shows the
 // everyday surface of the studio; "Detailed" additionally reveals the rare settings (advanced
 // generation options), the game export profiles and the keyboard-shortcut surfaces. The choice
-// persists under 'astra.mode'. Pure functions here; the visibility decisions are a data map
+// persists under 'imaginarium.mode'. Pure functions here; the visibility decisions are a data map
 // (REVEALED_IN_DETAILED) so a test pins exactly which surfaces the mode controls.
 export const MODES = ['simple', 'detailed'];
-export const MODE_KEY = 'astra.mode';
+export const MODE_KEY = 'imaginarium.mode';
 const DEFAULT_MODE = 'simple';
 
 // the ids of surfaces only the Detailed mode reveals

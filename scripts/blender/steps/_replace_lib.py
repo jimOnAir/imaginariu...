@@ -16,7 +16,7 @@ import numpy as np
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 
@@ -612,7 +612,7 @@ def bridge_seam(ob, plane, gap, body_mat_index=None, tol=None):
     any other open loop on either plane is capped (holes_fill). Bridge faces take the body
     material and the UVs of the nearest body-rim vertex. Returns info."""
     me = ob.data
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     tol = tol or max((hi - lo).length * 2e-5, 1e-6)
     bm = bmesh.new()
     bm.from_mesh(me)
@@ -1445,15 +1445,15 @@ def render_dirs(path, objects, dirs, size=384, color_type="TEXTURE", bbox=None, 
     if color_type == "TEXTURE":
         ml.set_active_basecolor_nodes(objects)
     synced = ml._sync_viewport_colors(objects) if color_type in ("TEXTURE", "MATERIAL") else []
-    lo, hi = bbox if bbox is not None else af.world_bbox(objects)
+    lo, hi = bbox if bbox is not None else ima.world_bbox(objects)
     lo, hi = mathutils.Vector(list(lo)), mathutils.Vector(list(hi))
     centre = (lo + hi) / 2
     extent = max((hi - lo).length, 1e-3)
-    cam_data = bpy.data.cameras.new("af_rp_cam")
+    cam_data = bpy.data.cameras.new("imaginarium_rp_cam")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = extent * margin
     cam_data.clip_end = extent * 40
-    cam = bpy.data.objects.new("af_rp_cam", cam_data)
+    cam = bpy.data.objects.new("imaginarium_rp_cam", cam_data)
     scene.collection.objects.link(cam)
     prev_cam = scene.camera
     scene.camera = cam
@@ -1465,7 +1465,7 @@ def render_dirs(path, objects, dirs, size=384, color_type="TEXTURE", bbox=None, 
             hidden.append(o)
     r = scene.render
     prev_engine = r.engine
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_x = r.resolution_y = int(size)
     r.resolution_percentage = 100
     r.film_transparent = True

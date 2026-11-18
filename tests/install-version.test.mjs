@@ -19,29 +19,29 @@ const run = (script, cwd) => spawnSync('bash', [script, '--version'], { encoding
 test('install.sh -v prints exactly the package.json version', () => {
   const r = spawnSync('bash', [INSTALL_SH, '-v'], { encoding: 'utf8', timeout: 30000 });
   assert.equal(r.status, 0, r.stderr);
-  assert.equal(r.stdout.trim(), `AstraForge installer ${repoVersion}`);
+  assert.equal(r.stdout.trim(), `Imaginarium installer ${repoVersion}`);
 });
 
 test('the announced version follows package.json, not a literal in the script (drift guard)', () => {
-  const tmp = mkdtempSync(path.join(tmpdir(), 'af-ver-'));
+  const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-ver-'));
   try {
     // an app folder copy with only the two files the version read needs, carrying a different version
     mkdirTree(tmp);
     cpSync(INSTALL_SH, path.join(tmp, 'installer', 'install.sh'));
-    writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({ name: 'astraforge-local', version: '9.9.9-mutation' }, null, 2) + '\n');
+    writeFileSync(path.join(tmp, 'package.json'), JSON.stringify({ name: 'imaginarium-local', version: '9.9.9-mutation' }, null, 2) + '\n');
     const r = run(path.join(tmp, 'installer', 'install.sh'), tmp);
     assert.equal(r.status, 0, r.stderr);
-    assert.equal(r.stdout.trim(), 'AstraForge installer 9.9.9-mutation', 'the installer reads package.json at run time');
+    assert.equal(r.stdout.trim(), 'Imaginarium installer 9.9.9-mutation', 'the installer reads package.json at run time');
   } finally { rmSync(tmp, { recursive: true, force: true }); }
 });
 
 test('the interactive and -ScanOnly runs announce the version; -ScanList stays machine-clean', () => {
   const scan = spawnSync('bash', [INSTALL_SH, '-ScanList'], { encoding: 'utf8', timeout: 120000 });
   assert.equal(scan.status, 0, scan.stderr);
-  assert.doesNotMatch(scan.stdout, /AstraForge installer/, 'the ##ITEM contract carries no human banner');
+  assert.doesNotMatch(scan.stdout, /Imaginarium installer/, 'the ##ITEM contract carries no human banner');
   const only = spawnSync('bash', [INSTALL_SH, '-ScanOnly'], { encoding: 'utf8', timeout: 120000 });
   assert.equal(only.status, 0, only.stderr);
-  assert.match(only.stdout, new RegExp(`AstraForge installer ${repoVersion.replace(/\./g, '\\.')}`));
+  assert.match(only.stdout, new RegExp(`Imaginarium installer ${repoVersion.replace(/\./g, '\\.')}`));
 });
 
 function mkdirTree(tmp) {

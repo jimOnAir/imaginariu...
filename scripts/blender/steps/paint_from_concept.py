@@ -1,6 +1,6 @@
 """paint_from_concept - colour a geometry-only mesh (Hunyuan3D 2.1 output) from its concept image.
 
-inputs.mesh (.glb/.gltf/.fbx/.obj/.vrm/.blend) or inputs.blend (opened by af_run; every object stays),
+inputs.mesh (.glb/.gltf/.fbx/.obj/.vrm/.blend) or inputs.blend (opened by imaginarium_run; every object stays),
 inputs.concept: the concept image, RGBA with alpha = subject (the studio's prepared reference PNG:
 original RGB + rembg alpha; its colour x alpha storage is divided back); an image without transparency
 is keyed by its border colour. Optional inputs.concept_original = {image, crop, content_rect}: the
@@ -105,10 +105,10 @@ params (all optional):
   preview true, preview_size 384
   qa_vlm "auto"           auto | off: local vision-model review of qa_sheet.png (Ollama); skipped (warning
                           qa_vlm_unavailable) when Ollama / the model is missing or ComfyUI is busy
-  qa_model null           default env ASTRA_QA_VLM or "qwen3-vl:8b"
-  qa_url null             default env ASTRA_OLLAMA_URL or http://127.0.0.1:11434
+  qa_model null           default env IMAGINARIUM_QA_VLM or "qwen3-vl:8b"
+  qa_url null             default env IMAGINARIUM_OLLAMA_URL or http://127.0.0.1:11434
   qa_min_score 6          warning texture_qa below this score (0..10)
-  qa_free_comfy true      POST /free to ComfyUI (ASTRA_COMFY_URL, default http://127.0.0.1:8190) first
+  qa_free_comfy true      POST /free to ComfyUI (IMAGINARIUM_COMFY_URL, default http://127.0.0.1:8190) first
   qa_wait_comfy_s 0       wait up to this long for a busy ComfyUI queue before skipping the review
   qa_size 384, qa_timeout_s 300
 outputs: glb (painted.glb), blend (painted.blend, images packed), basecolor (paint_basecolor.png),
@@ -135,7 +135,7 @@ import time
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import _paint_align as al
 from steps import _paint_flat as fl
@@ -154,10 +154,10 @@ def _open_input(req, warnings):
         if not os.path.isfile(src):
             raise FileNotFoundError("inputs.mesh not found: %s" % src)
         if src.lower().endswith(".blend"):
-            af.open_blend(src)
+            ima.open_blend(src)
         else:
-            af.reset_scene()
-            af.import_any(src)
+            ima.reset_scene()
+            ima.import_any(src)
         return src
     blend = inputs.get("blend")
     if not blend:
@@ -166,7 +166,7 @@ def _open_input(req, warnings):
     if not os.path.isfile(blend):
         raise FileNotFoundError("inputs.blend not found: %s" % blend)
     if os.path.normcase(os.path.abspath(bpy.data.filepath or "")) != os.path.normcase(blend):
-        af.open_blend(blend)   # af_run opens it already; direct calls (tests) do not
+        ima.open_blend(blend)   # imaginarium_run opens it already; direct calls (tests) do not
     return blend
 
 
@@ -289,7 +289,7 @@ def run(req):
     def lap(name):
         nonlocal t0
         timings[name] = round(time.time() - t0, 2)
-        af.log(name, seconds=timings[name])
+        ima.log(name, seconds=timings[name])
         t0 = time.time()
 
     inputs = req.get("inputs") or {}
@@ -432,14 +432,14 @@ def run(req):
             back = dict(bv, cam=bcam, zb=bzb, mesh_mask=bmask, iou=biou, iou_fit=biou_fit, cam_info=binfo,
                         px0=bv["px"], fit0=bv["fit"])
             if biou < 0.5:
-                checks_extra.append(af.check("concept_back_iou_min", False, round(biou, 4), 0.5,
+                checks_extra.append(ima.check("concept_back_iou_min", False, round(biou, 4), 0.5,
                                              note="the back reference does not fit the model (wrong view or "
                                                   "broken mesh): ignored"))
                 back_info = {"concept": back_path, "ignored": True, "iou": round(biou, 4),
                              "camera": bcam.to_dict()}
                 back = None
             else:
-                checks_extra.append(af.check("concept_back_iou_min", True, round(biou, 4), 0.5))
+                checks_extra.append(ima.check("concept_back_iou_min", True, round(biou, 4), 0.5))
         except ValueError as exc:
             warnings.append("back reference ignored: %s" % exc)
             back_info = {"concept": back_path, "ignored": True, "error": str(exc)}
@@ -466,7 +466,7 @@ def run(req):
             if not inf.get("applied"):
                 warnings.append("align: %s warp not applied (%s)" % (side, inf.get("skipped", "no change")))
             else:
-                af.log("align_" + side, iou_before=inf["iou_before"], iou_after=inf["iou_after"],
+                ima.log("align_" + side, iou_before=inf["iou_before"], iou_after=inf["iou_after"],
                        p95_pct=inf["displacement"]["p95_pct"])
         lap("align")
 
@@ -769,7 +769,7 @@ def run(req):
         tdb, v3 = pl.dilate_texels(tdb.reshape(size, size, 3), valid, 4)
         tdb = pl.pull_push(tdb, v3)
         suffix = ("_" + ml.safe_name(o.name, "mesh")) if multi else ""
-        base_png = af.out_path(req, "paint_basecolor%s.png" % suffix)
+        base_png = ima.out_path(req, "paint_basecolor%s.png" % suffix)
         base_img = pl.image_from_array("paint_basecolor%s" % suffix, tex, "sRGB", base_png)
         outputs["basecolor" + suffix] = base_png
         dbg_img = pl.image_from_array("paint_debug%s" % suffix, tdb, "sRGB", None, pack=False)
@@ -782,7 +782,7 @@ def run(req):
                 ev = np.zeros(size * size, dtype=bool)
                 ev[flat] = True
                 et, _ = pl.dilate_texels(et.reshape(size, size, 3), ev.reshape(size, size), 2)
-                emi_png = af.out_path(req, "paint_emission%s.png" % suffix)
+                emi_png = ima.out_path(req, "paint_emission%s.png" % suffix)
                 emi_tex_img = pl.image_from_array("paint_emission%s" % suffix, et, "sRGB", emi_png)
                 outputs["emission" + suffix] = emi_png
                 emi_texels += int((es.max(axis=1) > 0.05).sum())
@@ -848,7 +848,7 @@ def run(req):
         bmae, _ = _mae(bact_tile, bact_tile, bflat_tile)
         bmae_orig = _mae(bconcept_tile, bconcept_tile, bflat_tile)[0] if bact_tile is not bconcept_tile else bmae
         back_tiles = (bwin, bconcept_tile, bact_tile, bflat_tile)
-    lo, hi = af.world_bbox(meshes)
+    lo, hi = ima.world_bbox(meshes)
     if p.get("preview", True):
         dirs = [(-0.7, -0.7, 0.3), (0.0, 1.0, 0.12)]
         row1 = [pl.over(concept_tile[::-1]), pl.over(pl.render_camera_tiles(meshes, cam, win, psize))]
@@ -874,7 +874,7 @@ def run(req):
                 cap_b = float(p.get("align_max", 0.06)) * back["subject_h"]
                 rows.append([pl.over(bact_tile[::-1]), _overlay(back["fit"], back["mesh_mask"], bwin, psize)[::-1],
                              _heat(field_b, back["fit0"] | back["mesh_mask"], cap_b, bwin, psize)[::-1]])
-        outputs["compare"] = _sheet(af.out_path(req, "compare.png"), rows)
+        outputs["compare"] = _sheet(ima.out_path(req, "compare.png"), rows)
     for _node, _base, dbg in debug_swaps:
         if dbg.users == 0:
             bpy.data.images.remove(dbg)
@@ -904,26 +904,26 @@ def run(req):
         tiles.append(("MODEL BACK", "model", pl.over(views[3])[::-1][..., :3]))
     for lab, tl in zip(("3/4 LEFT", "3/4 RIGHT", "SIDE"), views[:3]):
         tiles.append((lab, "model", pl.over(tl)[::-1][..., :3]))
-    qa_sheet_path = af.out_path(req, "qa_sheet.png")
+    qa_sheet_path = ima.out_path(req, "qa_sheet.png")
     pl.save_png_top(qa_sheet_path, qa.build_sheet(tiles, cols=4))
     outputs["qa_sheet"] = qa_sheet_path
     lap("qa_sheet")
 
     # ------------------------------------------------------------------ outputs
     cam_doc = dict(cam.to_dict(), iou=round(iou, 4), concept=concept_path)
-    outputs["camera"] = af.out_path(req, "paint_camera.json")
+    outputs["camera"] = ima.out_path(req, "paint_camera.json")
     with open(outputs["camera"], "w", encoding="utf-8") as fh:
         json.dump(cam_doc, fh, indent=2)
     if back is not None:
-        outputs["camera_back"] = af.out_path(req, "paint_camera_back.json")
+        outputs["camera_back"] = ima.out_path(req, "paint_camera_back.json")
         with open(outputs["camera_back"], "w", encoding="utf-8") as fh:
             json.dump(dict(back["cam"].to_dict(), iou=round(back["iou"], 4), concept=back_path), fh, indent=2)
     export = [o for o in bpy.context.scene.objects if o.type in ("MESH", "EMPTY", "ARMATURE") and o not in helpers]
-    outputs["glb"] = af.export_glb(af.out_path(req, "painted.glb"), objects=export,
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "painted.glb"), objects=export,
                                    animations=bool(bpy.data.actions),
                                    skins=any(o.type == "ARMATURE" for o in export))
     n_img, n_base, n_emi = pl.glb_images(outputs["glb"])
-    outputs["blend"] = af.save_blend(af.out_path(req, "painted.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "painted.blend"))
     lap("export")
 
     # ------------------------------------------------------------------ report
@@ -954,7 +954,7 @@ def run(req):
             "warp_back": b_info.get("displacement") if b_info.get("applied") else None})
     problems = qa.judge(metrics, has_back=back is not None)
     lap("qa_metrics")
-    vlm = qa.run_vlm(qa_sheet_path, p, back is not None, log=af.log)
+    vlm = qa.run_vlm(qa_sheet_path, p, back is not None, log=ima.log)
     lap("qa_vlm")
     min_score = float(p.get("qa_min_score", 6))
     if not vlm.get("ran") and not vlm.get("off"):
@@ -968,21 +968,21 @@ def run(req):
               "problems": problems, "vlm": vlm, "min_score": min_score, "ok": not bad,
               "timings_s": {"sheet": timings.get("qa_sheet"), "metrics": timings.get("qa_metrics"),
                             "vlm": timings.get("qa_vlm")}}
-    outputs["qa"] = af.out_path(req, "qa.json")
+    outputs["qa"] = ima.out_path(req, "qa.json")
     with open(outputs["qa"], "w", encoding="utf-8") as fh:
         json.dump(_plain(qa_doc), fh, indent=2, ensure_ascii=False)
     checks = [
-        af.check("concept_iou_min", iou >= 0.5, round(iou, 4), 0.5,
+        ima.check("concept_iou_min", iou >= 0.5, round(iou, 4), 0.5,
                  note="silhouette of the model through the fitted camera vs the concept mask"),
-        af.check("glb_base_color_texture", n_base >= len(targets), n_base, len(targets)),
-        af.check("concept_iou", iou_aligned >= 0.8, iou_aligned, 0.8, severity="warning"),
-        af.check("projected_share", tex_stats["projected_share"] >= 0.08, tex_stats["projected_share"], 0.08,
+        ima.check("glb_base_color_texture", n_base >= len(targets), n_base, len(targets)),
+        ima.check("concept_iou", iou_aligned >= 0.8, iou_aligned, 0.8, severity="warning"),
+        ima.check("projected_share", tex_stats["projected_share"] >= 0.08, tex_stats["projected_share"], 0.08,
                  severity="warning", note="texels coloured straight from the concept"),
     ] + checks_extra
     if mae is not None:
-        checks.append(af.check("color_mae", mae <= 0.1, mae, 0.1, severity="warning",
+        checks.append(ima.check("color_mae", mae <= 0.1, mae, 0.1, severity="warning",
                                note="flat render through the fitted camera vs the concept (sRGB, common silhouette)"))
-    checks.append(af.check("texture_qa", not bad, vlm.get("score") if vlm.get("ran") else None, min_score,
+    checks.append(ima.check("texture_qa", not bad, vlm.get("score") if vlm.get("ran") else None, min_score,
                            severity="warning", note=note or "metrics within limits"))
     if bad:
         warnings.append("texture_qa: %s" % (note or "vision model score below %s" % min_score))

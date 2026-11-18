@@ -4,7 +4,7 @@
 //
 // Providers:
 //   codex      ChatGPT image model through the local Codex app (best quality, ~1-2 min per view)
-//   mvadapter  MV-Adapter in AstraForge's own ComfyUI (offline, one batch of views in ~1 minute)
+//   mvadapter  MV-Adapter in Imaginarium's own ComfyUI (offline, one batch of views in ~1 minute)
 //   manual     no generation: only the files you supply with --manual slot=path
 // User-supplied views (manual) are always kept; generated views fill only the missing slots
 // unless `overwrite` is set.

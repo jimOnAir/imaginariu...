@@ -13,7 +13,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 
 
 # --------------------------------------------------------------------------- scene prep
@@ -38,7 +38,7 @@ def purge_import_helpers(objects=None):
     and everything in the glTF importer's 'glTF_not_exported' collection (for a rigged GLB that
     is a 2 m 'Icosphere' bone shape, which otherwise lands in bboxes, joins and exports).
 
-    Call right after af.import_any. Returns (objects without the helpers, removed names)."""
+    Call right after ima.import_any. Returns (objects without the helpers, removed names)."""
     helpers = helper_shapes()
     keep = [o for o in (objects or []) if o is not None and o not in helpers]
     names = sorted(o.name for o in helpers)
@@ -51,7 +51,7 @@ def purge_import_helpers(objects=None):
     if coll is not None:
         bpy.data.collections.remove(coll)
     if names:
-        af.log("removed importer helpers", objects=names)
+        ima.log("removed importer helpers", objects=names)
     return keep, names
 
 
@@ -114,7 +114,7 @@ def restore_sockets(records, transform=None):
         props = dict(r.get("props") or {})
         props.pop("game_socket", None)
         kind = props.pop("kind", None)
-        e = af.add_socket(r["name"], kind=kind, size=r.get("size", 0.05), **props)
+        e = ima.add_socket(r["name"], kind=kind, size=r.get("size", 0.05), **props)
         M = r["matrix"] if transform is None else transform @ r["matrix"]
         e.matrix_world = _orthonormal(M)
         out.append(e)
@@ -166,14 +166,14 @@ def prepare_meshes(objects, warnings=None, keep_armatures=False, sockets=None):
                 bpy.data.objects.remove(o, do_unlink=True)
         bpy.context.view_layer.update()
         if mesh_objs:
-            af.apply_transforms(mesh_objs)
+            ima.apply_transforms(mesh_objs)
     return mesh_objs
 
 
 def rotate_z(objects, deg):
     """Rotate root objects about world Z through matrix_world.
 
-    af_common.normalize(rotate_z_deg=...) edits rotation_euler, which Blender ignores for objects
+    imaginarium_common.normalize(rotate_z_deg=...) edits rotation_euler, which Blender ignores for objects
     in QUATERNION / AXIS_ANGLE mode — and the glTF importer creates exactly those. Steps of this
     module therefore rotate here and call normalize with rotate_z_deg=0."""
     if not deg:
@@ -240,11 +240,11 @@ def remove_object(ob):
 
 
 def normalize_tracked(objects, frame=None, **kw):
-    """af_common.normalize plus the same transform applied to a (lo, hi) frame, so a
+    """imaginarium_common.normalize plus the same transform applied to a (lo, hi) frame, so a
     before/after render pair stays aligned when re-centring moves the model (e.g. after small
     islands were removed). Returns (scale, mapped_frame)."""
-    lo, hi = af.world_bbox(objects)
-    s = af.normalize(objects, **kw)
+    lo, hi = ima.world_bbox(objects)
+    s = ima.normalize(objects, **kw)
     if frame is None:
         return s, None
     height = kw.get("height")
@@ -344,7 +344,7 @@ def mesh_metrics(objs):
             if m is not None:
                 mats.add(m.name)
     out["materials"] = len(mats)
-    lo, hi = af.world_bbox(objs)
+    lo, hi = ima.world_bbox(objs)
     out["bbox_min"] = [round(v, 5) for v in lo]
     out["bbox_max"] = [round(v, 5) for v in hi]
     out["size"] = [round(v, 5) for v in (hi - lo)]
@@ -437,7 +437,7 @@ def recalc_normals(ob):
     return int((dots < 0).sum())
 
 
-def own_materials(ob, prefix="af_bake_src"):
+def own_materials(ob, prefix="imaginarium_bake_src"):
     """Give every material slot of ob its own copy (a plain Principled material when the slot or
     the whole mesh has none), so a bake source never shares a material with the mesh it is baked
     onto: the bake image nodes go only there and it keeps the original materials and names."""
@@ -463,7 +463,7 @@ def two_sided(ob, thickness):
     an OPEN AI mesh has no common outside for recalc_normals to find - on one dense generated
     mesh recalc turned 355k of the 675k source faces against the decimated mesh, and thin single
     sheets (coat tails, the hat brim) are seen by the simplified mesh from both sides anyway."""
-    mod = ob.modifiers.new("af_two_sided", "SOLIDIFY")
+    mod = ob.modifiers.new("imaginarium_two_sided", "SOLIDIFY")
     mod.thickness = float(thickness)
     mod.offset = -1.0
     mod.use_rim = False
@@ -477,7 +477,7 @@ def smooth_by_angle(ob, angle_deg):
     if hasattr(me, "set_sharp_from_angle"):
         me.set_sharp_from_angle(angle=math.radians(float(angle_deg)))
     else:  # pragma: no cover - older Blender
-        af.select_only([ob])
+        ima.select_only([ob])
         bpy.ops.object.shade_smooth_by_angle(angle=math.radians(float(angle_deg)))
     me.update()
 
@@ -549,7 +549,7 @@ def allocate_budget(counts, target, floor=64):
     return alloc
 
 
-def protect_seams_group(ob, name="af_protect", seam_weight=0.0):
+def protect_seams_group(ob, name="imaginarium_protect", seam_weight=0.0):
     """Vertex group for the collapse decimator: weight 0 on UV seams, material borders and open
     boundaries, 1 elsewhere (Blender adds edge cost for low weights, so seams collapse last)."""
     me = ob.data
@@ -604,7 +604,7 @@ def _apply_modifier(ob, mod):
 
 
 def planar_dissolve(ob, angle_deg):
-    mod = ob.modifiers.new("af_planar", "DECIMATE")
+    mod = ob.modifiers.new("imaginarium_planar", "DECIMATE")
     mod.decimate_type = "DISSOLVE"
     mod.angle_limit = math.radians(float(angle_deg))
     mod.delimit = {"SEAM", "MATERIAL", "UV", "SHARP"}
@@ -655,7 +655,7 @@ def decimate_to(ob, target, symmetry=None, planar_deg=0.0, seam_weight=None, pro
             want = stop / float(t)
             ratio = want * 0.998 if want >= stage_ratio else stage_ratio
             protected = 0
-            mod = ob.modifiers.new("af_collapse", "DECIMATE")
+            mod = ob.modifiers.new("imaginarium_collapse", "DECIMATE")
             mod.decimate_type = "COLLAPSE"
             mod.ratio = max(1e-4, min(1.0, ratio))
             mod.use_collapse_triangulate = True
@@ -668,7 +668,7 @@ def decimate_to(ob, target, symmetry=None, planar_deg=0.0, seam_weight=None, pro
                     mod.vertex_group = grp.name
                     mod.vertex_group_factor = float(protect_factor)
             _apply_modifier(ob, mod)
-            grp = ob.vertex_groups.get("af_protect")
+            grp = ob.vertex_groups.get("imaginarium_protect")
             if grp is not None:
                 ob.vertex_groups.remove(grp)
             t2 = tris_of(ob)
@@ -715,7 +715,7 @@ def mirror_pair_fraction(ob, axis="X", tol=None):
 
 
 def voxel_remesh(ob, voxel_size, adaptivity=0.0):
-    mod = ob.modifiers.new("af_voxel", "REMESH")
+    mod = ob.modifiers.new("imaginarium_voxel", "REMESH")
     mod.mode = "VOXEL"
     mod.voxel_size = float(voxel_size)
     mod.adaptivity = float(adaptivity)
@@ -730,7 +730,7 @@ def smart_uv(ob, angle_deg=66.0, margin=0.004):
     while me.uv_layers:
         me.uv_layers.remove(me.uv_layers[0])
     me.uv_layers.new(name="UVMap")
-    af.select_only([ob])
+    ima.select_only([ob])
     with bpy.context.temp_override(object=ob, active_object=ob, selected_objects=[ob],
                                    selected_editable_objects=[ob]):
         bpy.ops.object.mode_set(mode="EDIT")
@@ -792,7 +792,7 @@ def texture_report(objs):
 
 def set_active_basecolor_nodes(objs):
     """Workbench TEXTURE mode shows the active image node: point it at the base colour map."""
-    for o in af.meshes(objs):
+    for o in ima.meshes(objs):
         for m in o.data.materials:
             n = image_into(m, "Base Color")
             if n is not None:
@@ -842,7 +842,7 @@ def color_source(ob):
     return None
 
 
-def attribute_color_material(ob, name="af_vertex_color"):
+def attribute_color_material(ob, name="imaginarium_vertex_color"):
     """Give a material-less mesh a material that shows its active colour attribute, so a
     Cycles bake can read the colours. Returns the material."""
     me = ob.data
@@ -863,7 +863,7 @@ def preview_color_type(objs):
     """Workbench colour mode that shows what the objects really look like: TEXTURE for a base
     colour map, VERTEX for colour attributes the materials use (or meshes without materials),
     MATERIAL otherwise (flat colours, synced from the Principled node by render_sheet)."""
-    ms = af.meshes(objs)
+    ms = ima.meshes(objs)
     for o in ms:
         if any(image_into(m, "Base Color") is not None for m in o.data.materials if m is not None):
             return "TEXTURE"
@@ -888,7 +888,7 @@ def _sync_viewport_colors(objs):
     return what to restore."""
     saved = []
     seen = set()
-    for o in af.meshes(objs):
+    for o in ima.meshes(objs):
         for m in o.data.materials:
             if m is None or m.name in seen:
                 continue
@@ -1129,7 +1129,7 @@ def image_coverage(img, uv_obj=None):
 
 def render_sheet(path, objects=None, views=("front", "three_quarter"), size=512,
                  color_type="AUTO", margin=1.08, bbox=None, cavity=True):
-    """Workbench orthographic sheet like af_common.render_views, plus a colour mode switch
+    """Workbench orthographic sheet like imaginarium_common.render_views, plus a colour mode switch
     (AUTO picks TEXTURE / VERTEX / MATERIAL from what the objects use, see preview_color_type;
     RANDOM colours objects) and an optional fixed bbox so two renders share the same framing
     (before/after comparisons). Returns (path, tiles)."""
@@ -1141,14 +1141,14 @@ def render_sheet(path, objects=None, views=("front", "three_quarter"), size=512,
         set_active_basecolor_nodes(objects)
     synced = _sync_viewport_colors(objects if objects is not None else scene.objects) \
         if color_type in ("TEXTURE", "MATERIAL") else []
-    lo, hi = bbox if bbox is not None else af.world_bbox(objects)
+    lo, hi = bbox if bbox is not None else ima.world_bbox(objects)
     centre = (lo + hi) / 2
     extent = max((hi - lo).length, 1e-3)
-    cam_data = bpy.data.cameras.new("af_sheet_cam")
+    cam_data = bpy.data.cameras.new("imaginarium_sheet_cam")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = extent * margin
     cam_data.clip_end = extent * 20
-    cam = bpy.data.objects.new("af_sheet_cam", cam_data)
+    cam = bpy.data.objects.new("imaginarium_sheet_cam", cam_data)
     scene.collection.objects.link(cam)
     prev_cam = scene.camera
     scene.camera = cam
@@ -1161,7 +1161,7 @@ def render_sheet(path, objects=None, views=("front", "three_quarter"), size=512,
                 hidden.append(o)
     r = scene.render
     prev_engine = r.engine
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_x = r.resolution_y = int(size)
     r.resolution_percentage = 100
     r.film_transparent = True
@@ -1222,7 +1222,7 @@ def load_png(path):
 def save_png(path, px):
     """px: (h, w, 4) float array, bottom row first (Blender order)."""
     h, w = px.shape[:2]
-    out = bpy.data.images.new("af_png", width=w, height=h, alpha=True)
+    out = bpy.data.images.new("imaginarium_png", width=w, height=h, alpha=True)
     out.pixels = np.ascontiguousarray(px, dtype=np.float32).ravel()
     out.filepath_raw = os.path.abspath(path)
     out.file_format = "PNG"
@@ -1403,11 +1403,11 @@ def cut_by_boxes(ob, boxes, part_name, eps=None, caps=True, facing=None, facing_
     count as inside (e.g. the down-facing bottom of a robe: facing [0, 0, -1], facing_min 0.5).
     make_part=False: the inside faces are deleted (no part object is made; info still counts them)."""
     me = ob.data
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     eps = eps or max((hi - lo).length * 1e-6, 1e-7)
     bm = bmesh.new()
     bm.from_mesh(me)
-    open_layer = bm.edges.layers.int.new("af_open")
+    open_layer = bm.edges.layers.int.new("imaginarium_open")
     for e in bm.edges:
         e[open_layer] = 1 if (e.is_boundary or len(e.link_faces) > 2) else 0
     t0 = time.time()
@@ -1435,7 +1435,7 @@ def cut_by_boxes(ob, boxes, part_name, eps=None, caps=True, facing=None, facing_
         outside = [f for i, f in enumerate(part_bm.faces) if i not in inside_idx]
         bmesh.ops.delete(part_bm, geom=outside, context="FACES")
     uv_rest = bm.loops.layers.uv.active
-    rest_lay = bm.edges.layers.int.get("af_open")
+    rest_lay = bm.edges.layers.int.get("imaginarium_open")
     if caps:
         rest_caps, rest_open = _fill_seams(bm, rest_lay, boxes, eps, False, uv_rest)
     else:
@@ -1443,7 +1443,7 @@ def cut_by_boxes(ob, boxes, part_name, eps=None, caps=True, facing=None, facing_
     part_caps = part_open = 0
     if part_bm is not None:
         uv_part = part_bm.loops.layers.uv.active
-        part_lay = part_bm.edges.layers.int.get("af_open")
+        part_lay = part_bm.edges.layers.int.get("imaginarium_open")
         if caps:
             part_caps, part_open = _fill_seams(part_bm, part_lay, boxes, eps, True, uv_part)
         else:
@@ -1451,7 +1451,7 @@ def cut_by_boxes(ob, boxes, part_name, eps=None, caps=True, facing=None, facing_
     for b in (bm, part_bm):
         if b is None:
             continue
-        lay = b.edges.layers.int.get("af_open")
+        lay = b.edges.layers.int.get("imaginarium_open")
         if lay is not None:
             b.edges.layers.int.remove(lay)
     bm.to_mesh(me)
@@ -1730,11 +1730,11 @@ def slit(ob, boxes, surface, width=0.0, gap=0.0, caps=True, eps=None):
     the openings open.
     Returns info: bisected faces, ripped edges / removed faces, caps per side, rim length."""
     me = ob.data
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     eps = eps or max((hi - lo).length * 1e-6, 1e-7)
     bm = bmesh.new()
     bm.from_mesh(me)
-    open_layer = bm.edges.layers.int.new("af_open")
+    open_layer = bm.edges.layers.int.new("imaginarium_open")
     for e in bm.edges:
         e[open_layer] = 1 if (e.is_boundary or len(e.link_faces) > 2) else 0
     t0 = time.time()
@@ -1834,7 +1834,7 @@ def slit(ob, boxes, surface, width=0.0, gap=0.0, caps=True, eps=None):
         cap_info["open_rim_edges"] = sum(1 for e in bm.edges if e.is_valid and e.is_boundary and
                                          not e[open_layer])
         info["caps"] = cap_info
-    lay = bm.edges.layers.int.get("af_open")
+    lay = bm.edges.layers.int.get("imaginarium_open")
     if lay is not None:
         bm.edges.layers.int.remove(lay)
     bm.to_mesh(me)

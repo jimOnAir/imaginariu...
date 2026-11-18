@@ -8,15 +8,15 @@ import { GPU_MUTEX_NAME, acquireGpuLock, gpuLockName, gpuLockState } from '../se
 const isWin = process.platform === 'win32';
 const isLinux = process.platform === 'linux';
 const bothImpls = (!isWin && !isLinux) ? 'Windows and Linux only' : false;
-const testName = () => `Local\\AF_TEST_${randomUUID()}`;
+const testName = () => `Local\\Imaginarium_TEST_${randomUUID()}`;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-test('GPU mutex name: default Global\\AF_GPU_RENDER, ASTRA_GPU_LOCK_NAME overrides', () => {
-  assert.equal(GPU_MUTEX_NAME, 'Global\\AF_GPU_RENDER');
-  assert.equal(gpuLockState().name, process.env.ASTRA_GPU_LOCK_NAME || process.env.ASTRA_GPU_MUTEX || 'Global\\AF_GPU_RENDER');
-  assert.equal(gpuLockName({}), 'Global\\AF_GPU_RENDER');
-  assert.equal(gpuLockName({ ASTRA_GPU_LOCK_NAME: 'Local\\MyLock' }), 'Local\\MyLock');
-  assert.equal(gpuLockName({ ASTRA_GPU_MUTEX: 'Local\\Old', ASTRA_GPU_LOCK_NAME: 'Local\\New' }), 'Local\\New');
+test('GPU mutex name: default Global\\IMA_GPU_RENDER, IMAGINARIUM_GPU_LOCK_NAME overrides', () => {
+  assert.equal(GPU_MUTEX_NAME, 'Global\\IMA_GPU_RENDER');
+  assert.equal(gpuLockState().name, process.env.IMAGINARIUM_GPU_LOCK_NAME || process.env.IMAGINARIUM_GPU_MUTEX || 'Global\\IMA_GPU_RENDER');
+  assert.equal(gpuLockName({}), 'Global\\IMA_GPU_RENDER');
+  assert.equal(gpuLockName({ IMAGINARIUM_GPU_LOCK_NAME: 'Local\\MyLock' }), 'Local\\MyLock');
+  assert.equal(gpuLockName({ IMAGINARIUM_GPU_MUTEX: 'Local\\Old', IMAGINARIUM_GPU_LOCK_NAME: 'Local\\New' }), 'Local\\New');
 });
 
 test('two acquirers of the real mutex are serialised', { skip: bothImpls }, async () => {

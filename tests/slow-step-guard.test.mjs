@@ -78,5 +78,5 @@ test('stepMaxMs=0 disables the watchdog; the env names the default', async () =>
     /timed out/); // capped out the normal way: watchdog off
   e.close();
   const src = await import('node:fs').then((fs) => fs.promises.readFile(new URL('../scripts/views/comfy_client.mjs', import.meta.url), 'utf8'));
-  assert.match(src, /ASTRA_VIEWS_STEP_MAX_SEC \|\| 300/);
+  assert.match(src, /IMAGINARIUM_VIEWS_STEP_MAX_SEC \|\| 300/);
 });

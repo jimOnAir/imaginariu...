@@ -19,7 +19,7 @@ import mathutils
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 
 # --------------------------------------------------------------------------- small maths
 
@@ -181,7 +181,7 @@ class Materials:
         m.diffuse_color = rgba
         m.metallic = min(float(metal), 0.35)
         m.roughness = max(float(rough), 0.3)
-        m["af_role"] = role
+        m["imaginarium_role"] = role
         self.cache[role] = m
         return m
 
@@ -660,10 +660,10 @@ def part(name, geo, mat, smooth=True, sharp_deg=40.0, bevel=None, recalc=True, f
 def finalize_item(objs, name, uv_margin=0.01):
     """Join parts into one mesh object `name`, unwrap UVs (smart project) and return it."""
     objs = [o for o in objs if o is not None]
-    ob = af.join(objs, name=name)
+    ob = ima.join(objs, name=name)
     ob.data.name = name
     # unwrap
-    af.select_only([ob])
+    ima.select_only([ob])
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=uv_margin,
@@ -679,7 +679,7 @@ def place_on_ground(ob, origin="bbox"):
     Returns the applied translation."""
     ob.data.update()
     bpy.context.view_layer.update()  # bound_box is stale after mesh.transform() until the depsgraph runs
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     d = Vector((-(lo.x + hi.x) / 2 if origin == "bbox" else 0.0,
                 -(lo.y + hi.y) / 2 if origin == "bbox" else 0.0, -lo.z))
     ob.data.transform(Matrix.Translation(d))
@@ -690,7 +690,7 @@ def place_on_ground(ob, origin="bbox"):
 
 def add_item_socket(item, name, loc, rot3=None, kind=None, size=0.04, **extras):
     rot3 = rot3 if rot3 is not None else Matrix.Identity(3)
-    emp = af.add_socket(name, parent=item, location=tuple(loc), rotation=(0, 0, 0), kind=kind,
+    emp = ima.add_socket(name, parent=item, location=tuple(loc), rotation=(0, 0, 0), kind=kind,
                         size=size, **extras)
     emp.rotation_mode = "QUATERNION"
     emp.rotation_quaternion = rot3.to_quaternion()
@@ -806,7 +806,7 @@ def pca_axes(points, weights=None):
 
 def decimate_to(ob, budget, min_ratio=0.002):
     """Collapse-decimate a mesh object until its triangle count is <= budget. Returns (before, after)."""
-    before = af.tri_count([ob])
+    before = ima.tri_count([ob])
     if before <= budget:
         return before, before
     ratio = budget / float(before)
@@ -816,16 +816,16 @@ def decimate_to(ob, budget, min_ratio=0.002):
         mod.ratio = max(min_ratio, ratio * 0.985)
         mod.use_collapse_triangulate = True
         apply_modifiers(ob)
-        now = af.tri_count([ob])
+        now = ima.tri_count([ob])
         if now <= budget:
             return before, now
         ratio = budget / float(now)
-    return before, af.tri_count([ob])
+    return before, ima.tri_count([ob])
 
 
 def downscale_images(objs, max_px):
     done = []
-    for ob in af.meshes(objs):
+    for ob in ima.meshes(objs):
         for slot in ob.material_slots:
             m = slot.material
             if not m or not m.use_nodes:
@@ -927,7 +927,7 @@ def load_png(path):
 def save_png(arr, path):
     """arr: top-down RGBA float (H, W, 4)."""
     h, w = arr.shape[:2]
-    im = bpy.data.images.new("af_items_out", width=w, height=h, alpha=True)
+    im = bpy.data.images.new("imaginarium_items_out", width=w, height=h, alpha=True)
     im.pixels = np.ascontiguousarray(arr[::-1]).ravel()
     im.filepath_raw = os.path.abspath(path)
     im.file_format = "PNG"
@@ -1007,12 +1007,12 @@ def render_region(path, lo, hi, views=("front",), size=384, margin=1.05):
     """Render whatever is in the scene inside the box lo..hi (a hidden framing mesh)."""
     v, f = box(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2],
                ((lo[0] + hi[0]) / 2, (lo[1] + hi[1]) / 2, (lo[2] + hi[2]) / 2))
-    me = bpy.data.meshes.new("af_frame_box")
+    me = bpy.data.meshes.new("imaginarium_frame_box")
     me.from_pydata(v, [], f)
-    ob = link(bpy.data.objects.new("af_frame_box", me))
+    ob = link(bpy.data.objects.new("imaginarium_frame_box", me))
     ob.hide_render = True
     try:
-        af.render_views(path, [ob], views=tuple(views), size=size, margin=margin)
+        ima.render_views(path, [ob], views=tuple(views), size=size, margin=margin)
     finally:
         bpy.data.objects.remove(ob)
         bpy.data.meshes.remove(me)
@@ -1021,7 +1021,7 @@ def render_region(path, lo, hi, views=("front",), size=384, margin=1.05):
 
 def render_tile(path, objects, view="three_quarter", size=384, rot_z_deg=0.0, margin=1.08):
     """Render one view of objects, optionally rotating them about Z (render only). Returns
-    (path, extent): extent is the bbox diagonal af.render_views framed (metres per image width
+    (path, extent): extent is the bbox diagonal ima.render_views framed (metres per image width
     = extent * margin), so tiles can be put on a common scale."""
     roots = [o for o in objects if o.parent is None or o.parent not in objects]
     saved = [(o, o.matrix_world.copy()) for o in roots]
@@ -1031,9 +1031,9 @@ def render_tile(path, objects, view="three_quarter", size=384, rot_z_deg=0.0, ma
             o.matrix_world = R @ mw
     bpy.context.view_layer.update()
     try:
-        lo, hi = af.world_bbox(objects)
+        lo, hi = ima.world_bbox(objects)
         extent = max((hi - lo).length, 1e-3)
-        af.render_views(path, objects, views=(view,), size=size, margin=margin)
+        ima.render_views(path, objects, views=(view,), size=size, margin=margin)
     finally:
         for o, mw in saved:
             o.matrix_world = mw
@@ -1235,7 +1235,7 @@ def ensure_hand_socket(arm, body, side, **kw):
         return existing, {"created": False}
     M, info = hand_socket_frame(arm, body, side, **kw)
     hand = find_bone(arm, HAND_BONES[side][0])
-    emp = af.add_socket(name, parent=arm, bone=hand.name, kind="mount", size=0.05)
+    emp = ima.add_socket(name, parent=arm, bone=hand.name, kind="mount", size=0.05)
     emp.rotation_mode = "QUATERNION"
     bpy.context.view_layer.update()
     emp.matrix_world = M
@@ -1621,7 +1621,7 @@ def create_shield_mount(arm, side, H_rest, O_mount, hand_emp, fit_info=None):
     """socket_mount_shield_<side>: child of the hand bone at hand socket x O_mount (contract §6)."""
     name = SHIELD_MOUNT[side]
     hand = find_bone(arm, HAND_BONES[side][0])
-    emp = af.add_socket(name, parent=arm, bone=hand.name, kind="mount", size=0.06, fitted_for="shield",
+    emp = ima.add_socket(name, parent=arm, bone=hand.name, kind="mount", size=0.06, fitted_for="shield",
                         base_socket=hand_emp.name, socket_space_matrix=flat16(O_mount))
     emp.rotation_mode = "QUATERNION"
     bpy.context.view_layer.update()

@@ -76,7 +76,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _items_lib as L
 
 
@@ -86,9 +86,9 @@ def pick_hands_armature(objs, path):
     # 0.7.10 fold wave ticket 64 (the t60 retarget-remedy family): "item in hand" on a
     # skeletonless model names the next click, and a model that has an armature WITHOUT hands
     # is never sent to run the rig step again - the message says which rig lacks what.
-    arms = [a for a in af.armatures(objs) if L.find_bone(a, "mixamorig:RightHand") or L.find_bone(a, "mixamorig:LeftHand")]
+    arms = [a for a in ima.armatures(objs) if L.find_bone(a, "mixamorig:RightHand") or L.find_bone(a, "mixamorig:LeftHand")]
     if not arms:
-        have = [a.name for a in af.armatures(objs)]
+        have = [a.name for a in ima.armatures(objs)]
         if have:
             raise ValueError("no hand bones (RightHand/LeftHand) on %s: holding an item needs a humanoid skeleton - rig this character with rig_humanoid, or bind it to a humanoid armature, then hold the item"
                              % ", ".join("armature '%s'" % n for n in have))
@@ -107,11 +107,11 @@ def grip_hint(item_path):
 def load_character(path):
     ext = os.path.splitext(path)[1].lower()
     if ext == ".blend":
-        af.open_blend(path)
+        ima.open_blend(path)
         objs = list(bpy.context.scene.objects)
     else:
-        af.reset_scene()
-        objs = af.import_any(path)
+        ima.reset_scene()
+        objs = ima.import_any(path)
     arm = pick_hands_armature(objs, path)
     bodies = L.skinned_meshes(arm)
     if not bodies:
@@ -120,7 +120,7 @@ def load_character(path):
 
 
 def load_item(path, tag):
-    objs = af.import_any(path)
+    objs = ima.import_any(path)
     L.dedupe_materials()  # a second kit item re-imports mat_<style>_<role>: keep one material, not '.001'
     socks = {}
     for o in objs:
@@ -136,11 +136,11 @@ def load_item(path, tag):
         for o in roots:
             L.parent_keep(o, root)
         objs.append(root)
-    meshes = af.meshes(objs)
+    meshes = ima.meshes(objs)
     itype = None
     for o in meshes:
-        if o.get("af_item_type"):
-            itype = str(o["af_item_type"])
+        if o.get("imaginarium_item_type"):
+            itype = str(o["imaginarium_item_type"])
     return {"objs": objs, "root": root, "meshes": meshes, "sockets": socks, "type": itype}
 
 
@@ -212,7 +212,7 @@ def remove_previous(sides):
     gone = []
     for o in list(bpy.context.scene.objects):
         try:
-            if o.get("af_attached_hand") in sides and (o.parent is None or not o.parent.get("af_attached_hand")):
+            if o.get("imaginarium_attached_hand") in sides and (o.parent is None or not o.parent.get("imaginarium_attached_hand")):
                 gone.append(o.name)
                 delete_tree(o)
         except ReferenceError:
@@ -268,7 +268,7 @@ def skin_rigid(item, arm, body, side):
     for o in sockets:
         o.parent = None
         o.matrix_world = socket_mw[o]
-    af.select_only(parts + [body])
+    ima.select_only(parts + [body])
     bpy.context.view_layer.objects.active = body
     bpy.ops.object.join()
     for o in sockets:
@@ -325,8 +325,8 @@ def skin_separate(item, arm, side, bone_name=None):
         mod = m.modifiers.new("Armature", "ARMATURE")
         mod.object = arm
         mod.use_vertex_groups = True
-        m["af_prop_item"] = (item.get("extracted") or {}).get("id") or m.name
-        m["af_attached_hand"] = side if side in ("r", "l") else "hip"
+        m["imaginarium_prop_item"] = (item.get("extracted") or {}).get("id") or m.name
+        m["imaginarium_attached_hand"] = side if side in ("r", "l") else "hip"
         meshes.append(m)
     for o in sockets:
         L.parent_keep(o, arm, bone)
@@ -379,7 +379,7 @@ def run(req):
     out_dir = req["out_dir"]
     arm, bodies = load_character(inp["character"])
     body_main = max(bodies, key=lambda b: len(b.data.vertices))
-    af.log("character loaded", armature=arm.name, bodies=[b.name for b in bodies])
+    ima.log("character loaded", armature=arm.name, bodies=[b.name for b in bodies])
     # height in the REST pose: a .glb / .blend character arrives in a clip pose (a crouch would shrink
     # the QA thresholds and item_scale "auto")
     arm.data.pose_position = "REST"
@@ -392,7 +392,7 @@ def run(req):
         clips.append(L.import_clip(path, name))
     actions = [a for a in bpy.data.actions if any(fc.data_path.startswith("pose.bones")
                                                   for fc in L.fcurves_of(a))]
-    af.log("clips", actions=[a.name for a in actions])
+    ima.log("clips", actions=[a.name for a in actions])
     extracted_doc = None
     shield_fit = None
     if inp.get("extracted"):
@@ -438,17 +438,17 @@ def run(req):
             bpy.data.objects.remove(ps, do_unlink=True)
         else:
             L.parent_keep(it_b["root"], ps)
-            it_b["root"]["af_attached_hand"] = "hip"
+            it_b["root"]["imaginarium_attached_hand"] = "hip"
         belt_report.append({"item": b_["item"], "bone": "mixamorig:Hips", "mode": mode_b, "placement_socket": b_.get("placement"),
                             "extracted": b_.get("extracted")})
     if not atts_in and belts:
         arm.data.pose_position = "POSE"
-        glb = af.export_glb(af.out_path(req, "equipped.glb"), objects=None, animations=bool(actions), skins=True)
-        outputs = {"glb": glb, "blend": af.save_blend(af.out_path(req, "equipped.blend"))}
-        with open(af.out_path(req, "attach.json"), "w", encoding="utf-8") as fh:
-            json.dump(af._jsonable({"character": inp["character"], "attachments": [], "belt": belt_report}), fh,
+        glb = ima.export_glb(ima.out_path(req, "equipped.glb"), objects=None, animations=bool(actions), skins=True)
+        outputs = {"glb": glb, "blend": ima.save_blend(ima.out_path(req, "equipped.blend"))}
+        with open(ima.out_path(req, "attach.json"), "w", encoding="utf-8") as fh:
+            json.dump(ima._jsonable({"character": inp["character"], "attachments": [], "belt": belt_report}), fh,
                       ensure_ascii=False, indent=2)
-        outputs["json"] = af.out_path(req, "attach.json")
+        outputs["json"] = ima.out_path(req, "attach.json")
         return {"outputs": outputs, "stats": {"attachments": [], "belt": belt_report, "height_m": round(height, 3)},
                 "checks": [], "warnings": []}
     if not atts_in:
@@ -456,15 +456,15 @@ def run(req):
         arm.data.pose_position = "POSE"
         if actions:
             L.assign_action(arm, actions[0])
-        glb = af.export_glb(af.out_path(req, "equipped.glb"), objects=None, animations=bool(actions), skins=True)
-        outputs = {"glb": glb, "blend": af.save_blend(af.out_path(req, "equipped.blend"))}
+        glb = ima.export_glb(ima.out_path(req, "equipped.glb"), objects=None, animations=bool(actions), skins=True)
+        outputs = {"glb": glb, "blend": ima.save_blend(ima.out_path(req, "equipped.blend"))}
         doc0 = {"character": inp["character"], "attachments": [], "note": "no items to attach",
                 "extracted": inp.get("extracted")}
-        with open(af.out_path(req, "attach.json"), "w", encoding="utf-8") as fh:
-            json.dump(af._jsonable(doc0), fh, ensure_ascii=False, indent=2)
-        outputs["json"] = af.out_path(req, "attach.json")
+        with open(ima.out_path(req, "attach.json"), "w", encoding="utf-8") as fh:
+            json.dump(ima._jsonable(doc0), fh, ensure_ascii=False, indent=2)
+        outputs["json"] = ima.out_path(req, "attach.json")
         return {"outputs": outputs, "stats": {"attachments": [], "height_m": round(height, 3)},
-                "checks": [af.check("attachments", True, 0, None, severity="warning", note="no items")],
+                "checks": [ima.check("attachments", True, 0, None, severity="warning", note="no items")],
                 "warnings": ["no items to attach (extract_props found none)"] if inp.get("extracted") else []}
     warnings = []
     checks = []
@@ -491,7 +491,7 @@ def run(req):
                 warnings.append("hand %s already holds an object baked into the mesh (%d vertices, %.2f m); the "
                                 "socket follows its axis and the new item will overlap it" %
                                 (side, info["baked_prop"]["vertices"], info["baked_prop"]["extent_m"]))
-            checks.append(af.check("hand_socket_%s" % side, emp is not None, emp.name))
+            checks.append(ima.check("hand_socket_%s" % side, emp is not None, emp.name))
     # items
     atts = []
     for i, a in enumerate(atts_in):
@@ -499,7 +499,7 @@ def run(req):
             raise ValueError("item file missing: %r" % a.get("item"))
         it = load_item(a["item"], str(i))
         grip = it["sockets"].get("socket_grip_main")
-        checks.append(af.check("att%d_socket_grip_main" % i, grip is not None, sorted(it["sockets"])))
+        checks.append(ima.check("att%d_socket_grip_main" % i, grip is not None, sorted(it["sockets"])))
         if grip is None:
             raise ValueError(grip_hint(a["item"]))
         sc = a.get("item_scale", prm.get("item_scale", 1.0))
@@ -541,7 +541,7 @@ def run(req):
         preview_frames[prev_act.name] = [int(round(a0 + (a1 - a0) * t)) for t in (0.25, 0.5, 0.75)]
     use_actions = actions if fpc else ([prev_act] if prev_act else [])
     poses = sample_poses(arm, body, hand_socks, use_actions, max(fpc, 1) if fpc else 1, preview_frames)
-    af.log("poses sampled", poses=len(poses))
+    ima.log("poses sampled", poses=len(poses))
     s_char = height / 1.8
     report = {"character": inp["character"], "height_m": round(height, 4), "armature": arm.name,
               "bodies": [b.name for b in bodies], "actions": [a.name for a in actions],
@@ -578,7 +578,7 @@ def run(req):
             existing = L.find_sockets().get(name)
             if existing is None:
                 hb = L.find_bone(arm, L.HAND_BONES[side][0])
-                existing = af.add_socket(name, parent=arm, bone=hb.name, kind="mount", size=0.06, fitted_for="shield")
+                existing = ima.add_socket(name, parent=arm, bone=hb.name, kind="mount", size=0.06, fitted_for="shield")
                 existing.rotation_mode = "QUATERNION"
                 status = "created_at_placement"
             else:
@@ -631,7 +631,7 @@ def run(req):
                                              st if isinstance(st, (int, float)) else "auto", **kw)
             emp, status = create_mount(arm, side, H_rest, O_mount, hand_socks[side], info), "created"
         mounts[side] = {"emp": emp, "O": O_mount, "info": info, "status": status}
-        af.log("shield mount", socket=emp.name, status=status)
+        ima.log("shield mount", socket=emp.name, status=status)
     # QA per attachment
     for att in atts:
         O_user = att["offset_matrix"] if att.get("offset_matrix") is not None else L.offset_matrix(att["offset"])
@@ -653,35 +653,35 @@ def run(req):
         anim = per_pose[1:]
         tag = "att%d_%s_%s" % (att["idx"], att["kind"] or "item", att["hand"])
         lim_grip = 0.04 * s_char
-        checks.append(af.check(tag + ":grip_to_hand_rest_m", rest.get("grip_to_hand_m", 1) <= lim_grip,
+        checks.append(ima.check(tag + ":grip_to_hand_rest_m", rest.get("grip_to_hand_m", 1) <= lim_grip,
                                rest.get("grip_to_hand_m"), round(lim_grip, 3), severity="warning"))
-        checks.append(af.check(tag + ":grip_enclosure_rest", rest.get("grip_enclosure", 0) >= 0.5,
+        checks.append(ima.check(tag + ":grip_enclosure_rest", rest.get("grip_enclosure", 0) >= 0.5,
                                rest.get("grip_enclosure"), 0.5, severity="warning",
                                note="fraction of radial rays around the grip that hit the hand within 6 cm; "
                                     "open (unclosed) hands score below 0.5"))
-        checks.append(af.check(tag + ":axis_inside_arm_rest", rest["axis_inside_arm"] == 0, rest["axis_inside_arm"], 0,
+        checks.append(ima.check(tag + ":axis_inside_arm_rest", rest["axis_inside_arm"] == 0, rest["axis_inside_arm"], 0,
                                note="blade/shaft samples inside the forearm/upper arm at rest"))
-        checks.append(af.check(tag + ":penetration_rest", rest["overlap_arm_tris"] + rest["overlap_body_tris"] == 0,
+        checks.append(ima.check(tag + ":penetration_rest", rest["overlap_arm_tris"] + rest["overlap_body_tris"] == 0,
                                {"arm": rest["overlap_arm_tris"], "body": rest["overlap_body_tris"]}, 0, severity="warning"))
         if att["is_shield"]:
-            checks.append(af.check(tag + ":hand_through_board_rest", rest["overlap_hand_tris"] == 0,
+            checks.append(ima.check(tag + ":hand_through_board_rest", rest["overlap_hand_tris"] == 0,
                                    rest["overlap_hand_tris"], 0, severity="warning",
                                    note="hand triangles crossing this shield at the shared mount (thicker board or "
                                         "handle than the canonical shield)"))
         if anim:
             pen_frames = sum(1 for r in anim if r["overlap_arm_tris"] + r["overlap_body_tris"] > 0)
             in_arm = sum(1 for r in anim if r["axis_inside_arm"] > 0)
-            checks.append(af.check(tag + ":penetration_frames", pen_frames == 0, pen_frames, 0, severity="warning",
+            checks.append(ima.check(tag + ":penetration_frames", pen_frames == 0, pen_frames, 0, severity="warning",
                                    note="sampled clip frames with item-arm/body triangle overlap (BVH)"))
-            checks.append(af.check(tag + ":axis_inside_arm_frames", in_arm == 0, in_arm, 0, severity="warning"))
+            checks.append(ima.check(tag + ":axis_inside_arm_frames", in_arm == 0, in_arm, 0, severity="warning"))
         if att["is_shield"]:
-            checks.append(af.check(tag + ":shield_upright_rest", rest["shield_up_dot"] >= 0.7, rest["shield_up_dot"], 0.7,
+            checks.append(ima.check(tag + ":shield_upright_rest", rest["shield_up_dot"] >= 0.7, rest["shield_up_dot"], 0.7,
                                    severity="warning"))
-            checks.append(af.check(tag + ":shield_outward_rest", rest["shield_face_out_dot"] >= 0.3,
+            checks.append(ima.check(tag + ":shield_outward_rest", rest["shield_face_out_dot"] >= 0.3,
                                    rest["shield_face_out_dot"], 0.3, severity="warning"))
             if anim:
                 good = sum(1 for r in anim if r["shield_up_dot"] >= 0.7 and r["shield_face_out_dot"] >= 0.0)
-                checks.append(af.check(tag + ":shield_upright_frames_ratio", good / len(anim) >= 0.6,
+                checks.append(ima.check(tag + ":shield_upright_frames_ratio", good / len(anim) >= 0.6,
                                        round(good / len(anim), 3), 0.6, severity="warning"))
         att["qa"] = per_pose
         att["fit_info"] = fit_info
@@ -717,7 +717,7 @@ def run(req):
             "delta_pos_m": round(D.translation.length, 6),
             "delta_angle_deg": round(math.degrees(D.to_quaternion().angle), 4),
             "from": L.matrix_rows(old), "to": L.matrix_rows(normalized4(sock.matrix_world.copy()))}
-        af.log("hand socket refit", socket=sock.name, **{k: v for k, v in report["socket_refit"][side].items()
+        ima.log("hand socket refit", socket=sock.name, **{k: v for k, v in report["socket_refit"][side].items()
                                                         if k.startswith("delta")})
     # placement (rest pose): bone_child items hang under their mount socket
     arm.data.pose_position = "REST"
@@ -728,9 +728,9 @@ def run(req):
         att["bone"] = L.find_bone(arm, L.HAND_BONES[att["hand"]][0]).name
         att["mount_name"] = place_on_mount(att, att["mount"], M_root)
         root = att["root"]
-        root["af_attached_hand"] = att["hand"]
-        root["af_attached_mount"] = att["mount_name"]
-        root["af_attached_item"] = os.path.basename(att["path"])
+        root["imaginarium_attached_hand"] = att["hand"]
+        root["imaginarium_attached_mount"] = att["mount_name"]
+        root["imaginarium_attached_item"] = os.path.basename(att["path"])
         base = root.name.split(".")[0]
         root.name = L.unique_socket_name("%s_%s" % (base, att["hand"]))
     bpy.context.view_layer.update()
@@ -742,7 +742,7 @@ def run(req):
         dpos = (Mg.translation - Mm.translation).length
         dang = math.degrees((Mg.to_3x3().inverted() @ Mm.to_3x3()).to_quaternion().angle)
         att["mount_error"] = {"pos_m": round(dpos, 6), "angle_deg": round(dang, 4)}
-        checks.append(af.check("att%d:grip_on_mount" % att["idx"], dpos < 1e-4 and dang < 0.05, att["mount_error"],
+        checks.append(ima.check("att%d:grip_on_mount" % att["idx"], dpos < 1e-4 and dang < 0.05, att["mount_error"],
                                {"pos_m": 1e-4, "angle_deg": 0.05},
                                note="socket_grip_main of the attached item vs %s (x offset)" % att["mount_name"]))
     # previews
@@ -755,12 +755,12 @@ def run(req):
         if prev_act else [("rest", None, None)]
     for k, (name, act, f) in enumerate(plan):
         set_pose(arm, act, f)
-        p = af.render_views(os.path.join(tmp, "pose_%d.png" % k), view_objs, views=("front", "left", "three_quarter"),
+        p = ima.render_views(os.path.join(tmp, "pose_%d.png" % k), view_objs, views=("front", "left", "three_quarter"),
                             size=int(prm.get("size", 320)))
         rows.append(p)
         labels.append("REST POSE" if act is None else "%s FRAME %d" % (name, f))
     set_pose(arm, None, None)
-    outputs = {"preview": L.stack_rows(rows, af.out_path(req, "preview.png"), labels=labels)}
+    outputs = {"preview": L.stack_rows(rows, ima.out_path(req, "preview.png"), labels=labels)}
     # grip close-ups at rest: one row per hand
     rr = 0.14 * s_char
     crow, clab = [], []
@@ -771,7 +771,7 @@ def run(req):
                             size=300)
         crow.append(p)
         clab.append("%s HAND (REST)" % ("RIGHT" if s == "r" else "LEFT"))
-    outputs["grip_closeup"] = L.stack_rows(crow, af.out_path(req, "grip_closeup.png"), labels=clab)
+    outputs["grip_closeup"] = L.stack_rows(crow, ima.out_path(req, "grip_closeup.png"), labels=clab)
     # skin_rigid joins after the QA / previews (identical motion: weight 1.0 on the hand bone)
     for att in atts:
         if att["mode"] == "skin_rigid":
@@ -798,16 +798,16 @@ def run(req):
         L.assign_action(arm, prev_act or actions[0])
     arm.data.pose_position = "POSE"
     bpy.context.scene.frame_set(int((prev_act or actions[0]).frame_range[0]) if actions else 1)
-    glb = af.export_glb(af.out_path(req, "equipped.glb"), objects=None, animations=bool(actions), skins=True)
+    glb = ima.export_glb(ima.out_path(req, "equipped.glb"), objects=None, animations=bool(actions), skins=True)
     summ = L.glb_summary(glb)
     outputs["glb"] = glb
-    outputs["blend"] = af.save_blend(af.out_path(req, "equipped.blend"))
-    checks.append(af.check("animations_exported", len(summ["animations"]) >= len(actions), summ["animations"],
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "equipped.blend"))
+    checks.append(ima.check("animations_exported", len(summ["animations"]) >= len(actions), summ["animations"],
                            [a.name for a in actions]))
     need = {"socket_mount_hand_%s" % s for s in hand_socks} | {m["emp"].name for m in mounts.values()}
-    checks.append(af.check("mount_sockets_in_glb", need <= set(summ["sockets"]), sorted(summ["sockets"]), sorted(need)))
+    checks.append(ima.check("mount_sockets_in_glb", need <= set(summ["sockets"]), sorted(summ["sockets"]), sorted(need)))
     bad = sorted(n for n in summ["sockets"] if "." in n or not n.isascii())
-    checks.append(af.check("socket_names_clean", not bad, bad, "ASCII, no dots (contract §6)"))
+    checks.append(ima.check("socket_names_clean", not bad, bad, "ASCII, no dots (contract §6)"))
     for side, mt in mounts.items():
         report["mounts"][mt["emp"].name] = dict(L.socket_record(mt["emp"]), status=mt["status"], fit_info=mt["info"],
                                                 base_socket=hand_socks[side].name,
@@ -845,9 +845,9 @@ def run(req):
             entry["placement_socket"] = att.get("placement")
         report["attachments"].append(entry)
     report["glb"] = summ
-    with open(af.out_path(req, "attach.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(report), fh, ensure_ascii=False, indent=2)
-    outputs["json"] = af.out_path(req, "attach.json")
+    with open(ima.out_path(req, "attach.json"), "w", encoding="utf-8") as fh:
+        json.dump(ima._jsonable(report), fh, ensure_ascii=False, indent=2)
+    outputs["json"] = ima.out_path(req, "attach.json")
     stats = {"height_m": round(height, 3), "actions": [a.name for a in actions], "poses_checked": len(poses),
              "belt": belt_report,
              "mounts": {k: v["status"] for k, v in report["mounts"].items()},

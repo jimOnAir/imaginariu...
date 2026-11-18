@@ -20,7 +20,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _paint_align as pal
 from steps import _paint_flat as pfl
 from steps import _paint_lib as pl
@@ -35,15 +35,15 @@ CYAN = (0.0, 1.0, 1.0)
 REAL = {"knight": ("clean_knight/clean.blend", "e4aef2bf-2ef5-4e73-a838-06de3ca3cdaa.png"),
         "bone": ("clean_bone/clean.blend", "dce6bd27-f7aa-4e82-b705-0ce94735ff30.png")}
 # pilot blends and the studio asset store for the two real cases ("skip: ..." when missing)
-REAL_DIR = os.environ.get("AF_PILOT3_DEV") or r"C:/AstraForge/incoming/pilot3/_dev"
-ASSETS = os.environ.get("ASTRA_FORGE_ASSETS") or os.path.join(
+REAL_DIR = os.environ.get("Imaginarium_PILOT3_DEV") or r"C:/Imaginarium/incoming/pilot3/_dev"
+ASSETS = os.environ.get("IMAGINARIUM_ASSETS") or os.path.join(
     os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "data", "assets")
 
 
 # --------------------------------------------------------------------------- helpers
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_paint_")
+    return tempfile.mkdtemp(prefix="imaginarium_paint_")
 
 
 def _run(inputs, params, out_dir=None, asset=None):
@@ -53,7 +53,7 @@ def _run(inputs, params, out_dir=None, asset=None):
     if asset:
         req["asset"] = asset
     os.makedirs(req["out_dir"], exist_ok=True)
-    return af.finish(req, mod.run(req))
+    return ima.finish(req, mod.run(req))
 
 
 def _check(res, name):
@@ -149,7 +149,7 @@ def _render_concept(path, yaw=YAW, size=512, eye=True):
     cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
     r = scene.render
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_x = r.resolution_y = size
     r.film_transparent = True
     r.image_settings.file_format = "PNG"
@@ -161,24 +161,24 @@ def _render_concept(path, yaw=YAW, size=512, eye=True):
     sh.show_cavity = False
     r.filepath = path
     bpy.ops.render.render(write_still=True)
-    af.reset_scene()
+    ima.reset_scene()
     return path
 
 
 def _plain_glb(path):
-    af.reset_scene()
+    ima.reset_scene()
     ob = _build_character(False)
-    af.add_socket("socket_fx_head", location=(0, 0, 1.8), kind="fx")
-    af.export_glb(path, objects=list(bpy.context.scene.objects), animations=False, skins=False)
-    af.reset_scene()
+    ima.add_socket("socket_fx_head", location=(0, 0, 1.8), kind="fx")
+    ima.export_glb(path, objects=list(bpy.context.scene.objects), animations=False, skins=False)
+    ima.reset_scene()
     return path
 
 
 def _texture_at_vertices(glb, png, select):
     """Mean base-colour texel (sRGB) at the centroids of the triangles chosen by select(centroid, normal) of
     the painted GLB (centroids, not corners: a corner of a big flat face sits on the faded silhouette edge)."""
-    af.reset_scene()
-    af.import_any(glb)
+    ima.reset_scene()
+    ima.import_any(glb)
     ob = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
     d = pl.mesh_data(ob)
     tex = pl.load_rgba(png)[::-1]          # bottom row first, like UVs
@@ -242,7 +242,7 @@ def test_emission_mask_cool_glow_not_gold():
 
 
 def test_uv_report_and_unpremultiply():
-    af.reset_scene()
+    ima.reset_scene()
     ob = _build_character(False)
     d = pl.mesh_data(ob)
     ok, info = pl.uv_report(d)
@@ -332,7 +332,7 @@ def test_paint_synthetic_character():
 def test_paint_blend_keeps_sockets_and_emissive_meshes():
     tmp = _tmp()
     concept = _render_concept(os.path.join(tmp, "concept.png"), eye=False)
-    af.reset_scene()
+    ima.reset_scene()
     ob = _build_character(False)
     # an existing eye with its own glowing material stays as it is
     em = bpy.data.meshes.new("eye_l")
@@ -349,9 +349,9 @@ def test_paint_blend_keeps_sockets_and_emissive_meshes():
     bsdf.inputs["Emission Color"].default_value = (0.2, 1.0, 0.3, 1.0)
     bsdf.inputs["Emission Strength"].default_value = 5.0
     em.materials.append(glow)
-    af.add_socket("socket_fx_chest", location=(0, -0.3, 1.2), kind="fx")
-    blend = af.save_blend(os.path.join(tmp, "in.blend"))
-    af.reset_scene()
+    ima.add_socket("socket_fx_chest", location=(0, -0.3, 1.2), kind="fx")
+    blend = ima.save_blend(os.path.join(tmp, "in.blend"))
+    ima.reset_scene()
     res = _run({"blend": blend, "concept": concept}, {"size": 256, "preview": False, "emission": "none",
                                                       "concept_max_px": 384}, out_dir=os.path.join(tmp, "out"))
     assert res["ok"], res.get("error")
@@ -360,7 +360,7 @@ def test_paint_blend_keeps_sockets_and_emissive_meshes():
     assert "socket_fx_chest" in s["sockets_kept"]
     assert "compare" not in res["outputs"]
     assert s["mask"]["scaled_from"] == [512, 512] and s["concept_size"] == [384, 384], s["mask"]
-    af.open_blend(res["outputs"]["blend"])
+    ima.open_blend(res["outputs"]["blend"])
     assert bpy.data.objects["eye_l"].data.materials[0].name == "eye_glow"
     body = bpy.data.objects["Body"]
     img = [n.image for n in body.data.materials[0].node_tree.nodes if n.type == "TEX_IMAGE"][0]
@@ -370,7 +370,7 @@ def test_paint_blend_keeps_sockets_and_emissive_meshes():
     import json
     with open(res["outputs"]["camera"], "r", encoding="utf-8") as fh:
         cam = json.load(fh)
-    af.reset_scene()
+    ima.reset_scene()
     res2 = _run({"blend": blend, "concept": concept}, {"size": 256, "preview": False, "camera": cam, "concept_max_px": 384},
                 out_dir=os.path.join(tmp, "out2"))
     assert res2["ok"] and abs(res2["stats"]["iou"] - s["iou"]) < 0.01
@@ -476,7 +476,7 @@ def _render_flat(ob, path, yaw=0.0, size=384, ortho=2.0, cz=0.8):
     cam.rotation_euler = d.to_track_quat("-Z", "Y").to_euler()
     scene.camera = cam
     r = scene.render
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_x = r.resolution_y = size
     r.film_transparent = True
     r.image_settings.file_format = "PNG"
@@ -492,10 +492,10 @@ def _render_flat(ob, path, yaw=0.0, size=384, ortho=2.0, cz=0.8):
 
 
 def _glb_of(builder, path):
-    af.reset_scene()
+    ima.reset_scene()
     builder()
-    af.export_glb(path, objects=list(bpy.context.scene.objects), animations=False, skins=False)
-    af.reset_scene()
+    ima.export_glb(path, objects=list(bpy.context.scene.objects), animations=False, skins=False)
+    ima.reset_scene()
     return path
 
 
@@ -555,13 +555,13 @@ def test_paint_align_warp_step():
     """The mesh arm droops 22 degrees where the concept's is horizontal: without the warp the hand colour of the
     concept misses the mesh hand, with align: warp the hand is skin-coloured and the silhouette IoU rises."""
     tmp = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob = _tfigure(0.0, 0.3, 0.12, True)
     concept = _render_flat(ob, os.path.join(tmp, "concept.png"))
     glb = _glb_of(lambda: _tfigure(22.0, 0.3, 0.12, False), os.path.join(tmp, "mesh.glb"))
     res = {}
     for mode in ("none", "warp"):
-        af.reset_scene()
+        ima.reset_scene()
         res[mode] = _run({"mesh": glb, "concept": concept}, dict(FAST, align=mode, align_max=0.1),
                          out_dir=os.path.join(tmp, "out_" + mode))
         assert res[mode]["ok"], res[mode].get("error")
@@ -574,8 +574,8 @@ def test_paint_align_warp_step():
     assert sw["qa"]["metrics"]["warp_front"]["p95_pct"] > 0
 
     def hand_colour(res_):
-        af.reset_scene()
-        af.import_any(res_["outputs"]["glb"])
+        ima.reset_scene()
+        ima.import_any(res_["outputs"]["glb"])
         ob2 = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
         d = pl.mesh_data(ob2)
         tex = pl.load_rgba(res_["outputs"]["basecolor"])[::-1]
@@ -597,17 +597,17 @@ def test_paint_align_warp_step():
 
 def test_paint_back_reference_projection():
     tmp = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob = _slab(True)
     front = _render_flat(ob, os.path.join(tmp, "front.png"), yaw=0.0)
     back = _render_flat(ob, os.path.join(tmp, "back.png"), yaw=180.0)
     glb = _glb_of(lambda: _slab(False), os.path.join(tmp, "slab.glb"))
     params = dict(FAST, back_yaw_range_deg=0, back_pitch_range_deg=0, uv="smart")
-    af.reset_scene()
+    ima.reset_scene()
     plain = _run({"mesh": glb, "concept": front}, params, out_dir=os.path.join(tmp, "plain"))
-    af.reset_scene()
+    ima.reset_scene()
     both = _run({"mesh": glb, "concept": front, "concept_back": back}, params, out_dir=os.path.join(tmp, "both"))
-    af.reset_scene()
+    ima.reset_scene()
     via_param = _run({"mesh": glb, "concept": front}, dict(params, concept_back_file=back), out_dir=os.path.join(tmp, "p"))
     for r in (plain, both, via_param):
         assert r["ok"], r.get("error")
@@ -621,8 +621,8 @@ def test_paint_back_reference_projection():
     assert sb["qa"]["metrics"]["iou_back"] > 0.9 and sb["qa"]["metrics"]["color_mae_back"] is not None
 
     def face_colour(res_, sign):
-        af.reset_scene()
-        af.import_any(res_["outputs"]["glb"])
+        ima.reset_scene()
+        ima.import_any(res_["outputs"]["glb"])
         ob2 = [o for o in bpy.context.scene.objects if o.type == "MESH"][0]
         d = pl.mesh_data(ob2)
         tex = pl.load_rgba(res_["outputs"]["basecolor"])[::-1]
@@ -732,12 +732,12 @@ def test_qa_outputs_metrics_and_sheet():
     assert res["stats"]["qa"]["metrics"] == m
     assert not any(w.startswith("qa_vlm_unavailable") for w in res["warnings"]), res["warnings"]   # off is silent
     # with a back reference the sheet carries the back tiles: 7 tiles, and the compare sheet its back row
-    af.reset_scene()
+    ima.reset_scene()
     ob = _slab(True)
     front = _render_flat(ob, os.path.join(tmp, "front.png"), yaw=0.0)
     back = _render_flat(ob, os.path.join(tmp, "back.png"), yaw=180.0)
     glb2 = _glb_of(lambda: _slab(False), os.path.join(tmp, "slab.glb"))
-    af.reset_scene()
+    ima.reset_scene()
     res2 = _run({"mesh": glb2, "concept": front, "concept_back": back},
                 dict(FAST, back_yaw_range_deg=0, back_pitch_range_deg=0, preview=True, preview_size=96))
     assert res2["ok"], res2.get("error")
@@ -907,10 +907,10 @@ def test_paint_keeps_cleanup_normal_map():
            "params": {"target_tris": 1500, "bake_normal": True, "bake_size": 256, "bake_samples": 1,
                       "preview": False}}
     os.makedirs(req["out_dir"], exist_ok=True)
-    cres = af.finish(req, clean.run(req))
+    cres = ima.finish(req, clean.run(req))
     assert cres["ok"], (cres.get("error"), cres["checks"])
     blend = cres["outputs"]["blend"]
-    af.reset_scene()
+    ima.reset_scene()
     res = _run({"blend": blend, "concept": concept}, {"size": 256, "preview": False, "emission": "none",
                                                       "concept_max_px": 384}, out_dir=os.path.join(tmp, "out"))
     assert res["ok"], res.get("error")
@@ -918,7 +918,7 @@ def test_paint_keeps_cleanup_normal_map():
     assert uv["unwrapped"] == "kept" and uv.get("normal_map", "").startswith("kept"), uv
     mats = _glb_materials(res["outputs"]["glb"])
     assert any("normalTexture" in m and "baseColorTexture" in m["pbrMetallicRoughness"] for m in mats), mats
-    af.reset_scene()
+    ima.reset_scene()
     res = _run({"blend": blend, "concept": concept}, {"size": 256, "preview": False, "emission": "none", "uv": "smart",
                                                       "concept_max_px": 384}, out_dir=os.path.join(tmp, "smart"))
     assert res["ok"], res.get("error")
@@ -935,7 +935,7 @@ def _real(name, iou_min):
     concept = os.path.join(ASSETS, concept)
     if not (os.path.isfile(blend) and os.path.isfile(concept)):
         return "skip: pilot asset missing (%s)" % blend
-    af.reset_scene()
+    ima.reset_scene()
     res = _run({"blend": blend, "concept": concept}, {"size": 1024, "preview_size": 256}, asset={"kind": "humanoid"})
     assert res["ok"], res.get("error")
     s = res["stats"]

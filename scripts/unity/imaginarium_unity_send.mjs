@@ -1,17 +1,17 @@
 #!/usr/bin/env node
-// Send AstraForge Unity packages into a Unity project (an explicit owner request only: it writes into that project).
+// Send Imaginarium Unity packages into a Unity project (an explicit owner request only: it writes into that project).
 //
-//   node scripts/unity/af_unity_send.mjs --project <Unity project> <package dir | export .zip> [...]
+//   node scripts/unity/imaginarium_unity_send.mjs --project <Unity project> <package dir | export .zip> [...]
 //        [--build]   rebuild the prefabs right away with Unity -batchmode (the project must be closed in the editor)
 //        [--with-mcp] also add MCP for Unity (CoplayDev, MIT, pinned UNITY_MCP_VERSION) to the project in stdio mode,
 //                    so Claude Code (server UnityMCP, docs/forge/unity.md) can drive the open editor
 //        [--json]
 //
 // What it does:
-//   1. the importer package unity/com.astraforge.unity is copied into <project>/Packages/com.astraforge.unity
+//   1. the importer package unity/dev.imaginarium3d.unity is copied into <project>/Packages/dev.imaginarium3d.unity
 //      (embedded package: the project keeps working on any machine; its .meta files keep script GUIDs stable);
-//   2. every package (a folder with af_unity.json, or an export zip of the unity profile) is copied into
-//      <project>/Assets/AstraForge/<asset_id>/ over the previous copy (files are overwritten, .meta kept, so
+//   2. every package (a folder with ima_unity.json, or an export zip of the unity profile) is copied into
+//      <project>/Assets/Imaginarium/<asset_id>/ over the previous copy (files are overwritten, .meta kept, so
 //      prefabs and materials keep their GUIDs and scene references survive an update);
 //   3. an open editor imports the files on focus and the importer builds <asset_id>.prefab by itself;
 //      --build does it now in batchmode.
@@ -23,7 +23,7 @@ import { spawnSync } from 'node:child_process';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_DIR = path.resolve(HERE, '..', '..');
-export const IMPORTER_DIR = path.join(APP_DIR, 'unity', 'com.astraforge.unity');
+export const IMPORTER_DIR = path.join(APP_DIR, 'unity', 'dev.imaginarium3d.unity');
 // Unity Hub installs editors under these roots (the same rule as scripts/blender/steps/_unity_lib.py)
 export const UNITY_HUB_EDITORS = process.platform === 'win32'
   ? 'C:/Program Files/Unity/Hub/Editor' : path.join(os.homedir(), 'Unity', 'Hub', 'Editor');
@@ -36,11 +36,11 @@ async function readJson(p) {
   return JSON.parse((await fs.readFile(p, 'utf8')).replace(/^\uFEFF/, ''));
 }
 
-/** Folders that hold af_unity.json under root (the package itself or an unpacked export). */
+/** Folders that hold ima_unity.json under root (the package itself or an unpacked export). */
 async function findPackages(root) {
   const out = [];
   async function walk(dir, depth) {
-    if (existsSync(path.join(dir, 'af_unity.json'))) { out.push(dir); return; }
+    if (existsSync(path.join(dir, 'ima_unity.json'))) { out.push(dir); return; }
     if (depth > 3) return;
     for (const e of await fs.readdir(dir, { withFileTypes: true })) {
       if (e.isDirectory() && !e.name.startsWith('_')) await walk(path.join(dir, e.name), depth + 1);
@@ -104,15 +104,15 @@ export async function sendToUnity({ project, sources = [], build = false, withMc
   if (!existsSync(path.join(proj, 'Assets')) || !existsSync(path.join(proj, 'ProjectSettings', 'ProjectVersion.txt'))) {
     throw new Error(`Not a Unity project (no Assets/ and ProjectSettings/ProjectVersion.txt): ${proj}`);
   }
-  if (!sources?.length && !withMcp) throw new Error('No package given (a folder with af_unity.json or a unity export archive).');
+  if (!sources?.length && !withMcp) throw new Error('No package given (a folder with ima_unity.json or a unity export archive).');
 
   // 1. the importer as an embedded package
   const ours = await readJson(path.join(IMPORTER_DIR, 'package.json'));
-  const embedded = path.join(proj, 'Packages', 'com.astraforge.unity');
+  const embedded = path.join(proj, 'Packages', 'dev.imaginarium3d.unity');
   let action = 'up-to-date';
   let theirs = null;
   if (existsSync(path.join(embedded, 'package.json'))) theirs = (await readJson(path.join(embedded, 'package.json'))).version;
-  if (!theirs || newer(ours.version, theirs) || process.env.AF_UNITY_FORCE_IMPORTER) {
+  if (!theirs || newer(ours.version, theirs) || process.env.Imaginarium_UNITY_FORCE_IMPORTER) {
     await copyOver(IMPORTER_DIR, embedded);
     action = theirs ? `updated ${theirs} -> ${ours.version}` : `installed ${ours.version}`;
   }
@@ -121,8 +121,8 @@ export async function sendToUnity({ project, sources = [], build = false, withMc
   if (existsSync(manifestPath)) {
     const m = await readJson(manifestPath);
     let changed = false;
-    if (m.dependencies?.['com.astraforge.unity']) {
-      delete m.dependencies['com.astraforge.unity'];
+    if (m.dependencies?.['dev.imaginarium3d.unity']) {
+      delete m.dependencies['dev.imaginarium3d.unity'];
       changed = true;
     }
     if (withMcp && m.dependencies?.['com.coplaydev.unity-mcp'] !== UNITY_MCP_PACKAGE) {
@@ -132,7 +132,7 @@ export async function sendToUnity({ project, sources = [], build = false, withMc
     }
     if (changed) await fs.writeFile(manifestPath, JSON.stringify(m, null, 2) + '\n');
   }
-  log(`Importer com.astraforge.unity: ${action} (${embedded})`);
+  log(`Importer dev.imaginarium3d.unity: ${action} (${embedded})`);
 
   // 2. packages
   const tmpRoots = [];
@@ -142,16 +142,16 @@ export async function sendToUnity({ project, sources = [], build = false, withMc
       let root = path.resolve(src);
       if (!existsSync(root)) throw new Error(`No such path: ${root}`);
       if (root.toLowerCase().endsWith('.zip')) {
-        const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'af_unity_send_'));
+        const tmp = await fs.mkdtemp(path.join(os.tmpdir(), 'imaginarium_unity_send_'));
         tmpRoots.push(tmp);
         root = await unzipTo(root, tmp);
       }
       const found = await findPackages(root);
-      if (!found.length) throw new Error(`No af_unity.json inside ${src}: not a studio Unity package (a unity profile export).`);
+      if (!found.length) throw new Error(`No ima_unity.json inside ${src}: not a studio Unity package (a unity profile export).`);
       for (const dir of found) {
-        const pkg = await readJson(path.join(dir, 'af_unity.json'));
+        const pkg = await readJson(path.join(dir, 'ima_unity.json'));
         if (!/^[a-z][a-z0-9_]*$/.test(pkg.asset_id || '')) throw new Error(`Bad asset_id in ${dir}: ${pkg.asset_id}`);
-        const dest = path.join(proj, 'Assets', 'AstraForge', pkg.asset_id);
+        const dest = path.join(proj, 'Assets', 'Imaginarium', pkg.asset_id);
         const files = await copyOver(dir, dest, (name) => name.startsWith('_') || name === 'unity_shots');
         packages.push({ asset_id: pkg.asset_id, dest, files });
         log(`Package ${pkg.asset_id}: ${files} files -> ${dest}`);
@@ -168,19 +168,19 @@ export async function sendToUnity({ project, sources = [], build = false, withMc
       buildResult = { ok: false, error: 'The project is open in the editor: the prefabs build themselves on focus.' };
     } else {
       const ver = await projectVersion(proj);
-      const exe = process.env.ASTRA_UNITY && existsSync(process.env.ASTRA_UNITY) ? process.env.ASTRA_UNITY
+      const exe = process.env.IMAGINARIUM_UNITY && existsSync(process.env.IMAGINARIUM_UNITY) ? process.env.IMAGINARIUM_UNITY
         : ver ? path.join(UNITY_HUB_EDITORS, ver, 'Editor', UNITY_EXE_NAME) : null;
       if (!exe || !existsSync(exe)) {
-        buildResult = { ok: false, error: `No Unity editor ${ver || ''} (Unity Hub/Editor or ASTRA_UNITY).` };
+        buildResult = { ok: false, error: `No Unity editor ${ver || ''} (Unity Hub/Editor or IMAGINARIUM_UNITY).` };
       } else {
-        const logFile = path.join(proj, 'Logs', 'astraforge_build.log');
-        const method = build ? 'AstraForge.Editor.AFBatch.BuildAll' : 'AstraForge.Editor.AFSetup.ConfigureUnityMcp';
+        const logFile = path.join(proj, 'Logs', 'imaginarium_build.log');
+        const method = build ? 'Imaginarium.Editor.ImaginariumBatch.BuildAll' : 'Imaginarium.Editor.ImaginariumSetup.ConfigureUnityMcp';
         const cp = spawnSync(exe, ['-batchmode', '-projectPath', proj, '-executeMethod', method,
           '-logFile', logFile, '-quit'], { stdio: 'ignore', timeout: 45 * 60 * 1000 });
         buildResult = { ok: cp.status === 0, exit: cp.status, log: logFile };
         if (cp.status === 0 && build && withMcp) {
-          const cp2 = spawnSync(exe, ['-batchmode', '-projectPath', proj, '-executeMethod', 'AstraForge.Editor.AFSetup.ConfigureUnityMcp',
-            '-logFile', path.join(proj, 'Logs', 'astraforge_mcp.log'), '-quit'], { stdio: 'ignore', timeout: 15 * 60 * 1000 });
+          const cp2 = spawnSync(exe, ['-batchmode', '-projectPath', proj, '-executeMethod', 'Imaginarium.Editor.ImaginariumSetup.ConfigureUnityMcp',
+            '-logFile', path.join(proj, 'Logs', 'imaginarium_mcp.log'), '-quit'], { stdio: 'ignore', timeout: 15 * 60 * 1000 });
           buildResult.mcp = cp2.status === 0;
         }
       }
@@ -206,7 +206,7 @@ async function main(argv) {
     else if (a === '--json') json = true;
     else if (a === '--with-mcp') withMcp = true;
     else if (a === '--help' || a === '-h') {
-      console.log('node scripts/unity/af_unity_send.mjs --project <Unity project> <package dir | export .zip> [...] [--build] [--with-mcp] [--json]');
+      console.log('node scripts/unity/imaginarium_unity_send.mjs --project <Unity project> <package dir | export .zip> [...] [--build] [--with-mcp] [--json]');
       return 0;
     } else sources.push(a);
   }

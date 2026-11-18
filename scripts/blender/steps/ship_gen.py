@@ -1,4 +1,4 @@
-"""ship_gen — procedural spaceship per the AstraForge ship contract.
+"""ship_gen — procedural spaceship per the Imaginarium ship contract.
 
 Request params (all optional except class):
   class           fighter | interceptor (ship_s); gunship | corvette | freighter | miner (ship_m);
@@ -39,7 +39,7 @@ import zlib
 import bpy
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _ship_lib as sl
 
 PI = math.pi
@@ -395,7 +395,7 @@ class Design:
     # ---------------------------------------------------------------- engines
     def nozzle(self, x, z, r, y_aft, length=None, housing=True, style=None, name=None, place="main",
                mirror=False, size_override=None):
-        """Nozzle bell (lathe, glow interior in AF_EmissiveDrive) with its exit plane at y_aft - length.
+        """Nozzle bell (lathe, glow interior in Imaginarium_EmissiveDrive) with its exit plane at y_aft - length.
         Registers a thruster socket (frame per params.thruster_frame)."""
         k = self.k
         st = style or self.style
@@ -2670,10 +2670,10 @@ def nav_checks(summ):
     s = {x["game_socket"]: x for x in summ["sockets"]}
     port, stbd = s.get("socket_fx_nav_port"), s.get("socket_fx_nav_starboard")
     if not port or not stbd:
-        return af.check("nav_lights_sides", True, "not present", "port -X / starboard +X", severity="warning")
+        return ima.check("nav_lights_sides", True, "not present", "port -X / starboard +X", severity="warning")
     ok = (port["position_gltf"][0] < 0 and port["y_gltf"][0] < -0.99 and stbd["position_gltf"][0] > 0
           and stbd["y_gltf"][0] > 0.99)
-    return af.check("nav_lights_sides", ok, {"port_x": port["position_gltf"][0], "port_out": port["y_gltf"],
+    return ima.check("nav_lights_sides", ok, {"port_x": port["position_gltf"][0], "port_out": port["y_gltf"],
                                              "starboard_x": stbd["position_gltf"][0], "starboard_out": stbd["y_gltf"]},
                     "port -X out -X, starboard +X out +X")
 
@@ -2682,8 +2682,8 @@ def run(req):
     P, warnings = resolve_params(req)
     cls = P["budget_class"]
     bud = sl.BUDGETS[cls]
-    af.reset_scene()
-    af.log("ship_gen", role=P["class"], seed=P["seed"], faction=P["faction"])
+    ima.reset_scene()
+    ima.log("ship_gen", role=P["class"], seed=P["seed"], faction=P["faction"])
 
     # ---- LOD0 (with an automatic detail fallback if the class budget is exceeded)
     d = None
@@ -2737,9 +2737,9 @@ def run(req):
         empties.append(e)
     bpy.context.view_layer.update()
 
-    out_glb = af.out_path(req, "ship.glb")
+    out_glb = ima.out_path(req, "ship.glb")
     export_objs = [root] + objs + [col] + empties
-    af.export_glb(out_glb, export_objs, animations=False, skins=False, export_tangents=False,
+    ima.export_glb(out_glb, export_objs, animations=False, skins=False, export_tangents=False,
                   export_image_format="AUTO", export_draco_mesh_compression_enable=False)
     summ = sl.glb_summary(out_glb)
 
@@ -2761,8 +2761,8 @@ def run(req):
             target = int(min(bud["lod%d" % lod], frac * summ["triangles"]) * 0.95)
             got = sl.decimate_to(lobjs, target)
             sl.uv_unwrap(lobjs, "box")
-            path = af.out_path(req, "ship_lod%d.glb" % lod)
-            af.export_glb(path, [lroot] + lobjs, animations=False, skins=False, export_tangents=False,
+            path = ima.out_path(req, "ship_lod%d.glb" % lod)
+            ima.export_glb(path, [lroot] + lobjs, animations=False, skins=False, export_tangents=False,
                           export_image_format="AUTO", export_draco_mesh_compression_enable=False)
             lod_tris["lod%d" % lod] = sl.glb_summary(path)["triangles"]
             outputs["lod%d" % lod] = path
@@ -2770,41 +2770,41 @@ def run(req):
             for o in lobjs:
                 o.hide_render = True
                 o.hide_set(True)
-            af.log("lod built", lod=lod, tris=got)
+            ima.log("lod built", lod=lod, tris=got)
 
     # ---- checks
     checks = sl.budget_checks(summ, cls, lod_tris if P["lods"] else None)
-    checks.append(af.check("collision_vertices", col_info["vertices"] <= 64, col_info["vertices"], 64))
+    checks.append(ima.check("collision_vertices", col_info["vertices"] <= 64, col_info["vertices"], 64))
     cov = col_info["coverage"] or 0
-    checks.append(af.check("collision_hull_coverage", cov >= 0.9, cov, 0.9, severity="warning",
+    checks.append(ima.check("collision_hull_coverage", cov >= 0.9, cov, 0.9, severity="warning",
                            note="COL_SIMPLE volume / convex hull volume of the render mesh (not gate 11)"))
     size_y = summ["size_gltf"][2]
-    checks.append(af.check("length_m", abs(size_y - P["length_m"]) <= 0.03 * P["length_m"], round(size_y, 3),
+    checks.append(ima.check("length_m", abs(size_y - P["length_m"]) <= 0.03 * P["length_m"], round(size_y, 3),
                            P["length_m"]))
     cx = summ["center_offset_gltf"][0]
-    checks.append(af.check("origin_x_centered", abs(cx) <= 0.01, cx, 0.01))
+    checks.append(ima.check("origin_x_centered", abs(cx) <= 0.01, cx, 0.01))
     thr = [s_ for s_ in summ["sockets"] if s_["extras"].get("kind") == "thruster"]
     # glTF: nose is -Z, so thrusters must sit at +Z (aft)
     aft_ok = all(s_["position_gltf"][2] > 0 for s_ in thr) and len(thr) >= 1
-    checks.append(af.check("thrusters_aft", aft_ok, len(thr), ">=1 at +Z glTF (aft)"))
+    checks.append(ima.check("thrusters_aft", aft_ok, len(thr), ">=1 at +Z glTF (aft)"))
     fr = P["thruster_frame"]
-    checks.append(af.check("thruster_frame", all(sl.thruster_frame_ok(s_, fr) for s_ in thr),
+    checks.append(ima.check("thruster_frame", all(sl.thruster_frame_ok(s_, fr) for s_ in thr),
                            [(s_["neg_z_gltf"], s_["y_gltf"]) for s_ in thr][:2], sl.THRUSTER_AXIS_TEXT[fr]))
     checks.append(sl.thruster_diameter_check(thr))
     checks.append(nav_checks(summ))
     lod_sil = sl.lod_silhouettes(out_glb, {k_: outputs[k_] for k_ in ("lod1", "lod2") if k_ in outputs})
     for key, v in lod_sil.items():
-        checks.append(af.check("silhouette_iou_%s" % key, min(v["top"], v["side"]) >= 0.85, v, 0.85,
+        checks.append(ima.check("silhouette_iou_%s" % key, min(v["top"], v["side"]) >= 0.85, v, 0.85,
                                severity="warning", note="gate 10: top/side silhouette IoU vs LOD0"))
     tur = [s_ for s_ in summ["sockets"] if s_["extras"].get("kind") == "turret"]
-    checks.append(af.check("turret_sockets", len(tur) == d.turrets_placed, len(tur), P["turret_count"],
+    checks.append(ima.check("turret_sockets", len(tur) == d.turrets_placed, len(tur), P["turret_count"],
                            severity="warning" if len(tur) < P["turret_count"] else "error"))
     if d.turrets_placed < P["turret_count"]:
         warnings.append("turret_count %d requested, layout %s offers %d hardpoints"
                         % (P["turret_count"], d.layout.get("family"), d.turrets_placed))
-    glass = summ["alpha_modes"].get("AF_Glass")
+    glass = summ["alpha_modes"].get("Imaginarium_Glass")
     if glass and glass != "BLEND":
-        warnings.append("AF_Glass exported with alphaMode %s (BLEND expected)" % glass)
+        warnings.append("Imaginarium_Glass exported with alphaMode %s (BLEND expected)" % glass)
 
     # ---- preview
     if P["preview"]:
@@ -2816,22 +2816,22 @@ def run(req):
         longish = dims[2] > 3.6 * max(dims[0], dims[1] * 1.6)
         views = (("three_quarter_long", "rear_quarter_long") if longish else ("three_quarter", "rear_quarter")) + \
             ("side", "top", "front")
-        outputs["preview"] = sl.render_grid(af.out_path(req, "preview.png"), objs + prev, tile=P["preview_size"],
+        outputs["preview"] = sl.render_grid(ima.out_path(req, "preview.png"), objs + prev, tile=P["preview_size"],
                                              views=views)
         for o in prev:
             me = o.data
             bpy.data.objects.remove(o)
             bpy.data.meshes.remove(me)
-    blend = sl.save_blend_clean(af.out_path(req, "ship.blend"))
+    blend = sl.save_blend_clean(ima.out_path(req, "ship.blend"))
     outputs["blend"] = blend
 
     # ---- manifest + definition
     definition = dict(P)
     definition["generator_version"] = sl.GEN_SHIP
     definition["layout_resolved"] = d.layout
-    defn_path = sl.write_json(af.out_path(req, "ship.definition.json"), definition)
+    defn_path = sl.write_json(ima.out_path(req, "ship.definition.json"), definition)
     manifest = build_manifest(P, summ, lod_tris, col, col_info, empties, outputs, req)
-    outputs["manifest"] = sl.write_json(af.out_path(req, "ship.json"), manifest)
+    outputs["manifest"] = sl.write_json(ima.out_path(req, "ship.json"), manifest)
     outputs["definition"] = defn_path
 
     stats = {
@@ -2845,7 +2845,7 @@ def run(req):
         "engines_main": sum(1 for e in d.engines if e["place"] == "main"), "engine_count": P["engine_count"],
         "palette_variant": P["palette_variant"], "thruster_frame": fr, "collision": col_info,
         "geometry_hash": summ["geometry_hash"], "parts": d.k.parts, "budget": bud,
-        "registry_entry": {"id": P["asset_id"], "comment": "%s %s %s (AstraForge %s seed %d)" % (
+        "registry_entry": {"id": P["asset_id"], "comment": "%s %s %s (Imaginarium %s seed %d)" % (
             P["faction"], d.layout.get("family"), P["class"], sl.GEN_SHIP, P["seed"]),
             "path": "res://assets/models/ships/%s.glb" % P["asset_id"], "forward_axis": "-Z", "up_axis": "+Y"},
     }
@@ -2896,7 +2896,7 @@ def build_manifest(P, summ, lod_tris, col, col_info, empties, outputs, req, sour
                        "godot_import": "SKIPPED", "notes": "; ".join(notes)},
         "status": "prototype",
         "created": sl.today(),
-        "notes": "AstraForge forge step %s; request out_dir %s" % (req.get("step", "ship_gen"), req["out_dir"]),
+        "notes": "Imaginarium forge step %s; request out_dir %s" % (req.get("step", "ship_gen"), req["out_dir"]),
     }
 
 

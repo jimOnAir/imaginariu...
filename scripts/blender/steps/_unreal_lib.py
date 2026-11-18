@@ -10,11 +10,11 @@ Rules the package obeys (interface facts of Unreal import):
              <render mesh>_LOD1/_LOD2
   textures   T_<asset>_<slot>_BaseColor (sRGB), _Normal (DirectX: green flipped),
              _ORM (R occlusion, G roughness, B metallic)
-  material   instances of one master material (M_AstraForge), created by the importer
+  material   instances of one master material (M_Imaginarium), created by the importer
 """
 import re
 
-FORMAT = "astraforge-unreal-package/1"
+FORMAT = "imaginarium-unreal-package/1"
 PREFIX_MESH = {"static": "SM", "skinned": "SK"}
 COLONLY_RE = re.compile(r"-(?:conv)?colonly$|_colonly$|_convcolonly$", re.I)
 COL_HULL_RE = re.compile(r"^COL_", re.I)

@@ -26,7 +26,7 @@ test('what a click does: <html lang> flips, the labels flip, listeners re-render
     assert.equal(globalThis.document.documentElement.lang, 'ru', '<html lang> flipped with the click');
     assert.equal(i18n.t('app.appearance.title'), 'Внешний вид', 'every label answers in the new language');
     assert.equal(i18n.t('lang.switch'), 'Язык интерфейса', 'even the switch describes itself in Russian');
-    assert.equal(globalThis.window.localStorage.getItem('astra.lang'), 'ru', 'remembered (only picks are - ticket 26)');
+    assert.equal(globalThis.window.localStorage.getItem('imaginarium.lang'), 'ru', 'remembered (only picks are - ticket 26)');
     assert.equal(renders, 1, 'the one real switch re-rendered subscribers live, no reload');   // setLang('en') first was a no-op: same language
     i18n.setLang('en');
     assert.equal(renders, 2, 'and switching back fires it again');

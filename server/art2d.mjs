@@ -233,7 +233,7 @@ export function editReadiness({ appRoot = root, exists = existsSync, env = proce
     files = ['qwenedit', 'qweneditlora', 'qwente', 'qwenvae'].map((id) => ({ dir: man.models[id].dir, file: man.models[id].file, label: man.models[id].name }));
   } catch { return { installed: false, dir: '', missing: [{ file: 'installer/manifest.json', label: 'the manifest' }], gateMiB: 10240 }; }
   const cfg = pathsConfig(appRoot);
-  const dir = env.ASTRA_COMFY_DIR || (typeof cfg.comfyDir === 'string' && cfg.comfyDir.trim()) || path.join(appRoot, 'runtime', 'ComfyUI');
+  const dir = env.IMAGINARIUM_COMFY_DIR || (typeof cfg.comfyDir === 'string' && cfg.comfyDir.trim()) || path.join(appRoot, 'runtime', 'ComfyUI');
   const missing = files.filter((f) => !exists(path.join(dir, 'models', f.dir, f.file))).map(({ file, label }) => ({ file, label }));
   return { installed: missing.length === 0, dir, missing, gateMiB: 10240 };
 }

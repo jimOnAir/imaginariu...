@@ -1,4 +1,4 @@
-"""_style_lib - per-character motion style and procedural humanoid deaths (AstraForge Forge).
+"""_style_lib - per-character motion style and procedural humanoid deaths (Imaginarium Forge).
 
 Used by step motion_style (docs/forge/motion_style.md). Input: a humanoid rig whose clips were written
 by retarget (one layered action per clip, keys on every frame for every bone). Every clip is read into

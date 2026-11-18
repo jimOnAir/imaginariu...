@@ -20,11 +20,11 @@ params:
                  metric; without params.scale the step scales each binding to the asset (fx_auto_scale):
                  socket diameter (mount_d_m/diameter_m) or size_class S/M/L (seat 1/2.25/4.5 m, also
                  inherited from a parent socket) against the preset's reference_socket_m, else the asset's
-                 longest axis against reference_size_m. The scale used is recorded in af_package.json/README.
+                 longest axis against reference_size_m. The scale used is recorded in ima_package.json/README.
                  FX nodes emit along their local +Y. On thruster sockets (kind thruster / socket_thruster_*) the socket's
                  exhaust axis is found first (extras.frame thrust|exhaust when it points aft in the imported
                  scene, else the socket-local axis most aligned with aft; a contradicting frame is a warning) and
-                 written as binding.emit_axis; af_fx_mount.gd turns the FX +Y onto it. muzzle_flash (emits -Z) and
+                 written as binding.emit_axis; ima_fx_mount.gd turns the FX +Y onto it. muzzle_flash (emits -Z) and
                  presets with another direction are left alone. Checks fx_thruster_axis (Python) and
                  godot_fx_thruster_aft (Godot) require the result to point aft.
   fx_auto_scale  default true; false keeps presets at their native size unless params.scale is given
@@ -55,7 +55,7 @@ import shutil
 import bpy
 from mathutils import Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _export_lib as xl
 
 SOCKET_RE = re.compile(r"^socket_[a-z0-9]+(_[a-z0-9]+)*$")
@@ -64,7 +64,7 @@ DIAMETER_KEYS = ("diameter_m", "mount_d_m", "nozzle_d_m")
 
 # Thruster sockets (contract §6): where the exhaust goes in the socket's own glTF/Godot axes. The ship steps write
 # one of two documented frames in extras.frame (_ship_lib.THRUSTER_FRAMES / THRUSTER_AXIS_TEXT); GLBs without
-# extras.frame are resolved on the geometry. An FX node emits along its local +Y, so af_fx_mount.gd turns
+# extras.frame are resolved on the geometry. An FX node emits along its local +Y, so ima_fx_mount.gd turns
 # it onto this axis (binding "emit_axis").
 THRUSTER_FRAME_AXES = {"thrust": (0.0, 0.0, 1.0), "exhaust": (0.0, 0.0, -1.0)}
 # the six socket-local axes in glTF terms; order = preference on an exact tie (documented frames first)
@@ -104,8 +104,8 @@ def _num(v):
 
 def _inspect(glb):
     """Import the GLB into an empty scene and list sockets, clips, size."""
-    af.reset_scene()
-    objs = af.import_any(glb)
+    ima.reset_scene()
+    objs = ima.import_any(glb)
     sockets, pivots = [], []
     for o in objs:
         gs = o.get("game_socket")
@@ -147,7 +147,7 @@ def _inspect(glb):
         clips.append({"name": a.name, "base": base, "loop": loop, "package_name": xl.godot_safe_clip_name(a.name),
                       "frames": [round(a.frame_range[0], 3), round(a.frame_range[1], 3)]})
     shown = xl.render_meshes(objs)          # excludes the importer's bone-shape Icosphere
-    stats = af.scene_stats(shown)
+    stats = ima.scene_stats(shown)
     # size in the rest pose (a hunched idle frame would under-measure a character), from deformed
     # vertices rather than object bound boxes
     arms = [o for o in objs if o.type == "ARMATURE"]
@@ -164,7 +164,7 @@ def _inspect(glb):
     bpy.context.view_layer.update()
     size = (pts.max(axis=0) - pts.min(axis=0)).tolist() if len(pts) else [0.0, 0.0, 0.0]
     return {"sockets": sockets, "pivots": pivots, "socket_world3": world3, "clips": clips,
-            "armatures": af.scene_stats(objs)["armatures"],
+            "armatures": ima.scene_stats(objs)["armatures"],
             "tris": stats["tris"], "size_blender_m": [round(v, 4) for v in size],
             "size_gltf_m": [round(size[0], 4), round(size[2], 4), round(size[1], 4)],
             "longest_m": round(max(size), 4) if len(pts) else 0.0, "meshes": stats["meshes"]}
@@ -228,7 +228,7 @@ def resolve_thruster_axes(info, src_fwd, warnings):
 
 
 def _fx_spec(b, aft_root):
-    """Entry of af_check.json fx[]: socket, node name and, for thruster FX turned by emit_axis, the expected
+    """Entry of imaginarium_check.json fx[]: socket, node name and, for thruster FX turned by emit_axis, the expected
     +Y axis of the FX node in the package root's space (aft) with the dot-product floor of validate_package.gd."""
     spec = {"socket": b["socket"], "name": b["node_name"]}
     if b.get("emit_axis"):
@@ -289,25 +289,25 @@ def sq_unit_checks(fit, mn):
     never drawn at its own default size (instance_for without units), error."""
     hidden = [name for name, units in SQ_VIEW_UNITS if units < mn]
     views = ", ".join("%s %s" % (name, xl._f(units)) for name, units in SQ_VIEW_UNITS)
-    return [af.check("sq_min_units_visible", not hidden, {"min_units": mn, "hidden_in": hidden},
+    return [ima.check("sq_min_units_visible", not hidden, {"min_units": mn, "hidden_in": hidden},
                      "<= %s" % xl._f(SQ_VIEW_UNITS[0][1]),
                      severity="error" if len(hidden) == len(SQ_VIEW_UNITS) else "warning",
                      note="the target library draws a primitive when a view asks for fewer units than min_units; "
                           "views ask for %s (render units, not metres)" % views),
-            af.check("sq_fit_not_below_min", fit >= mn, [fit, mn], "fit_units >= min_units",
+            ima.check("sq_fit_not_below_min", fit >= mn, [fit, mn], "fit_units >= min_units",
                      note="fit_units < min_units: instance_for without units never draws the model")]
 
 
 def _tscn(asset_id, glb_name, bindings, fx_files, rotate, autoplay, meta):
     ext = ['[ext_resource type="PackedScene" path="%s" id="1_model"]' % glb_name,
-           '[ext_resource type="Script" path="af_fx_mount.gd" id="2_mount"]']
+           '[ext_resource type="Script" path="ima_fx_mount.gd" id="2_mount"]']
     fx_ids = {}
     for i, f in enumerate(fx_files):
         fx_ids[f] = "%d_fx" % (i + 3)
         ext.append('[ext_resource type="PackedScene" path="fx/%s" id="%s"]' % (f, fx_ids[f]))
     items = []
     for b in bindings:
-        # emit_axis (thruster sockets): the socket-local axis the FX node's +Y is turned onto by af_fx_mount.gd
+        # emit_axis (thruster sockets): the socket-local axis the FX node's +Y is turned onto by ima_fx_mount.gd
         axis = ',\n"emit_axis": %s' % xl.gd_vec3(b["emit_axis"]) if b.get("emit_axis") else ""
         items.append('{\n"name": "%s",\n"scene": ExtResource("%s"),\n"socket": "%s"%s\n}'
                      % (b["node_name"], fx_ids[b["file"]], b["socket"], axis))
@@ -315,7 +315,7 @@ def _tscn(asset_id, glb_name, bindings, fx_files, rotate, autoplay, meta):
             'script = ExtResource("2_mount")',
             "fx_bindings = [%s]" % ", ".join(items),
             'autoplay_animation = "%s"' % autoplay,
-            "metadata/astraforge = %s" % json.dumps(json.dumps(meta, ensure_ascii=True))]
+            "metadata/imaginarium = %s" % json.dumps(json.dumps(meta, ensure_ascii=True))]
     model = ['[node name="model" parent="." instance=ExtResource("1_model")]']
     if rotate:
         model.append("transform = Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)")
@@ -325,13 +325,13 @@ def _tscn(asset_id, glb_name, bindings, fx_files, rotate, autoplay, meta):
 
 def _readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, clips, registry_name, sprites, gres,
             fwd_from=""):
-    lines = ["# %s — Godot 4.5 package (AstraForge Forge)" % asset_id, "",
+    lines = ["# %s — Godot 4.5 package (Imaginarium Forge)" % asset_id, "",
              "Profile: `%s`. Created by the `godot_package` step; nothing was written to the target project." % profile, "",
              "## Contents", "",
              "| File | What |", "|---|---|",
              "| `%s.glb` | model (byte-for-byte copy of the input GLB) |" % asset_id,
-             "| `%s.tscn` | scene: `Node3D` + GLB instance (`model`) + `af_fx_mount.gd` script |" % asset_id,
-             "| `af_fx_mount.gd` | on `_ready` finds sockets by `extras.game_socket` or by name and mounts the FX |",
+             "| `%s.tscn` | scene: `Node3D` + GLB instance (`model`) + `ima_fx_mount.gd` script |" % asset_id,
+             "| `ima_fx_mount.gd` | on `_ready` finds sockets by `extras.game_socket` or by name and mounts the FX |",
              "| `fx/*.tscn` | effects: `GPUParticles3D` + `ParticleProcessMaterial` + `QuadMesh` |",
              "| `fx/textures/*.png` | procedural particle textures (white, shape in alpha) |"]
     if registry_name:
@@ -339,7 +339,7 @@ def _readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, clips, regi
     if sprites:
         lines.append("| `sprites/` | sprite sheets and `SpriteFrames` from `render_sprites` |")
     lines += ["", "## Axes", "",
-              "- The GLB faces `%s` (glTF/Godot; source: %s). By the AstraForge contract characters face glTF +Z "
+              "- The GLB faces `%s` (glTF/Godot; source: %s). By the Imaginarium contract characters face glTF +Z "
               "and ships face −Z." % (src_fwd, fwd_from),
               "- Scene `%s.tscn` faces `%s`%s." % (asset_id, fwd,
                                                      " (the `model` node is rotated 180° about Y, the GLB is untouched)"
@@ -347,7 +347,7 @@ def _readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, clips, regi
               "- FX emit along the socket's local +Y (= socket +Z in Blender: outward, exhaust, blade); "
               "`muzzle_flash` emits along −Z (muzzle). Exception: thruster sockets (`socket_thruster_*`): "
               "the nozzle frame differs between ships (`extras.frame` = `thrust`, `exhaust`, or absent), so "
-              "`af_fx_mount.gd` rotates the FX node so its +Y lies along the socket's exhaust axis (`emit_axis`, "
+              "`ima_fx_mount.gd` rotates the FX node so its +Y lies along the socket's exhaust axis (`emit_axis`, "
               "in socket axes: taken from `extras.frame` if it agrees with the geometry, otherwise the local axis pointing "
               "away from the nose).", "",
               "## Sockets", ""]
@@ -441,7 +441,7 @@ def run(req):
     # ---- sockets
     socket_names = [s["name"] for s in info["sockets"]]
     bad = [s for s in socket_names if not SOCKET_RE.match(s)]
-    checks.append(af.check("socket_names_snake_ascii", not bad, bad, [], severity="warning" if profile == "godot"
+    checks.append(ima.check("socket_names_snake_ascii", not bad, bad, [], severity="warning" if profile == "godot"
                            else "error", note="contract §6: socket_<kind>_<place>, ASCII snake_case, no dots"))
     no_extras = [s["node"] for s in info["sockets"] if not s["has_game_socket"]]
     if no_extras:
@@ -449,7 +449,7 @@ def run(req):
     if info["pivots"]:
         legacy = [pv["node"] for pv in info["pivots"] if pv["has_game_socket"]]
         no_axis = [pv["node"] for pv in info["pivots"] if not pv["axis"] or not pv["range_degrees"]]
-        checks.append(af.check("rig_pivots", not legacy and not no_axis,
+        checks.append(ima.check("rig_pivots", not legacy and not no_axis,
                                {pv["node"]: [pv["axis"], pv["range_degrees"]] for pv in info["pivots"]},
                                "axis + range_degrees, no game_socket", severity="warning",
                                note="turret rig pivots are not sockets (contract §6); listed under 'pivots'"
@@ -460,7 +460,7 @@ def run(req):
     with open(xl.FX_PRESETS_PATH, "r", encoding="utf-8") as fh:
         presets = json.load(fh)["presets"]
     fx = p.get("fx", manifest.get("fx", [])) or []
-    pkg = af.out_path(req, asset_id)
+    pkg = ima.out_path(req, asset_id)
     if os.path.isdir(pkg):
         shutil.rmtree(pkg)
     os.makedirs(os.path.join(pkg, "fx", "textures"))
@@ -512,7 +512,7 @@ def run(req):
                    "visibility_aabb": merged.get("visibility_aabb", xl.DEFAULT_VISIBILITY_AABB)}
         si = sock_info.get(sock)
         if si and is_thruster_socket(si) and _emits_up(merged.get("direction")):
-            # the FX emits along its local +Y: af_fx_mount.gd turns +Y onto the socket's exhaust axis
+            # the FX emits along its local +Y: ima_fx_mount.gd turns +Y onto the socket's exhaust axis
             thruster_fx.append(binding)
             if si.get("exhaust_axis"):
                 binding["emit_axis"] = list(si["exhaust_axis"])
@@ -521,8 +521,8 @@ def run(req):
         bindings.append(binding)
     for tex in sorted(textures):
         xl.save_png(os.path.join(pkg, "fx", "textures", "%s.png" % tex), xl.make_fx_texture(tex))
-    checks.append(af.check("fx_presets_known", not unknown, unknown, [], note="presets in data/fx_presets.json"))
-    checks.append(af.check("fx_sockets_exist", not missing, missing, [], note="FX sockets present in the GLB"))
+    checks.append(ima.check("fx_presets_known", not unknown, unknown, [], note="presets in data/fx_presets.json"))
+    checks.append(ima.check("fx_sockets_exist", not missing, missing, [], note="FX sockets present in the GLB"))
     if scale_problems:
         warnings.append("FX look out of scale next to the %.3g m asset: %s; pass params.scale (fx_auto_scale picks "
                         "it from size_class / the asset size)" % (info["longest_m"], "; ".join(
@@ -532,27 +532,27 @@ def run(req):
         rows = {"%s@%s" % (b["node_name"], b["socket"]): {"emit_axis": b.get("emit_axis"),
                                                           "from": b.get("emit_axis_from"),
                                                           "aft_dot": b.get("emit_aft_dot")} for b in thruster_fx}
-        checks.append(af.check("fx_thruster_axis",
+        checks.append(ima.check("fx_thruster_axis",
                                all(b.get("emit_axis") and b["emit_aft_dot"] >= AFT_MIN_DOT for b in thruster_fx),
                                rows, "emit_axis present and aft_dot >= %s" % AFT_MIN_DOT,
                                note="every thruster FX (preset emitting along +Y) has an exhaust axis in the socket's "
                                     "own axes whose world direction points aft (>= 60 deg from the nose; aft = "
                                     "opposite of the GLB's forward %s)" % src_fwd))
     if bindings:
-        checks.append(af.check("fx_scale_vs_asset", not scale_problems, scale_problems, [], severity="warning",
+        checks.append(ima.check("fx_scale_vs_asset", not scale_problems, scale_problems, [], severity="warning",
                                note="particle quad >= 1 %% of the asset's longest axis (%.3g m) and within 4x of "
                                     "the preset's design ratio" % info["longest_m"]))
 
     # ---- files
     glb_out = os.path.join(pkg, "%s.glb" % asset_id)
     renames = {c["name"]: c["package_name"] for c in info["clips"] if c["package_name"] != c["name"]}
-    if renames:   # recorded in stats.clip_renames, af_package.json (clips[].package_name) and the README
+    if renames:   # recorded in stats.clip_renames, ima_package.json (clips[].package_name) and the README
         xl.rename_glb_animations(glb, glb_out, renames)
     else:
         shutil.copy2(glb, glb_out)
-    shutil.copy2(os.path.join(xl.GODOT_DIR, "af_fx_mount.gd"), os.path.join(pkg, "af_fx_mount.gd"))
+    shutil.copy2(os.path.join(xl.GODOT_DIR, "ima_fx_mount.gd"), os.path.join(pkg, "ima_fx_mount.gd"))
     meta = {"asset_id": asset_id, "profile": profile, "glb_forward": src_fwd, "scene_forward": fwd,
-            "glb_forward_from": fwd_from, "generator": "astraforge-forge/godot_package"}
+            "glb_forward_from": fwd_from, "generator": "imaginarium-forge/godot_package"}
     tscn_path = os.path.join(pkg, "%s.tscn" % asset_id)
     with open(tscn_path, "w", encoding="utf-8", newline="\n") as fh:
         fh.write(_tscn(asset_id, "%s.glb" % asset_id, bindings, fx_files, rotate, p.get("autoplay", ""), meta))
@@ -585,7 +585,7 @@ def run(req):
                                                                                units_from, info["longest_m"]))
         checks.extend(sq_unit_checks(fit_u, min_u))
         registry = {"id": asset_id,
-                    "comment": p.get("comment", manifest.get("name") or "AstraForge Forge export of %s" % asset_id),
+                    "comment": p.get("comment", manifest.get("name") or "Imaginarium Forge export of %s" % asset_id),
                     "path": "res://assets/models/%s/%s.glb" % (p.get("sq_type", "ships"), asset_id),
                     "forward_axis": src_fwd, "up_axis": "+Y",
                     "fit_units": fit_u, "min_units": min_u}
@@ -623,9 +623,9 @@ def run(req):
     if p.get("validate", True):
         if exe is None:
             warnings.append("Godot 4.5.1 not found: package not validated")
-            checks.append(af.check("godot_validation", False, "godot missing", severity="warning"))
+            checks.append(ima.check("godot_validation", False, "godot missing", severity="warning"))
         else:
-            proj = xl.make_check_project(af.out_path(req, "_godot_check"))
+            proj = xl.make_check_project(ima.out_path(req, "_godot_check"))
             dst = os.path.join(proj, "packages", asset_id)
             shutil.copytree(pkg, dst)
             res_root = "res://packages/%s/" % asset_id
@@ -648,45 +648,45 @@ def run(req):
             gres = xl.godot_validate(exe, proj, config)
             res = gres.get("result")
             ok = bool(res) and bool(res.get("ok"))
-            checks.append(af.check("godot_validation", ok, res, True,
+            checks.append(ima.check("godot_validation", ok, res, True,
                                    note="validate_package.gd JSON (Godot %s headless): scene loads, instance, "
                                         "animations + loop modes, sockets, FX attached" % gres.get("godot_version")))
             sc = ((res or {}).get("scenes") or [{}])[0]
-            checks.append(af.check("godot_scene_loads", bool(sc.get("loaded") and sc.get("instanced")),
+            checks.append(ima.check("godot_scene_loads", bool(sc.get("loaded") and sc.get("instanced")),
                                    [sc.get("loaded"), sc.get("instanced")], [True, True]))
             anim_checks = sc.get("animation_checks") or []
-            checks.append(af.check("godot_animation_loops", all(a.get("ok") for a in anim_checks),
+            checks.append(ima.check("godot_animation_loops", all(a.get("ok") for a in anim_checks),
                                    [(a.get("expected"), a.get("found"), a.get("loop_mode")) for a in anim_checks],
                                    note="'-loop' clips import with loop_mode != 0, others with 0"))
             socks = sc.get("sockets") or {}
-            checks.append(af.check("godot_sockets_found", all(v.get("found") for v in socks.values()),
+            checks.append(ima.check("godot_sockets_found", all(v.get("found") for v in socks.values()),
                                    sum(1 for v in socks.values() if v.get("found")), len(socks)))
             fxr = sc.get("fx") or []
-            checks.append(af.check("godot_fx_attached", all(f.get("ok") for f in fxr),
+            checks.append(ima.check("godot_fx_attached", all(f.get("ok") for f in fxr),
                                    sum(1 for f in fxr if f.get("ok")), len(bindings)))
             want_axis = sum(1 for b in bindings if b.get("emit_axis"))
             if want_axis:
                 got = [f for f in fxr if "axis_ok" in f]
-                checks.append(af.check("godot_fx_thruster_aft", len(got) == want_axis and all(f["axis_ok"] for f in got),
+                checks.append(ima.check("godot_fx_thruster_aft", len(got) == want_axis and all(f["axis_ok"] for f in got),
                                        {"%s@%s" % (f["name"], f["socket"]): {"axis_y_root": f.get("axis_y_root"),
                                                                               "axis_dot": f.get("axis_dot")}
                                         for f in got}, "FX +Y within the allowed angle of aft %s (package root)" % aft_root,
                                        note="validate_package.gd: thruster FX +Y axis in the package root's space vs "
                                             "aft (dot >= 0.9, lower only for nozzles canted by the model itself)"))
-            checks.append(af.check("godot_engine_errors", not gres["engine_errors"], gres["engine_errors"][:10], [],
+            checks.append(ima.check("godot_engine_errors", not gres["engine_errors"], gres["engine_errors"][:10], [],
                                    severity="warning"))
             if p.get("fx_preview", False):
                 speed = float(p.get("fx_preview_speed",
                                     1.0 if src_fwd == "-Z" and not info["armatures"] else 0.0))
                 frames = tuple(int(f) for f in p.get("fx_preview_frames", (14, 30, 46)))
                 prev = xl.godot_fx_preview(exe, proj, res_root + "%s.tscn" % asset_id,
-                                           af.out_path(req, "fx_preview.png"), speed=speed, frames=frames,
+                                           ima.out_path(req, "fx_preview.png"), speed=speed, frames=frames,
                                            quit_after=max(frames) + 4)
                 gres["fx_preview"] = prev
-                checks.append(af.check("godot_fx_preview", bool(prev.get("ok")),
+                checks.append(ima.check("godot_fx_preview", bool(prev.get("ok")),
                                        prev.get("error") or prev.get("path"), severity="warning",
                                        note="Godot Movie Maker frames %s (short windowed run)" % prev.get("frames")))
-            gpath = af.out_path(req, "godot_check.json")
+            gpath = ima.out_path(req, "godot_check.json")
             with open(gpath, "w", encoding="utf-8") as fh:
                 json.dump(gres, fh, ensure_ascii=False, indent=1)
 
@@ -694,7 +694,7 @@ def run(req):
     with open(os.path.join(pkg, "README.md"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(_readme(asset_id, profile, info, src_fwd, fwd, rotate, bindings, info["clips"],
                          registry_name, sprites_info is not None, gres, fwd_from))
-    pkg_manifest = {"format": "astraforge-godot-package/1", "asset_id": asset_id, "profile": profile,
+    pkg_manifest = {"format": "imaginarium-godot-package/1", "asset_id": asset_id, "profile": profile,
                     "godot": "4.5", "glb": os.path.basename(glb_out), "glb_sha256": xl.file_sha256(glb_out),
                     "source_glb": os.path.abspath(glb), "glb_forward": src_fwd, "glb_forward_from": fwd_from,
                     "glb_forward_guessed": guessed, "scene_forward": fwd,
@@ -703,16 +703,16 @@ def run(req):
                     "fx": bindings, "fx_auto_scale": auto, "size_gltf_m": info["size_gltf_m"],
                     "longest_m": info["longest_m"], "tris": info["tris"],
                     "registry": registry_name, "sq_units": sq_units_info, "sprites": sprites_info is not None}
-    with open(os.path.join(pkg, "af_package.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(pkg_manifest), fh, ensure_ascii=False, indent=2)
+    with open(os.path.join(pkg, "ima_package.json"), "w", encoding="utf-8") as fh:
+        json.dump(ima._jsonable(pkg_manifest), fh, ensure_ascii=False, indent=2)
 
-    outputs = {"package": pkg, "glb": glb_out, "tscn": tscn_path, "script": os.path.join(pkg, "af_fx_mount.gd"),
+    outputs = {"package": pkg, "glb": glb_out, "tscn": tscn_path, "script": os.path.join(pkg, "ima_fx_mount.gd"),
                "fx": [os.path.join(pkg, "fx", f) for f in fx_files], "readme": os.path.join(pkg, "README.md"),
-               "manifest": os.path.join(pkg, "af_package.json")}
+               "manifest": os.path.join(pkg, "ima_package.json")}
     if registry_name:
         outputs["registry"] = os.path.join(pkg, registry_name)
     if gres:
-        outputs["godot_check"] = af.out_path(req, "godot_check.json")
+        outputs["godot_check"] = ima.out_path(req, "godot_check.json")
         outputs["godot_log"] = gres["log"]
         if (gres.get("fx_preview") or {}).get("ok"):
             outputs["fx_preview"] = gres["fx_preview"]["path"]

@@ -1,4 +1,4 @@
-"""ship_from_mesh — a generated ship mesh (Hunyuan / Meshy / TripoSR ...) -> ship asset (AstraForge ship contract).
+"""ship_from_mesh — a generated ship mesh (Hunyuan / Meshy / TripoSR ...) -> ship asset (Imaginarium ship contract).
 
 What it does (honestly: heuristics on an unstructured AI mesh, not a rebuild):
   1. imports inputs.mesh, drops empties/cameras/collision meshes, joins all meshes into one and WELDS it
@@ -7,11 +7,11 @@ What it does (honestly: heuristics on an unstructured AI mesh, not a rebuild):
      nose sign = params.nose or a vote of three cues (narrower end, blunt aft-facing area, bright emissive
      pixels of the base colour texture) with a confidence value;
   3. scales the length to length_m, centres the bbox on the origin (root = geometric centre);
-  4. decimates the single welded mesh to the class budget (collapse), assigns AF_* material labels on that
+  4. decimates the single welded mesh to the class budget (collapse), assigns Imaginarium_* material labels on that
      topology, and only then splits it by material; LOD1 / LOD2 are decimated copies of the same labelled
      single mesh (no open borders between material pieces), checked by top/side silhouette IoU vs LOD0;
   5. materials: 'classify' (per-face base-colour sample -> HSV rules -> flat material factors with cluster mean
-     colours), 'keep_texture' (one AF_Armor with the source albedo downscaled to the class budget + optional
+     colours), 'keep_texture' (one Imaginarium_Armor with the source albedo downscaled to the class budget + optional
      emissive split) or 'single';
   6. sockets, each with extras.confidence: thrusters = blobs of area-sampled aft-facing surface at the tail
      (a blob is split only when its density along the long axis has two peaks); on an X-symmetric mesh the
@@ -44,9 +44,9 @@ Request params:
                  -> materials = 'paint': per-face material labels projected from the concept (see paint_mesh)
   armor_texture  kit texture name or {texture, tile_m, normal_strength, regions: [{texture, name, box: {min, max}}]}
                  (scripts/blender/data/kits/kits.json; no kit ships by default - add your own tileable
-                 albedo/normal pair there) on AF_Armor with metric box UVs
+                 albedo/normal pair there) on Imaginarium_Armor with metric box UVs
   decals         [{text | lines, font, side: port | starboard | both | top, position: [y, z] | [x, y], size: [w, h],
-                 bold, align, color, wear, line_scales, slashed_zero}] -> one RGBA atlas, AF_Marking (BLEND)
+                 bold, align, color, wear, line_scales, slashed_zero}] -> one RGBA atlas, Imaginarium_Marking (BLEND)
   turret_sockets flats (default: flat dorsal / ventral patches) | protrusions (barrel-like protrusions of the
                  input: sockets at their base, axis outward) | auto (protrusions if >= 2, else flats)
   lod_targets    {lod1: tris, lod2: tris} caps below the class budget (room for kitbash parts)
@@ -60,7 +60,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _ship_lib as sl
 from steps import ship_gen
 
@@ -210,7 +210,7 @@ def resolve(req):
 
 # ----------------------------------------------------------------------------- import / weld / orient
 def load_joined(path):
-    objs = af.import_any(path)
+    objs = ima.import_any(path)
     col_suffix = ("-col", "-convcol", "-colonly", "-convcolonly")
     meshes = [o for o in objs if o.type == "MESH" and not o.name.endswith(col_suffix)
               and not o.name.startswith("COL_")]
@@ -225,8 +225,8 @@ def load_joined(path):
         if o not in meshes:
             bpy.data.objects.remove(o, do_unlink=True)
     bpy.context.view_layer.update()
-    af.apply_transforms(meshes)
-    ob = af.join(meshes, name="src_mesh")
+    ima.apply_transforms(meshes)
+    ob = ima.join(meshes, name="src_mesh")
     bpy.context.view_layer.update()
     return ob
 
@@ -236,7 +236,7 @@ def weld(ob):
     recalc normals. UVs are per loop, so they survive. Returns before/after statistics."""
     me = ob.data
     if getattr(me, "has_custom_normals", False):
-        af.select_only([ob])
+        ima.select_only([ob])
         try:
             bpy.ops.mesh.customdata_custom_splitnormals_clear()
         except RuntimeError:
@@ -1126,7 +1126,7 @@ def paint_mesh(ob, P, L, warnings, log):
         flog = []
         cam, fit_iou, finfo = sl.fit_camera(Vf.reshape(-1, 3), Tf.reshape(-1, 3), mask, log=flog)
         info.update(camera_from="fit", fit_iou_work=fit_iou, fit=finfo)
-        af.log("paint camera fitted", iou=fit_iou, params=cam["params"])
+        ima.log("paint camera fitted", iou=fit_iou, params=cam["params"])
     else:
         cam = sl.cam_normalize(pp["camera"])
         if list(cam["resolution"]) != [W, H]:
@@ -1391,7 +1391,7 @@ def _kit_image(name, which, non_color=False):
 
 def texture_material(base, name, kit, tint, normal_strength=1.0):
     """Copy of a library material with the kit albedo (x tint as a Multiply node -> glTF baseColorFactor) and the
-    kit normal map. The tile size is kept on the material (af_tile_m) for kitbash UVs."""
+    kit normal map. The tile size is kept on the material (imaginarium_tile_m) for kitbash UVs."""
     kits = load_kits()["textures"]
     if base.name == name:  # the flat library material keeps its slot until every LOD is re-materialled
         base.name = name + "_flat"
@@ -1423,7 +1423,7 @@ def texture_material(base, name, kit, tint, normal_strength=1.0):
     nm.location = (-350, -150)
     nt.links.new(tn.outputs["Color"], nm.inputs["Color"])
     nt.links.new(nm.outputs["Normal"], bsdf.inputs["Normal"])
-    m["af_texture"] = kit
+    m["imaginarium_texture"] = kit
     m.diffuse_color = (*[min(1.0, t) for t in tint], 1.0)
     return m
 
@@ -1584,7 +1584,7 @@ def decal_atlas(decals, seed=7):
         col = [(12.92 * v if v <= 0.0031308 else 1.055 * v ** (1 / 2.4) - 0.055) for v in d["color"]]
         atlas[y0:y1, x0:x1, :3] = col
         atlas[y0:y1, x0:x1, 3] = c
-    img = bpy.data.images.new("AF_Marking_decals", Wp, Ht, alpha=True)
+    img = bpy.data.images.new("Imaginarium_Marking_decals", Wp, Ht, alpha=True)
     img.pixels.foreach_set(atlas[::-1].ravel())
     img.file_format = "PNG"
     img.pack()
@@ -1658,7 +1658,7 @@ def build_decals(objs, decals, cells, mat, L, suffix, step, offset):
     from mathutils.bvhtree import BVHTree
     Vs, Fs, off_ = [], [], 0
     for o in objs:
-        if not o.data.materials or not o.data.materials[0] or o.data.materials[0].name.startswith("AF_Glass"):
+        if not o.data.materials or not o.data.materials[0] or o.data.materials[0].name.startswith("Imaginarium_Glass"):
             continue
         M = o.matrix_world
         Vs += [tuple(M @ vv.co) for vv in o.data.vertices]
@@ -1725,13 +1725,13 @@ def finish_surfaces(objs, parent, suffix, lod, P, mats, ctx, decal_cap=None, war
         if "armor_mat" not in ctx:
             tint = mats["armor"].node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value[:3] \
                 if mats["armor"].node_tree.nodes.get("Principled BSDF") else (0.6, 0.55, 0.5)
-            ctx["armor_mat"] = texture_material(mats["armor"], "AF_Armor", arm["texture"], tint,
+            ctx["armor_mat"] = texture_material(mats["armor"], "Imaginarium_Armor", arm["texture"], tint,
                                                 arm["normal_strength"])
-            ctx["region_mats"] = [texture_material(mats["armor"], "AF_Armor" + r["name"].capitalize(), r["texture"],
+            ctx["region_mats"] = [texture_material(mats["armor"], "Imaginarium_Armor" + r["name"].capitalize(), r["texture"],
                                                    tint, arm["normal_strength"]) for r in arm["regions"]]
-            ctx["armor_mat"]["af_tile_m"] = arm["tile_m"]
+            ctx["armor_mat"]["imaginarium_tile_m"] = arm["tile_m"]
             for r, m in zip(arm["regions"], ctx["region_mats"]):
-                m["af_tile_m"] = r["tile_m"]
+                m["imaginarium_tile_m"] = r["tile_m"]
         a_ = next((o for o in out if o.data.materials and o.data.materials[0] == mats["armor"]), None)
         if a_ is not None:
             a_.data.materials[0] = ctx["armor_mat"]
@@ -1746,7 +1746,7 @@ def finish_surfaces(objs, parent, suffix, lod, P, mats, ctx, decal_cap=None, war
         if "decal_mat" not in ctx:
             img, cells = decal_atlas(decals)
             used = {m.name for o in out for m in o.data.materials if m}
-            dname = "AF_Marking" if "AF_Marking" not in used else "AF_MarkingDecal"
+            dname = "Imaginarium_Marking" if "Imaginarium_Marking" not in used else "Imaginarium_MarkingDecal"
             old = bpy.data.materials.get(dname)
             if old is not None:
                 old.name = dname + "_flat"
@@ -1785,11 +1785,11 @@ def run(req):
     P, warnings = resolve(req)
     cls = P["budget_class"]
     bud = sl.BUDGETS[cls]
-    af.reset_scene()
+    ima.reset_scene()
     src = load_joined(req["inputs"]["mesh"])
-    tris_in = af.tri_count([src])
+    tris_in = ima.tri_count([src])
     wst = weld(src)
-    af.log("welded", **wst)
+    ima.log("welded", **wst)
     img = base_image(src)
     # bright-pixel weights for the nose vote (per triangle via polygon colours)
     cols = sample_face_colors(src, img) if img is not None else None
@@ -1816,7 +1816,7 @@ def run(req):
     # ---- concept painting on the full-resolution mesh (labels survive the decimation as material indices)
     paint_info = None
     if P["materials"] == "paint":
-        af.log("painting from the concept", image=os.path.basename(P["paint"]["image"]))
+        ima.log("painting from the concept", image=os.path.basename(P["paint"]["image"]))
         codes, paint_info = paint_mesh(src, P, P["length_m"], warnings, None)
         me0 = src.data
         C0, _, _ = _face_arrays(me0)
@@ -1828,10 +1828,10 @@ def run(req):
         keys[glow & ~(C0[:, 1] < y0 + 0.22 * P["length_m"])] = "status"
         me0.materials.clear()
         for key in sl.MATS:
-            me0.materials.append(bpy.data.materials.new("af_paint_" + key))
+            me0.materials.append(bpy.data.materials.new("imaginarium_paint_" + key))
         me0.polygons.foreach_set("material_index", np.array([sl.MI[k] for k in keys], dtype=np.int32))
         me0.update()
-        af.log("painted", **{k: v for k, v in paint_info.items() if k in ("silhouette_iou", "label_faces", "sources")})
+        ima.log("painted", **{k: v for k, v in paint_info.items() if k in ("silhouette_iou", "label_faces", "sources")})
     # ---- decimate the single welded mesh (no material borders yet)
     target = P["target_tris"]
     if tris_in > target:
@@ -1871,7 +1871,7 @@ def run(req):
     else:
         lab = np.array(["armor"] * len(me.polygons), dtype=object)
     if P["decals"]:
-        lab[lab == "marking"] = "armor"  # AF_Marking carries the decal atlas
+        lab[lab == "marking"] = "armor"  # Imaginarium_Marking carries the decal atlas
     counts = {k: int((lab == k).sum()) for k in sl.MATS if (lab == k).any()}
     # ---- palette: faction values; with palette 'input' the input's own colours (glow and status included)
     fac = P["faction"] if P["faction"] in sl.FACTIONS else "military"
@@ -1927,7 +1927,7 @@ def run(req):
         px = np.empty(w2 * h2 * 4, dtype=np.float32)
         tmp.pixels.foreach_get(px)
         bpy.data.images.remove(tmp)
-        tex = bpy.data.images.new("AF_Armor_albedo", w2, h2, alpha=False)
+        tex = bpy.data.images.new("Imaginarium_Armor_albedo", w2, h2, alpha=False)
         tex.colorspace_settings.name = "sRGB"
         tex.pixels.foreach_set(px)
         tex.file_format = "PNG"
@@ -2120,9 +2120,9 @@ def run(req):
                 bpy.data.objects.remove(e, do_unlink=True)
             empties = empties[:limit]
     bpy.context.view_layer.update()
-    out_glb = af.out_path(req, "ship.glb")
+    out_glb = ima.out_path(req, "ship.glb")
     img_fmt = "JPEG" if textures else "AUTO"  # albedo may be JPEG (budget MB), normal maps PNG only
-    af.export_glb(out_glb, [root] + objs + [col] + empties, animations=False, skins=False, export_tangents=False,
+    ima.export_glb(out_glb, [root] + objs + [col] + empties, animations=False, skins=False, export_tangents=False,
                   export_image_format=img_fmt, export_jpeg_quality=88, export_draco_mesh_compression_enable=False)
     summ = sl.glb_summary(out_glb)
     outputs = {"glb": out_glb}
@@ -2172,8 +2172,8 @@ def run(req):
                     sl.uv_unwrap([o], "box")
             cap = int(min(bud["lod%d" % lod], (0.35 if lod == 1 else 0.12) * summ["triangles"])) - sl.mesh_tris(lobjs)
             lobjs = finish_surfaces(lobjs, lroot, "_lod%d" % lod, lod, P, mats, sctx, decal_cap=cap, warnings=warnings)
-            path = af.out_path(req, "ship_lod%d.glb" % lod)
-            af.export_glb(path, [lroot] + lobjs, animations=False, skins=False, export_tangents=False,
+            path = ima.out_path(req, "ship_lod%d.glb" % lod)
+            ima.export_glb(path, [lroot] + lobjs, animations=False, skins=False, export_tangents=False,
                           export_image_format=img_fmt, export_jpeg_quality=85,
                           export_draco_mesh_compression_enable=False)
             lod_tris["lod%d" % lod] = sl.glb_summary(path)["triangles"]
@@ -2187,37 +2187,37 @@ def run(req):
     if src_me.users == 0:
         bpy.data.meshes.remove(src_me)
     checks = sl.budget_checks(summ, cls, lod_tris if P["lods"] else None)
-    checks.append(af.check("collision_vertices", col_info["vertices"] <= 64, col_info["vertices"], 64))
-    checks.append(af.check("length_m", abs(summ["size_gltf"][2] - P["length_m"]) <= 0.03 * P["length_m"],
+    checks.append(ima.check("collision_vertices", col_info["vertices"] <= 64, col_info["vertices"], 64))
+    checks.append(ima.check("length_m", abs(summ["size_gltf"][2] - P["length_m"]) <= 0.03 * P["length_m"],
                            summ["size_gltf"][2], P["length_m"]))
     conf = oinfo.get("nose_confidence", 0)
-    checks.append(af.check("nose_confidence", conf >= 0.3, conf, 0.3, severity="warning",
+    checks.append(ima.check("nose_confidence", conf >= 0.3, conf, 0.3, severity="warning",
                            note="low confidence: set params.nose explicitly"))
     thr_s = [x for x in summ["sockets"] if x["extras"].get("kind") == "thruster"]
-    checks.append(af.check("thrusters_aft", all(x["position_gltf"][2] > 0 for x in thr_s) and bool(thr_s),
+    checks.append(ima.check("thrusters_aft", all(x["position_gltf"][2] > 0 for x in thr_s) and bool(thr_s),
                            len(thr_s), ">=1 at +Z glTF (aft)", severity="warning"))
-    checks.append(af.check("thruster_frame", all(sl.thruster_frame_ok(x, P["thruster_frame"]) for x in thr_s),
+    checks.append(ima.check("thruster_frame", all(sl.thruster_frame_ok(x, P["thruster_frame"]) for x in thr_s),
                            len(thr_s), sl.THRUSTER_AXIS_TEXT[P["thruster_frame"]]))
     checks.append(sl.thruster_diameter_check(thr_s))
     checks.append(ship_gen.nav_checks(summ))
     lod_sil = sl.lod_silhouettes(out_glb, lod_paths) if lod_paths else {}
     for key, v in lod_sil.items():
         # error for real-size meshes; a tiny input (< 3000 tris) cannot keep its silhouette at 12 %
-        checks.append(af.check("silhouette_iou_%s" % key, min(v["top"], v["side"]) >= 0.85, v, 0.85,
+        checks.append(ima.check("silhouette_iou_%s" % key, min(v["top"], v["side"]) >= 0.85, v, 0.85,
                                severity="error" if summ["triangles"] >= 3000 else "warning",
                                note="gate 10: top/side silhouette IoU vs LOD0 (same window)"))
     Vx = np.concatenate([np.array([o.matrix_world @ v.co for v in o.data.vertices]) for o in objs])
     asym = float(abs(Vx[:, 0].max() + Vx[:, 0].min()) / max(Vx[:, 0].max() - Vx[:, 0].min(), 1e-9))
-    checks.append(af.check("mirror_x_bbox_asymmetry", asym < 0.05, round(asym, 4), 0.05, severity="warning"))
+    checks.append(ima.check("mirror_x_bbox_asymmetry", asym < 0.05, round(asym, 4), 0.05, severity="warning"))
     textured = bool(textures) or bool(P["armor_texture"]) or bool(P["decals"])
     if P["preview"]:
         col.hide_render = True
         markers = socket_markers(empties, mats, P["length_m"]) if P["preview_sockets"] else []
-        outputs["preview"] = sl.render_grid(af.out_path(req, "preview.png"), objs + markers, tile=P["preview_size"],
+        outputs["preview"] = sl.render_grid(ima.out_path(req, "preview.png"), objs + markers, tile=P["preview_size"],
                                             views=("three_quarter_long", "rear_quarter_long", "side", "top", "front"),
                                             color_type="TEXTURE" if textured else "MATERIAL")
         if P["preview_lods"] and len(lod_sets) > 1:
-            outputs["lod_strip"] = sl.lod_strip(af.out_path(req, "lod_strip.png"), lod_sets,
+            outputs["lod_strip"] = sl.lod_strip(ima.out_path(req, "lod_strip.png"), lod_sets,
                                                 tile=P["preview_size"],
                                                 color_type="TEXTURE" if textured else "MATERIAL")
         for o in markers:
@@ -2225,14 +2225,14 @@ def run(req):
             bpy.data.objects.remove(o)
             bpy.data.meshes.remove(me_)
     if paint_info is not None:
-        cam_path = sl.write_json(af.out_path(req, "paint_camera.json"), paint_info["camera"])
+        cam_path = sl.write_json(ima.out_path(req, "paint_camera.json"), paint_info["camera"])
         outputs["paint_camera"] = cam_path
         try:
             pimg = sl.load_image(P["paint"]["image"])
             pmask = (sl.load_image(P["paint"]["mask"])[..., :3].mean(-1) > 0.5) if P["paint"]["mask"] else \
                 pimg[..., 3] > 0.5
             outputs["paint_overlay"], paint_info["silhouette_iou_lod0"] = write_paint_overlay(
-                af.out_path(req, "paint_overlay.png"), sl.largest_component(pmask, 0.02), paint_info["camera"],
+                ima.out_path(req, "paint_overlay.png"), sl.largest_component(pmask, 0.02), paint_info["camera"],
                 [o for o in objs if not o.name.startswith("M_hull_marking")])
         except Exception as exc:  # the overlay is a QA picture only
             warnings.append("paint overlay not written: %s" % exc)
@@ -2251,8 +2251,8 @@ def run(req):
                 palette_source=pal_src)
     if paint_info is not None:
         defn["paint_result"] = {k: v for k, v in paint_info.items() if k != "fit"}
-    outputs["definition"] = sl.write_json(af.out_path(req, "ship.definition.json"), defn)
-    outputs.setdefault("blend", af.out_path(req, "ship.blend"))
+    outputs["definition"] = sl.write_json(ima.out_path(req, "ship.definition.json"), defn)
+    outputs.setdefault("blend", ima.out_path(req, "ship.blend"))
     manifest = ship_gen.build_manifest(Pm, summ, lod_tris, col, col_info, empties, outputs, req,
                                        source=P["source"], generator="%s + %s" % (P["generator"], sl.GEN_FROM_MESH))
     manifest["textures"] = textures
@@ -2261,9 +2261,9 @@ def run(req):
                          % (os.path.basename(req["inputs"]["mesh"]), P["input_sha1_6"], oinfo.get("nose_from"),
                             conf, mode, (", concept silhouette IoU %.3f" % paint_info["silhouette_iou"])
                             if paint_info else ""))
-    outputs["manifest"] = sl.write_json(af.out_path(req, "ship.json"), manifest)
+    outputs["manifest"] = sl.write_json(ima.out_path(req, "ship.json"), manifest)
     if paint_info is not None:
-        checks.append(af.check("paint_silhouette_iou", paint_info["silhouette_iou"] >= 0.8,
+        checks.append(ima.check("paint_silhouette_iou", paint_info["silhouette_iou"] >= 0.8,
                                paint_info["silhouette_iou"], 0.8, severity="warning",
                                note="concept mask vs the mesh seen from the paint camera"))
     # forge metadata inside the .blend (kitbash and later steps read it instead of guessing)
@@ -2271,8 +2271,8 @@ def run(req):
             "length_m": P["length_m"], "thruster_frame": P["thruster_frame"], "manifest": manifest,
             "textures": textures, "lod_roots": ["%s_lod1" % P["asset_id"], "%s_lod2" % P["asset_id"]] if P["lods"]
             else [], "collision": col.name, "lod_targets": P["lod_targets"], "palette_source": pal_src}
-    bpy.context.scene["af_ship"] = json.dumps(af._jsonable(meta), ensure_ascii=False)
-    outputs["blend"] = sl.save_blend_clean(af.out_path(req, "ship.blend"))
+    bpy.context.scene["imaginarium_ship"] = json.dumps(ima._jsonable(meta), ensure_ascii=False)
+    outputs["blend"] = sl.save_blend_clean(ima.out_path(req, "ship.blend"))
     stats = {"asset_id": P["asset_id"], "class": P["class"], "budget_class": cls, "input_tris": tris_in,
              "weld": wst, "tris": summ["triangles"], "tris_lod1": lod_tris.get("lod1"),
              "tris_lod2": lod_tris.get("lod2"), "lod_decimation": lod_dec, "lod_silhouette_iou": lod_sil,

@@ -279,9 +279,9 @@ def run_vlm(sheet_path, p, has_back, log=None):
         res["skipped"] = "qa_vlm off"
         res["off"] = True
         return res
-    url = str(p.get("qa_url") or os.environ.get("ASTRA_OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
-    model = str(p.get("qa_model") or os.environ.get("ASTRA_QA_VLM") or "qwen3-vl:8b")
-    comfy = str(p.get("qa_comfy_url") or os.environ.get("ASTRA_COMFY_URL") or "http://127.0.0.1:8190").rstrip("/")
+    url = str(p.get("qa_url") or os.environ.get("IMAGINARIUM_OLLAMA_URL") or "http://127.0.0.1:11434").rstrip("/")
+    model = str(p.get("qa_model") or os.environ.get("IMAGINARIUM_QA_VLM") or "qwen3-vl:8b")
+    comfy = str(p.get("qa_comfy_url") or os.environ.get("IMAGINARIUM_COMFY_URL") or "http://127.0.0.1:8190").rstrip("/")
     res.update({"model": model, "url": url})
     t0 = time.time()
     try:

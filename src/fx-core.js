@@ -1,12 +1,12 @@
-// Core of the AstraForge effects editor: pure logic, no DOM or Three (format astraforge-fx/1 = scripts/blender/data/fx_presets.json).
+// Core of the Imaginarium effects editor: pure logic, no DOM or Three (format imaginarium-fx/1 = scripts/blender/data/fx_presets.json).
 // Presets, normalisation and merging of edits, analytic particles (deterministic by seed and time), built-in textures, PNG, .tscn for Godot 4.5.
 // make_fx_texture / fx_scene_text / merge_fx are ports of scripts/blender/steps/_export_lib.py. Rendering: fx-runtime.js, panel: FxPanel.jsx, tests: tests/fx-core.test.mjs.
 import {FX_PRESETS as FORGE_FX} from './forge/forge-core.js';
 import {t,tOr} from './i18n/index.js';
-import {FX_PRESETS_DATA,AF_FX_MOUNT_GD} from './fx-data.js';
-export {AF_FX_MOUNT_GD};
+import {FX_PRESETS_DATA,Imaginarium_FX_MOUNT_GD} from './fx-data.js';
+export {Imaginarium_FX_MOUNT_GD};
 
-export const FX_FORMAT='astraforge-fx/1';
+export const FX_FORMAT='imaginarium-fx/1';
 export const FX_LIMITS={amount:4000,total:30000};
 export const FX_EMPTY_ID='empty';
 export const FX_TEXTURES=['soft','spark','star','smoke','ring'];
@@ -236,7 +236,7 @@ export function fxSceneText(nodeName,p,textureRel,flipbook=null){const subs=[],r
  if(flipbook){const cycles=flipbook.fps*(p.lifetime??1)/(flipbook.h*flipbook.v);mat.push('particles_anim_h_frames = '+flipbook.h,'particles_anim_v_frames = '+flipbook.v,'particles_anim_loop = '+(cycles>1.0001?'true':'false'));}
  subs.push(mat.join('\n')+'\n');
  const q=Number(p.quad_size??.2);subs.push('[sub_resource type="QuadMesh" id="QuadMesh_fx"]\nmaterial = SubResource("StandardMaterial3D_fx")\nsize = Vector2('+gdF(q)+', '+gdF(q)+')\n');
- const node=['[node name="'+nodeName+'" type="GPUParticles3D"]','emitting = '+(p.autostart??true?'true':'false'),'amount = '+Math.trunc(p.amount??16),'lifetime = '+gdF(p.lifetime??1),'one_shot = '+(p.one_shot?'true':'false'),'explosiveness = '+gdF(p.explosiveness??0),'randomness = '+gdF(p.randomness??0),'speed_scale = '+gdF(p.speed_scale??1),'local_coords = '+(p.local_coords?'true':'false'),'fixed_fps = '+Math.trunc(p.fixed_fps??30),'visibility_aabb = AABB('+(p.visibility_aabb||DEFAULT_AABB).map(gdF).join(', ')+')','process_material = SubResource("ParticleProcessMaterial_fx")','draw_pass_1 = SubResource("QuadMesh_fx")','metadata/astraforge_fx = '+JSON.stringify(p._preset??nodeName)];
+ const node=['[node name="'+nodeName+'" type="GPUParticles3D"]','emitting = '+(p.autostart??true?'true':'false'),'amount = '+Math.trunc(p.amount??16),'lifetime = '+gdF(p.lifetime??1),'one_shot = '+(p.one_shot?'true':'false'),'explosiveness = '+gdF(p.explosiveness??0),'randomness = '+gdF(p.randomness??0),'speed_scale = '+gdF(p.speed_scale??1),'local_coords = '+(p.local_coords?'true':'false'),'fixed_fps = '+Math.trunc(p.fixed_fps??30),'visibility_aabb = AABB('+(p.visibility_aabb||DEFAULT_AABB).map(gdF).join(', ')+')','process_material = SubResource("ParticleProcessMaterial_fx")','draw_pass_1 = SubResource("QuadMesh_fx")','metadata/imaginarium_fx = '+JSON.stringify(p._preset??nodeName)];
  let body=node.join('\n')+'\n';const light=p.light;if(light)body+='\n[node name="light" type="OmniLight3D" parent="."]\nlight_color = '+gdColor(light.color||[1,1,1])+'\nlight_energy = '+gdF(light.energy??1)+'\nomni_range = '+gdF(light.range??1)+'\nshadow_enabled = false\n';
  return '[gd_scene load_steps='+(subs.length+2)+' format=3]\n\n[ext_resource type="Texture2D" path="'+textureRel+'" id="1_tex"]\n\n'+subs.join('\n')+'\n'+body;}
 
@@ -250,7 +250,7 @@ const meanScale=s=>Array.isArray(s)?(Math.abs(s[0])+Math.abs(s[1])+Math.abs(s[2]
 const ASSET_EXT=/\.(png|jpe?g|webp|tga|svg|exr|hdr)$/i;
 /** Build the ZIP contents: items=[{name, fx, node, nodePath, parent, transform:{position,rotation,quaternion,scale}}].
  *  Returns {files:[{path, text}|{path, bytes}|{path, url}], bindings, warnings}. The emitter scale (mean of the local scale) is baked into the parameters, like merge_fx(scale=k). */
-export function buildFxPackage(items,{rootName='AstraForge'}={}){const files=[],bindings=[],warnings=[],used=new Set(),textures=new Map();
+export function buildFxPackage(items,{rootName='Imaginarium'}={}){const files=[],bindings=[],warnings=[],used=new Set(),textures=new Map();
  for(const it of items){const slug=fxSlug(it.name,used),r=resolveFx(it.fx),k=meanScale(it.transform?.scale),p={...scaleFx(r,k),_preset:r.preset};let texFile;
   if(r.textureAsset){const ext=(r.textureAsset.name.match(ASSET_EXT)||r.textureAsset.url.match(ASSET_EXT)||[null,'png'])[1].toLowerCase().replace('jpeg','jpg');texFile=slug+'_tex.'+ext;files.push({path:'fx/textures/'+texFile,url:r.textureAsset.url,asset:r.textureAsset});}
   else{texFile=r.texture+'.png';if(!textures.has(r.texture)){textures.set(r.texture,true);files.push({path:'fx/textures/'+texFile,bytes:fxTexturePng(r.texture)});}}
@@ -261,7 +261,7 @@ export function buildFxPackage(items,{rootName='AstraForge'}={}){const files=[],
   bindings.push({name:nodeName,scene:'fx/'+slug+'.tscn',parent:it.parent||rootName,parent_godot:godotNodeName(it.parent||rootName),node:it.node||it.name,node_godot:godotNodeName(it.node||it.name),node_path:it.nodePath||'',preset:r.preset,one_shot:r.one_shot,
    transform:{position:(tr.position||[0,0,0]).map(v=>+(+v).toFixed(5)),rotation:rot.map(v=>+(+v).toFixed(5)),rotation_degrees:rot.map(v=>+(v/DEG).toFixed(3)),quaternion:(tr.quaternion||[0,0,0,1]).map(v=>+(+v).toFixed(6)),scale:(tr.scale||[1,1,1]).map(v=>+(+v).toFixed(5))}});}
  files.push({path:'fx_bindings.json',text:JSON.stringify(bindings,null,2)+'\n'});
- files.push({path:'af_fx_mount.gd',text:AF_FX_MOUNT_GD});
+ files.push({path:'ima_fx_mount.gd',text:Imaginarium_FX_MOUNT_GD});
  files.push({path:'README.md',text:fxReadme(bindings)});
  return {files,bindings,warnings};}
 /** README.md inside the ZIP: what the archive holds and how to hook the effects up in Godot (in the UI language). */

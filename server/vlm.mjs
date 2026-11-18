@@ -1,6 +1,6 @@
 // The review model - the local vision model that looks at a texture pass or an animation frame
 // (docs/product/ollama.md, 0.6.x wave ticket 14; the loop that consumes it is ticket 08, and the
-// paint step already reads ASTRA_QA_VLM in scripts/blender/steps/_paint_qa.py).
+// paint step already reads IMAGINARIUM_QA_VLM in scripts/blender/steps/_paint_qa.py).
 //
 // The rule is "use what is installed": the tier comes from the card, an older generation of a
 // vision model is still a vision model, and nothing here ever downloads - weights are the
@@ -18,16 +18,16 @@ export const isVisionModelName = (name) => /(qwen\d(\.\d)?[-_:]?vl|qwen3\.5|llav
 /**
  * {model, wanted, installed, reason} - what to review with on this card.
  * `chosen` is the user's pick from Connections → Local LLM (config.reviewModel, '' = auto);
- * ASTRA_REVIEW_VLM overrides everything. When nothing from the tier list is installed, any
+ * IMAGINARIUM_REVIEW_VLM overrides everything. When nothing from the tier list is installed, any
  * installed vision model is used (an older qwen3-vl after an upgrade is still a working model),
  * and only then comes the honest "not installed" reason naming the installer row.
  */
 export function pickReviewModel(vramMiB, installed = [], env = process.env, chosen = '') {
   const names = installed.map(String);
   const resolve = (m) => names.find((n) => n === m || n === m + ':latest') || null;
-  if (env.ASTRA_REVIEW_VLM) {
-    const m = String(env.ASTRA_REVIEW_VLM);
-    return { model: resolve(m) || m, wanted: m, installed: !!resolve(m), reason: 'ASTRA_REVIEW_VLM' };
+  if (env.IMAGINARIUM_REVIEW_VLM) {
+    const m = String(env.IMAGINARIUM_REVIEW_VLM);
+    return { model: resolve(m) || m, wanted: m, installed: !!resolve(m), reason: 'IMAGINARIUM_REVIEW_VLM' };
   }
   const pick = String(chosen || '').trim();
   if (pick) {
@@ -88,10 +88,10 @@ export async function vlmAsk({ url, model, prompt, images = [], fetchFn = fetch,
   return text;
 }
 
-const HAND_SET = String(process.env.ASTRA_QA_VLM || '').trim();
+const HAND_SET = String(process.env.IMAGINARIUM_QA_VLM || '').trim();
 export function publishQaModel(pick, env = process.env, handSet = HAND_SET) {
-  if (handSet) return { published: false, model: String(env.ASTRA_QA_VLM || handSet).trim(), reason: 'ASTRA_QA_VLM is set by hand' };
-  if (pick?.installed) { env.ASTRA_QA_VLM = pick.model; return { published: true, model: pick.model, reason: '' }; }
-  if (env.ASTRA_QA_VLM) delete env.ASTRA_QA_VLM;
+  if (handSet) return { published: false, model: String(env.IMAGINARIUM_QA_VLM || handSet).trim(), reason: 'IMAGINARIUM_QA_VLM is set by hand' };
+  if (pick?.installed) { env.IMAGINARIUM_QA_VLM = pick.model; return { published: true, model: pick.model, reason: '' }; }
+  if (env.IMAGINARIUM_QA_VLM) delete env.IMAGINARIUM_QA_VLM;
   return { published: false, model: null, reason: pick?.reason || 'no vision model installed' };
 }

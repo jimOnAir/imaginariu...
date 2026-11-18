@@ -6,7 +6,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
-import { parseWheel, pickNatten, readEnv, probe } from '../installer/pixal3d/af_natten_probe.mjs';
+import { parseWheel, pickNatten, readEnv, probe } from '../installer/pixal3d/imaginarium_natten_probe.mjs';
 
 const MAN = JSON.parse(readFileSync(path.join(import.meta.dirname, '..', 'installer', 'pixal3d', 'manifest.json'), 'utf8'));
 const MATRIX = MAN.linux.nattenMatrix.map((r) => ({ ...r, ...MAN.linux.natten }));

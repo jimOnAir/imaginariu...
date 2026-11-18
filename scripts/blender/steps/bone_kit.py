@@ -35,7 +35,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _bone_kit_lib as B
 
 PARTS = ("skeleton_hand", "bone_staff", "bone_toggle")
@@ -786,7 +786,7 @@ class Hand:
         data = bpy.data.armatures.new(name)
         arm = bpy.data.objects.new(name, data)
         bpy.context.scene.collection.objects.link(arm)
-        af.select_only([arm])
+        ima.select_only([arm])
         bpy.ops.object.mode_set(mode="EDIT")
         ebs = {}
         mapv = self.world_map()
@@ -1061,7 +1061,7 @@ def build_staff(p, mats):
     pieces.append(B.Piece("crystal", v, f, "crystal", None, smooth=False, kind="crystal"))
     item, records = B.build_mesh("bone_staff", pieces, mats, sharp_deg=50.0)
     # ---- sockets (item frame)
-    lo, hi = af.world_bbox([item])
+    lo, hi = ima.world_bbox([item])
     origin = p.get("origin", "bbox")
     shift = Vector((-(lo.x + hi.x) / 2, -(lo.y + hi.y) / 2, -lo.z)) if origin == "bbox" else Vector((0, 0, -lo.z))
     if origin not in ("bbox", "axis"):
@@ -1190,12 +1190,12 @@ def build_toggle(p, mats):
         pieces.append(B.Piece("loop", v, f, "gold", None, kind="loop"))
     ob, records = B.build_mesh("bone_toggle", pieces, mats, sharp_deg=60.0)
     # origin: centre of the back face (max Y), bbox centred in X / Z
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     shift = Vector((-(lo.x + hi.x) / 2, -hi.y, -(lo.z + hi.z) / 2))
     ob.data.transform(Matrix.Translation(shift))
     ob.data.update()
     bpy.context.view_layer.update()
-    ob["af_placement"] = "origin = back-face centre; local -Y = outward surface normal; bone along X"
+    ob["imaginarium_placement"] = "origin = back-face centre; local -Y = outward surface normal; bone along X"
     info = {"records": records, "gold": gold, "loop": loop, "bone_radius_m": round(rs, 5), "shift": list(shift)}
     return ob, [], info
 
@@ -1245,11 +1245,11 @@ def build_part(params):
     ao_dist = {"skeleton_hand": scale_ref * 0.10, "bone_staff": 0.07, "bone_toggle": scale_ref * 0.2}[part]
     if style == "aged":
         B.paint_vertex_colors(main, records, mats, style, seed=int(params.get("seed", 0)), ao_dist=ao_dist)
-    main["af_part"] = part
-    main["af_style"] = style
+    main["imaginarium_part"] = part
+    main["imaginarium_style"] = style
     bpy.context.view_layer.update()
-    lo, hi = af.world_bbox([main])
-    tris = af.tri_count([main])
+    lo, hi = ima.world_bbox([main])
+    tris = ima.tri_count([main])
     budget = int(params.get("budget_tris", BUDGET[part]))
     info = {"part": part, "style": style, "seed": int(params.get("seed", 0)), "params": {k: v for k, v in params.items() if k != "batch"},
             "tris": tris, "budget_tris": budget, "dimensions_m": [round(x, 5) for x in (hi - lo)],
@@ -1346,64 +1346,64 @@ def grip_contact(ob, records, axis):
 
 def part_checks(info):
     part = info["part"]
-    ch = [af.check("tris_within_budget", info["tris"] <= info["budget_tris"], info["tris"], info["budget_tris"]),
-          af.check("uv_unwrapped", bool(info["uv_layers"]), info["uv_layers"], ">=1")]
+    ch = [ima.check("tris_within_budget", info["tris"] <= info["budget_tris"], info["tris"], info["budget_tris"]),
+          ima.check("uv_unwrapped", bool(info["uv_layers"]), info["uv_layers"], ">=1")]
     bad = [m["name"] for m in info["materials"] if not m["principled_to_output"]]
-    ch.append(af.check("materials_principled", not bad, bad, "Principled BSDF -> Material Output"))
+    ch.append(ima.check("materials_principled", not bad, bad, "Principled BSDF -> Material Output"))
     for s in info["sockets"]:
         ortho, hand = B.frame_errors(s)
-        ch.append(af.check("socket_frame_%s" % s["name"], ortho < 1e-3 and abs(hand - 1) < 1e-3,
+        ch.append(ima.check("socket_frame_%s" % s["name"], ortho < 1e-3 and abs(hand - 1) < 1e-3,
                            {"ortho_err": round(ortho, 6), "x.(y x z)": round(hand, 5)}, "orthonormal, right-handed"))
     p = info["params"]
     if part == "skeleton_hand":
         names = set(hand_bone_names(info["side"]))
         have = {b["name"] for b in info["bones"]}
-        ch.append(af.check("mixamo_hand_bones", have == names, len(have), "%d (Hand + 20 finger bones)" % len(names)))
+        ch.append(ima.check("mixamo_hand_bones", have == names, len(have), "%d (Hand + 20 finger bones)" % len(names)))
         w = info["weights"]
-        ch.append(af.check("rigid_weights", w["bad_vertices"] == 0 and not w["bad_pieces"],
+        ch.append(ima.check("rigid_weights", w["bad_vertices"] == 0 and not w["bad_pieces"],
                            {"bad_vertices": w["bad_vertices"], "bad_pieces": w["bad_pieces"]}, 0))
-        ch.append(af.check("length_m", abs(info["chain_length_m"] - info["length_m"]) < 0.002 * info["length_m"] + 1e-6,
+        ch.append(ima.check("length_m", abs(info["chain_length_m"] - info["length_m"]) < 0.002 * info["length_m"] + 1e-6,
                            info["chain_length_m"], info["length_m"]))
-        ch.append(af.check("no_piece_overlaps", not info["overlaps"], info["overlaps"][:6], 0, severity="warning"))
+        ch.append(ima.check("no_piece_overlaps", not info["overlaps"], info["overlaps"][:6], 0, severity="warning"))
         s = info["sockets"][0]
         side = info["side"]
         z_ok = Vector(s["z_axis"]).dot(Vector((0, -1, 0))) > 0.95
-        ch.append(af.check("socket_thumb_side", z_ok, s["z_axis"], "+Z ~ thumb side (-Y in the hand frame)"))
+        ch.append(ima.check("socket_thumb_side", z_ok, s["z_axis"], "+Z ~ thumb side (-Y in the hand frame)"))
         if info["pose"] == "grip":
             gc = info["grip_contact"]
-            ch.append(af.check("grip_no_penetration", gc["min_clearance_m"] >= -0.0006, {"min": gc["min_clearance_m"], "closest": gc["closest"]}, ">= -0.6 mm"))
+            ch.append(ima.check("grip_no_penetration", gc["min_clearance_m"] >= -0.0006, {"min": gc["min_clearance_m"], "closest": gc["closest"]}, ">= -0.6 mm"))
             far = {k: v for k, v in gc["fingers"].items() if k != "thumb" and v > 0.004 * info["length_m"] / 0.19}
-            ch.append(af.check("grip_fingertips_wrap", not far, gc["fingers"],
+            ch.append(ima.check("grip_fingertips_wrap", not far, gc["fingers"],
                                "index..pinky distal phalanx <= 4 mm from the cylinder (thumb reported only)",
                                severity="warning"))
     elif part == "bone_staff":
         L = float(p.get("length_m", 2.05))
-        ch.append(af.check("length_m", abs(info["dimensions_m"][2] - L) < 0.005 * L, info["dimensions_m"][2], L))
+        ch.append(ima.check("length_m", abs(info["dimensions_m"][2] - L) < 0.005 * L, info["dimensions_m"][2], L))
         g = next(s for s in info["sockets"] if s["name"] == "socket_grip_main")
         gf = float(p.get("grip_fraction", 0.62))
-        ch.append(af.check("grip_fraction", abs(g["location"][2] / L - gf) < 0.003, round(g["location"][2] / L, 4), gf))
-        ch.append(af.check("grip_frame_up", Vector(g["z_axis"]).z > 0.995, g["z_axis"], "+Z up the shaft"))
+        ch.append(ima.check("grip_fraction", abs(g["location"][2] / L - gf) < 0.003, round(g["location"][2] / L, 4), gf))
+        ch.append(ima.check("grip_frame_up", Vector(g["z_axis"]).z > 0.995, g["z_axis"], "+Z up the shaft"))
         cm = [m for m in info["materials"] if m["name"] == "Crystal"]
-        ch.append(af.check("crystal_emissive", bool(cm) and cm[0]["emission_strength"] > 0 and cm[0]["roughness"] <= 0.2,
+        ch.append(ima.check("crystal_emissive", bool(cm) and cm[0]["emission_strength"] > 0 and cm[0]["roughness"] <= 0.2,
                            cm[0] if cm else None, "slot 'Crystal', emission > 0, roughness <= 0.2"))
-        ch.append(af.check("crystal_height", 0.18 - 1e-6 <= info["crystal"]["height_m"] <= 0.24 + 1e-6,
+        ch.append(ima.check("crystal_height", 0.18 - 1e-6 <= info["crystal"]["height_m"] <= 0.24 + 1e-6,
                            info["crystal"]["height_m"], "0.18..0.24"))
         r = float(p.get("shaft_radius_m", 0.018))
-        ch.append(af.check("grip_shaft_radius", abs(info["grip_shaft_radius_m"] - r) < 0.15 * r,
+        ch.append(ima.check("grip_shaft_radius", abs(info["grip_shaft_radius_m"] - r) < 0.15 * r,
                            info["grip_shaft_radius_m"], r, severity="warning"))
         names = {s["name"] for s in info["sockets"]}
-        ch.append(af.check("sockets", {"socket_grip_main", "socket_fx_tip"} <= names, sorted(names),
+        ch.append(ima.check("sockets", {"socket_grip_main", "socket_fx_tip"} <= names, sorted(names),
                            "socket_grip_main, socket_fx_tip"))
-        ch.append(af.check("on_ground", abs(info["bbox_min"][2]) < 1e-4, info["bbox_min"][2], 0.0))
+        ch.append(ima.check("on_ground", abs(info["bbox_min"][2]) < 1e-4, info["bbox_min"][2], 0.0))
     else:
         L = float(p.get("length_m", 0.10))
-        ch.append(af.check("length_m", abs(info["dimensions_m"][0] - L) < 0.12 * L, info["dimensions_m"][0], L))
-        ch.append(af.check("origin_back_face", abs(info["bbox_max"][1]) < 1e-5 and abs(info["bbox_min"][0] + info["bbox_max"][0]) < 1e-4
+        ch.append(ima.check("length_m", abs(info["dimensions_m"][0] - L) < 0.12 * L, info["dimensions_m"][0], L))
+        ch.append(ima.check("origin_back_face", abs(info["bbox_max"][1]) < 1e-5 and abs(info["bbox_min"][0] + info["bbox_max"][0]) < 1e-4
                            and abs(info["bbox_min"][2] + info["bbox_max"][2]) < 1e-4,
                            [info["bbox_min"], info["bbox_max"]], "max Y = 0, X / Z centred"))
         if info.get("gold") != "none" or info.get("loop"):
             gm = [m for m in info["materials"] if m["name"] == "Gold"]
-            ch.append(af.check("gold_metallic", bool(gm) and gm[0]["metallic"] >= 0.99, gm[0]["metallic"] if gm else None, 1.0))
+            ch.append(ima.check("gold_metallic", bool(gm) and gm[0]["metallic"] >= 0.99, gm[0]["metallic"] if gm else None, 1.0))
     return ch
 
 
@@ -1411,7 +1411,7 @@ def export_part(objs, info, out_dir, preview=True, preview_size=384, tile=False)
     os.makedirs(out_dir, exist_ok=True)
     main = info["_main"]
     has_arm = any(o.type == "ARMATURE" for o in objs)
-    glb = af.export_glb(os.path.join(out_dir, "part.glb"), objects=objs, animations=False, skins=has_arm)
+    glb = ima.export_glb(os.path.join(out_dir, "part.glb"), objects=objs, animations=False, skins=has_arm)
     info["glb"] = glb_summary(glb)
     outputs = {"glb": glb}
     color = "VERTEX" if info["style"] == "aged" else "MATERIAL"
@@ -1421,31 +1421,31 @@ def export_part(objs, info, out_dir, preview=True, preview_size=384, tile=False)
         part = info["part"]
         if part == "skeleton_hand":
             views = ("left", "front", "right", "three_quarter")
-            outputs["preview"] = af.render_views(os.path.join(out_dir, "preview.png"), [main], views=views,
+            outputs["preview"] = ima.render_views(os.path.join(out_dir, "preview.png"), [main], views=views,
                                                  size=preview_size, color=color)
         elif part == "bone_staff":
             outputs["preview"] = staff_preview(os.path.join(out_dir, "preview.png"), main, info, preview_size, color)
         else:
-            outputs["preview"] = af.render_views(os.path.join(out_dir, "preview.png"), [main],
+            outputs["preview"] = ima.render_views(os.path.join(out_dir, "preview.png"), [main],
                                                  views=("front", "top", "three_quarter"), size=preview_size, color=color)
     if tile:
         view = "three_quarter"
         if info["part"] == "skeleton_hand":
             view = "left" if info["side"] == "r" else "right"   # back of the hand
-        outputs["tile"] = af.render_views(os.path.join(out_dir, "_tile.png"), [main], views=(view,), size=320,
+        outputs["tile"] = ima.render_views(os.path.join(out_dir, "_tile.png"), [main], views=(view,), size=320,
                                           color=color)
     if color == "VERTEX":
         B.preview_tint(main, info["_records"], info["_mats"], on=False)
-    outputs["blend"] = af.save_blend(os.path.join(out_dir, "part.blend"))
+    outputs["blend"] = ima.save_blend(os.path.join(out_dir, "part.blend"))
     with open(os.path.join(out_dir, "part.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable({k: v for k, v in info.items() if not k.startswith("_")}), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable({k: v for k, v in info.items() if not k.startswith("_")}), fh, ensure_ascii=False, indent=2)
     outputs["json"] = os.path.join(out_dir, "part.json")
     return outputs
 
 
 def staff_preview(path, main, info, size, color):
     """Three full views + a close-up of the claw head (framing box around the crystal)."""
-    full = af.render_views(path, [main], views=("front", "left", "three_quarter"), size=size, color=color)
+    full = ima.render_views(path, [main], views=("front", "left", "three_quarter"), size=size, color=color)
     c = Vector(info["crystal"]["centre"])
     me = bpy.data.meshes.new("bk_frame")
     hw = 0.13
@@ -1456,7 +1456,7 @@ def staff_preview(path, main, info, size, color):
     box.hide_render = True
     head = os.path.join(os.path.dirname(path), "_head.png")
     try:
-        af.render_views(head, [box], views=("three_quarter",), size=size, color=color, margin=1.0)
+        ima.render_views(head, [box], views=("three_quarter",), size=size, color=color, margin=1.0)
     finally:
         bpy.data.objects.remove(box)
         bpy.data.meshes.remove(me)
@@ -1507,12 +1507,12 @@ def run(req):
         batch = [{"seed": int(params.get("seed", 0)) + k} for k in range(n)] if n > 1 else None
     out_dir = req["out_dir"]
     if not batch:
-        af.reset_scene()
+        ima.reset_scene()
         objs, info = build_part(params)
         checks = part_checks(info)
         outputs = export_part(objs, info, out_dir, preview=params.get("preview", True),
                               preview_size=int(params.get("preview_size", 384)))
-        af.log("part built", part=info["part"], tris=info["tris"])
+        ima.log("part built", part=info["part"], tris=info["tris"])
         return {"outputs": outputs, "stats": stats_of(info), "checks": checks, "warnings": info["warnings"]}
     variants, tiles, labels, all_checks, warnings = [], [], [], [], []
     real_out = os.path.realpath(out_dir)
@@ -1520,7 +1520,7 @@ def run(req):
     for i, var in enumerate(batch):
         p = copy.deepcopy(params)
         p.update(var)
-        af.reset_scene()
+        ima.reset_scene()
         objs, info = build_part(p)
         tag = {"skeleton_hand": lambda: "%s_%s" % (info["pose"], info["side"]),
                "bone_staff": lambda: "t%d" % info["talons"],
@@ -1549,14 +1549,14 @@ def run(req):
                          "budget_tris": info["budget_tris"], "dir": sub, "glb": outs["glb"], "blend": outs["blend"],
                          "preview": outs.get("preview"), "dimensions_m": info["dimensions_m"],
                          "sockets": [s["name"] for s in info["sockets"]]})
-        af.log("variant built", name=name, tris=info["tris"])
+        ima.log("variant built", name=name, tris=info["tris"])
     outputs = {"variants_dir": out_dir, "glb": [v["glb"] for v in variants], "blend": [v["blend"] for v in variants]}
     outputs["contact_sheet"] = B.contact_sheet(tiles, labels, os.path.join(out_dir, "contact_sheet.png"),
                                                cols=int(params.get("sheet_cols", 4)), tile=int(params.get("sheet_tile", 256)),
-                                               title=params.get("sheet_title", "ASTRAFORGE BONE KIT"))
+                                               title=params.get("sheet_title", "IMAGINARIUM BONE KIT"))
     outputs["preview"] = outputs["contact_sheet"]
     with open(os.path.join(out_dir, "batch.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable({"variants": variants}), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable({"variants": variants}), fh, ensure_ascii=False, indent=2)
     outputs["json"] = outputs["batch_json"] = os.path.join(out_dir, "batch.json")
     return {"outputs": outputs, "stats": {"variants": len(variants), "tris": {v["name"]: v["tris"] for v in variants}},
             "checks": all_checks, "warnings": warnings}

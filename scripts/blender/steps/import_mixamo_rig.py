@@ -28,7 +28,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _humanoid_lib as hl
 
 PREFIX_RE = re.compile(r"^mixamorig\d*:")
@@ -183,13 +183,13 @@ def run(req):
     path = req["inputs"].get("fbx") or req["inputs"].get("mesh")
     if not path or not os.path.exists(path):
         raise FileNotFoundError("inputs.fbx not found: %s" % path)
-    af.reset_scene()
-    objs = af.import_any(path)
-    rigs = af.armatures(objs)
+    ima.reset_scene()
+    objs = ima.import_any(path)
+    rigs = ima.armatures(objs)
     if not rigs:
         raise ValueError("no armature in %s - is this a Mixamo download 'With Skin'?" % path)
     rig = max(rigs, key=lambda a: len(a.data.bones))
-    meshes = [o for o in af.meshes(objs) if o.find_armature() == rig]
+    meshes = [o for o in ima.meshes(objs) if o.find_armature() == rig]
     if not meshes:
         raise ValueError("no skinned mesh in %s (download 'With Skin')" % path)
     for o in list(bpy.context.scene.objects):
@@ -253,25 +253,25 @@ def run(req):
     rig.data.pose_position = saved
     unweighted = int((W.sum(1) < 1e-6).sum())
     nb = len(rig.data.bones)
-    checks.append(af.check("mixamo_bones", not missing, len(bones), "25 core Mixamo bones",
+    checks.append(ima.check("mixamo_bones", not missing, len(bones), "25 core Mixamo bones",
                            note=", ".join(missing) or None))
-    checks.append(af.check("unweighted_vertices", unweighted == 0, unweighted, 0, severity="warning"))
+    checks.append(ima.check("unweighted_vertices", unweighted == 0, unweighted, 0, severity="warning"))
     v2 = np.concatenate([hl.mesh_verts(m) for m in meshes])
-    checks.append(af.check("height", abs(float(v2[:, 2].max() - v2[:, 2].min()) - H) < 0.01 * H,
+    checks.append(ima.check("height", abs(float(v2[:, 2].max() - v2[:, 2].min()) - H) < 0.01 * H,
                            round(float(v2[:, 2].max() - v2[:, 2].min()), 4), H))
     clip_info = None
     if keep_anim and bpy.data.actions:
         clip_info = _name_clip(rig, path, params)
     actions = [a.name for a in bpy.data.actions]
-    outputs["preview"] = af.render_views(af.out_path(req, "preview.png"), meshes,
+    outputs["preview"] = ima.render_views(ima.out_path(req, "preview.png"), meshes,
                                          views=("front", "left", "three_quarter"), size=320)
     export = [rig] + meshes + list(sockets.values())
-    outputs["glb"] = af.export_glb(af.out_path(req, "rigged.glb"), objects=export,
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "rigged.glb"), objects=export,
                                    animations=bool(keep_anim and actions))
-    outputs["blend"] = af.save_blend(af.out_path(req, "rigged.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "rigged.blend"))
     stats.update({"bones": nb, "fingers": any("Thumb" in n for n in bones), "renamed_bones": renamed,
                   "source_object_scale": src_scale, "scale_to_height": round(k, 6),
                   "facing": {"detected": front, "confidence": fconf}, "actions": actions,
-                  "tris": af.tri_count(meshes), "sockets": sorted(sockets), "height_m": H,
+                  "tris": ima.tri_count(meshes), "sockets": sorted(sockets), "height_m": H,
                   "bone_rolls": "Mixamo native (unchanged)", "clip": clip_info})
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}

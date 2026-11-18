@@ -114,7 +114,7 @@ export async function createSet(o, { root = ART2D_ROOT } = {}) {
   const seed = Number.isFinite(Number(o.seed)) ? Math.trunc(Number(o.seed)) : Math.floor(Math.random() * 1e9);
   const style = o.style || 'painted';
   const set = {
-    app: 'AstraForge', kind: 'art2d', version: 1, id, name: o.name || `${recipe.label}${o.action ? ' \u00b7 ' + (ACTIONS[o.action]?.label || o.action) : ''}`,
+    app: 'Imaginarium', kind: 'art2d', version: 1, id, name: o.name || `${recipe.label}${o.action ? ' \u00b7 ' + (ACTIONS[o.action]?.label || o.action) : ''}`,
     recipe: o.recipe, style, engine, license: { engine: e.license, commercial: e.commercial },
     styleBible, engineNote: o.engineNote || null,
     params: { prompt: o.prompt || '', action: o.action || null, direction: o.direction || 'right', frames: o.frames || null, chain: !!o.chain, sheet: o.sheet || 'default', seed, steps: o.steps || null },
@@ -359,7 +359,7 @@ export async function exportGodot(dir, { resPrefix = 'assets/art2d' } = {}) {
     if (set.outputs.sheet) { await fs.copyFile(path.join(dir, set.outputs.sheet.file), path.join(outDir, 'sheet.png')); files.push('sheet.png'); }
     if (set.outputs.board) { await fs.copyFile(path.join(dir, set.outputs.board.file), path.join(outDir, 'board.png')); files.push('board.png'); }
   }
-  const license = `Made with AstraForge (2D), engine ${ENGINES[set.engine].label}, weights licence: ${set.license.engine}.` + (set.license.commercial ? '' : ' Noncommercial use only until re-drawn by a commercial model.');
+  const license = `Made with Imaginarium (2D), engine ${ENGINES[set.engine].label}, weights licence: ${set.license.engine}.` + (set.license.commercial ? '' : ' Noncommercial use only until re-drawn by a commercial model.');
   await fs.writeFile(path.join(outDir, 'ASSET_INFO.txt'), [license, `Set: ${set.id}`, `Recipe: ${set.recipe}, style: ${set.style}, seed: ${set.params.seed}`, `Path in the project: res://${res}/`, ''].join('\n'), 'utf8');
   set.outputs.godot = { dir: path.relative(dir, outDir).replaceAll('\\', '/'), res: `res://${res}/`, files, at: nowIso() };
   await saveSet(dir, set);

@@ -10,7 +10,7 @@ import path from 'node:path';
 import { pixal3dPreflight } from '../server/jobs.mjs';
 import { PIXAL3D_REQUIREMENTS } from '../server/pixal3d.mjs';
 
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-p3preflight-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-p3preflight-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 const touch = (p) => { mkdirSync(path.dirname(p), { recursive: true }); writeFileSync(p, ''); };
 const fullEngine = (dir) => { for (const [rel] of PIXAL3D_REQUIREMENTS) touch(path.join(dir, ...rel.split('/'))); };
@@ -26,7 +26,7 @@ async function withEnv(vars, fn) {
 
 test('pixal3dPreflight: no engine folder - the job is refused with the install reason, not a wait', async () => {
   const comfy = path.join(tmp, 'comfy-ok'); comfyWith(comfy, true);
-  await withEnv({ ASTRA_PIXAL3D_DIR: path.join(tmp, 'nowhere'), ASTRA_COMFY_DIR: comfy }, async () => {
+  await withEnv({ IMAGINARIUM_PIXAL3D_DIR: path.join(tmp, 'nowhere'), IMAGINARIUM_COMFY_DIR: comfy }, async () => {
     await assert.rejects(pixal3dPreflight(), /Pixal3D is not installed: folder not found/);
   });
 });
@@ -34,7 +34,7 @@ test('pixal3dPreflight: no engine folder - the job is refused with the install r
 test('pixal3dPreflight: engine installed, concept-prep python missing - refused up front with the ticket-25 fix command', async () => {
   const p3 = path.join(tmp, 'p3'); fullEngine(p3);
   const comfy = path.join(tmp, 'comfy-dead'); comfyWith(comfy, false);   // the venv folder exists, its python does not
-  await withEnv({ ASTRA_PIXAL3D_DIR: p3, ASTRA_COMFY_DIR: comfy }, async () => {
+  await withEnv({ IMAGINARIUM_PIXAL3D_DIR: p3, IMAGINARIUM_COMFY_DIR: comfy }, async () => {
     await assert.rejects(pixal3dPreflight(),
       /Background removal needs the studio's Python at .* and it does not start.*install\.sh -Yes -Only comfydeps/s,
       'the dead venv answers as the fixing sentence, not an errno and not after a concept wait');
@@ -44,7 +44,7 @@ test('pixal3dPreflight: engine installed, concept-prep python missing - refused 
 test('pixal3dPreflight: both present - the preflight passes', async () => {
   const p3 = path.join(tmp, 'p3-ok'); fullEngine(p3);
   const comfy = path.join(tmp, 'comfy-live'); comfyWith(comfy, true);
-  await withEnv({ ASTRA_PIXAL3D_DIR: p3, ASTRA_COMFY_DIR: comfy }, async () => {
+  await withEnv({ IMAGINARIUM_PIXAL3D_DIR: p3, IMAGINARIUM_COMFY_DIR: comfy }, async () => {
     const { cfg, state } = await pixal3dPreflight();
     assert.equal(cfg.dir, p3);
     assert.equal(state.installed, true);

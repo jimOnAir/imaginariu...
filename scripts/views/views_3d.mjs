@@ -52,12 +52,12 @@ export async function views_3d(o) {
   if (!files.front) throw new Error('The front view is required for geometry from views.');
   const quality = o.quality || 'high';
   const seed = Number.isFinite(Number(o.seed)) ? Number(o.seed) : 703;
-  const info = await requireNodes(comfyUrl, ['Hunyuan3Dv2ConditioningMultiView', 'SaveGLB', 'AstraMarchingCubes']);
+  const info = await requireNodes(comfyUrl, ['Hunyuan3Dv2ConditioningMultiView', 'SaveGLB', 'ImagiMarchingCubes']);
   const names = info.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0] || [];
   if (!names.includes(MV_CHECKPOINT)) throw new Error('Model not installed: ' + MV_CHECKPOINT + ' (Hunyuan3D-2mv).');
   const tag = 'views-' + Date.now();
   const uploaded = {};
-  for (const [slot, file] of Object.entries(files)) uploaded[slot] = await uploadImage(comfyUrl, file, `astra-${tag}-${slot}.png`);
+  for (const [slot, file] of Object.entries(files)) uploaded[slot] = await uploadImage(comfyUrl, file, `imaginarium-${tag}-${slot}.png`);
   if (o.swapSides) [uploaded.left, uploaded.right] = [uploaded.right, uploaded.left];
   const workflow = hunyuanMultiViewWorkflow(uploaded, MV_CHECKPOINT, quality, seed, 'astra_views/' + tag, o.meshLevel ?? 0);
   const q = await comfyQueue(comfyUrl);

@@ -1,6 +1,6 @@
 // GET /api/gpus and the status.gpus row (0.7.11 commit E): the pool readout the UI's engine-card
 // line and the post-factum "which card ran what" questions are answered from. The whole card list
-// comes from the ASTRA_GPU_CARDS seam - nvidia-smi is never called here, and the shape is asserted
+// comes from the IMAGINARIUM_GPU_CARDS seam - nvidia-smi is never called here, and the shape is asserted
 // on a two-card fake, an empty pool and a broken seam (each a booted studio on its own port).
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -17,7 +17,7 @@ after(() => { for (const c of children) c.kill(); });
 async function boot(port, env) {
   const child = spawn(process.execPath, ['server/index.mjs'], {
     cwd: new URL('../', import.meta.url).pathname, stdio: 'ignore',
-    env: { ...process.env, PORT: String(port), ASTRA_ENGINE_AUTOSTART: '0', ASTRA_COMFY_DIR: '/nonexistent-astra-comfy-dir', ...env },
+    env: { ...process.env, PORT: String(port), IMAGINARIUM_ENGINE_AUTOSTART: '0', IMAGINARIUM_COMFY_DIR: '/nonexistent-imaginarium-comfy-dir', ...env },
   });
   children.push(child);
   const base = `http://127.0.0.1:${port}`;
@@ -26,7 +26,7 @@ async function boot(port, env) {
 }
 
 test('a two-card machine: /api/gpus reports the pool, both cards, no claims, empty jobs - and status carries the same', async () => {
-  const base = await boot(39883, { ASTRA_GPU_CARDS: CARDS });
+  const base = await boot(39883, { IMAGINARIUM_GPU_CARDS: CARDS });
   const g = await (await fetch(base + '/api/gpus')).json();
   assert.equal(g.pool, true);
   assert.deepEqual(g.cards.map((c) => [c.index, c.name, c.freeMiB]), [[0, 'RTX 5070', 12227 - 2843], [1, 'RTX 5060 Ti', 16311 - 834]]);
@@ -38,7 +38,7 @@ test('a two-card machine: /api/gpus reports the pool, both cards, no claims, emp
 });
 
 test('no nvidia-smi pool (empty seam): pool:false, cards empty - the UI line stays hidden and nothing throws', async () => {
-  const base = await boot(39884, { ASTRA_GPU_CARDS: '[]' });
+  const base = await boot(39884, { IMAGINARIUM_GPU_CARDS: '[]' });
   const g = await (await fetch(base + '/api/gpus')).json();
   assert.equal(g.pool, false);
   assert.deepEqual(g.cards, []);

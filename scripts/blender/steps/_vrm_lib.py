@@ -6,7 +6,7 @@ add-on itself is gated by the supply-chain rule until 2026-11-18 08:35:20 UTC - 
 drives it lives in vrm_package.py).
 
 Provenance of the tables (ADR-0004: published facts, byte-exact where the publisher publishes
-them; saved copies in .scratch/astraforge-1117-0710-fold/):
+them; saved copies in .scratch/imaginarium-1117-0710-fold/):
   * VRM 1.0 humanoid bone names + the Required set - the official VRMC_vrm 1.0 spec,
     specification/VRMC_vrm-1.0/humanoid.md (vrm-c/vrm-specification@master, CC0/MIT docs).
   * The Mixamo -> VRM bone correspondence - the saturday06 VRM Add-on for Blender v4.10.5,

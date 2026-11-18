@@ -1,8 +1,8 @@
 // The Sculpt tab: SculptGL (MIT) right above the model in the scene.
 //
 //   GET  /api/sculpt/status   -> {available, url, webError?, hint?}; url - the sculpt page on the web port
-//                                (ASTRA_VFX_WEB_PORT, 3211), NOT the studio origin
-//   GET  http://127.0.0.1:<webPort>/sculpt/        the SculptGL page served from <ASTRA_VFX_TOOLS>/web/sculptgl
+//                                (IMAGINARIUM_VFX_WEB_PORT, 3211), NOT the studio origin
+//   GET  http://127.0.0.1:<webPort>/sculpt/        the SculptGL page served from <IMAGINARIUM_VFX_TOOLS>/web/sculptgl
 //                                (the route lives in server/vfx-tools.mjs next to the web generators)
 //   GET  /api/assets/:id       with Access-Control-Allow-Origin for the sculpt origin only - GET/HEAD only
 //

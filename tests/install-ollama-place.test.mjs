@@ -22,7 +22,7 @@ REPO=${REPO}
 ROOT="$WORK/root"; RT="$ROOT/runtime"; CFGF="$ROOT/config/paths.json"
 mkdir -p "$RT"
 export HOME="$WORK/home"; mkdir -p "$HOME"
-export ASTRA_MANIFEST="$REPO/installer/manifest.json"
+export IMAGINARIUM_MANIFEST="$REPO/installer/manifest.json"
 NodeBin() { printf '%s' "$NODE"; }
 Gb() { awk -v b="$1" 'BEGIN{printf "%.1f GB", b/1e9}'; }
 FreeOn() { df -B1 --output=avail "$1" 2>/dev/null | tail -1 | tr -d ' '; }
@@ -153,7 +153,7 @@ esac
 `;
 
 const run = (env = {}, input) => {
-  const work = mkdtempSync(path.join(tmpdir(), 'af-t22-'));
+  const work = mkdtempSync(path.join(tmpdir(), 'imaginarium-t22-'));
   const scriptFile = path.join(work, 'harness.sh');
   writeFileSync(scriptFile, SCRIPT);
   const r = spawnSync('bash', [scriptFile], {

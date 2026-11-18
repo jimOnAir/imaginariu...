@@ -42,9 +42,9 @@ let config=await loadConfig(path.join(data,'config.json'));
 const gpusReport=()=>{const cards=enumerateGpus();return{pool:!!(cards&&cards.length),cards:cards||[],engines:{hunyuan:engineCardFor('hunyuan'),pixal3d:engineCardFor('pixal3d')},jobs:allJobs().filter(j=>['queued','running'].includes(j.status)).map(j=>({id:String(j.id).slice(0,8),engine:j.engine||'hunyuan',status:j.status,message:j.message||'',gpuCard:j.gpuCard||null}))};};
 // Ollama that runs itself (docs/product/ollama.md, ticket 14): an installed but silent local server
 // is started by the studio, the assistant model and the review model are chosen from what is
-// installed, and the review pick travels to the Blender steps via ASTRA_QA_VLM. Auto-start is for
+// installed, and the review pick travels to the Blender steps via IMAGINARIUM_QA_VLM. Auto-start is for
 // the loopback default only, and never in a test or an engines-off run.
-const autostartOllama=()=>!process.env.NODE_TEST_CONTEXT&&process.env.ASTRA_ENGINE_AUTOSTART!=='0';
+const autostartOllama=()=>!process.env.NODE_TEST_CONTEXT&&process.env.IMAGINARIUM_ENGINE_AUTOSTART!=='0';
 async function reviewPick(names,vram=vramMiB()){const pick=pickReviewModel(vram,names||[],process.env,config.reviewModel);publishQaModel(pick);return pick;}
 let ollamaStarting=false;
 if(autostartOllama())void ensureOllama({url:config.ollamaUrl,appRoot:root}).then(async()=>{await reviewPick(await ollamaModels(config.ollamaUrl)||[]);}).catch(()=>{});
@@ -56,15 +56,15 @@ if(autostartOllama())setTimeout(()=>{void repairStudioVenvs({appRoot:root,log:m=
 const app=express();const port=Number(process.env.PORT)||3210;
 app.disable('x-powered-by');
 let sculpt=null;   // the Sculpt tab: the SculptGL page on the web port may read studio assets (server/sculpt.mjs)
-app.use((req,res,next)=>{const host=req.headers.host?.split(':')[0];if(!['127.0.0.1','localhost','['].includes(host))return res.status(403).json({error:'Invalid Host'});if(req.path.startsWith('/api')&&req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`&&!sculpt?.assetCors(req,res))return res.status(403).json({error:'Invalid request origin'});if(!['GET','HEAD'].includes(req.method)&&req.path.startsWith('/api')&&req.headers['x-astra-client']!=='studio')return res.status(403).json({error:'The request must be sent from the studio.'});res.setHeader('X-Content-Type-Options','nosniff');next();});
+app.use((req,res,next)=>{const host=req.headers.host?.split(':')[0];if(!['127.0.0.1','localhost','['].includes(host))return res.status(403).json({error:'Invalid Host'});if(req.path.startsWith('/api')&&req.headers.origin&&req.headers.origin!==`http://${req.headers.host}`&&!sculpt?.assetCors(req,res))return res.status(403).json({error:'Invalid request origin'});if(!['GET','HEAD'].includes(req.method)&&req.path.startsWith('/api')&&req.headers['x-imaginarium-client']!=='studio')return res.status(403).json({error:'The request must be sent from the studio.'});res.setHeader('X-Content-Type-Options','nosniff');next();});
 app.use(express.json({limit:'90mb'}));
 app.use((req,res,next)=>{if(/^\/(data|server|scripts|tests)(\/|$)/.test(req.path))return res.status(404).end();next();});
 const upload=multer({storage:multer.memoryStorage(),limits:{fileSize:100*1024*1024,files:1}});
 const asyncRoute=fn=>(req,res,next)=>Promise.resolve(fn(req,res,next)).catch(next);
 app.get('/api/config',asyncRoute(async(req,res)=>res.json({config,keys:await keyStatus()})));
 app.get('/api/config/models',asyncRoute(async(req,res)=>res.json(await customModels(config))));
-app.get('/api/health',(req,res)=>res.json({app:'AstraForge',version:appVersion}));
-app.get('/api/about',asyncRoute(async(req,res)=>res.json({app:'AstraForge',version:appVersion,links:{site:'https://snodrod.github.io/AstraForge/',source:'https://github.com/Snodrod/AstraForge'},licenseText:await readText('LICENSE'),commercialText:await readText('COMMERCIAL-LICENSE.md'),notices:await readText('THIRD_PARTY_NOTICES.md')})));
+app.get('/api/health',(req,res)=>res.json({app:'Imaginarium',version:appVersion}));
+app.get('/api/about',asyncRoute(async(req,res)=>res.json({app:'Imaginarium',version:appVersion,links:{site:'https://snodrod.github.io/AstraForge/',source:'https://github.com/Snodrod/AstraForge'},licenseText:await readText('LICENSE'),commercialText:await readText('COMMERCIAL-LICENSE.md'),notices:await readText('THIRD_PARTY_NOTICES.md')})));
 app.put('/api/config',asyncRoute(async(req,res)=>{if(llmBusy||allJobs().some(j=>['queued','running'].includes(j.status)))throw new Error('Wait for the generation or the AI reply to finish before changing connections.');config=configSchema.parse(req.body);await writeJson(path.join(data,'config.json'),config);void reviewPick(await ollamaModels(config.ollamaUrl)||[]).catch(()=>{});res.json({config,keys:await keyStatus()});}));
 app.put('/api/keys/:provider',asyncRoute(async(req,res)=>{const provider=z.enum(['custom','tripo']).parse(req.params.provider);const key=z.string().max(500).parse(req.body.key);await setKey(provider,key);res.json(await keyStatus());}));
 registerTripo(app,asyncRoute);
@@ -144,5 +144,5 @@ app.post('/api/reference/prepare',asyncRoute(async(req,res)=>{const input=z.obje
 app.post('/api/shutdown',(req,res)=>{res.json({ok:true});setTimeout(()=>shutdown(),300);});
 app.use((err,req,res,next)=>{if(res.headersSent)return next(err);res.status(err.status||400).json({error:err instanceof z.ZodError?err.issues.map(i=>i.message).join('; '):err.message||'Application error'});});
 if(process.argv.includes('--dev')){const {createServer}=await import('vite');const vite=await createServer({root,server:{middlewareMode:true},appType:'spa'});app.use(vite.middlewares);}else{app.use(express.static(path.join(root,'dist')));app.get('/{*splat}',(req,res)=>res.sendFile(path.join(root,'dist','index.html')));}
-const server=app.listen(port,'127.0.0.1',()=>{console.log('AstraForge: http://127.0.0.1:'+port);void fs.mkdir(path.join(data,'runtime'),{recursive:true}).then(()=>fs.writeFile(path.join(data,'runtime','port.json'),JSON.stringify({port,pid:process.pid,at:new Date().toISOString()}))).catch(()=>{});if(process.env.ASTRA_ENGINE_AUTOSTART!=='0'&&config.comfyUrl==='http://127.0.0.1:8190'&&existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint)))void startRuntime().catch(e=>console.warn(e.message));});
+const server=app.listen(port,'127.0.0.1',()=>{console.log('Imaginarium: http://127.0.0.1:'+port);void fs.mkdir(path.join(data,'runtime'),{recursive:true}).then(()=>fs.writeFile(path.join(data,'runtime','port.json'),JSON.stringify({port,pid:process.pid,at:new Date().toISOString()}))).catch(()=>{});if(process.env.IMAGINARIUM_ENGINE_AUTOSTART!=='0'&&config.comfyUrl==='http://127.0.0.1:8190'&&existsSync(path.join(data,'models','checkpoints',config.shapeCheckpoint)))void startRuntime().catch(e=>console.warn(e.message));});
 const shutdown=()=>{stopOwnedRuntime();server.close(()=>process.exit(0));};process.on('SIGINT',shutdown);process.on('SIGTERM',shutdown);

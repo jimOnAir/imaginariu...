@@ -141,7 +141,7 @@ export default function FxPanel({studio,snapshot,notify,onEdit,legacy={}}){
   </>}
   <Section title={t('fx.export.title')}>
    <button className="primary full" disabled={!fx?.list.length||busy==='zip'} onClick={exportZip}><Download size={15}/>{busy==='zip'?t('fx.export.building'):t('fx.export.button')}</button>
-   <p className="field-note">{t('fx.export.noteBefore')} <code>fx/*.tscn</code> {t('fx.export.noteScenes')} <code>fx_bindings.json</code>, <code>af_fx_mount.gd</code> {t('fx.export.noteAfter')}</p>
+   <p className="field-note">{t('fx.export.noteBefore')} <code>fx/*.tscn</code> {t('fx.export.noteScenes')} <code>fx_bindings.json</code>, <code>ima_fx_mount.gd</code> {t('fx.export.noteAfter')}</p>
   </Section>
   <Section title={t('fx.video.title')}><button className="primary full" onClick={()=>edit(()=>snapshot?.recording?s().finishRecord():s().record())}><Film size={17}/>{snapshot?.recording?t('fx.video.stop'):t('fx.video.record')}</button><p className="field-note">{t('fx.video.note')}</p></Section>
   <Section title={t('fx.legacy.title')}><details className="vfx-fold fx-legacy"><summary><span>{t('fx.legacy.summary')}</span><span className="optional">{legacy[editor.effect]||t('fx.legacy.none')}</span></summary>

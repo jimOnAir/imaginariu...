@@ -1,13 +1,13 @@
 """retarget - Mixamo (or any humanoid) clips onto a humanoid rig, contract section 7.
 
-inputs.blend  - .blend with a skinned humanoid armature (af_run opens it), or
+inputs.blend  - .blend with a skinned humanoid armature (imaginarium_run opens it), or
 inputs.mesh   - skinned .glb/.gltf/.fbx/.vrm with a humanoid armature.
 params:
   clips: [{source: abs .fbx | "library:<id>" | "<id>", name, trim: [first, last] (source frames),
            loop (default by category: idle/walk/run), in_place (see root_motion), fps (30),
            speed (1.0), mirror (false), locomotion (default: category walk/run, or the library
            entry's "locomotion" flag / tag)}]
-  library: clip library folder (default ASTRA_FORGE_LIBRARY/animations, else C:/AstraForge/library/animations)
+  library: clip library folder (default IMAGINARIUM_LIBRARY/animations, else C:/Imaginarium/library/animations)
   root_motion: "lock" (default) - locomotion clips (walk/run) are played in place: the horizontal
                                   hips travel is removed and the game moves the character at
                                   clips.json ground_speed_mps. Every other clip (idle, attack,
@@ -57,7 +57,7 @@ import os
 import bpy
 from mathutils import Vector
 
-import af_common as af
+import imaginarium_common as ima
 
 try:
     from steps import _anim_lib as lib
@@ -155,15 +155,15 @@ def run(req):
     if I.get("blend"):
         want = os.path.normcase(os.path.abspath(I["blend"]))
         if os.path.normcase(os.path.abspath(bpy.data.filepath or "")) != want:
-            af.open_blend(I["blend"])
+            ima.open_blend(I["blend"])
         objs = list(bpy.context.scene.objects)
     elif I.get("mesh"):
-        af.reset_scene()
-        objs = af.import_any(I["mesh"])
+        ima.reset_scene()
+        objs = ima.import_any(I["mesh"])
     else:
         raise ValueError("inputs.blend or inputs.mesh is required")
     rig, scheme, tmap = lib.find_target_rig(objs)
-    af.log("target rig", rig=rig.name, scheme=scheme, bones=len(rig.data.bones), mapped=len(tmap))
+    ima.log("target rig", rig=rig.name, scheme=scheme, bones=len(rig.data.bones), mapped=len(tmap))
     missing = [c for c in lib.ESSENTIAL if c not in tmap.values()]
     if missing:
         warnings.append("target lacks essential bones: %s" % ", ".join(missing))
@@ -180,7 +180,7 @@ def run(req):
             ts = lib.transform_state(rig)
         except Exception as exc:
             warnings.append("apply_transforms failed (%s) - the rig keeps its transform" % exc)
-    checks.append(af.check("rig_transform_identity", ts["identity"],
+    checks.append(ima.check("rig_transform_identity", ts["identity"],
                            {"rotation_deg": ts["rotation_deg"], "scale": ts["scale"]},
                            {"rotation_deg": 0, "scale": [1, 1, 1]}, severity="warning",
                            note="contract section 4: applied transforms; params.apply_transforms "
@@ -256,7 +256,7 @@ def run(req):
     # ---------------------------------------------------------------- clips
     report, actions = [], []
     for cfg in cfgs:
-        af.log("clip", name=cfg["gltf_name"], source=os.path.basename(cfg["path"]))
+        ima.log("clip", name=cfg["gltf_name"], source=os.path.basename(cfg["path"]))
         before = lib.snapshot()
         keep_fps = (scene.render.fps, scene.render.fps_base)
         src, sact, src_fps, has_skin = lib.import_fbx_clip(cfg["path"])
@@ -355,34 +355,34 @@ def run(req):
         }
         report.append(rec)
         tag = cfg["gltf_name"]
-        checks.append(af.check("no_nan_" + tag, ev["nan"] == 0, ev["nan"], 0))
-        checks.append(af.check("eval_matches_internal_" + tag, consistency < 1e-3,
+        checks.append(ima.check("no_nan_" + tag, ev["nan"] == 0, ev["nan"], 0))
+        checks.append(ima.check("eval_matches_internal_" + tag, consistency < 1e-3,
                                round(consistency * 1000, 3), 1.0, note="mm"))
         if cfg["loop"]:
             ok = ev["seam_rot_deg"] <= 0.5 and ev["seam_pos_mm"] <= 1.0
-            checks.append(af.check("loop_seam_" + tag, ok,
+            checks.append(ima.check("loop_seam_" + tag, ok,
                                    [ev["seam_rot_deg"], ev["seam_pos_mm"]], [0.5, 1.0],
                                    note="deg, mm between first and last pose"))
         if cfg["in_place"] == "strict":
-            checks.append(af.check("in_place_" + tag, ev["hips_drift_m"] <= 0.001,
+            checks.append(ima.check("in_place_" + tag, ev["hips_drift_m"] <= 0.001,
                                    ev["hips_drift_m"], 0.001, note="strict: hips XY drift, m"))
         elif cfg["in_place"]:
-            checks.append(af.check("in_place_" + tag, end_offset <= 0.001, round(end_offset, 4),
+            checks.append(ima.check("in_place_" + tag, end_offset <= 0.001, round(end_offset, 4),
                                    0.001, note="hips XY end vs start, m (sway %.3f m kept)" %
                                    ev["hips_drift_m"]))
-        checks.append(af.check("foot_skate_" + tag, skate <= skate_lim, skate, skate_lim,
+        checks.append(ima.check("foot_skate_" + tag, skate <= skate_lim, skate, skate_lim,
                                severity="warning",
                                note="cm the target contact point moves while the source foot is "
                                     "planted, vs max(2, 1.3 x source); plant drift %.1f cm "
                                     "(source %.1f)" % (sk["drift_cm"], sk_src["drift_cm"])))
-        checks.append(af.check("hand_twist_" + tag, tw_dev <= 25.0, round(tw_dev, 1), 25.0,
+        checks.append(ima.check("hand_twist_" + tag, tw_dev <= 25.0, round(tw_dev, 1), 25.0,
                                severity="warning", note="target vs source twist span, deg"))
         if (cfg["motion"] == "keep" and not cfg["loop"] and not cfg["locomotion"]
                 and net_travel > 0.25):
             warnings.append("clip %s ends %.2f m from its start: the travel stays on the Hips so "
                             "planted feet stay planted; without root_motion 'extract' the game "
                             "sees a snap back at the clip end" % (tag, net_travel))
-        af.log("clip done", name=tag, frames=n, skate_cm=skate, src_skate_cm=src_skate,
+        ima.log("clip done", name=tag, frames=n, skate_cm=skate, src_skate_cm=src_skate,
                plant_drift_cm=sk["drift_cm"], seam=rec["seam_rot_deg"], drift=ev["hips_drift_m"])
 
     # ---------------------------------------------------------------- outputs
@@ -404,11 +404,11 @@ def run(req):
         rec["floor"] = fr
         tag = rec["gltf_name"]
         if fr.get("body_min_z_m") is not None:
-            checks.append(af.check("floor_body_" + tag, fr["body_min_z_m"] >= -fl_lim, fr["body_min_z_m"], -fl_lim,
+            checks.append(ima.check("floor_body_" + tag, fr["body_min_z_m"] >= -fl_lim, fr["body_min_z_m"], -fl_lim,
                                    severity="warning", note="lowest point of the skinned body over %d sampled "
                                    "frames, m (z = 0 is the floor)" % fr["frames_sampled"]))
         if fr.get("props_min_z_m") is not None:
-            checks.append(af.check("floor_props_" + tag, fr["props_min_z_m"] >= -fl_lim, fr["props_min_z_m"],
+            checks.append(ima.check("floor_props_" + tag, fr["props_min_z_m"] >= -fl_lim, fr["props_min_z_m"],
                                    -fl_lim, severity="warning", note="lowest point of the props held by the rig, m"))
     lib.assign_action(rig, actions[0])
     scene.frame_set(0)
@@ -421,28 +421,28 @@ def run(req):
     warnings += notes
     sockets_in = sorted({o["game_socket"] for o in exp_objs if "game_socket" in o.keys()})
     with lib.gltf_only_actions(actions + mine, exp_objs, rig) as only:
-        glb = af.export_glb(af.out_path(req, "animated.glb"), objects=exp_objs,
+        glb = ima.export_glb(ima.out_path(req, "animated.glb"), objects=exp_objs,
                             animations=True, skins=True, animation_mode="ACTIONS")
     warnings += only.notes
     outputs["glb"] = glb
     summ = lib.glb_summary(glb)
     got = [a["name"] for a in summ["animations"]]
     want = [c["gltf_name"] for c in cfgs] + [a.name for a in mine]
-    checks.append(af.check("gltf_animations", sorted(got) == sorted(want), got, want))
-    checks.append(af.check("gltf_sockets", set(sockets_in) <= set(summ["sockets"]),
+    checks.append(ima.check("gltf_animations", sorted(got) == sorted(want), got, want))
+    checks.append(ima.check("gltf_sockets", set(sockets_in) <= set(summ["sockets"]),
                            summ["sockets"], sockets_in,
                            note="every input object with game_socket is a GLB node with "
                                 "extras.game_socket"))
-    checks.append(af.check("gltf_no_nan", all(a["nan"] == 0 for a in summ["animations"]),
+    checks.append(ima.check("gltf_no_nan", all(a["nan"] == 0 for a in summ["animations"]),
                            sum(a["nan"] for a in summ["animations"]), 0))
     for rec in report:
         a = next((x for x in summ["animations"] if x["name"] == rec["gltf_name"]), None)
         rec["gltf_duration"] = a["duration"] if a else None
     if meshes:
-        checks.append(af.check("gltf_skin", bool(summ["skins"]) and summ["skinned_primitives"] > 0,
+        checks.append(ima.check("gltf_skin", bool(summ["skins"]) and summ["skinned_primitives"] > 0,
                                {"skins": summ["skins"], "skinned_primitives":
                                 summ["skinned_primitives"]}, ">=1"))
-    outputs["blend"] = af.save_blend(af.out_path(req, "animated.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "animated.blend"))
 
     if P.get("preview", True):
         pm = meshes
@@ -450,7 +450,7 @@ def run(req):
             stick = make_stick_mesh(rig)
             pm = [stick]
         outputs["preview"] = lib.render_clip_grid(
-            af.out_path(req, "preview.png"), tr, pm,
+            ima.out_path(req, "preview.png"), tr, pm,
             [(a, r["loop"], r["frames"]) for a, r in zip(actions, report)],
             cols=int(P.get("preview_cols", 5)), tile=int(P.get("preview_tile", 256)))
         if stick is not None:
@@ -464,15 +464,15 @@ def run(req):
            "target_mapped": {n: c for n, c in tmap.items()},
            "target_unmapped": [b.name for b in rig.data.bones if b.name not in tmap],
            "clips": report}
-    cj = af.out_path(req, "clips.json")
+    cj = ima.out_path(req, "clips.json")
     with open(cj, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(doc), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(doc), fh, ensure_ascii=False, indent=1)
     outputs["clips"] = cj
 
     stats = {"rig": rig.name, "scheme": scheme, "bones": len(rig.data.bones),
              "mapped_bones": len(tmap), "clips": len(report),
              "frames_total": sum(r["frames"] for r in report),
-             "tris": af.tri_count(meshes) if meshes else 0,
+             "tris": ima.tri_count(meshes) if meshes else 0,
              "gltf_animations": got, "gltf_joints": summ["skins"][0]["joints"] if summ["skins"] else 0,
              "gltf_sockets": summ["sockets"],
              "per_clip": {r["gltf_name"]: {k: r[k] for k in (
@@ -502,7 +502,7 @@ def _alive(idb):
 
 def make_stick_mesh(rig):
     """Thin box per deforming bone, rigidly weighted - preview body for rigs without a mesh."""
-    me = bpy.data.meshes.new("af_sticks")
+    me = bpy.data.meshes.new("imaginarium_sticks")
     verts, faces, groups = [], [], []
     for b in rig.data.bones:
         if not b.use_deform:
@@ -524,7 +524,7 @@ def make_stick_mesh(rig):
             faces.append((base + i, base + 4 + i, base + 4 + j, base + j))
         groups.append((b.name, list(range(base, base + 8))))
     me.from_pydata([tuple(v) for v in verts], [], faces)
-    ob = bpy.data.objects.new("af_sticks", me)
+    ob = bpy.data.objects.new("imaginarium_sticks", me)
     bpy.context.scene.collection.objects.link(ob)
     ob.parent = rig
     ob.matrix_parent_inverse.identity()

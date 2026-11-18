@@ -1,5 +1,5 @@
 // Ticket 38 (0.6.18 wave): VFX download honesty. The page-instead-of-file verdict comes from
-// installer/af_download.sh (sourced in a bash with a stub say and a stub Download); the npm
+// installer/imaginarium_download.sh (sourced in a bash with a stub say and a stub Download); the npm
 // retry loop from scripts/vfx/install-vfx.sh (function extracted verbatim, driven with a
 // counting chain). Nothing here touches the network.
 import { test } from 'node:test';
@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 
 const REPO = path.resolve(import.meta.dirname, '..');
-const CORE = readFileSync(path.join(REPO, 'installer', 'af_download.sh'), 'utf8');
+const CORE = readFileSync(path.join(REPO, 'installer', 'imaginarium_download.sh'), 'utf8');
 const VFX = readFileSync(path.join(REPO, 'scripts', 'vfx', 'install-vfx.sh'), 'utf8');
 
 function bash(script, env = {}) {
@@ -21,7 +21,7 @@ function bash(script, env = {}) {
 test('LooksLikePage knows markup openers and nothing else', () => {
   const dir = mkdtempSync(path.join(tmpdir(), 't38-'));
   const w = (n, b) => { const p = path.join(dir, n); writeFileSync(p, b); return p; };
-  const S = `say(){ echo "SAY: $1"; }\n. ${path.join(REPO, 'installer', 'af_download.sh')}\n`;
+  const S = `say(){ echo "SAY: $1"; }\n. ${path.join(REPO, 'installer', 'imaginarium_download.sh')}\n`;
   const cases = [
     ['<!DOCTYPE html><html><body>rate limit</body></html>', true],
     ['\n\n   <HTML lang="en">', true],
@@ -53,7 +53,7 @@ function checkedDownload(served, { size = 0, sha = 'deadbeef'.repeat(8) } = {}) 
   writeFileSync(cnt, '0');
   const r = bash(`
 say(){ echo "SAY: $1"; }
-. ${path.join(REPO, 'installer', 'af_download.sh')}
+. ${path.join(REPO, 'installer', 'imaginarium_download.sh')}
 Download(){ c=$(($(cat ${cnt})+1)); echo $c > ${cnt}; printf '%s' ${JSON.stringify(served)} > "$2"; return 0; }
 DownloadChecked "https://author.example/tool.zip" "${dst}" ${size} "${sha}"; echo "rc=$?"
 `);

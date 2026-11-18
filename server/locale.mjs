@@ -1,7 +1,7 @@
 // Where the studio's language comes from before anybody clicked anything (0.6.10 wave ticket 26).
 // Upstream reads the OS culture from the Windows registry; the Linux shape is the environment
 // chain LC_ALL -> LC_MESSAGES -> LANG (POSIX precedence): a value starting with `ru` means
-// Russian, anything else - English. The USER's pick (the astra.lang localStorage key, contract
+// Russian, anything else - English. The USER's pick (the imaginarium.lang localStorage key, contract
 // unchanged) always outranks this: the server only answers what the OS says, the client applies
 // it when nothing is stored. GET /api/locale is that answer - for the no-browser first paint and
 // for anything scripted that wants to speak the machine's language.

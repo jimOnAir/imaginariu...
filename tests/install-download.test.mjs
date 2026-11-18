@@ -1,9 +1,9 @@
-// Download core of the Linux installers (installer/af_download.sh, sourced by install.sh):
+// Download core of the Linux installers (installer/imaginarium_download.sh, sourced by install.sh):
 // mirror fallthrough with checksum verification, resume after a cut connection, clean restart for
 // hosts without resume (code 33), bad-checksum files deleted and never used, the plain-language
 // reason + the exact curl text in the log, ##PROGRESS lines for the unattended frontend, and the
 // uv network retries. The non-win32 sibling of the reference tests/install-download.test.mjs -
-// same ASTRA_INSTALL_CURL fake-curl harness; the Windows code-35/--ssl-no-revoke flip has no Linux
+// same IMAGINARIUM_INSTALL_CURL fake-curl harness; the Windows code-35/--ssl-no-revoke flip has no Linux
 // twin here (curl uses OpenSSL, which never asks about revoked certificates), so code 35 is
 // asserted as an ordinary flaky-TLS retry instead.
 import { test, after } from 'node:test';
@@ -18,11 +18,11 @@ import { fileURLToPath } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const INSTALL_SH = path.join(HERE, '..', 'installer', 'install.sh');
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-dl-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-dl-'));
 const PAYLOAD_SHA = '239f59ed55e737c77147cf55ad0c1b030b6d7ee748a7426952f9b852d5a935e5'; // sha256 of 'payload'
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
-// fake curl (like the reference harness): one mjs per mode + a .sh wrapper pointed at by ASTRA_INSTALL_CURL
+// fake curl (like the reference harness): one mjs per mode + a .sh wrapper pointed at by IMAGINARIUM_INSTALL_CURL
 function fakeCurl(mode, stateDir) {
   const js = path.join(tmp, `fake-curl-${mode}.mjs`);
   const sh = path.join(tmp, `fake-curl-${mode}.sh`);
@@ -109,7 +109,7 @@ function inCore(mode, snippet, opts = {}) {
   `;
   const r = spawnSync('bash', ['-c', script], {
     encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, ASTRA_INSTALL_CURL: curl, ASTRA_INSTALL_NO_GPU: '', ...(opts.env || {}) },
+    env: { ...process.env, IMAGINARIUM_INSTALL_CURL: curl, IMAGINARIUM_INSTALL_NO_GPU: '', ...(opts.env || {}) },
   });
   const calls = existsSync(path.join(stateDir, 'calls.txt'))
     ? readFileSync(path.join(stateDir, 'calls.txt'), 'utf8').trim().split('\n').filter(Boolean).map((l) => JSON.parse(l)) : [];
@@ -182,7 +182,7 @@ test('code 35 on Linux is a flaky-TLS resume case, no Windows --ssl-no-revoke fl
 
 test('unattended downloads emit ##PROGRESS lines for the calling frontend', () => {
   const r = inCore('progress', `Download ${JSON.stringify('https://slow.test/big.tgz')} ${JSON.stringify(path.join(tmp, 'p.tgz'))} 10000000; echo RC=$?`,
-    { env: { ASTRA_UNATTENDED: '1' } });
+    { env: { IMAGINARIUM_UNATTENDED: '1' } });
   assert.match(r.stdout, /RC=0/, r.log);
   assert.match(r.stdout, /##PROGRESS \d+\|downloaded \d+ MB of 10 MB/);
 });
@@ -214,7 +214,7 @@ function inUv(mode, tries) {
     say() { printf '%s\\n' "$1"; }
     source ${JSON.stringify(INSTALL_SH)}
     UvTry 'PyTorch' ${tries} ${JSON.stringify(uv)} pip install torch; echo RC=$?
-  `], { encoding: 'utf8', timeout: 120000, env: { ...process.env, ASTRA_UV_WAIT: '0' } });
+  `], { encoding: 'utf8', timeout: 120000, env: { ...process.env, IMAGINARIUM_UV_WAIT: '0' } });
   const calls = existsSync(path.join(stateDir, 'n')) ? +readFileSync(path.join(stateDir, 'n'), 'utf8') : 0;
   return { stdout: r.stdout, calls };
 }
@@ -248,7 +248,7 @@ function inUvTorch(mode) {
     say() { printf '%s\\n' "$1"; }
     source ${JSON.stringify(INSTALL_SH)}
     UvTorch 'PyTorch' ${JSON.stringify(uv)} /bin/true 'https://download.pytorch.org/whl/cu128' torch torchvision torchaudio; echo RC=$?
-  `], { encoding: 'utf8', timeout: 120000, env: { ...process.env, ASTRA_UV_WAIT: '0' } });
+  `], { encoding: 'utf8', timeout: 120000, env: { ...process.env, IMAGINARIUM_UV_WAIT: '0' } });
   return {
     stdout: r.stdout,
     calls: existsSync(path.join(stateDir, 'n')) ? +readFileSync(path.join(stateDir, 'n'), 'utf8') : 0,
@@ -276,7 +276,7 @@ test('HF fast-fail: the dead route is named once, the probe repeats, the downloa
   const dst = path.join(tmp, 'hfgate', 'w.safetensors');
   const r = inCore('hf_gate_recover',
     `DownloadChecked ${JSON.stringify('https://huggingface.co/x/w.safetensors')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`,
-    { env: { ASTRA_HF_PROBE_S: '0' } });
+    { env: { IMAGINARIUM_HF_PROBE_S: '0' } });
   assert.match(r.stdout, /RC=0/, r.log);
   assert.equal((r.stdout.match(/Neither huggingface\.co nor hf-mirror\.com/g) || []).length, 1,
     'the reason is named once for the run, not per model');
@@ -287,7 +287,7 @@ test('HF fast-fail: the dead route is named once, the probe repeats, the downloa
 test('HF fast-fail, unattended: after the probe cap the step refuses honestly and never starts the download', () => {
   const r = inCore('hf_gate_dead',
     `DownloadChecked ${JSON.stringify('https://huggingface.co/x/w.safetensors')} ${JSON.stringify(path.join(tmp, 'hfgate-dead', 'w.safetensors'))} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`,
-    { env: { ASTRA_HF_PROBE_S: '0', ASTRA_UNATTENDED: '1', ASTRA_HF_GATE_TRIES: '2' } });
+    { env: { IMAGINARIUM_HF_PROBE_S: '0', IMAGINARIUM_UNATTENDED: '1', IMAGINARIUM_HF_GATE_TRIES: '2' } });
   assert.match(r.stdout, /RC=1/);
   assert.equal((r.stdout.match(/Neither huggingface\.co nor hf-mirror\.com/g) || []).length, 1);
   assert.match(r.stdout, /still silent after 2 probes - stopping here/);
@@ -299,7 +299,7 @@ test('the HF gate leaves every non-huggingface URL alone - no probe, no wait', (
   const dst = path.join(tmp, 'hfgate-nonhf', 'godot.zip');
   const r = inCore('hf_gate_dead',
     `DownloadChecked ${JSON.stringify('https://github.com/godotengine/godot.zip')} ${JSON.stringify(dst)} 7 ${JSON.stringify(PAYLOAD_SHA)}; echo RC=$?`,
-    { env: { ASTRA_HF_PROBE_S: '0' } });
+    { env: { IMAGINARIUM_HF_PROBE_S: '0' } });
   assert.match(r.stdout, /RC=0/, r.log);
   assert.equal(r.calls.filter((c) => c.head).length, 0, 'not a single reachability probe for a non-HF file');
 });
@@ -341,12 +341,12 @@ const opt = (k) => { const i = a.indexOf(k); return i >= 0 ? a[i + 1] : null; };
 const out = opt('-o'), url = a[a.length - 1];
 fs.appendFileSync(${JSON.stringify(path.join(stateDir, 'calls.txt'))}, url + '\\n');
 if (url.endsWith('sha256sum.txt')) {
-  fs.writeFileSync(out, process.env.AF_SHA + '  ./ollama-linux-amd64.tar.zst\\n');
+  fs.writeFileSync(out, process.env.Imaginarium_SHA + '  ./ollama-linux-amd64.tar.zst\\n');
   process.exit(0);
 }
 if (url.endsWith('.tar.zst')) {
-  if (process.env.AF_TAMPER === '1') fs.writeFileSync(out, 'tampered-bytes');
-  else fs.writeFileSync(out, fs.readFileSync(process.env.AF_TGZ));
+  if (process.env.Imaginarium_TAMPER === '1') fs.writeFileSync(out, 'tampered-bytes');
+  else fs.writeFileSync(out, fs.readFileSync(process.env.Imaginarium_TGZ));
   process.exit(0);
 }
 process.exit(22);`);
@@ -370,8 +370,8 @@ function runInstallOllama({ tamper = false, seed = null } = {}) {
     InstallOllama; echo RC=$?
   `], {
     encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, ASTRA_INSTALL_CURL: fakeOllamaCurl(base), ASTRA_INSTALL_NO_OLLAMA: '1',
-      AF_SHA: art.sha, AF_TGZ: art.tgz, AF_TAMPER: tamper ? '1' : '' },
+    env: { ...process.env, IMAGINARIUM_INSTALL_CURL: fakeOllamaCurl(base), IMAGINARIUM_INSTALL_NO_OLLAMA: '1',
+      Imaginarium_SHA: art.sha, Imaginarium_TGZ: art.tgz, Imaginarium_TAMPER: tamper ? '1' : '' },
   });
   return { r, rt, dl, cfg, log: existsSync(logFile) ? readFileSync(logFile, 'utf8') : '' };
 }
@@ -433,7 +433,7 @@ function runOllamaGate(version) {
     PullModel qwen3:8b; echo "PULL=$?"
   `], {
     encoding: 'utf8', timeout: 120000,
-    env: { ...process.env, PATH: stubOllama(version) + ':' + process.env.PATH, ASTRA_INSTALL_CURL: fakeCurl('fail6', stateDir) },
+    env: { ...process.env, PATH: stubOllama(version) + ':' + process.env.PATH, IMAGINARIUM_INSTALL_CURL: fakeCurl('fail6', stateDir) },
   });
   return { r, cfg, log: existsSync(logFile) ? readFileSync(logFile, 'utf8') : '' };
 }
@@ -507,7 +507,7 @@ test('an unwritable install log never aborts the run - it is announced once, the
     LOG=${JSON.stringify(dir)}                       # a directory: appending always fails
     say 'first line'; say 'second line'; echo RC=$?
   `;
-  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', timeout: 60000, env: { ...process.env, ASTRA_INSTALL_CURL: '/bin/true' } });
+  const r = spawnSync('bash', ['-c', script], { encoding: 'utf8', timeout: 60000, env: { ...process.env, IMAGINARIUM_INSTALL_CURL: '/bin/true' } });
   assert.match(r.stdout, /RC=0/);
   assert.match(r.stdout, /first line/);              // the user still sees everything
   const warns = (r.stdout.match(/the install log is not writable/g) || []).length;

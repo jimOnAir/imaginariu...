@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdtempSync, rmSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { APP_ROOT, MIN_NVIDIA_DRIVER, nvidiaDriverFacts, p3Scan } from '../installer/af_scan.mjs';
+import { APP_ROOT, MIN_NVIDIA_DRIVER, nvidiaDriverFacts, p3Scan } from '../installer/imaginarium_scan.mjs';
 
 const REPO = path.resolve(import.meta.dirname, '..');
 const INSTALL = readFileSync(path.join(REPO, 'installer', 'install.sh'), 'utf8');
@@ -20,7 +20,7 @@ function fn(name) {
   return lines.slice(a, b + 1).join('\n');
 }
 
-// ---------- af_scan: nvidiaDriverFacts ----------
+// ---------- imaginarium_scan: nvidiaDriverFacts ----------
 const PROC_OK = 'NVRM version: NVIDIA UNIX x86_64 Kernel Module  575.57.08  Tue Jul  1 00:00:00 UTC 2025\nGCC version:  gcc version 12.4.0\n';
 
 test('nvidiaDriverFacts: nvidia-smi stays the primary source', () => {
@@ -75,8 +75,8 @@ test('p3Scan with a readable current driver keeps its warning surface clean', ()
 });
 
 test('scanComponents wires /proc as the second source with the test seam', () => {
-  const src = readFileSync(path.join(REPO, 'installer', 'af_scan.mjs'), 'utf8');
-  assert.match(src, /ASTRA_NVIDIA_VERSION_FILE \|\| '\/proc\/driver\/nvidia\/version'/);
+  const src = readFileSync(path.join(REPO, 'installer', 'imaginarium_scan.mjs'), 'utf8');
+  assert.match(src, /IMAGINARIUM_NVIDIA_VERSION_FILE \|\| '\/proc\/driver\/nvidia\/version'/);
   assert.match(src, /Object\.assign\(s, nvidiaDriverFacts\(parts\[3\], procText\)\)/);
 });
 

@@ -10,7 +10,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { registerStyles } from '../server/styles.mjs';
 
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-styles-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-styles-'));
 const dataDir = path.join(tmp, 'data');
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
@@ -127,7 +127,7 @@ test('pictures: add up to six, remove moves them to the trash, the last one stay
 test('describe: the installed vision model, think:false, the pictures in hand', async () => {
   const rec = await createStyle('Look for the demo');
   ollama = { models: ['qwen3:8b', 'qwen3-vl:8b'], answer: 'Gouache concept art: painterly edges, warm dusk palette, soft rim light. Avoid: photorealism.', lastBody: null };
-  const vram = process.env.ASTRA_VRAM_MIB; process.env.ASTRA_VRAM_MIB = '4096';
+  const vram = process.env.IMAGINARIUM_VRAM_MIB; process.env.IMAGINARIUM_VRAM_MIB = '4096';
   try {
     const out = await call('POST', `/api/styles/${rec.id}/describe`);
     assert.equal(out.status, 200);
@@ -144,7 +144,7 @@ test('describe: the installed vision model, think:false, the pictures in hand', 
     await call('POST', `/api/styles/${rec.id}/describe`);
     assert.equal(ollama.lastBody.model, 'qwen3-vl:8b');
   } finally {
-    if (vram === undefined) delete process.env.ASTRA_VRAM_MIB; else process.env.ASTRA_VRAM_MIB = vram;
+    if (vram === undefined) delete process.env.IMAGINARIUM_VRAM_MIB; else process.env.IMAGINARIUM_VRAM_MIB = vram;
     config = { ...config, reviewModel: '' };
   }
 });

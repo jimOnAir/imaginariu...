@@ -1,7 +1,7 @@
 """Self-tests of the export module: render_sprites and godot_package (docs/forge/export.md).
 
 Synthetic tests build their models in the test. Godot checks are skipped when Godot 4.5.1 is absent
-(env ASTRA_GODOT).
+(env IMAGINARIUM_GODOT).
 Temporary files only under tempfile.mkdtemp().
 """
 import atexit
@@ -16,27 +16,27 @@ import bpy
 import numpy as np
 from mathutils import Matrix
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _export_lib as xl
 from steps import godot_package
 from steps import render_sprites
 
 _CACHE = {}
-# zombie idle/walk FBX clips for the real-fixture cases (AF_ART_RAW overrides the root)
-ZOMBIE_DIR = os.path.join(os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw", "zombie", "anims")
+# zombie idle/walk FBX clips for the real-fixture cases (Imaginarium_ART_RAW overrides the root)
+ZOMBIE_DIR = os.path.join(os.environ.get("Imaginarium_ART_RAW") or r"C:/Imaginarium/test-assets/art/raw", "zombie", "anims")
 
 
 def _tmp(prefix):
     """tempfile.mkdtemp(); passing tests delete it with _done() (the shared runner ends with
-    os._exit, so atexit is only a fallback for other runners). AF_KEEP_TEST_FILES=1 keeps files."""
+    os._exit, so atexit is only a fallback for other runners). Imaginarium_KEEP_TEST_FILES=1 keeps files."""
     d = tempfile.mkdtemp(prefix=prefix)
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         atexit.register(shutil.rmtree, d, True)
     return d
 
 
 def _done(*dirs):
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         for d in dirs:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -77,7 +77,7 @@ def _mesh_obj(name, op, mat, **kw):
 
 def build_marker_figure(path, scale=1.0):
     """Static figure facing -Y (contract §4): grey column + head + red nose on the -Y side (1.7 m x scale)."""
-    af.reset_scene()
+    ima.reset_scene()
     grey = _material("grey", (0.6, 0.6, 0.6))
     red = _material("red", (1.0, 0.02, 0.02), emission=3.0)
     body = _mesh_obj("body", bpy.ops.mesh.primitive_cylinder_add, grey, radius=0.2, depth=1.4,
@@ -88,8 +88,8 @@ def build_marker_figure(path, scale=1.0):
         for o in (body, head, nose):
             o.location = o.location * scale
             o.scale = (scale, scale, scale)
-        af.apply_transforms([body, head, nose])
-    af.export_glb(path, objects=[body, head, nose], animations=False, skins=False)
+        ima.apply_transforms([body, head, nose])
+    ima.export_glb(path, objects=[body, head, nose], animations=False, skins=False)
     return path
 
 
@@ -101,9 +101,9 @@ def build_ship(path, k=1.0, size_class="S", diameter=True, scaled_parent=False, 
     diameter=True, mount_d_m (nozzle diameter). tilt_deg cants both nozzles downwards by that angle;
     scaled_thruster (needs scaled_parent) adds socket_thruster_scaled under the 0.01 holder in the 'thrust' frame
     (extras.frame, identity rotation: exhaust along glTF local +Z)."""
-    af.reset_scene()
-    armor = _material("AF_Armor", (0.75, 0.7, 0.62))
-    drive = _material("AF_EmissiveDrive", (0.3, 0.6, 1.0), emission=4.0)
+    ima.reset_scene()
+    armor = _material("Imaginarium_Armor", (0.75, 0.7, 0.62))
+    drive = _material("Imaginarium_EmissiveDrive", (0.3, 0.6, 1.0), emission=4.0)
     hull = _mesh_obj("M_hull_armor", bpy.ops.mesh.primitive_cube_add, armor, size=1.0 * k, location=(0, 0, 0))
     hull.scale = (1.2, 4.0, 0.7)
     nose = _mesh_obj("M_nose_armor", bpy.ops.mesh.primitive_cone_add, armor, radius1=0.6 * k, depth=1.4 * k,
@@ -113,13 +113,13 @@ def build_ship(path, k=1.0, size_class="S", diameter=True, scaled_parent=False, 
         noz = _mesh_obj("M_nozzle_%s" % side, bpy.ops.mesh.primitive_cylinder_add, drive, radius=0.22 * k,
                         depth=0.5 * k, location=(x * k, -2.2 * k, 0), rotation=(math.pi / 2, 0, 0), vertices=16)
         parts.append(noz)
-    af.apply_transforms(parts)
+    ima.apply_transforms(parts)
     extra = {"mount_d_m": round(0.44 * k, 4)} if diameter else {}
-    socks = [af.add_socket("socket_thruster_main_%s" % s, location=(x * k, -2.46 * k, 0.0),
+    socks = [ima.add_socket("socket_thruster_main_%s" % s, location=(x * k, -2.46 * k, 0.0),
                            rotation=(math.pi / 2 + math.radians(tilt_deg), 0, 0), kind="thruster",
                            size_class=size_class, **extra)
              for s, x in (("l", -0.4), ("r", 0.4))]
-    socks.append(af.add_socket("socket_fx_nav_port", location=(-0.62 * k, 0.0, 0.2 * k),
+    socks.append(ima.add_socket("socket_fx_nav_port", location=(-0.62 * k, 0.0, 0.2 * k),
                                rotation=(0, -math.pi / 2, 0), kind="fx", fx="nav_light"))
     if scaled_parent:
         # a socket under a 0.01-scaled node (cm FBX style): its FX must still come out in metres
@@ -127,17 +127,17 @@ def build_ship(path, k=1.0, size_class="S", diameter=True, scaled_parent=False, 
         bpy.context.scene.collection.objects.link(holder)
         holder.location = (0.0, 1.0 * k, 0.35 * k)
         holder.scale = (0.01, 0.01, 0.01)
-        socks += [holder, af.add_socket("socket_fx_scaled", parent=holder, kind="fx")]
+        socks += [holder, ima.add_socket("socket_fx_scaled", parent=holder, kind="fx")]
         if scaled_thruster:
-            socks.append(af.add_socket("socket_thruster_scaled", parent=holder, kind="thruster",
+            socks.append(ima.add_socket("socket_thruster_scaled", parent=holder, kind="thruster",
                                        size_class=size_class, frame="thrust", **extra))
-    af.export_glb(path, objects=parts + socks, animations=False, skins=False)
+    ima.export_glb(path, objects=parts + socks, animations=False, skins=False)
     return path
 
 
 def _appdata_godot_snapshot():
-    """Files in the real %APPDATA%/Godot/app_userdata/af_godot_check (must not grow: contract §3)."""
-    root = os.path.join(os.environ.get("APPDATA", ""), "Godot", "app_userdata", "af_godot_check")
+    """Files in the real %APPDATA%/Godot/app_userdata/imaginarium_godot_check (must not grow: contract §3)."""
+    root = os.path.join(os.environ.get("APPDATA", ""), "Godot", "app_userdata", "imaginarium_godot_check")
     out = {}
     for dp, _dn, fn in os.walk(root):
         for f in fn:
@@ -174,7 +174,7 @@ def test_godot_import_names_and_glb_rename():
         safe = xl.godot_safe_clip_name(name)
         assert safe != name and xl.godot_import_name(safe) == (want, True, False), (name, safe)
         assert xl.clip_base(name)[0] == want
-    d = _tmp("af_export_rename_")
+    d = _tmp("imaginarium_export_rename_")
     try:
         bpy.ops.mesh.primitive_cube_add()
         ob = bpy.context.active_object
@@ -190,7 +190,7 @@ def test_godot_import_names_and_glb_rename():
             tr.name = nm
             tr.strips.new(nm, 1, act)
             ob.animation_data.action = None
-        src = af.export_glb(os.path.join(d, "a.glb"), objects=[ob], animation_mode="NLA_TRACKS")
+        src = ima.export_glb(os.path.join(d, "a.glb"), objects=[ob], animation_mode="NLA_TRACKS")
         dst = os.path.join(d, "b.glb")
         assert xl.rename_glb_animations(src, dst, {"pitch_cycle-loop": "pitch_cycle-cycle"}) == ["pitch_cycle-loop"]
         with open(dst, "rb") as fh:
@@ -200,15 +200,15 @@ def test_godot_import_names_and_glb_rename():
         doc = json.loads(raw[20:20 + n].decode("utf-8"))
         assert sorted(a["name"] for a in doc["animations"]) == ["fire_recoil", "pitch_cycle-cycle"]
         assert struct.unpack_from("<I", raw, 8)[0] == len(raw) and n % 4 == 0
-        af.reset_scene()
-        assert af.import_any(dst), "the renamed GLB still imports"
+        ima.reset_scene()
+        assert ima.import_any(dst), "the renamed GLB still imports"
         assert any(a.name.startswith("pitch_cycle-cycle") for a in bpy.data.actions), [a.name for a in bpy.data.actions]
     finally:
         _done(d)
 
 
 def test_png_roundtrip_and_postprocess():
-    d = _tmp("af_export_png_")
+    d = _tmp("imaginarium_export_png_")
     rng = np.random.default_rng(1)
     img = rng.integers(0, 256, size=(37, 53, 4), dtype=np.uint8)
     p = xl.save_png(os.path.join(d, "a.png"), img)
@@ -228,7 +228,7 @@ def test_png_roundtrip_and_postprocess():
 
 
 def test_spriteframes_and_fx_text():
-    d = _tmp("af_export_tres_")
+    d = _tmp("imaginarium_export_tres_")
     path = xl.write_spriteframes(os.path.join(d, "x_frames.tres"), {"idle.png": "idle.png"},
                                  [{"name": "idle_S", "loop": True, "speed": 12,
                                    "frames": [("idle.png", 0, 0, 64, 64), ("idle.png", 64, 0, 64, 64)]}])
@@ -252,9 +252,9 @@ def test_spriteframes_and_fx_text():
 def test_iso8_directions_scale_and_lighting():
     """Nose on the -Y face must appear centred in S, right in E, left in W and hidden in N;
     a rotationally symmetric body must be lit identically in S and N (camera-parented light rig)."""
-    d = _tmp("af_export_iso8_")
+    d = _tmp("imaginarium_export_iso8_")
     glb = build_marker_figure(os.path.join(d, "figure.glb"))
-    af.reset_scene()
+    ima.reset_scene()
     res = render_sprites.run(_req("render_sprites", {"mesh": glb},
                                   {"profile": "iso8", "asset_id": "marker", "pixels_per_meter": 50,
                                    "validate_godot": False}, os.path.join(d, "out")))
@@ -288,7 +288,7 @@ def test_iso8_directions_scale_and_lighting():
 
 def _sliding_rig(blend_path):
     """Armature with a single 'root' bone sliding 2 m along +X over frames 1..25, a cube rides it."""
-    af.reset_scene()
+    ima.reset_scene()
     arm_data = bpy.data.armatures.new("rig")
     arm = bpy.data.objects.new("rig", arm_data)
     bpy.context.scene.collection.objects.link(arm)
@@ -312,16 +312,16 @@ def _sliding_rig(blend_path):
         pb.keyframe_insert("location", frame=f)
     if arm.animation_data.action_slot is None and len(act.slots):
         arm.animation_data.action_slot = act.slots[0]
-    af.save_blend(blend_path)
+    ima.save_blend(blend_path)
     return blend_path
 
 
 def test_in_place_lock_vs_none():
-    d = _tmp("af_export_lock_")
+    d = _tmp("imaginarium_export_lock_")
     blend = _sliding_rig(os.path.join(d, "slide.blend"))
     roots = {}
     for mode in ("lock", "none"):
-        af.open_blend(blend)
+        ima.open_blend(blend)
         res = render_sprites.run(_req("render_sprites", {"blend": blend},
                                       {"profile": "iso8", "asset_id": "slide", "directions": ["S"], "frames": 4,
                                        "pixels_per_meter": 40, "in_place": mode, "loop": {"slide": False},
@@ -358,12 +358,12 @@ def test_sheet_layout_limits():
 def test_render_size_guards():
     """Wrong units fail fast (before any rendering) instead of a 1 px blob or a 17000 px frame; an odd but
     plausible size renders with a warning that suggests height_m."""
-    d = _tmp("af_export_size_")
+    d = _tmp("imaginarium_export_size_")
     tiny = build_marker_figure(os.path.join(d, "tiny.glb"), scale=0.01)        # 1.7 cm
     huge = build_marker_figure(os.path.join(d, "huge.glb"), scale=100.0)       # 170 m (cm FBX read as m)
     tall = build_marker_figure(os.path.join(d, "tall.glb"), scale=10.0)        # 17 m
     for glb, words in ((tiny, "min_body_px"), (huge, "max_cell_px")):
-        af.reset_scene()
+        ima.reset_scene()
         t0 = time.time()
         try:
             render_sprites.run(_req("render_sprites", {"mesh": glb}, {"asset_id": "marker", "validate_godot": False},
@@ -374,7 +374,7 @@ def test_render_size_guards():
             raise AssertionError("%s must be rejected" % glb)
         assert time.time() - t0 < 20, "the guard must fire before rendering"
         assert not os.path.isdir(os.path.join(d, "o_" + words, "_frames")), "nothing may be rendered"
-    af.reset_scene()
+    ima.reset_scene()
     res = render_sprites.run(_req("render_sprites", {"mesh": tall},
                                   {"asset_id": "marker", "directions": ["S"], "pixels_per_meter": 10,
                                    "validate_godot": False}, os.path.join(d, "o_tall")))
@@ -386,9 +386,9 @@ def test_render_size_guards():
 def test_forward_plus_y_and_default_asset_id():
     """forward '+Y' (ships/props) turns every view by 180 deg: the -Y nose of the marker is hidden in S and
     visible in N. A file name starting with a digit becomes a valid asset id with a warning."""
-    d = _tmp("af_export_fwd_")
+    d = _tmp("imaginarium_export_fwd_")
     glb = build_marker_figure(os.path.join(d, "01_marker.glb"))
-    af.reset_scene()
+    ima.reset_scene()
     res = render_sprites.run(_req("render_sprites", {"mesh": glb},
                                   {"directions": ["S", "N"], "pixels_per_meter": 50, "forward": "+Y",
                                    "validate_godot": False}, os.path.join(d, "out")))
@@ -411,9 +411,9 @@ def test_forward_plus_y_and_default_asset_id():
 def test_shadow_footprint_in_cell():
     """iso8/custom with the Cycles shadow catcher: the auto cell includes the projected shadow, so no shadow
     pixel is cut by the cell border."""
-    d = _tmp("af_export_shadow_")
+    d = _tmp("imaginarium_export_shadow_")
     glb = build_marker_figure(os.path.join(d, "figure.glb"))
-    af.reset_scene()
+    ima.reset_scene()
     res = render_sprites.run(_req("render_sprites", {"mesh": glb},
                                   {"profile": "custom", "asset_id": "marker", "directions": [["front", 0], ["side", -60]],
                                    "engine": "CYCLES", "samples": 8, "shadow": True, "pixels_per_meter": 40,
@@ -435,9 +435,9 @@ def test_shadow_footprint_in_cell():
 
 
 def test_package_rejects_unknown_preset_and_missing_socket():
-    d = _tmp("af_export_bad_")
+    d = _tmp("imaginarium_export_bad_")
     glb = build_ship(os.path.join(d, "ship.glb"))
-    af.reset_scene()
+    ima.reset_scene()
     res = godot_package.run(_req("godot_package", {"glb": glb},
                                  {"asset_id": "ship_bad_001", "profile": "godot", "validate": False,
                                   "fx": [{"preset": "laser_disco", "socket": "socket_thruster_main_l"},
@@ -455,9 +455,9 @@ def test_package_rejects_unknown_preset_and_missing_socket():
 
 
 def test_ship_package_engine_trail():
-    d = _tmp("af_export_ship_")
+    d = _tmp("imaginarium_export_ship_")
     glb = build_ship(os.path.join(d, "ship.glb"), scaled_parent=True)
-    af.reset_scene()
+    ima.reset_scene()
     fx = [{"preset": "engine_trail", "socket": "socket_thruster_main_l"},
           {"preset": "engine_trail", "socket": "socket_thruster_main_r"},
           {"preset": "nav_light", "socket": "socket_fx_nav_port", "params": {"color": [0.15, 6, 1.5]}},
@@ -469,11 +469,11 @@ def test_ship_package_engine_trail():
     assert not _errors(res), (_errors(res), res["checks"])
     assert not any("source_forward" in w for w in res["warnings"]), res["warnings"]   # kind given, not guessed
     pkg = res["outputs"]["package"]
-    for f in ("ship_af_test_001.glb", "ship_af_test_001.tscn", "af_fx_mount.gd", "README.md",
+    for f in ("ship_af_test_001.glb", "ship_af_test_001.tscn", "ima_fx_mount.gd", "README.md",
               "fx/engine_trail.tscn", "fx/nav_light.tscn",
               "fx/textures/soft.png"):
         assert os.path.isfile(os.path.join(pkg, f)), f
-    man = json.load(open(os.path.join(pkg, "af_package.json"), encoding="utf-8"))
+    man = json.load(open(os.path.join(pkg, "ima_package.json"), encoding="utf-8"))
     k = {b["node_name"] + "@" + b["socket"]: (b["scale"], b["scale_source"]) for b in man["fx"]}
     # 0.44 m nozzles (mount_d_m) on the 5.85 m test ship: presets stay at their native size
     assert k["fx_engine_trail@socket_thruster_main_l"][0] == 0.978, k
@@ -486,14 +486,14 @@ def test_ship_package_engine_trail():
     sc = g["scenes"][0]
     assert sc["loaded"] and sc["instanced"], sc
     assert all(f["ok"] for f in sc["fx"]) and len(sc["fx"]) == 4, sc["fx"]
-    # FX in metres of the asset, also under the 0.01-scaled holder (af_fx_mount undoes the socket's scale)
+    # FX in metres of the asset, also under the 0.01-scaled holder (ima_fx_mount undoes the socket's scale)
     assert all(abs(f["scale_rel"] - 1.0) < 0.01 for f in sc["fx"]), sc["fx"]
     tl = sc["sockets"]["socket_thruster_main_l"]
     assert tl["found"] and tl["origin"][0] < 0, tl          # port = -X
     assert tl["axis_y"][2] > 0.99, tl                       # exhaust (+Y local) points aft = +Z in Godot
     assert all(r["ok"] for r in g["fx_scenes"]), g["fx_scenes"]
     # Godot ran with APPDATA/LOCALAPPDATA inside out_dir: nothing new in the real user dir (contract §3)
-    assert _appdata_godot_snapshot() == before, "Godot wrote into %APPDATA%/Godot/app_userdata/af_godot_check"
+    assert _appdata_godot_snapshot() == before, "Godot wrote into %APPDATA%/Godot/app_userdata/imaginarium_godot_check"
     home = os.path.join(d, "out", "_godot_check", xl.GODOT_HOME)
     assert os.path.isdir(os.path.join(home, "Roaming", "Godot")), os.listdir(os.path.join(home, "Roaming"))
     logs = [f for dp, _dn, fn in os.walk(home) for f in fn if f.endswith(".log")]
@@ -505,10 +505,10 @@ def test_big_ship_fx_auto_scale():
     """A 60 m ship with size_class L thrusters and no explicit FX scale: engine_trail scales by the seat
     (L 4.5 m / 0.45 m = 10), nav_light by the hull (60 m / 6 m = 10), visibility AABB with them; an explicit
     scale 1 on the same ship is flagged by fx_scale_vs_asset."""
-    d = _tmp("af_export_bigship_")
+    d = _tmp("imaginarium_export_bigship_")
     k_hull = 60.0 / 5.85
     glb = build_ship(os.path.join(d, "big.glb"), k=k_hull, size_class="L", diameter=False)
-    af.reset_scene()
+    ima.reset_scene()
     fx = [{"preset": "engine_trail", "socket": "socket_thruster_main_l"},
           {"preset": "engine_trail", "socket": "socket_thruster_main_r"},
           {"preset": "nav_light", "socket": "socket_fx_nav_port"}]
@@ -520,7 +520,7 @@ def test_big_ship_fx_auto_scale():
     assert res["stats"]["glb_forward"] == "-Z", res["stats"]
     assert any("source_forward -Z guessed from ship sockets" in w for w in res["warnings"]), res["warnings"]
     pkg = res["outputs"]["package"]
-    man = json.load(open(os.path.join(pkg, "af_package.json"), encoding="utf-8"))
+    man = json.load(open(os.path.join(pkg, "ima_package.json"), encoding="utf-8"))
     assert abs(man["longest_m"] - 60.0) < 0.05, man["longest_m"]
     by = {b["node_name"] + "@" + b["socket"]: b for b in man["fx"]}
     et = by["fx_engine_trail@socket_thruster_main_l"]
@@ -542,7 +542,7 @@ def test_big_ship_fx_auto_scale():
         assert [round(v) for v in g_et["visibility_aabb"]] == [-80, -20, -80, 160, 160, 160], g_et
         assert abs(g_et["quad_size"] - 9.5) < 1e-3, g_et
     # explicit scale 1 on the 60 m hull: the 0.95 m trail is flagged (warning only)
-    af.reset_scene()
+    ima.reset_scene()
     res1 = godot_package.run(_req("godot_package", {"glb": glb},
                                   {"asset_id": "ship_big_test", "profile": "godot", "kind": "ship", "validate": False,
                                    "fx": [{"preset": "engine_trail", "socket": "socket_thruster_main_l",
@@ -576,13 +576,13 @@ def test_turret_package_pivots_are_not_sockets():
     socket_mount + socket_muzzle_*; a legacy GLB with game_socket on the pivots passes the same way with a
     warning. A ship_gen thruster's mount_d_m drives the engine_trail scale (contract 6)."""
     from steps import ship_gen, turret_gen
-    d = _tmp("af_export_turret_")
+    d = _tmp("imaginarium_export_turret_")
     req = _req("turret_gen", {}, {"size": "M", "barrels": 2, "seed": 3, "preview": False,
                                   "lods": False}, os.path.join(d, "turret"))
-    tres = af.finish(req, turret_gen.run(req))
+    tres = ima.finish(req, turret_gen.run(req))
     assert tres["ok"], _errors(tres)
     glb = tres["outputs"]["glb"]
-    af.reset_scene()
+    ima.reset_scene()
     res = godot_package.run(_req("godot_package", {"glb": glb},
                                  {"asset_id": "turret_af_test_001", "profile": "godot", "kind": "turret",
                                   "fx": [{"preset": "muzzle_flash", "socket": "socket_muzzle_01"}]},
@@ -608,7 +608,7 @@ def test_turret_package_pivots_are_not_sockets():
         assert _check(res, "godot_engine_errors")["ok"], _check(res, "godot_engine_errors")
     # legacy turret (pivots with game_socket): still not sockets, a warning says so
     legacy = _glb_with_pivot_sockets(glb, os.path.join(d, "legacy.glb"))
-    af.reset_scene()
+    ima.reset_scene()
     res2 = godot_package.run(_req("godot_package", {"glb": legacy},
                                   {"asset_id": "turret_af_test_002", "profile": "godot", "kind": "turret",
                                    "validate": False}, os.path.join(d, "out2")))
@@ -617,10 +617,10 @@ def test_turret_package_pivots_are_not_sockets():
     # ship_gen thrusters carry mount_d_m: engine_trail is scaled by the nozzle diameter
     req = _req("ship_gen", {}, {"class": "fighter", "seed": 4, "preview": False, "lods": False},
                os.path.join(d, "ship"))
-    sres = af.finish(req, ship_gen.run(req))
+    sres = ima.finish(req, ship_gen.run(req))
     assert sres["ok"] and _check(sres, "thruster_mount_d_m")["ok"], _errors(sres)
     thr = [s for s in sres["stats"]["sockets"] if s.startswith("socket_thruster_")]
-    af.reset_scene()
+    ima.reset_scene()
     res3 = godot_package.run(_req("godot_package", {"glb": sres["outputs"]["glb"]},
                                   {"asset_id": "ship_af_test_004", "profile": "godot", "kind": "ship",
                                    "validate": False, "fx": [{"preset": "engine_trail", "socket": thr[0]}]},
@@ -666,17 +666,17 @@ def test_thruster_frames_fx_aft_godot():
     pointed up."""
     from steps import ship_gen
     expect = {"thrust": [0.0, 0.0, 1.0], "exhaust": [0.0, 0.0, -1.0]}
-    d = _tmp("af_export_frames_")
+    d = _tmp("imaginarium_export_frames_")
     godot = xl.find_godot() is not None
     for frame, axis in expect.items():
-        af.reset_scene()
+        ima.reset_scene()
         req = _req("ship_gen", {}, {"class": "fighter", "seed": 1, "thruster_frame": frame, "preview": False,
                                     "lods": False}, os.path.join(d, "gen_" + frame))
-        sres = af.finish(req, ship_gen.run(req))
+        sres = ima.finish(req, ship_gen.run(req))
         assert sres["ok"], (frame, _errors(sres))
         thr = [n for n in sres["stats"]["sockets"] if n.startswith("socket_thruster_")]
         assert thr, sres["stats"]["sockets"]
-        af.reset_scene()
+        ima.reset_scene()
         res = godot_package.run(_req("godot_package", {"glb": sres["outputs"]["glb"]},
                                      {"asset_id": "ship_af_frame_" + frame, "profile": "godot", "kind": "ship",
                                       "fx": _thruster_fx(thr), "validate": True},
@@ -711,11 +711,11 @@ def test_thruster_frames_fx_aft_godot():
 def test_thruster_axis_legacy_inferred_and_rotated_model():
     """An older GLB without extras.frame (local +Y = exhaust, build_ship) gets the +Y axis by geometry
     ('inferred'), also under a 0.01-scaled node (the thrust-frame socket there needs a rotation that survives
-    af_fx_mount's scale fix); muzzle_flash (emits -Z) and non-thruster sockets are untouched; a model turned 180
+    ima_fx_mount's scale fix); muzzle_flash (emits -Z) and non-thruster sockets are untouched; a model turned 180
     degrees about Y (forward_axis +Z) expects aft = -Z in the package root."""
-    d = _tmp("af_export_axis_legacy_")
+    d = _tmp("imaginarium_export_axis_legacy_")
     glb = build_ship(os.path.join(d, "ship.glb"), scaled_parent=True, scaled_thruster=True)
-    af.reset_scene()
+    ima.reset_scene()
     fx = _thruster_fx(["socket_thruster_main_l"], ("engine_trail", "muzzle_flash")) \
         + _thruster_fx(["socket_thruster_main_r"], ("thruster_glow",)) \
         + _thruster_fx(["socket_thruster_scaled"], ("engine_trail",)) \
@@ -741,13 +741,13 @@ def test_thruster_axis_legacy_inferred_and_rotated_model():
     if xl.find_godot() is not None:
         sc, fxs = _godot_thruster_fx(res)
         assert len(fxs) == 3 and all(f["axis_ok"] and f["axis_y_root"][2] > 0.9 for f in fxs), sc["fx"]
-        # also under the 0.01 holder: scale undone and the +Z rotation kept (scale after rotation in af_fx_mount)
+        # also under the 0.01 holder: scale undone and the +Z rotation kept (scale after rotation in ima_fx_mount)
         assert all(abs(f["scale_rel"] - 1.0) < 0.01 for f in sc["fx"]), sc["fx"]
         mf = next(f for f in sc["fx"] if f["name"] == "fx_muzzle_flash")
         assert mf["ok"] and "axis_ok" not in mf, mf
         assert _check(res, "godot_fx_thruster_aft")["ok"]
     # the same ship with its model turned to face Godot's +Z: the exhaust must then go to -Z of the package root
-    af.reset_scene()
+    ima.reset_scene()
     res2 = godot_package.run(_req("godot_package", {"glb": glb},
                                   {"asset_id": "ship_af_axis_002", "profile": "godot", "kind": "ship",
                                    "forward_axis": "+Z",
@@ -767,13 +767,13 @@ def test_thruster_axis_contradicting_frame_and_canted_nozzle():
     """extras.frame that disagrees with the geometry loses to it, with one warning naming the sockets: legacy
     sockets claiming 'thrust' get +Y (Godot confirms the FX fly aft); the sockets that tell the truth keep their frame. An unknown frame name is ignored
     with a note; nozzles canted 30 degrees keep their axis and Godot accepts the FX 30 degrees off aft."""
-    d = _tmp("af_export_axis_bad_")
+    d = _tmp("imaginarium_export_axis_bad_")
     glb = build_ship(os.path.join(d, "ship.glb"), scaled_parent=True, scaled_thruster=True)
     names = ["socket_thruster_main_l", "socket_thruster_main_r", "socket_thruster_scaled"]
     fx = _thruster_fx(names, ("engine_trail",))
     # main_l / main_r: legacy geometry (aft = local +Y); socket_thruster_scaled: thrust geometry (aft = local +Z)
     for frame, liars, truthful, wrong_axis in (("thrust", names[:2], names[2:], "+Y"),):
-        af.reset_scene()
+        ima.reset_scene()
         patched = _glb_with_socket_frame(glb, os.path.join(d, "liar_%s.glb" % frame), frame)
         res = godot_package.run(_req("godot_package", {"glb": patched},
                                      {"asset_id": "ship_af_axis_lie_" + frame, "profile": "godot",
@@ -800,7 +800,7 @@ def test_thruster_axis_contradicting_frame_and_canted_nozzle():
     fx = fx[:2]
     glb = build_ship(os.path.join(d, "plain.glb"))          # legacy ship without extras.frame
     # unknown frame name: geometry decides, noted in emit_axis_from, no contradiction warning
-    af.reset_scene()
+    ima.reset_scene()
     odd = _glb_with_socket_frame(glb, os.path.join(d, "odd.glb"), "sideways")
     res_o = godot_package.run(_req("godot_package", {"glb": odd},
                                    {"asset_id": "ship_af_axis_004", "profile": "godot", "kind": "ship",
@@ -810,7 +810,7 @@ def test_thruster_axis_contradicting_frame_and_canted_nozzle():
     assert b["emit_axis"] == [0.0, 1.0, 0.0] and "extras.frame 'sideways' unknown" in b["emit_axis_from"], b
     # canted nozzles
     tilt = build_ship(os.path.join(d, "tilt.glb"), tilt_deg=30.0)
-    af.reset_scene()
+    ima.reset_scene()
     res_t = godot_package.run(_req("godot_package", {"glb": tilt},
                                    {"asset_id": "ship_af_axis_005", "profile": "godot", "kind": "ship",
                                     "fx": fx}, os.path.join(d, "out_t")))
@@ -865,8 +865,8 @@ def _wide_figure(path, bar_x=0.0, disc_r=0.0):
     if disc_r:
         objs.append(_mesh_obj("disc", bpy.ops.mesh.primitive_cylinder_add, grey, radius=disc_r, depth=0.02,
                               location=(0, 0, 0.25), vertices=48))
-    af.apply_transforms(objs)
-    af.export_glb(path, objects=objs, animations=False, skins=False)
+    ima.apply_transforms(objs)
+    ima.export_glb(path, objects=objs, animations=False, skins=False)
     return path
 
 
@@ -874,7 +874,7 @@ def _cloth_cache_scene(blend_path):
     """Two clips of a one-bone rig (the block rides the bone, standing still) and a 'garment' plane carrying a
     cloth_sim cache: in clip 'left' it sits 0.6 m to -X, in 'right' 0.6 m to +X (and skinned at the origin)."""
     from steps import _cloth_lib as CL
-    af.reset_scene()
+    ima.reset_scene()
     arm_data = bpy.data.armatures.new("rig")
     arm = bpy.data.objects.new("rig", arm_data)
     bpy.context.scene.collection.objects.link(arm)
@@ -911,16 +911,16 @@ def _cloth_cache_scene(blend_path):
     rest = CL._object_rest(garment)
     CL.bake_render_cache(garment, [("left", np.stack([rest + np.array([-0.6, 0, 0])] * 7)),
                                    ("right", np.stack([rest + np.array([0.6, 0, 0])] * 7))])
-    af.save_blend(blend_path)
+    ima.save_blend(blend_path)
     return blend_path
 
 
 def test_render_sprites_plays_cloth_cache():
     """render_sprites switches a cloth_sim cache together with each clip (_export_lib.bind_cloth_cache): the
     garment's simulated place of that clip is in its sheet, the rest pose (normalisation) stays the skinned one."""
-    d = _tmp("af_export_cloth_")
+    d = _tmp("imaginarium_export_cloth_")
     blend = _cloth_cache_scene(os.path.join(d, "cloth.blend"))
-    af.open_blend(blend)
+    ima.open_blend(blend)
     res = render_sprites.run(_req("render_sprites", {"blend": blend},
                                   {"profile": "custom", "directions": [["S", 0.0]], "asset_id": "cloth_cache",
                                    "frames": 2, "pixels_per_meter": 60, "engine": "WORKBENCH", "center": "none",
@@ -950,12 +950,12 @@ def _have_zombie():
 def build_zombie_glb(path):
     """Mixamo zombie (idle with skin + walk without skin) -> one GLB with clips idle-loop, walk-loop
     and two bone sockets for FX tests."""
-    af.reset_scene()
-    objs = af.import_any(os.path.join(ZOMBIE_DIR, "idle.fbx"))
+    ima.reset_scene()
+    objs = ima.import_any(os.path.join(ZOMBIE_DIR, "idle.fbx"))
     arm = next(o for o in objs if o.type == "ARMATURE")
     body = next(o for o in objs if o.type == "MESH")
     idle = arm.animation_data.action
-    walk_objs = af.import_any(os.path.join(ZOMBIE_DIR, "walk.fbx"))
+    walk_objs = ima.import_any(os.path.join(ZOMBIE_DIR, "walk.fbx"))
     walk = next(a for a in bpy.data.actions if a is not idle)
     for o in walk_objs:
         bpy.data.objects.remove(o, do_unlink=True)
@@ -973,15 +973,15 @@ def build_zombie_glb(path):
     for name, bone in (("socket_fx_chest", "mixamorig:Spine2"), ("socket_mount_hand_r", "mixamorig:RightHand")):
         pb = arm.pose.bones[bone]
         world = arm.matrix_world @ pb.matrix
-        emp = af.add_socket(name, parent=arm, bone=bone, kind="fx" if "fx" in name else "mount")
+        emp = ima.add_socket(name, parent=arm, bone=bone, kind="fx" if "fx" in name else "mount")
         emp.matrix_world = Matrix.Translation(world.translation) @ Matrix.Identity(4)
         socks.append(emp)
-    af.export_glb(path, objects=[arm, body] + socks)
+    ima.export_glb(path, objects=[arm, body] + socks)
     return path
 
 def _zombie():
     if "glb" not in _CACHE:
-        d = _tmp("af_export_zombie_")
+        d = _tmp("imaginarium_export_zombie_")
         _CACHE["dir"] = d
         _CACHE["glb"] = build_zombie_glb(os.path.join(d, "zombie.glb"))
     return _CACHE["glb"]
@@ -989,8 +989,8 @@ def _zombie():
 def _zombie_hg():
     if "hg" not in _CACHE:
         glb = _zombie()
-        af.reset_scene()
-        d = _tmp("af_export_hgz_")
+        ima.reset_scene()
+        d = _tmp("imaginarium_export_hgz_")
         res = render_sprites.run(_req("render_sprites", {"mesh": glb},
                                       {"profile": "heroes_gates", "asset_id": "zombie", "clips": ["idle"],
                                        "height_m": 1.7, "shadow_alpha_max": 0.55, "shadow_edge_fade_px": 24},
@@ -1007,11 +1007,11 @@ def test_hg_adaptive_unit_cell():
     and the sprites.json entry carries the chosen cell and anchor. Something lying in front of the feet (below
     the ground line on screen) moves the anchor up inside the cell. adaptive_cell false keeps the fixed 320 px
     cell and fails cell_fit as before."""
-    d = _tmp("af_export_cell_")
+    d = _tmp("imaginarium_export_cell_")
     base = {"profile": "heroes_gates", "kind": "unit", "engine": "WORKBENCH", "shadow": False, "validate_godot": False,
             "asset_id": "wide"}
     wide = _wide_figure(os.path.join(d, "wide.glb"), bar_x=5.0)        # 3.5 m across in the 45 deg views
-    af.reset_scene()
+    ima.reset_scene()
     res = render_sprites.run(_req("render_sprites", {"mesh": wide}, dict(base), os.path.join(d, "auto")))
     assert not _errors(res), _errors(res)
     ca = res["stats"]["cell_adapted"]
@@ -1027,13 +1027,13 @@ def test_hg_adaptive_unit_cell():
     std = {s[0]: s for s in xl.HG_CELL_STEPS}[cw]
     assert e["anchor"][1] == std[3], (e["anchor"], std)            # nothing below the ground line: standard anchor
     # fixed cell (the old behaviour): cell_fit fails
-    af.reset_scene()
+    ima.reset_scene()
     res0 = render_sprites.run(_req("render_sprites", {"mesh": wide}, dict(base, adaptive_cell=False), os.path.join(d, "fixed")))
     assert "cell_fit" in _errors(res0) and res0["stats"]["cell"] == [320, 320], _errors(res0)
     # a disc of 2 m radius at knee height reaches 60 px below the ground line: the 448 cell holds it only with the
     # anchor moved up from the standard 384
     plank = _wide_figure(os.path.join(d, "disc.glb"), disc_r=2.0)
-    af.reset_scene()
+    ima.reset_scene()
     res2 = render_sprites.run(_req("render_sprites", {"mesh": plank}, dict(base, asset_id="plank"), os.path.join(d, "plank")))
     assert not _errors(res2), _errors(res2)
     ca2 = res2["stats"]["cell_adapted"]
@@ -1108,11 +1108,11 @@ def test_sq_units_defaults_by_role():
 def test_sq_package_big_ship_units_not_metres():
     """A 117 m ship exported with profile space_quest and no fit/min params: the models.json entry gets the ship
     role's render units 3.4 / 0.6 (before: 117 / 17.6 m — the target library drew a primitive in the hangar and in
-    flight), af_package.json and stats say where they came from, a warning asks for explicit values; a station
+    flight), ima_package.json and stats say where they came from, a warning asks for explicit values; a station
     via sq_class gets 20 / 0; explicit min_units 25 is a red check (no view asks for more than 20)."""
-    d = _tmp("af_export_squnits_")
+    d = _tmp("imaginarium_export_squnits_")
     glb = build_ship(os.path.join(d, "big.glb"), k=20.0, size_class="L", diameter=False)
-    af.reset_scene()
+    ima.reset_scene()
     res = godot_package.run(_req("godot_package", {"glb": glb},
                                  {"asset_id": "ship_sq_units_test", "profile": "space_quest", "kind": "ship",
                                   "validate": False}, os.path.join(d, "out")))
@@ -1120,13 +1120,13 @@ def test_sq_package_big_ship_units_not_metres():
     pkg = res["outputs"]["package"]
     entry = json.load(open(os.path.join(pkg, "space_quest_models_entry.json"), encoding="utf-8"))
     assert (entry["fit_units"], entry["min_units"]) == (3.4, 0.6), entry
-    man = json.load(open(os.path.join(pkg, "af_package.json"), encoding="utf-8"))
+    man = json.load(open(os.path.join(pkg, "ima_package.json"), encoding="utf-8"))
     assert man["longest_m"] > 100 and man["sq_units"]["role"] == "ship", man["sq_units"]
     assert res["stats"]["sq_units"] == man["sq_units"], res["stats"]["sq_units"]
     assert any("render units, not metres" in w for w in res["warnings"]), res["warnings"]
     assert _check(res, "sq_min_units_visible")["ok"] and _check(res, "sq_fit_not_below_min")["ok"]
 
-    af.reset_scene()
+    ima.reset_scene()
     res = godot_package.run(_req("godot_package", {"glb": glb},
                                  {"asset_id": "sq_station_units_test", "profile": "space_quest", "kind": "ship",
                                   "sq_class": "station_core", "sq_type": "forge", "validate": False},
@@ -1135,14 +1135,14 @@ def test_sq_package_big_ship_units_not_metres():
                            encoding="utf-8"))
     assert (entry["fit_units"], entry["min_units"]) == (20.0, 0.0) and "/forge/" in entry["path"], entry
 
-    af.reset_scene()
+    ima.reset_scene()
     res = godot_package.run(_req("godot_package", {"glb": glb},
                                  {"asset_id": "ship_sq_units_bad", "profile": "space_quest", "kind": "ship",
                                   "fit_units": 30.0, "min_units": 25.0, "validate": False},
                                  os.path.join(d, "out_bad")))
     assert "sq_min_units_visible" in _errors(res), res["checks"]
     assert not any("render units, not metres" in w for w in res["warnings"]), res["warnings"]   # both explicit
-    af.reset_scene()
+    ima.reset_scene()
     res = godot_package.run(_req("godot_package", {"glb": glb},
                                  {"asset_id": "ship_sq_units_godot", "profile": "godot", "kind": "ship",
                                   "validate": False}, os.path.join(d, "out_godot")))
@@ -1180,8 +1180,8 @@ def test_real_zombie_iso8():
     if not _have_zombie():
         return "skip: zombie FBX clips missing in %s" % ZOMBIE_DIR
     glb = _zombie()
-    af.reset_scene()
-    d = _tmp("af_export_iso8z_")
+    ima.reset_scene()
+    d = _tmp("imaginarium_export_iso8z_")
     res = render_sprites.run(_req("render_sprites", {"mesh": glb},
                                   {"profile": "iso8", "asset_id": "zombie", "frames": 6, "pixels_per_meter": 64},
                                   d))
@@ -1212,8 +1212,8 @@ def test_real_zombie_package():
         return "skip: zombie FBX clips missing in %s" % ZOMBIE_DIR
     glb = _zombie()
     hg_res, hg_dir = _zombie_hg()
-    af.reset_scene()
-    d = _tmp("af_export_pkgz_")
+    ima.reset_scene()
+    d = _tmp("imaginarium_export_pkgz_")
     fx = [{"preset": "aura", "socket": "socket_fx_chest"},
           {"preset": "magic_cast", "socket": "socket_mount_hand_r", "params": {"scale": 1.5}}]
     res = godot_package.run(_req("godot_package", {"glb": glb, "sprites": hg_res["outputs"]["sprites_json"]},
@@ -1225,7 +1225,7 @@ def test_real_zombie_package():
     assert "Transform3D(-1, 0, 0, 0, 1, 0, 0, 0, -1, 0, 0, 0)" in tscn      # +Z character turned to -Z
     snip = json.load(open(os.path.join(pkg, "heroes_gates_sprites_entry.json"), encoding="utf-8"))
     assert "zombie" in snip["units"]
-    man = json.load(open(os.path.join(pkg, "af_package.json"), encoding="utf-8"))
+    man = json.load(open(os.path.join(pkg, "ima_package.json"), encoding="utf-8"))
     assert abs(man["longest_m"] - 1.70) < 0.02, man["longest_m"]          # measured in the rest pose
     k = {b["preset"]: b["scale"] for b in man["fx"]}
     assert k["aura"] == 0.944 and k["magic_cast"] == 1.5, k              # auto (1.7 m / 1.8 m) and explicit

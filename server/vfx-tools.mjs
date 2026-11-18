@@ -10,7 +10,7 @@
 //   POST /api/vfx-tools/textures/:name/import  -> a copy into the studio assets (same response as POST /api/assets)
 //   GET  http://127.0.0.1:<webPort>/vfx-web/:id/*   static files of the web generators of kind web-local (work offline); a separate server, not the studio origin
 //
-// Web generators are third-party code, so they live on their own port (ASTRA_VFX_WEB_PORT, default 3211; options.webPort, 0 = random) and start on the first GET /api/vfx-tools.
+// Web generators are third-party code, so they live on their own port (IMAGINARIUM_VFX_WEB_PORT, default 3211; options.webPort, 0 = random) and start on the first GET /api/vfx-tools.
 // If the port is busy the studio does not crash: webUrl = null, the reason is in webError. The "Refresh" button (?fresh=1) tries to start the server again.
 // Security: ids come from the catalog only, paths from the request are not accepted; every catalog path goes through resolveInside().
 import express from 'express';
@@ -21,7 +21,7 @@ import { createServer } from 'node:http';
 import { saveAsset as defaultSaveAsset, root as appRoot } from './storage.mjs';
 
 const IS_WIN = process.platform === 'win32';   // vendors and shell helpers differ off Windows (docs/linux.md)
-export const DEFAULT_ROOT = IS_WIN ? 'C:\\AstraForge\\tools\\vfx' : path.join(appRoot, 'runtime', 'vfx');
+export const DEFAULT_ROOT = IS_WIN ? 'C:\\Imaginarium\\tools\\vfx' : path.join(appRoot, 'runtime', 'vfx');
 export const DEFAULT_WEB_PORT = 3211;
 export const CACHE_MS = 30000;
 const TEXTURE_LIMIT = 200;
@@ -171,7 +171,7 @@ const localSpec = (t) => (!IS_WIN && t?.linux?.local) ? t.linux.local : (t?.loca
 const unsupportedHere = (t) => (!IS_WIN && t?.linux?.unsupported) ? String(t.linux.unsupported) : null;
 
 export function createVfxTools(options = {}) {
-  const root = path.resolve(options.root || process.env.ASTRA_VFX_TOOLS || DEFAULT_ROOT);
+  const root = path.resolve(options.root || process.env.IMAGINARIUM_VFX_TOOLS || DEFAULT_ROOT);
   const catalog = options.catalog || loadCatalog();
   const spawnFn = options.spawn || nodeSpawn;
   const saveAsset = options.saveAsset || defaultSaveAsset;
@@ -179,7 +179,7 @@ export function createVfxTools(options = {}) {
   const byId = new Map(catalog.tools.map((t) => [t.id, t]));
   const installedCache = new Map();
   const texturesDir = () => resolveInside(root, 'textures');
-  const webPort = options.webPort ?? (Number(process.env.ASTRA_VFX_WEB_PORT) || DEFAULT_WEB_PORT);
+  const webPort = options.webPort ?? (Number(process.env.IMAGINARIUM_VFX_WEB_PORT) || DEFAULT_WEB_PORT);
   const web = { server: null, port: null, error: null, starting: null, closed: false };
 
   const tool = (id) => {
@@ -338,7 +338,7 @@ export function createVfxTools(options = {}) {
     return statics.get(t.id);
   }
 
-  // Pages served from this port cannot reach the studio API: index.mjs rejects a foreign Origin and requests without x-astra-client.
+  // Pages served from this port cannot reach the studio API: index.mjs rejects a foreign Origin and requests without x-imaginarium-client.
   function webApp() {
     const app = express();
     app.disable('x-powered-by');
@@ -371,7 +371,7 @@ export function createVfxTools(options = {}) {
       if (web.closed) return resolve();
       const server = createServer(webApp());
       const onError = (e) => {
-        web.error = e.code === 'EADDRINUSE' ? `Port ${webPort} is used by another program, so the web generators are unavailable. Set another port in ASTRA_VFX_WEB_PORT.` : `The web generators server is not running: ${e.message}`;
+        web.error = e.code === 'EADDRINUSE' ? `Port ${webPort} is used by another program, so the web generators are unavailable. Set another port in IMAGINARIUM_VFX_WEB_PORT.` : `The web generators server is not running: ${e.message}`;
         console.warn('VFX: ' + web.error);
         resolve();
       };

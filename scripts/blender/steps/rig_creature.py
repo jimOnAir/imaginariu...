@@ -32,7 +32,7 @@ import os
 import bpy
 from mathutils import Matrix
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _creature_lib as L
 
 
@@ -42,21 +42,21 @@ def run(req):
     src = inputs.get("mesh") or inputs.get("blend")
     if not src:
         raise ValueError("rig_creature needs inputs.mesh or inputs.blend")
-    af.reset_scene()                  # a blend opened by af_run is re-read through import_any below
-    objs = af.import_any(src)
+    ima.reset_scene()                  # a blend opened by imaginarium_run is re-read through import_any below
+    objs = ima.import_any(src)
     ob, welded = L.prepare_mesh(objs)
-    af.log("mesh prepared", verts=len(ob.data.vertices), welded=welded)
+    ima.log("mesh prepared", verts=len(ob.data.vertices), welded=welded)
     warnings = []
     # ---------------------------------------------------------------- facing + scale
     head, finfo = L.detect_facing(ob, p)
     yaw = L.yaw_to_minus_y(head)
     if abs(yaw) > 1e-6:
         ob.matrix_world = Matrix.Rotation(math.radians(yaw), 4, "Z") @ ob.matrix_world
-        af.apply_transforms([ob])
+        ima.apply_transforms([ob])
     finfo.update({"head_in_input": L.head_dir_label(head), "rotated_deg": round(yaw, 3)})
     if finfo.get("confidence", 1.0) < 0.5:
         warnings.append("facing detection is uncertain (%.2f): pass params.facing" % finfo["confidence"])
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     size = hi - lo
     target_h = None
     if p.get("height_m"):
@@ -65,8 +65,8 @@ def run(req):
         target_h = float(size.z) * float(p["length_m"]) / max(float(size.y), 1e-9)
     else:
         warnings.append("no height_m/length_m: native size kept")
-    scale = af.normalize([ob], height=target_h)
-    af.log("normalised", scale=round(scale, 5), yaw=round(yaw, 2))
+    scale = ima.normalize([ob], height=target_h)
+    ima.log("normalised", scale=round(scale, 5), yaw=round(yaw, 2))
     # ---------------------------------------------------------------- analysis
     A = L.analyse(ob, p)
     auto_t, evidence, tconf = L.classify(A)
@@ -77,12 +77,12 @@ def run(req):
         raise ValueError("unknown template %r" % template)
     elif template != auto_t and template != "custom":
         warnings.append("requested template %s, geometry looks like %s" % (template, auto_t))
-    af.log("analysed", template=template, auto=auto_t, pairs=len(A["_pairs"]), wings=len(A["_wings"]))
+    ima.log("analysed", template=template, auto=auto_t, pairs=len(A["_pairs"]), wings=len(A["_wings"]))
     lay = L.build_layout(A, template, p)
     warnings += lay.warnings
     arm = L.build_armature(lay)
     winfo = L.skin(ob, arm, lay, A, p.get("weights", "auto"))
-    af.log("skinned", mode=winfo.get("mode"))
+    ima.log("skinned", mode=winfo.get("mode"))
     rej = winfo.get("heat", {}).get("rejected")
     if rej and winfo.get("mode") == "distance_fallback":
         warnings.append("bone heat rejected (%s): distance weights used instead" % rej)
@@ -104,18 +104,18 @@ def run(req):
         "frame": "metres, Z up, creature faces -Y, left side +X, ground z=0",
         "source": os.path.abspath(src),
     })
-    arm["af_rig"] = json.dumps(meta, ensure_ascii=False)
-    ob["af_creature_mesh"] = True
+    arm["imaginarium_rig"] = json.dumps(meta, ensure_ascii=False)
+    ob["imaginarium_creature_mesh"] = True
     # ---------------------------------------------------------------- outputs
     outputs = {}
-    outputs["blend"] = af.save_blend(af.out_path(req, "rigged.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "rigged.blend"))
     sock_objs = [o for o in bpy.data.objects if o.get("game_socket")]
-    outputs["glb"] = af.export_glb(af.out_path(req, "rigged.glb"), objects=[arm, ob] + sock_objs,
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "rigged.glb"), objects=[arm, ob] + sock_objs,
                                    animations=False)
     if p.get("preview", True):
-        outputs["preview"] = L.render_rig_preview(af.out_path(req, "preview.png"), ob, arm, sock_objs,
+        outputs["preview"] = L.render_rig_preview(ima.out_path(req, "preview.png"), ob, arm, sock_objs,
                                                   size=int(p.get("size", 384)))
-    rig_json = af.out_path(req, "rig.json")
+    rig_json = ima.out_path(req, "rig.json")
     with open(rig_json, "w", encoding="utf-8") as fh:
         json.dump(meta, fh, ensure_ascii=False, indent=1)
     outputs["rig_json"] = rig_json
@@ -123,23 +123,23 @@ def run(req):
     need = len(L.LEG_POSITIONS.get(template, [])) * 2
     have = len(lay.legs)
     checks = [
-        af.check("unweighted_vertices", winfo["unweighted_after"] == 0, winfo["unweighted_after"], 0),
-        af.check("max_influences", winfo["max_influences"] <= 4, winfo["max_influences"], 4),
-        af.check("legs_fitted", have == need or template in ("serpent", "custom"), have, need),
-        af.check("bones_without_vertices", len(winfo["bones_without_verts"]) == 0,
+        ima.check("unweighted_vertices", winfo["unweighted_after"] == 0, winfo["unweighted_after"], 0),
+        ima.check("max_influences", winfo["max_influences"] <= 4, winfo["max_influences"], 4),
+        ima.check("legs_fitted", have == need or template in ("serpent", "custom"), have, need),
+        ima.check("bones_without_vertices", len(winfo["bones_without_verts"]) == 0,
                  winfo["bones_without_verts"], [], severity="warning"),
-        af.check("facing_confidence", finfo.get("confidence", 1.0) >= 0.5, finfo.get("confidence"), 0.5,
+        ima.check("facing_confidence", finfo.get("confidence", 1.0) >= 0.5, finfo.get("confidence"), 0.5,
                  severity="warning"),
-        af.check("template_matches_geometry", template == auto_t or template == "custom", auto_t, template,
+        ima.check("template_matches_geometry", template == auto_t or template == "custom", auto_t, template,
                  severity="warning"),
-        af.check("rig_confidence", conf_all >= 0.6, conf_all, 0.6, severity="warning"),
+        ima.check("rig_confidence", conf_all >= 0.6, conf_all, 0.6, severity="warning"),
     ]
     if template in L.WINGED:
-        checks.append(af.check("wings_fitted", len(lay.wings) == 2, len(lay.wings), 2))
+        checks.append(ima.check("wings_fitted", len(lay.wings) == 2, len(lay.wings), 2))
         folded = [w["side"] for w in lay.wings if w.get("folded")]
-        checks.append(af.check("wings_separate", not folded, folded, [], severity="warning",
+        checks.append(ima.check("wings_separate", not folded, folded, [], severity="warning",
                                note="folded wings: bones fitted along the upper flank, no fly/glide clips"))
-    stats = af.scene_stats([ob, arm])
+    stats = ima.scene_stats([ob, arm])
     stats.update({"template": template, "bones": len(lay.order), "deform_bones": len(deform),
                   "weights_mode": winfo.get("mode"), "confidence": conf_all, "sockets": len(sockets)})
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}

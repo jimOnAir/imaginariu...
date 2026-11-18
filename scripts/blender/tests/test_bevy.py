@@ -1,7 +1,7 @@
 """Self-tests of bevy_package (docs/forge/bevy.md, 0.6.10 wave ticket 28).
 
 A synthetic rigged-less model (box + socket empty + COL_ hull + two clips) is exported to GLB and
-packed; everything the passport promises is then read back from af_bevy.json. No Rust needed: the
+packed; everything the passport promises is then read back from ima_bevy.json. No Rust needed: the
 package build is the contract, the headless cargo check is a separate, optional pass (ticket
 30): its lines drive the driver with a stub toolchain - the real check runs live on the box.
 """
@@ -13,21 +13,21 @@ import tempfile
 
 import bpy
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _bevy_lib as bl
 from steps import bevy_package as bp
 
 
 def _tmp(prefix):
     d = tempfile.mkdtemp(prefix=prefix)
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         atexit.register(shutil.rmtree, d, True)
     return d
 
 
 def _model_glb(folder, clips=True, hull=True):
     """A box body, a socket_fx_gun empty, an optional COL_hull mesh, idle-loop + attack actions."""
-    af.reset_scene()
+    ima.reset_scene()
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.5))
     body = bpy.context.active_object
     body.name = "Body"
@@ -57,7 +57,7 @@ def _model_glb(folder, clips=True, hull=True):
             tr.strips.new(nm, 1, act)
             body.animation_data.action = None
     path = os.path.join(folder, "model_in.glb")
-    af.export_glb(path, animation_mode="NLA_TRACKS")
+    ima.export_glb(path, animation_mode="NLA_TRACKS")
     return path
 
 
@@ -108,7 +108,7 @@ def test_bevy_lib_collider_and_hulls():
 # ---------------------------------------------------------------- the packaged contract
 
 def test_bevy_package_passport_full():
-    d = _tmp("af_bevy_")
+    d = _tmp("imaginarium_bevy_")
     glb = _model_glb(d)
     res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
                 "params": {"asset_id": "test_box", "profile": "bevy", "validate": False,   # the cargo pass has its own tests below
@@ -116,7 +116,7 @@ def test_bevy_package_passport_full():
     failed = [c["name"] for c in res["checks"] if not c["ok"] and c.get("severity") == "error"]
     assert not failed, failed
     pkg = res["outputs"]["package"]
-    for f in ("model.glb", "af_bevy.json", "README.md", "fx_presets.json"):
+    for f in ("model.glb", "ima_bevy.json", "README.md", "fx_presets.json"):
         assert os.path.isfile(os.path.join(pkg, f)), f
     with open(res["outputs"]["manifest"], encoding="utf-8") as fh:
         p = json.load(fh)
@@ -141,7 +141,7 @@ def test_bevy_package_passport_full():
 
 
 def test_bevy_package_static_no_fx_no_presets_file():
-    d = _tmp("af_bevy_plain_")
+    d = _tmp("imaginarium_bevy_plain_")
     glb = _model_glb(d, clips=False, hull=False)
     res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
                 "params": {"asset_id": "plain_box", "validate": False}})
@@ -157,7 +157,7 @@ def test_bevy_package_static_no_fx_no_presets_file():
 
 
 def test_bevy_package_rejects_bad_input():
-    d = _tmp("af_bevy_bad_")
+    d = _tmp("imaginarium_bevy_bad_")
     glb = _model_glb(d, clips=False)
     try:
         _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "o1"), "params": {}})
@@ -176,7 +176,7 @@ def test_bevy_package_rejects_bad_input():
 
 def _stub_cargo(folder):
     """A stand-in for the Rust toolchain: it answers exactly the argv the driver builds and
-    writes exactly the artifacts af_bevy_check writes - the real check is verified live, this
+    writes exactly the artifacts imaginarium_bevy_check writes - the real check is verified live, this
     row tests that the step FINDS the answer and CARRIES the outputs."""
     p = os.path.join(folder, "cargo")
     with open(p, "w", encoding="utf-8") as fh:
@@ -186,7 +186,7 @@ for a in "$@"; do
   case "$prev" in --slug) slug="$a";; --out) out="$a";; esac
   prev="$a"
 done
-if [ ! -f "assets/astraforge/$slug/af_bevy.json" ]; then
+if [ ! -f "assets/imaginarium/$slug/ima_bevy.json" ]; then
   echo 'AFBEVY {"ok":false,"slug":"'"$slug"'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
   exit 2
 fi
@@ -216,13 +216,13 @@ def _cargo_env(env):
 
 def test_bevy_package_validate_row_without_cargo():
     """The T2-3 absence row: no Rust, honest warning, package bytes unchanged, no check outputs."""
-    d = _tmp("af_bevy_nocargo_")
+    d = _tmp("imaginarium_bevy_nocargo_")
     glb = _model_glb(d)
     if not shutil.which("node"):
         import pytest
         pytest.skip("the honest skip row needs node to answer (the absence of BOTH is another row)")
-    restore = _cargo_env({"ASTRA_CARGO": os.path.join(d, "definitely-not-cargo"),
-                          "ASTRA_CARGO_TARGET_DIR": os.path.join(d, "target")})
+    restore = _cargo_env({"IMAGINARIUM_CARGO": os.path.join(d, "definitely-not-cargo"),
+                          "IMAGINARIUM_CARGO_TARGET_DIR": os.path.join(d, "target")})
     try:
         res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
                     "params": {"asset_id": "nocargo_box"}})   # validate defaults True
@@ -238,18 +238,18 @@ def test_bevy_package_validate_row_without_cargo():
     assert res["stats"]["bevy_checked"] is False
     assert not [c for c in res["checks"] if not c["ok"] and c.get("severity") == "error"], \
         "a skipped check must never fail the export"
-    assert os.path.isfile(os.path.join(res["outputs"]["package"], "af_bevy.json")), "the package is still complete"
+    assert os.path.isfile(os.path.join(res["outputs"]["package"], "ima_bevy.json")), "the package is still complete"
 
 
 def test_bevy_package_validate_row_with_stub_cargo():
     """The four contract tokens ride the step outputs when the check answers (ticket 30)."""
-    d = _tmp("af_bevy_stub_")
+    d = _tmp("imaginarium_bevy_stub_")
     glb = _model_glb(d)
     if not shutil.which("node"):
         import pytest
         pytest.skip("the driver is node")
-    restore = _cargo_env({"ASTRA_CARGO": _stub_cargo(d),
-                          "ASTRA_CARGO_TARGET_DIR": os.path.join(d, "target")})
+    restore = _cargo_env({"IMAGINARIUM_CARGO": _stub_cargo(d),
+                          "IMAGINARIUM_CARGO_TARGET_DIR": os.path.join(d, "target")})
     try:
         res = _run({"step": "bevy_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
                     "params": {"asset_id": "stub_box"}})

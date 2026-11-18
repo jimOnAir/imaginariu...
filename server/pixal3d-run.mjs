@@ -43,7 +43,7 @@ export const PIXAL3D_PHASES = {
 export function explainPixal3dError(text) {
   const t = String(text || '');
   if (/out of memory|CUDA error: out of memory|OutOfMemory/i.test(t)) return 'Pixal3D ran out of VRAM (about 10 GB of 12 are needed). Close programs that hold the GPU and try again.';
-  if (/dinov3/i.test(t) && /(not found|No such file|\u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d|Exception)/i.test(t)) return 'The DINOv3 weights for Pixal3D were not found. See ASTRAFORGE_README.md in the ComfyUI-Pixal3D folder.';
+  if (/dinov3/i.test(t) && /(not found|No such file|\u043d\u0435 \u043d\u0430\u0439\u0434\u0435\u043d|Exception)/i.test(t)) return 'The DINOv3 weights for Pixal3D were not found. See IMAGINARIUM_README.md in the ComfyUI-Pixal3D folder.';
   if (/Interrupted|InterruptProcessingException|processing interrupted/i.test(t)) return 'Generation aborted';
   return t.slice(0, 900) || 'Pixal3D could not build the geometry. See data/runtime/pixal3d.log.';
 }
@@ -165,7 +165,7 @@ export async function generatePixal3d(o) {
   await (deps.start || startPixal3dRuntime)({ cfg, signal, onProgress: (message) => onProgress?.({ percent: 0, message }) });
   signal?.throwIfAborted();
 
-  const workflowFor = (names) => pixal3dWorkflow(names, { seed, prefix: 'astra/px-' + tag, targetFaces, sampler: o.sampler || 'heun', removeBackground: !!o.removeBackground });
+  const workflowFor = (names) => pixal3dWorkflow(names, { seed, prefix: 'imaginarium/px-' + tag, targetFaces, sampler: o.sampler || 'heun', removeBackground: !!o.removeBackground });
   const wanted = [...new Set(Object.values(workflowFor(Object.fromEntries(slots.map((s) => [s, s])))).map((n) => n.class_type))];
   let info;
   try { info = await comfyJson(cfg.url + '/object_info', { signal: AbortSignal.timeout(30000) }); } catch { throw new Error('The Pixal3D engine is not responding. See data/runtime/pixal3d.log.'); }
@@ -174,7 +174,7 @@ export async function generatePixal3d(o) {
 
   onProgress?.({ percent: 0, message: 'Uploading views to Pixal3D' });
   const names = {};
-  for (const slot of slots) names[slot] = await uploadImage(cfg.url, files[slot], `astra-px-${tag}-${slot}.png`, signal);
+  for (const slot of slots) names[slot] = await uploadImage(cfg.url, files[slot], `imaginarium-px-${tag}-${slot}.png`, signal);
   const workflow = workflowFor(names);
 
   const gpu = await (deps.acquire || acquireEngineGpu)('pixal3d', {

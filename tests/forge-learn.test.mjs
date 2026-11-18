@@ -46,7 +46,7 @@ function stubRunner({ checksFail = false } = {}) {
 }
 
 async function makeEngine(opts = {}) {
-  const dir = opts.dir || tempDir('af-learn-');
+  const dir = opts.dir || tempDir('imaginarium-learn-');
   const stub = opts.stub || stubRunner(opts.runner);
   const engine = new ForgeEngine({
     libraryDir: path.join(dir, 'library'),
@@ -95,7 +95,7 @@ test('pure helpers: variants, recipe params, diff, verdict aliases, tags from wo
 });
 
 test('asset class: run override, passport profile.class, name rules, then the kind', async () => {
-  const learn = new ForgeLearn({ libraryDir: tempDir('af-learn-cls-') });
+  const learn = new ForgeLearn({ libraryDir: tempDir('imaginarium-learn-cls-') });
   assert.equal((await learn.classify({ kind: 'prop', name: 'zciv_brute' })).id, 'zombie');
   assert.equal((await learn.classify({ kind: 'prop', name: 'weapon_gatling' })).id, 'weapon');
   assert.equal((await learn.classify({ kind: 'prop', name: 'bld_hospital' })).id, 'building');
@@ -380,7 +380,7 @@ test('HTTP: feedback, plan, recipes, journal and digest routes', async () => {
   const server = await new Promise((resolve) => { const s = app.listen(0, '127.0.0.1', () => resolve(s)); });
   const base = `http://127.0.0.1:${server.address().port}/api/forge`;
   const call = async (method, url, body) => {
-    const res = await fetch(base + url, { method, headers: { 'content-type': 'application/json', 'x-astra-client': 'studio' }, body: body ? JSON.stringify(body) : undefined });
+    const res = await fetch(base + url, { method, headers: { 'content-type': 'application/json', 'x-imaginarium-client': 'studio' }, body: body ? JSON.stringify(body) : undefined });
     const text = await res.text();
     let json = null;
     try { json = JSON.parse(text); } catch { json = null; }

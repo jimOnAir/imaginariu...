@@ -1339,7 +1339,7 @@ def main():
     ap.add_argument("--strict", action="store_true", help="VLM answers \"no\" become major and affect pass")
     ap.add_argument("--no-vlm", action="store_true")
     ap.add_argument("--vlm-model", default="qwen3-vl:8b")
-    ap.add_argument("--blender", default=os.environ.get("HG_BLENDER") or os.environ.get("AF_BLENDER") or os.environ.get("ASTRA_BLENDER") or DEFAULT_BLENDER)
+    ap.add_argument("--blender", default=os.environ.get("HG_BLENDER") or os.environ.get("Imaginarium_BLENDER") or os.environ.get("IMAGINARIUM_BLENDER") or DEFAULT_BLENDER)
     ap.add_argument("--keep-comfy", action="store_true", help="do not free ComfyUI before the VLM")
     ap.add_argument("--frame-from", default=None, help="face_report.json of the previous iteration: take its frames (frame_camera) as they are, without new alignment")
     ap.add_argument("--thresholds", default=None, help="pass thresholds: JSON {ssim_gray, feature_mask_iou_min, landmark_max_px_share, diff_area_share_max, silhouette_iou} or a path to such a .json; unnamed ones keep the defaults")

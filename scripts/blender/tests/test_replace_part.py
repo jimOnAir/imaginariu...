@@ -16,15 +16,15 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import _replace_lib as rl
 
 NECRO_HEAD = {"min": [-0.17, -0.22, 1.50], "max": [0.07, 0.10, 1.78]}
 # Fixtures for the one real-asset case ("skip: ..." when a file is missing).
-# Environment overrides: AF_NECRO_GLB, AF_SKULL_DIR.
-NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
-SKULL_DIR = os.environ.get("AF_SKULL_DIR") or r"C:/AstraForge/test-assets/skull_roi"
+# Environment overrides: Imaginarium_NECRO_GLB, Imaginarium_SKULL_DIR.
+NECRO = os.environ.get("Imaginarium_NECRO_GLB") or r"C:/Imaginarium/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+SKULL_DIR = os.environ.get("Imaginarium_SKULL_DIR") or r"C:/Imaginarium/test-assets/skull_roi"
 SKULL = os.path.join(SKULL_DIR, "skull_seed1234_100k.glb")       # Hunyuan 2.1, seed 1234
 SKULL_CROP = os.path.join(SKULL_DIR, "skull_crop_a_rgba.png")      # x1335-1505, y82-288, x4.97
 
@@ -32,7 +32,7 @@ SKULL_CROP = os.path.join(SKULL_DIR, "skull_crop_a_rgba.png")      # x1335-1505,
 # --------------------------------------------------------------------------- helpers
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_rp_")
+    return tempfile.mkdtemp(prefix="imaginarium_rp_")
 
 
 def _run(inputs, params, out_dir=None):
@@ -40,7 +40,7 @@ def _run(inputs, params, out_dir=None):
     req = {"step": "replace_part", "inputs": inputs, "params": params,
            "out_dir": out_dir or _tmp()}
     os.makedirs(req["out_dir"], exist_ok=True)
-    return af.finish(req, mod.run(req))
+    return ima.finish(req, mod.run(req))
 
 
 def _check(res, name):
@@ -69,7 +69,7 @@ def _add(bm, kind, **kw):
 
 
 def _save_mesh(path, build, name):
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new(name)
     bm = bmesh.new()
     build(bm)
@@ -78,8 +78,8 @@ def _save_mesh(path, build, name):
     bm.free()
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
-    af.reset_scene()
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.reset_scene()
     return path
 
 
@@ -126,7 +126,7 @@ def test_umeyama_recovers_similarity():
 
 def test_icp_recovers_offset_and_scale():
     """Sphere samples vs a scaled, shifted sphere: bbox init + ICP land on the truth."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("s")
     bm = bmesh.new()
     _add(bm, "sphere", r=1.0, seg=48)
@@ -181,10 +181,10 @@ def test_replace_synthetic_sphere_man():
         for k in ("glb", "blend", "part_glb", "compare"):
             assert os.path.isfile(res["outputs"][k]), k
         # the result re-imports as one mesh whose top is the new head (1.75 m)
-        af.reset_scene()
-        objs = [o for o in af.import_any(res["outputs"]["glb"]) if o.type == "MESH"]
+        ima.reset_scene()
+        objs = [o for o in ima.import_any(res["outputs"]["glb"]) if o.type == "MESH"]
         assert len(objs) == 1
-        lo, hi = af.world_bbox(objs)
+        lo, hi = ima.world_bbox(objs)
         assert abs(hi.z - 1.75) < 0.01 and lo.z < 0.01, (lo, hi)
     finally:
         shutil.rmtree(d, ignore_errors=True)
@@ -221,7 +221,7 @@ def test_replace_bbox_mode_and_errors():
 
 def _holey_skull(yaw_deg=20.0):
     """Hollow sphere with two eye holes high on the front and a smaller nose hole lower."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("skull")
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=5, radius=0.1)
@@ -265,7 +265,7 @@ def test_eye_detection_synthetic():
     c = np.array(holes[0])
     axis = c / np.linalg.norm(c)
     d_hole = rl.socket_depth_at(ob, c, 0.028, axis)
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("ball")
     bm = bmesh.new()
     bmesh.ops.create_icosphere(bm, subdivisions=5, radius=0.1)
@@ -293,7 +293,7 @@ def test_eyes_and_spheres_in_step():
         bmesh.ops.triangulate(bm, faces=bm.faces)
         bm.to_mesh(ob.data)
         bm.free()
-        ppath = af.export_glb(os.path.join(d, "part.glb"), objects=[ob], animations=False,
+        ppath = ima.export_glb(os.path.join(d, "part.glb"), objects=[ob], animations=False,
                               skins=False)
         res = _run({"mesh": bpath, "part": ppath},
                    {"region": {"min": [-0.15, -0.15, 1.36], "max": [0.15, 0.15, 1.62]},
@@ -305,8 +305,8 @@ def test_eyes_and_spheres_in_step():
         assert _check(res, "eyes_found")["ok"] and e["l"]["position"][0] > e["r"]["position"][0]
         assert res["stats"]["sockets"] == ["socket_fx_eye_l", "socket_fx_eye_r"]
         assert "eye_glow" in res["stats"]["materials"]
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["glb"])
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["glb"])
         socks = {o.name: o for o in objs if o.name.startswith("socket_")}
         assert set(socks) == {"socket_fx_eye_l", "socket_fx_eye_r"}
         for o in socks.values():
@@ -334,7 +334,7 @@ def test_front_projection_synthetic():
         img.filepath_raw = os.path.join(d, "halves.png")
         img.file_format = "PNG"
         img.save()
-        af.reset_scene()
+        ima.reset_scene()
         me = bpy.data.meshes.new("ball")
         bm = bmesh.new()
         bmesh.ops.create_uvsphere(bm, u_segments=48, v_segments=24, radius=0.5)
@@ -417,7 +417,7 @@ def test_replace_align_none_keeps_part_pose_materials_and_sockets():
     inside the region go with it."""
     d = _tmp()
     try:
-        af.reset_scene()
+        ima.reset_scene()
         me = bpy.data.meshes.new("body")
         bm = bmesh.new()
         _sphere_man(bm)
@@ -426,12 +426,12 @@ def test_replace_align_none_keeps_part_pose_materials_and_sockets():
         bm.free()
         body_ob = bpy.data.objects.new("body", me)
         bpy.context.scene.collection.objects.link(body_ob)
-        s_keep = af.add_socket("socket_fx_chest", location=(0, -0.2, 1.0), kind="fx")
-        s_gone = af.add_socket("socket_fx_eye_l", location=(0.05, -0.12, 1.62), kind="fx")
-        body = af.export_glb(os.path.join(d, "body.glb"), objects=[body_ob, s_keep, s_gone], animations=False,
+        s_keep = ima.add_socket("socket_fx_chest", location=(0, -0.2, 1.0), kind="fx")
+        s_gone = ima.add_socket("socket_fx_eye_l", location=(0.05, -0.12, 1.62), kind="fx")
+        body = ima.export_glb(os.path.join(d, "body.glb"), objects=[body_ob, s_keep, s_gone], animations=False,
                              skins=False)
         # the part: a small cube (10 cm) in its own frame at the origin, gold material, one socket
-        af.reset_scene()
+        ima.reset_scene()
         me = bpy.data.meshes.new("part")
         bm = bmesh.new()
         bmesh.ops.create_cube(bm, size=0.1)
@@ -442,8 +442,8 @@ def test_replace_align_none_keeps_part_pose_materials_and_sockets():
         gold = bpy.data.materials.new("Gold")
         gold.use_nodes = True
         part_ob.data.materials.append(gold)
-        ps = af.add_socket("socket_fx_tip", location=(0, 0, 0.05), kind="fx")
-        part = af.export_glb(os.path.join(d, "part.glb"), objects=[part_ob, ps], animations=False, skins=False)
+        ps = ima.add_socket("socket_fx_tip", location=(0, 0, 0.05), kind="fx")
+        part = ima.export_glb(os.path.join(d, "part.glb"), objects=[part_ob, ps], animations=False, skins=False)
         res = _run({"mesh": body, "part": part},
                    {"region": {"min": [-0.2, -0.2, 1.38], "max": [0.2, 0.2, 1.80]},
                     "cut_plane": {"axis": "z", "value": 1.38}, "align": "none", "keep_materials": True,
@@ -457,11 +457,11 @@ def test_replace_align_none_keeps_part_pose_materials_and_sockets():
         assert s["seam"]["cap_faces"] > 0 and not s["seam"]["bridged"], s["seam"]
         assert s["region"]["sockets_dropped"] == ["socket_fx_eye_l"], s["region"]
         assert sorted(s["sockets"]) == ["socket_fx_chest", "socket_fx_tip"], s["sockets"]
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["glb"])
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["glb"])
         meshes = [o for o in objs if o.type == "MESH"]
         assert len(meshes) == 1
-        lo, hi = af.world_bbox(meshes)
+        lo, hi = ima.world_bbox(meshes)
         assert abs(hi.z - 1.6) < 1e-3, hi            # the cube's top (1.55 + 0.05), no scaling to the old head
         socks = {o.get("game_socket"): o for o in objs if o.get("game_socket")}
         bpy.context.view_layer.update()
@@ -482,7 +482,7 @@ def test_replace_align_none_keeps_part_pose_materials_and_sockets():
 
 def _save_rigged_glb(path):
     """A cone body on two bones (thigh z -0.5..0, shin 0..0.5), skinned, exported with its skin."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("body")
     bm = bmesh.new()
     bmesh.ops.create_cone(bm, cap_ends=True, cap_tris=False, segments=16,
@@ -511,8 +511,8 @@ def _save_rigged_glb(path):
         (g1 if v.co.z < 0.0 else g2).add([v.index], 1.0, "REPLACE")
     ob.modifiers.new("Armature", "ARMATURE").object = arm
     ob.parent = arm
-    af.export_glb(path, objects=[ob, arm], animations=False, skins=True)
-    af.reset_scene()
+    ima.export_glb(path, objects=[ob, arm], animations=False, skins=True)
+    ima.reset_scene()
     return path
 
 
@@ -533,8 +533,8 @@ def test_keep_rig_default_drops_the_rig():
         assert res["ok"], res
         assert res["stats"].get("rig") is None
         assert any("armature" in w and "dropped" in w for w in res["warnings"]), res["warnings"]
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["glb"])
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["glb"])
         assert not [o for o in objs if o.type == "ARMATURE"], "default export must carry no rig"
     finally:
         shutil.rmtree(d, ignore_errors=True)
@@ -553,8 +553,8 @@ def test_keep_rig_keeps_armature_and_weights_the_new_vertices():
         assert rig["new_vertices_weighted"] > 0, rig
         assert rig["unweighted_after"] == 0, rig
         assert _check(res, "rig_parented")["ok"] and _check(res, "rig_weights_complete")["ok"]
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["glb"])
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["glb"])
         arms = [o for o in objs if o.type == "ARMATURE"]
         meshes = [o for o in objs if o.type == "MESH"]
         assert len(arms) == 1 and sorted(b.name for b in arms[0].data.bones) == ["shin", "thigh"], objs

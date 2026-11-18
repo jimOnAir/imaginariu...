@@ -1,7 +1,7 @@
 // The "Studio components" checklist (server/components.mjs): what of the programs and models is
 // installed and at which version, what is missing or outdated; the ticked part downloads into the
 // application folder in the background while the user keeps working. The same list the installer's
-// "What to install" step shows (installer/af_scan.mjs).
+// "What to install" step shows (installer/imaginarium_scan.mjs).
 import React, { useState, useEffect, useRef } from 'react';
 import { Download, Loader2, RefreshCw, Check } from 'lucide-react';
 import { api } from './api.js';

@@ -57,7 +57,7 @@ geometry_warp (`warp.dx_px/dy_px/falloff_px`) | recolor (`target_rgb`) | fill_se
 | v3/a7/painted_merged.blend | 34,5 | false | 39 | всё лицо анфас сдвинуто на −29 px, рот в 3/4 не распознаётся, просветы/контур волос, 53 % площади головы в 3/4 справа не совпадает |
 | v4/b3_head_hires_r1/painted.blend | 42,5 | false | 40 | глаза асимметричны (IOD 150,9 vs 144,8 анфас; 136,7 vs 127,7 в 3/4), рот в 3/4 бледный (ΔE 27,6) и сдвинут на 32 px, тёмные мазки на щеке/воротнике слева, челюсть длиннее на 17–18 px, просвет волос сверху, нос в 3/4 справа не распознаётся |
 
-Отчёт по b3 лежит в `C:\AstraForge\incoming\units_1013\archer\v4\b3_head_hires_r1\face_match\` (face_report.json/.jpg, маски).
+Отчёт по b3 лежит в `C:\Imaginarium\incoming\units_1013\archer\v4\b3_head_hires_r1\face_match\` (face_report.json/.jpg, маски).
 Время: ~15 с геометрия (16 рендеров + 4 ракурса), ~3 мин с VLM (5 запросов qwen3-vl:8b).
 
 ## Цикл «проверка → доработка» (17.10.2026, v5)

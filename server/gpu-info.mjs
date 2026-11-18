@@ -5,8 +5,8 @@
 // floor below is the interface fact (570 - the driver branch that ships working Blackwell support
 // on Linux too); the wording is this branch's.
 //
-// Seam style as everywhere in this wave: ASTRA_DRIVER_VERSION overrides the reading (and
-// ASTRA_VRAM_MIB still overrides the size where the reader is shared), spawnFn injects the probe.
+// Seam style as everywhere in this wave: IMAGINARIUM_DRIVER_VERSION overrides the reading (and
+// IMAGINARIUM_VRAM_MIB still overrides the size where the reader is shared), spawnFn injects the probe.
 import { spawnSync } from 'node:child_process';
 
 export const MIN_NVIDIA_DRIVER = 570;
@@ -26,8 +26,8 @@ export function driverMajor(driverVersion) {
 /**
  * Read the card once: {name, vramMiB, driverVersion, driverMajor} or null when nvidia-smi does
  * not answer (no NVIDIA card here - the callers treat that as "not our problem to gate").
- * ASTRA_DRIVER_VERSION fakes the driver for tests and odd setups (the probe is still tried for
- * name/size unless ASTRA_VRAM_MIB also pins the size).
+ * IMAGINARIUM_DRIVER_VERSION fakes the driver for tests and odd setups (the probe is still tried for
+ * name/size unless IMAGINARIUM_VRAM_MIB also pins the size).
  */
 export function gpuInfo({ appRoot = null, env = process.env, refresh = false, spawnFn = spawnSync } = {}) {
   void appRoot;   // parity with the interface signature; the cache here is in-memory
@@ -44,8 +44,8 @@ export function gpuInfo({ appRoot = null, env = process.env, refresh = false, sp
       driverVersion = parts[2] || null;
     }
   } catch { /* no nvidia-smi: fall through to nulls */ }
-  if (env.ASTRA_DRIVER_VERSION) driverVersion = String(env.ASTRA_DRIVER_VERSION);
-  const seam = Number(env.ASTRA_VRAM_MIB);
+  if (env.IMAGINARIUM_DRIVER_VERSION) driverVersion = String(env.IMAGINARIUM_DRIVER_VERSION);
+  const seam = Number(env.IMAGINARIUM_VRAM_MIB);
   if (Number.isFinite(seam) && seam > 0) vramMiB = seam;
   const info = name || driverVersion || vramMiB
     ? { name, vramMiB, driverVersion, driverMajor: driverMajor(driverVersion) }

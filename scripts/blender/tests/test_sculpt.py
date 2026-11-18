@@ -14,7 +14,7 @@ import bmesh
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import sculpt as sc
 
@@ -24,7 +24,7 @@ R = 0.5                                   # radius of the test sphere, m
 # --------------------------------------------------------------------------- helpers
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_sculpt_")
+    return tempfile.mkdtemp(prefix="imaginarium_sculpt_")
 
 
 def _sphere_bm(radius=R, seg=48, rings=24, uv=False, bump=None):
@@ -40,29 +40,29 @@ def _sphere_bm(radius=R, seg=48, rings=24, uv=False, bump=None):
 
 def _save(path, bm, name="Ball", fmt="glb"):
     """Export the bmesh as a one-object file (fresh scene) and clear the scene again."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new(name)
     bm.to_mesh(me)
     bm.free()
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
     if fmt == "glb":
-        af.export_glb(path, objects=[ob], animations=False, skins=False)
+        ima.export_glb(path, objects=[ob], animations=False, skins=False)
     else:
-        af.select_only([ob])
+        ima.select_only([ob])
         bpy.ops.wm.obj_export(filepath=path, export_selected_objects=True)
-    af.reset_scene()
+    ima.reset_scene()
     return path
 
 
 def _run(mesh, ops, **params):
-    """inputs.blend is not opened yet here: af_run normally does that before calling run()."""
+    """inputs.blend is not opened yet here: imaginarium_run normally does that before calling run()."""
     mod = importlib.import_module("steps.sculpt")
     p = {"ops": ops, "preview": False}
     p.update(params)
     req = {"step": "sculpt", "inputs": {"mesh": mesh}, "params": p, "out_dir": _tmp()}
     os.makedirs(req["out_dir"], exist_ok=True)
-    return af.finish(req, mod.run(req))   # the step leaves the result loaded: tests read it from the scene
+    return ima.finish(req, mod.run(req))   # the step leaves the result loaded: tests read it from the scene
 
 
 def _run_blend(path, ops, **params):
@@ -71,8 +71,8 @@ def _run_blend(path, ops, **params):
     p.update(params)
     req = {"step": "sculpt", "inputs": {"blend": path}, "params": p, "out_dir": _tmp()}
     os.makedirs(req["out_dir"], exist_ok=True)
-    af.open_blend(path)
-    return af.finish(req, mod.run(req))
+    ima.open_blend(path)
+    return ima.finish(req, mod.run(req))
 
 
 def _check(res, name):
@@ -148,7 +148,7 @@ def test_falloff_and_flip_names():
 def test_surface_welds_split_copies_and_flush_moves_them_together():
     tmp = _tmp()
     mesh = _ball(tmp, uv=True)               # a UV sphere imported from glTF: seams split vertices
-    objs = af.import_any(mesh)
+    objs = ima.import_any(mesh)
     ob = [o for o in objs if o.type == "MESH"][0]
     S = sc.Surface(ob)
     assert S.n > S.m, "a UV sphere carries split copies (n=%d, canonical m=%d)" % (S.n, S.m)
@@ -202,9 +202,9 @@ def test_smooth_removes_a_spike_and_relax_keeps_the_volume():
 
     mesh = _save(os.path.join(tmp, "spiky.glb"), _sphere_bm(uv=True, bump=spike))
     # the untouched volume of the same file
-    objs = af.import_any(mesh)
+    objs = ima.import_any(mesh)
     v0 = sc.Surface([o for o in objs if o.type == "MESH"][0]).volume()
-    af.reset_scene()
+    ima.reset_scene()
 
     res = _run(mesh, [{"op": "smooth", "iterations": 15, "factor": 0.8,
                        "region": {"type": "sphere", "center": [0.6, 0, 0], "radius": 0.45,
@@ -274,7 +274,7 @@ def test_voxel_remesh_rebuilds_and_keep_uv_false_allows_it():
 def test_subdivide_only_inside_the_vertex_group():
     tmp = _tmp()
     # vertex groups only survive through .blend (glTF exports weights of skinned meshes only)
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("Ball")
     bm = _sphere_bm(seg=32, rings=16)
     bm.to_mesh(me)
@@ -284,7 +284,7 @@ def test_subdivide_only_inside_the_vertex_group():
     grp = ob.vertex_groups.new(name="cap")
     grp.add([v.index for v in me.vertices if v.co.x > 0.3], 1.0, "REPLACE")
     path = os.path.join(tmp, "grouped.blend")
-    af.save_blend(path)
+    ima.save_blend(path)
     res = _run_blend(path, [{"op": "subdivide", "cuts": 1,
                              "region": {"type": "vertex_group", "name": "cap",
                                         "falloff": "constant"}}])
@@ -340,7 +340,7 @@ def test_transfer_copies_the_shape_of_a_source():
 
 def _rigged_ball(path):
     """A sphere with one bone along Z, fully weighted to it (skinned glTF round trip)."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("Body")
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=32, v_segments=16, radius=R)
@@ -361,8 +361,8 @@ def _rigged_ball(path):
     mod = ob.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
     ob.parent = arm
-    af.export_glb(path, objects=[ob, arm], animations=False, skins=True)
-    af.reset_scene()
+    ima.export_glb(path, objects=[ob, arm], animations=False, skins=True)
+    ima.reset_scene()
     return path
 
 
@@ -373,7 +373,7 @@ def test_rig_survives_point_ops_and_a_bone_region_works():
                        "region": {"type": "bone", "name": "spine", "falloff": "constant"}}])
     _ok(res, "sculpt_rig_kept", "sculpt_manifold", "sculpt_changed")
     assert abs(_verts()[:, 0].mean() - 0.1) < 0.02      # fully weighted: the whole mesh moved
-    arms = af.armatures()
+    arms = ima.armatures()
     assert arms and len(arms[0].data.bones) == 1
 
 
@@ -383,7 +383,7 @@ def test_rig_dropped_with_preserve_rig_false():
     res = _run(mesh, [{"op": "grab", "offset": [0.05, 0, 0], "region": {"type": "all"}}],
                preserve_rig=False)
     assert _check(res, "sculpt_rig_kept")["ok"]         # "dropped by preserve_rig:false"
-    assert not af.armatures()
+    assert not ima.armatures()
     assert any("preserve_rig=false" in w for w in res["warnings"])
 
 
@@ -419,7 +419,7 @@ def test_region_that_matches_nothing_warns():
 # --------------------------------------------------------------------------- real asset
 
 def test_real_rigged_asset():
-    roots = [os.environ.get("ASTRA_FORGE_LIBRARY") or "",
+    roots = [os.environ.get("IMAGINARIUM_LIBRARY") or "",
              os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(
                  os.path.dirname(os.path.abspath(__file__))))), "library"),
              "/tmp/afs/lib"]

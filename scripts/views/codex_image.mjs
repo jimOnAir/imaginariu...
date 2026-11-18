@@ -1,6 +1,6 @@
 // Image generation through the locally installed OpenAI Codex app (ChatGPT subscription, no API key).
 //
-// AstraForge's own module (adapted from the codex-image skill's approach, no dependency on ~/.claude):
+// Imaginarium's own module (adapted from the codex-image skill's approach, no dependency on ~/.claude):
 // `codex exec` runs headless with the reference images attached, the built-in image tool renders the
 // picture and Codex stores it in ~/.codex/generated_images/<session>/; we pick it up from there.
 import { spawn, execFile } from 'node:child_process';
@@ -66,7 +66,7 @@ function killTree(child) {
 }
 
 // codex image sessions share ~/.codex; the rare "pick everything new" fallback is only safe one at a time.
-const limit = Math.max(1, Number(process.env.ASTRA_CODEX_CONCURRENCY) || 1);
+const limit = Math.max(1, Number(process.env.IMAGINARIUM_CODEX_CONCURRENCY) || 1);
 let active = 0;
 const waiters = [];
 async function slot() {
@@ -97,7 +97,7 @@ export async function generateImage(o) {
     o.prompt,
   ].filter(Boolean).join('\n');
   const release = await slot();
-  const workdir = mkdtempSync(path.join(os.tmpdir(), 'astra-codex-'));
+  const workdir = mkdtempSync(path.join(os.tmpdir(), 'imaginarium-codex-'));
   const started = Date.now();
   try {
     const args = ['exec', '--skip-git-repo-check', '-s', 'read-only', '-C', workdir];

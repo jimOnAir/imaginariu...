@@ -16,7 +16,7 @@ Coordinates: bbox_render / zone_mask are pixels of the view's 800x800 frame (see
 checker attached its render (views[v].render) and its frame differs from the canonical one, bboxes are
 mapped into our frame by silhouette matching. Reference alignment: views[v].align {scale, dx, dy}
 (frame = scale * ref800 + (dx, dy)); without it - our own silhouette fit. params.camera: either
-{yaw, pitch, scale, dx, dy} (the view frame) or an AstraForge concept camera
+{yaw, pitch, scale, dx, dy} (the view frame) or an Imaginarium concept camera
 {px_per_m, offset_px, centre, yaw_deg, pitch_deg} (pixels of the reference itself).
 
 Russian stays where it is report data: the before/after sheet captions and the text_ru lines passed
@@ -1343,7 +1343,7 @@ def main():
     ap.add_argument("--report", required=True)
     ap.add_argument("--refs", default=None, help="folder with the references (face_front_rgba.png, face34_rgba.png, face34_flip_rgba.png, head_back_rgba.png)")
     ap.add_argument("--out", required=True)
-    ap.add_argument("--blender", default=os.environ.get("HG_BLENDER") or os.environ.get("ASTRA_BLENDER") or BLENDER_DEFAULT)
+    ap.add_argument("--blender", default=os.environ.get("HG_BLENDER") or os.environ.get("IMAGINARIUM_BLENDER") or BLENDER_DEFAULT)
     ap.add_argument("--crop", type=float, default=fv.CROP_M, help="face frame height, m (as in bl_shots: ortho = crop*1.1)")
     ap.add_argument("--force", action="store_true", help="apply defects even when they are already in the model's history")
     ap.add_argument("--no-render", action="store_true", help="do not draw before_after.jpg")

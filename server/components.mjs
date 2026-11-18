@@ -1,7 +1,7 @@
 // The "Studio components" checklist inside the app (the 0.4.10 behavior re-derived from the 0.4.16
 // reference tree, no code copied - ADR-0003). The reference ran installer\Install.ps1 -ScanList in
 // powershell and installed with -Auto -Only; this Linux form calls the very same scan core the
-// interactive installer uses (installer/af_scan.mjs, ticket 16) and installs in the background with
+// interactive installer uses (installer/imaginarium_scan.mjs, ticket 16) and installs in the background with
 // `installer/install.sh -Yes -Profile <preset> -Only <ids>`, which streams ##PROGRESS lines and ends
 // with ##DONE or ##FAILED <ids> (exit 1) - the same machine contract powershell printed.
 // The reference opened the window once per version after an auto-update applied that version; this
@@ -45,7 +45,7 @@ export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spa
   const updDir = path.join(dataDir, 'update');
   // ticket 24 (0.6.10 wave): the run survives its studio. The installer gets its stdout ignored
   // (a broken pipe would kill it when the studio closes) and writes the truth to a status file
-  // instead (WriteInstallStatus in installer/af_download.sh); a restarted studio re-attaches by
+  // instead (WriteInstallStatus in installer/imaginarium_download.sh); a restarted studio re-attaches by
   // tailing that file and checking the run's pid, so a mid-install restart shows progress, not a
   // fetch error. The same installer/install.lock the run holds (flock) answers "already running".
   const runDir = path.join(updDir, 'install-run');
@@ -89,7 +89,7 @@ export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spa
       failed: info.ids || [], startedAt: info.startedAt || null, external: true };
   }
   const readSoft = async (f) => { try { return JSON.parse((await fs.readFile(f, 'utf8')).replace(/^\uFEFF/, '')); } catch { return null; } };
-  const core = importCore || (() => import(pathToFileURL(path.join(appRoot, 'installer', 'af_scan.mjs')).href));
+  const core = importCore || (() => import(pathToFileURL(path.join(appRoot, 'installer', 'imaginarium_scan.mjs')).href));
   let job = null;
   let lastScan = null;
 
@@ -139,7 +139,7 @@ export function createComponents({ appRoot, dataDir, appVersion, spawnImpl = spa
     const cur = job;
     const child = spawnImpl('bash', [path.join(appRoot, 'installer', 'install.sh'), '-Yes', '-Profile', p, '-Only', list.join(',')], {
       cwd: appRoot, detached: true, stdio: 'ignore',
-      env: { ...process.env, ASTRA_INSTALL_STATUS: statusFile },
+      env: { ...process.env, IMAGINARIUM_INSTALL_STATUS: statusFile },
     });
     if (Number.isInteger(child?.pid)) await fs.writeFile(pidFile, JSON.stringify({ pid: child.pid, ids: list, profile: p, startedAt: job.startedAt })).catch(() => {});
     child?.unref?.();

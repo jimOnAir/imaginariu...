@@ -497,14 +497,14 @@ const KIND_PROFILES = { humanoid: { height_m: 1.8 }, creature: { template: 'auto
 
 // ------------------------------------------------------------------ engine
 
-/** Default forge library: C:\AstraForge\library on Windows (short paths), data/library elsewhere. */
+/** Default forge library: C:\Imaginarium\library on Windows (short paths), data/library elsewhere. */
 export function defaultLibraryDir(dataDir) {
-  return process.platform === 'win32' ? 'C:\\AstraForge\\library' : path.join(dataDir, 'library');
+  return process.platform === 'win32' ? 'C:\\Imaginarium\\library' : path.join(dataDir, 'library');
 }
 
-/** Default forge runtime (Blender logs, forge work files): C:\AstraForge\runtime on Windows. */
+/** Default forge runtime (Blender logs, forge work files): C:\Imaginarium\runtime on Windows. */
 export function defaultRuntimeDir(dataDir) {
-  return process.platform === 'win32' ? 'C:\\AstraForge\\runtime' : path.join(dataDir, 'runtime');
+  return process.platform === 'win32' ? 'C:\\Imaginarium\\runtime' : path.join(dataDir, 'runtime');
 }
 
 export class ForgeEngine {
@@ -513,10 +513,10 @@ export class ForgeEngine {
     this.dataDir = opts.dataDir || path.join(this.root, 'data');
     // Short default paths on Windows: Blender and Godot break on paths over MAX_PATH (260), and step
     // folders nest deep (assets/<uuid>/v001/03_godot_package/<asset>/_godot_check/...).
-    this.libraryDir = path.resolve(opts.libraryDir || process.env.ASTRA_FORGE_LIBRARY || defaultLibraryDir(this.dataDir));
-    this.runtimeDir = path.resolve(opts.runtimeDir || process.env.ASTRA_FORGE_RUNTIME || defaultRuntimeDir(this.dataDir));
+    this.libraryDir = path.resolve(opts.libraryDir || process.env.IMAGINARIUM_LIBRARY || defaultLibraryDir(this.dataDir));
+    this.runtimeDir = path.resolve(opts.runtimeDir || process.env.IMAGINARIUM_RUNTIME || defaultRuntimeDir(this.dataDir));
     // Blender steps read the clip library default from the environment (steps/_anim_lib.py).
-    if (!opts.libraryDir && !process.env.ASTRA_FORGE_LIBRARY) process.env.ASTRA_FORGE_LIBRARY = this.libraryDir;
+    if (!opts.libraryDir && !process.env.IMAGINARIUM_LIBRARY) process.env.IMAGINARIUM_LIBRARY = this.libraryDir;
     this.studioAssetsDir = opts.studioAssetsDir || path.join(this.dataDir, 'assets');
     this.studioJobsDir = opts.studioJobsDir || path.join(this.dataDir, 'jobs');
     this.assetsDir = path.join(this.libraryDir, 'assets');
@@ -528,7 +528,7 @@ export class ForgeEngine {
     this.workDir = path.join(this.runtimeDir, 'forge');
     this.runStep = opts.runStep || runBlenderStep;
     this.blenderQueue = opts.blenderQueue || blenderQueue;
-    this.jobQueue = new StepQueue(opts.jobConcurrency || Number(process.env.ASTRA_FORGE_JOB_CONCURRENCY) || this.blenderQueue.concurrency || 1);
+    this.jobQueue = new StepQueue(opts.jobConcurrency || Number(process.env.IMAGINARIUM_JOB_CONCURRENCY) || this.blenderQueue.concurrency || 1);
     this.getGenerationJob = opts.getGenerationJob || null;
     this.blenderInfo = opts.blenderInfo || (() => blenderInfo());
     this.godotInfo = opts.godotInfo || (() => godotInfo());
@@ -1789,8 +1789,8 @@ export class ForgeEngine {
           await this._stepDone(job, s, 'cancelled', { ok: false, error: 'Cancelled by the user', cancelled: true }, 'Cancelled by the user');
         } else {
           failure = err.message;
-          // af_error: the step's own AFERROR text, unchanged (e.g. render_sprites' units hint)
-          const payload = err.payload ? { trace: err.payload.trace, af_error: err.payload.error ?? null } : {};
+          // imaginarium_error: the step's own IMAGINARIUM_ERROR text, unchanged (e.g. render_sprites' units hint)
+          const payload = err.payload ? { trace: err.payload.trace, imaginarium_error: err.payload.error ?? null } : {};
           await this._stepDone(job, s, 'failed', { ok: false, error: err.message, code: err.code || null, ...payload }, err.message);
         }
         break;

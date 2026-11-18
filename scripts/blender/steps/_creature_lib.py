@@ -1,4 +1,4 @@
-"""Creature module library (AstraForge Forge, module "creatures").
+"""Creature module library (Imaginarium Forge, module "creatures").
 
 Automatic skeletons for non-human creatures fitted from geometry, robust skin weights and
 procedural, IK-planted animation. Used by steps/rig_creature.py and steps/anim_creature.py.
@@ -19,7 +19,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Quaternion, Vector
 
-import af_common as af
+import imaginarium_common as ima
 
 UP = Vector((0.0, 0.0, 1.0))
 FWD = Vector((0.0, -1.0, 0.0))
@@ -119,7 +119,7 @@ def prepare_mesh(objs, name="creature_mesh"):
     module's own rigged.glb: armature modifiers, vertex groups, shape keys, armatures, empties (sockets)
     and other non-mesh objects are removed; every mesh keeps its world placement (rest shape)."""
     bpy.context.view_layer.update()
-    meshes = af.meshes(objs)
+    meshes = ima.meshes(objs)
     if not meshes:
         raise ValueError("input has no mesh")
     for o in meshes:
@@ -137,10 +137,10 @@ def prepare_mesh(objs, name="creature_mesh"):
         if o.type != "MESH" and o.name in bpy.data.objects:
             bpy.data.objects.remove(o, do_unlink=True)
     # removing objects leaves stale (None) entries in view_layer.objects until the next update,
-    # which made af.join -> select_only crash on any input with an empty or an armature
+    # which made ima.join -> select_only crash on any input with an empty or an armature
     bpy.context.view_layer.update()
-    ob = af.join(meshes, name=name)
-    af.apply_transforms([ob])
+    ob = ima.join(meshes, name=name)
+    ima.apply_transforms([ob])
     ob.rotation_mode = "XYZ"          # glTF import leaves QUATERNION mode: rotation_euler would be ignored
     ob.vertex_groups.clear()
     size = max(ob.dimensions) or 1.0
@@ -1643,7 +1643,7 @@ def build_armature(lay, name="creature_rig"):
     arm = bpy.data.objects.new(name, data)
     bpy.context.scene.collection.objects.link(arm)
     arm.show_in_front = True
-    af.select_only([arm])
+    ima.select_only([arm])
     bpy.ops.object.mode_set(mode="EDIT")
     eb = data.edit_bones
     for n in lay.order:
@@ -2006,7 +2006,7 @@ def heat_weights(ob, arm, deform, span_target=None, edge_target=None):
         bpy.context.scene.collection.objects.link(o)
     bpy.context.view_layer.update()
     try:
-        af.select_only([mo, ao])
+        ima.select_only([mo, ao])
         bpy.context.view_layer.objects.active = ao
         bpy.ops.object.parent_set(type="ARMATURE_AUTO")
         W = read_weights(mo, deform)
@@ -2087,7 +2087,7 @@ def place_sockets(lay, arm, ob, A, template, W=None):
     out = []
 
     def put(name, bone, p, kind):
-        s = af.add_socket(name, parent=arm, bone=bone, kind=kind, size=0.04 * span, size_class=sc)
+        s = ima.add_socket(name, parent=arm, bone=bone, kind=kind, size=0.04 * span, size_class=sc)
         bpy.context.view_layer.update()
         s.matrix_world = Matrix.Translation(v3(p))
         out.append({"name": name, "bone": bone, "location": r3(p), "kind": kind})
@@ -2174,7 +2174,7 @@ def _load_px(path):
 
 
 def save_png(path, px):
-    out = bpy.data.images.new("af_png", width=px.shape[1], height=px.shape[0], alpha=True)
+    out = bpy.data.images.new("imaginarium_png", width=px.shape[1], height=px.shape[0], alpha=True)
     out.pixels = np.ascontiguousarray(px, dtype=np.float32).ravel()
     out.filepath_raw = path
     out.file_format = "PNG"
@@ -2215,11 +2215,11 @@ def render_rig_preview(path, ob, arm, socket_objs, views=("front", "left", "top"
     base = os.path.splitext(path)[0]
     for o in temp:
         o.hide_render = True
-    p_mesh = af.render_views(base + "_m.png", [ob], views=views, size=size)
+    p_mesh = ima.render_views(base + "_m.png", [ob], views=views, size=size)
     for o in temp:
         o.hide_render = False
     ob.hide_render = True
-    p_bone = af.render_views(base + "_b.png", [ob], views=views, size=size)
+    p_bone = ima.render_views(base + "_b.png", [ob], views=views, size=size)
     ob.hide_render = False
     px = over(_load_px(p_bone), _load_px(p_mesh), fade=0.5)
     save_png(path, px)
@@ -2238,7 +2238,7 @@ def render_rig_preview(path, ob, arm, socket_objs, views=("front", "left", "top"
 
 
 def _drop_views_dir(path):
-    """af_common.render_views leaves its per-view tiles in <dir>/_views; remove that folder."""
+    """imaginarium_common.render_views leaves its per-view tiles in <dir>/_views; remove that folder."""
     import os
     import shutil
     shutil.rmtree(os.path.join(os.path.dirname(os.path.abspath(path)), "_views"), ignore_errors=True)
@@ -2361,7 +2361,7 @@ class Rig:
 
     def __init__(self, arm, ob):
         self.arm, self.ob = arm, ob
-        self.meta = json.loads(arm["af_rig"])
+        self.meta = json.loads(arm["imaginarium_rig"])
         self.template = self.meta["template"]
         bones = arm.data.bones
         order = []
@@ -3443,20 +3443,20 @@ def render_pose_sheet(path, rig, acts_clips, bbox, view="left", tile=256):
     fhi += pad
     if collapse is not None:
         flo[collapse] = fhi[collapse] = 0.5 * (lo[collapse] + hi[collapse])
-    me = bpy.data.meshes.new("af_frame")
+    me = bpy.data.meshes.new("imaginarium_frame")
     c = [(x, y, z) for x in (flo[0], fhi[0]) for y in (flo[1], fhi[1]) for z in (flo[2], fhi[2])]
     me.from_pydata(c, [], [(0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4), (2, 3, 7, 6), (0, 2, 6, 4), (1, 3, 7, 5)])
-    frame_obj = bpy.data.objects.new("af_frame", me)
+    frame_obj = bpy.data.objects.new("imaginarium_frame", me)
     bpy.context.scene.collection.objects.link(frame_obj)
     frame_obj.hide_render = True
-    gm = bpy.data.meshes.new("af_ground")
+    gm = bpy.data.meshes.new("imaginarium_ground")
     ext = 2.0 * max(hi[0] - lo[0], hi[1] - lo[1])
     th = 0.004 * max(rig.H, 0.1)
     cx, cy = 0.5 * (lo[0] + hi[0]), 0.5 * (lo[1] + hi[1])
     gv = [(cx + sx * ext, cy + sy * ext, sz) for sx in (-1, 1) for sy in (-1, 1) for sz in (-th, 0.0)]
     gm.from_pydata(gv, [], [(0, 2, 6, 4), (1, 3, 7, 5), (0, 1, 3, 2), (4, 5, 7, 6), (0, 1, 5, 4), (2, 3, 7, 6)])
-    ground = bpy.data.objects.new("af_ground", gm)
-    mat = bpy.data.materials.new("af_ground")
+    ground = bpy.data.objects.new("imaginarium_ground", gm)
+    mat = bpy.data.materials.new("imaginarium_ground")
     mat.diffuse_color = (0.62, 0.63, 0.66, 1.0)
     gm.materials.append(mat)
     bpy.context.scene.collection.objects.link(ground)
@@ -3468,7 +3468,7 @@ def render_pose_sheet(path, rig, acts_clips, bbox, view="left", tile=256):
         assign_action(rig.arm, act)
         tiles = []
         for f in pose_frames(clip):
-            af.render_views(tmp, [frame_obj], views=(view,), size=tile, frame=f, margin=1.0)
+            ima.render_views(tmp, [frame_obj], views=(view,), size=tile, frame=f, margin=1.0)
             tiles.append(_load_px(tmp))
         while len(tiles) < ncol:
             tiles.append(np.zeros_like(tiles[0]))

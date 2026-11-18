@@ -3,7 +3,7 @@
 For every part folder written by parts_prep.py calls the multi-view Hunyuan3D-2mv graph of the studio's
 ComfyUI (127.0.0.1:8190) exactly like units_1013/gen_mv.py: ImageOnlyCheckpointLoader ->
 CLIPVisionEncode(front / back) -> Hunyuan3Dv2ConditioningMultiView -> EmptyLatentHunyuan3Dv2(3072) ->
-KSampler(45 steps, cfg 5) -> VAEDecodeHunyuan3D(octree 512) -> AstraMarchingCubes -> SaveGLB, and saves
+KSampler(45 steps, cfg 5) -> VAEDecodeHunyuan3D(octree 512) -> ImagiMarchingCubes -> SaveGLB, and saves
 <out>/<part>/mesh_<seed>.glb. parts.json gets the mesh paths (parts[name].meshes / .mesh).
 
 GPU etiquette: one prompt at a time; before every prompt the queue of ComfyUI is polled and the script
@@ -57,7 +57,7 @@ def workflow(front, back, seed, prefix, steps=45, cfg=5.0, octree=512, resolutio
                                                     "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
         "7": {"class_type": "VAEDecodeHunyuan3D", "inputs": {"samples": ["6", 0], "vae": ["1", 2], "num_chunks": 4000,
                                                               "octree_resolution": octree}},
-        "8": {"class_type": "AstraMarchingCubes", "inputs": {"voxel": ["7", 0], "level": 0.5}},
+        "8": {"class_type": "ImagiMarchingCubes", "inputs": {"voxel": ["7", 0], "level": 0.5}},
         "9": {"class_type": "SaveGLB", "inputs": {"mesh": ["8", 0], "filename_prefix": prefix}},
     }
 

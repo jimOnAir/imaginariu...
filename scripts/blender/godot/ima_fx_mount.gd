@@ -1,5 +1,5 @@
 extends Node3D
-## AstraForge Forge — FX mount for a packaged asset (copied next to <asset_id>.tscn by godot_package).
+## Imaginarium Forge — FX mount for a packaged asset (copied next to <asset_id>.tscn by godot_package).
 ##
 ## On _ready finds the socket nodes inside the instanced model and instantiates the FX scenes there.
 ## Sockets are looked up by glTF extras `game_socket` first, then by node name; Godot's importer
@@ -26,7 +26,7 @@ var _sockets: Dictionary = {}
 func _ready() -> void:
 	var model := get_node_or_null(model_path)
 	if model == null:
-		push_warning("AstraForge fx mount: model node '%s' not found" % model_path)
+		push_warning("Imaginarium fx mount: model node '%s' not found" % model_path)
 		return
 	_index(model)
 	for b in fx_bindings:
@@ -37,7 +37,7 @@ func _ready() -> void:
 		var sock := find_socket(sock_name)
 		if sock == null or scene == null:
 			missing_sockets.append(sock_name)
-			push_warning("AstraForge fx mount: socket '%s' not found or FX scene missing" % sock_name)
+			push_warning("Imaginarium fx mount: socket '%s' not found or FX scene missing" % sock_name)
 			continue
 		var fx := scene.instantiate()
 		fx.name = String(b.get("name", "fx"))

@@ -22,16 +22,16 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _humanoid_lib as hl
 from steps import _props_lib as PL
 
-REAL_KNIGHT3 = r"C:/AstraForge/library/assets/b0de2731-c7bb-48f9-82a6-700dfb09cc1a/v001/02_paint_from_concept/painted.blend"
-REAL_CAPTAIN = r"C:/AstraForge/library/assets/3fe8a674-c75f-4271-9424-d0eb8ed04f21/v001/02_paint_from_concept/painted.blend"
+REAL_KNIGHT3 = r"C:/Imaginarium/library/assets/b0de2731-c7bb-48f9-82a6-700dfb09cc1a/v001/02_paint_from_concept/painted.blend"
+REAL_CAPTAIN = r"C:/Imaginarium/library/assets/3fe8a674-c75f-4271-9424-d0eb8ed04f21/v001/02_paint_from_concept/painted.blend"
 
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_extract_")
+    return tempfile.mkdtemp(prefix="imaginarium_extract_")
 
 
 def _run(step, req):
@@ -50,16 +50,16 @@ def _run(step, req):
 
 
 def _mannequin_blend(d, **kw):
-    af.reset_scene()
+    ima.reset_scene()
     ob, gt = hl.make_mannequin("A", **kw)
     ob.name = "Body"
     path = os.path.join(d, "mannequin.blend")
-    af.save_blend(path)
+    ima.save_blend(path)
     return path, gt
 
 
 def _extract(d, blend, params):
-    af.open_blend(blend)
+    ima.open_blend(blend)
     res = _run("extract_props", {"inputs": {"blend": blend}, "params": dict({"preview": False}, **params),
                                  "out_dir": os.path.join(d, "extract")})
     assert res["ok"], (res["failed"], res.get("error"))
@@ -110,7 +110,7 @@ def test_cap_winding_both_sides_closed():
     """A cut through a closed sphere: both parts are closed and their caps face outward (positive volume)."""
     d = _tmp()
     try:
-        af.reset_scene()
+        ima.reset_scene()
         bpy.ops.mesh.primitive_uv_sphere_add(segments=24, ring_count=16, radius=0.3, location=(0, 0, 0.5))
         ob = bpy.context.active_object
         lab = np.full(len(ob.data.vertices), -1)
@@ -131,7 +131,7 @@ def test_cap_winding_both_sides_closed():
 
 
 def test_gate_catches_shredded_and_bad_size():
-    af.reset_scene()
+    ima.reset_scene()
     bm = bmesh.new()
     rng = np.random.default_rng(1)
     for _ in range(12):
@@ -152,7 +152,7 @@ def test_gate_catches_shredded_and_bad_size():
 
 def test_mannequin_sword_extracted_fist_stays():
     """Sword hanging from the right fist: one item, gate passed, socket_grip_main in the GLB, the blade gone from
-    the body, the fist still on it, the placement socket on the body with af_bone RightHand."""
+    the body, the fist still on it, the placement socket on the body with imaginarium_bone RightHand."""
     d = _tmp()
     try:
         blend, gt = _mannequin_blend(d, sword=True)
@@ -168,7 +168,7 @@ def test_mannequin_sword_extracted_fist_stays():
         # +Z of the grip frame runs down the blade (the rig's blade rule)
         assert it["z_axis"][2] < -0.8, it["z_axis"]
         # the body: no blade left along the axis below the fist, the fist still there
-        af.open_blend(res["outputs"]["blend"])
+        ima.open_blend(res["outputs"]["blend"])
         body = bpy.data.objects["Body"]
         V = hl.mesh_verts(body)
         g = np.array(it["grip_m"])
@@ -181,7 +181,7 @@ def test_mannequin_sword_extracted_fist_stays():
         fist = int((np.linalg.norm(rel, axis=1) < 0.06).sum())
         assert fist > 20, fist
         ps = bpy.data.objects.get("socket_prop_r_1")
-        assert ps is not None and ps.get("af_bone") == "RightHand" and ps.get("af_grip_mode") == "end"
+        assert ps is not None and ps.get("imaginarium_bone") == "RightHand" and ps.get("imaginarium_grip_mode") == "end"
         assert (ps.matrix_world.translation - Vector(it["grip_m"])).length < 1e-3
     finally:
         shutil.rmtree(d, ignore_errors=True)
@@ -234,7 +234,7 @@ def test_round_trip_extract_rig_attach_skin_separate():
         blend, _ = _mannequin_blend(d, sword=True)
         res, doc = _extract(d, blend, {"hints": {"hand_weapon": "sword", "hand": "r"}})
         it = doc["items"][0]
-        af.open_blend(res["outputs"]["blend"])
+        ima.open_blend(res["outputs"]["blend"])
         rig = _run("rig_humanoid", {"inputs": {"blend": res["outputs"]["blend"]},
                                     "params": {"intersections": False, "deform_test": False, "hard_surface": "off"},
                                     "out_dir": os.path.join(d, "rig")})
@@ -248,10 +248,10 @@ def test_round_trip_extract_rig_attach_skin_separate():
         a0 = att["stats"]["attachments"][0]
         assert a0["mode"] == "skin_separate" and a0["fit"] == "placement" and a0["mount"] == "socket_mount_hand_r", a0
         assert a0["rest_grip_to_hand_m"] < 0.04, a0
-        af.open_blend(att["outputs"]["blend"])
+        ima.open_blend(att["outputs"]["blend"])
         assert "socket_prop_r_1" not in bpy.data.objects
         arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
-        items = [o for o in bpy.data.objects if o.type == "MESH" and o.get("af_prop_item")]
+        items = [o for o in bpy.data.objects if o.type == "MESH" and o.get("imaginarium_prop_item")]
         assert len(items) == 1
         ob = items[0]
         assert [g.name for g in ob.vertex_groups] == ["mixamorig:RightHand"]
@@ -335,7 +335,7 @@ def test_no_props_passes_through():
         res, doc = _extract(d, blend, {"hints": {"hand_weapon": "unarmed", "hand": "none"}})
         assert doc["items"] == []
         assert res["outputs"]["items"] == []
-        af.open_blend(res["outputs"]["blend"])
+        ima.open_blend(res["outputs"]["blend"])
         rig = _run("rig_humanoid", {"inputs": {"blend": res["outputs"]["blend"]},
                                     "params": {"intersections": False, "deform_test": False},
                                     "out_dir": os.path.join(d, "rig")})

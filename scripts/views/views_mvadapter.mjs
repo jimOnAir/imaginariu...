@@ -1,4 +1,4 @@
-// Local provider: MV-Adapter (image -> multi-view) inside AstraForge's own ComfyUI.
+// Local provider: MV-Adapter (image -> multi-view) inside Imaginarium's own ComfyUI.
 // One front image in, the other views out; SDXL base + mvadapter_i2mv_sdxl.safetensors, all local files.
 import { promises as fs, existsSync } from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ export function mvadapterWorkflow({ refName, azimuths, size, steps, cfg, seed, p
   return {
     1: { class_type: 'LoadImage', inputs: { image: refName } },
     2: {
-      class_type: 'AstraMVAdapterViews',
+      class_type: 'ImagiMVAdapterViews',
       inputs: {
         reference: ['1', 0], ckpt_name: checkpoint, azimuths: azimuths.join(','), width: size, height: size, steps, cfg, seed,
         prompt, negative_prompt: negative, offload: 'text+vae', adapter_dir: MVA_DIR, adapter_name: MVA_WEIGHTS,
@@ -46,10 +46,10 @@ export async function mvadapterStatus(comfyUrl = DEFAULT_COMFY_URL) {
   if (!existsSync(path.join(MVA_DIR, 'sdxl-config', 'model_index.json'))) reasons.push('missing sdxl-config folder (scripts/views/make_sdxl_config.py)');
   let engine = false;
   try {
-    const r = await fetch(comfyUrl + '/object_info/AstraMVAdapterViews', { signal: AbortSignal.timeout(4000) });
+    const r = await fetch(comfyUrl + '/object_info/ImagiMVAdapterViews', { signal: AbortSignal.timeout(4000) });
     const v = r.ok ? await r.json() : null;
-    engine = !!v?.AstraMVAdapterViews;
-    const ckpts = v?.AstraMVAdapterViews?.input?.required?.ckpt_name?.[0] || [];
+    engine = !!v?.ImagiMVAdapterViews;
+    const ckpts = v?.ImagiMVAdapterViews?.input?.required?.ckpt_name?.[0] || [];
     if (engine && !ckpts.includes(MVA_CHECKPOINT)) reasons.push('missing ' + MVA_CHECKPOINT);
   } catch { /* engine offline */ }
   if (!engine) reasons.push('the 3D engine is not running or does not know the MV-Adapter node (restart with Stop.cmd / Start.cmd)');
@@ -80,13 +80,13 @@ export async function generateMvadapterViews(o) {
   // Ticket 44 (fp8 tier): an fp8 step legitimately runs a bit slower - the layerwise-cast mechanism
   // is ON-CARD (fp8 masters resident, blocks upcast per step), so it costs compute, not bandwidth -
   // and the 5-minute paging sentinel of the fp16 path would interrupt a healthy fp8 run. The tier
-  // only loosens THAT limit — the ASTRA_VIEWS_STEP_MAX_SEC default stays for fp16. o.fp8Tier
+  // only loosens THAT limit — the IMAGINARIUM_VIEWS_STEP_MAX_SEC default stays for fp16. o.fp8Tier
   // overrides the probe (tests); the node logs the mode it actually used.
   const fp8 = o.fp8Tier ?? viewsFp8Tier(vram);
   if (lowVram && size > 512) size = 512;
   const status = await mvadapterStatus(comfyUrl);
   if (!status.ready) throw new Error('Local MV-Adapter is not ready: ' + status.reasons.join('; ') + '.');
-  await requireNodes(comfyUrl, ['AstraMVAdapterViews', 'LoadImage', 'SaveImage']);
+  await requireNodes(comfyUrl, ['ImagiMVAdapterViews', 'LoadImage', 'SaveImage']);
   await fs.mkdir(o.workDir, { recursive: true });
   const refFile = path.join(o.workDir, 'mva_reference.png');
   const prepare = (sz) => runPython(path.join(HERE, 'views_prep.py'), ['mvaref', '--in', o.front, '--out', refFile, '--size', String(sz)], { signal: o.signal });
@@ -94,7 +94,7 @@ export async function generateMvadapterViews(o) {
   await prepare(size);
   const started = Date.now();
   const attempt = async (sz) => {
-    const refName = await uploadImage(comfyUrl, refFile, 'astra-mva-ref.png');
+    const refName = await uploadImage(comfyUrl, refFile, 'imaginarium-mva-ref.png');
     const wf = mvadapterWorkflow({ refName, azimuths, size: sz, steps, cfg, seed, prefix: 'astra_views/mva_' + Date.now() });
     const run = await withEngineGpu('hunyuan', () => runWorkflow(comfyUrl, wf, {
       signal: o.signal,

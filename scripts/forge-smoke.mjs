@@ -6,16 +6,16 @@
 //
 // --root   short work folder (Windows MAX_PATH 260: Blender and Godot fail on long paths). It gets
 //          lib/ (forge library: assets, jobs, clip library) and rt/ (Blender logs); both are wiped at
-//          the start of a run. A folder that exists without the .af-smoke marker is never touched.
+//          the start of a run. A folder that exists without the .imaginarium-smoke marker is never touched.
 // --only   run only these cases (plus the cases they need); the other rows of the existing JSON are kept.
-// --inputs folder with your own test models (or env ASTRA_SMOKE_INPUTS); every file is optional and a case
+// --inputs folder with your own test models (or env IMAGINARIUM_SMOKE_INPUTS); every file is optional and a case
 //          whose input is missing is skipped (generator cases need no input):
 //            humanoid.glb   a character for humanoid_from_mesh / humanoid_hg_sprites / rig_humanoid
 //            creature.glb   a quadruped for creature_auto (profile.height_m from creature.json {"height_m": n})
 //            ship.glb       a generated ship mesh for ship_from_mesh
 //            clips/         a folder of Mixamo FBX clips for the clip library
 //            part.glb + part.json {"region": {min, max}, "cut_plane": {axis, value}}  for replace_part
-//          Godot: env ASTRA_GODOT (console executable of Godot 4.5.1).
+//          Godot: env IMAGINARIUM_GODOT (console executable of Godot 4.5.1).
 // Inputs are read-only: they are copied into the forge library as asset sources.
 import os from 'node:os';
 import path from 'node:path';
@@ -32,7 +32,7 @@ const flagValue = (name) => {
   }
   return null;
 };
-const INPUTS = path.resolve(flagValue('inputs') || process.env.ASTRA_SMOKE_INPUTS || path.join(ROOT, 'tests', 'fixtures', 'smoke'));
+const INPUTS = path.resolve(flagValue('inputs') || process.env.IMAGINARIUM_SMOKE_INPUTS || path.join(ROOT, 'tests', 'fixtures', 'smoke'));
 const inp = (name) => path.join(INPUTS, name);
 const readJson = (file) => { try { return JSON.parse(readFileSync(file, 'utf8')); } catch { return null; } };
 const IN = {
@@ -216,7 +216,7 @@ async function stepFacts(s) {
 /** Last steps/<file>.py frame of a Python trace: the suspected module. */
 function suspectedFile(step, trace) {
   const frames = [...String(trace || '').matchAll(/File "([^"]*scripts[\\/]blender[\\/][^"]+\.py)", line (\d+)/g)];
-  const hit = frames.reverse().find((m) => !/af_run\.py/.test(m[1]));
+  const hit = frames.reverse().find((m) => !/imaginarium_run\.py/.test(m[1]));
   if (hit) return `${hit[1].replace(/\\/g, '/').replace(/^.*?(scripts\/blender\/)/, '$1')}:${hit[2]}`;
   return `scripts/blender/steps/${step}.py`;
 }
@@ -241,7 +241,7 @@ async function summarize(c, job, extra = {}) {
       status: s.status,
       seconds: secondsBetween(s.startedAt, s.finishedAt),
       error: s.status === 'failed' ? (r.error || s.message || null) : null,
-      af_error: r.af_error || null,
+      imaginarium_error: r.imaginarium_error || null,
       suspected: s.status === 'failed' && s.step !== 'clip_library' ? suspectedFile(s.step, r.trace) : null,
       failedChecks: checks.filter((x) => x && x.ok === false && (x.severity || 'error') === 'error').map((x) => ({ name: x.name, value: x.value, limit: x.limit, note: x.note || null })),
       warnChecks: checks.filter((x) => x && x.ok === false && x.severity === 'warning').map((x) => x.name),
@@ -279,7 +279,7 @@ function failureCell(row) {
   for (const s of row.steps) {
     if (s.status === 'failed') {
       const checks = s.failedChecks.map((c) => `${c.name}${c.value !== undefined && c.value !== null ? `=${typeof c.value === 'object' ? JSON.stringify(c.value).slice(0, 60) : fmt(c.value, 4)}` : ''}${c.limit !== undefined && c.limit !== null ? ` (≤ ${typeof c.limit === 'object' ? JSON.stringify(c.limit).slice(0, 40) : c.limit})` : ''}`);
-      parts.push(`**${s.step}**: ${(s.af_error || s.error || '').replace(/\|/g, '\\|').slice(0, 300)}${checks.length ? ` — ${checks.join(', ')}` : ''}`);
+      parts.push(`**${s.step}**: ${(s.imaginarium_error || s.error || '').replace(/\|/g, '\\|').slice(0, 300)}${checks.length ? ` — ${checks.join(', ')}` : ''}`);
     } else if (s.warnChecks.length) {
       parts.push(`${s.step} (warn): ${s.warnChecks.slice(0, 6).join(', ')}${s.warnChecks.length > 6 ? '…' : ''}`);
     }
@@ -310,7 +310,7 @@ function renderMd(summary) {
     L.push('');
     for (const r of failed) {
       for (const s of r.steps.filter((x) => x.status === 'failed')) {
-        L.push(`- **${r.id} → ${s.step}** (${r.expect && r.asExpected ? 'expected' : 'unexpected'}): ${s.af_error || s.error}`);
+        L.push(`- **${r.id} → ${s.step}** (${r.expect && r.asExpected ? 'expected' : 'unexpected'}): ${s.imaginarium_error || s.error}`);
         if (s.failedChecks.length) L.push(`  - failed checks: ${s.failedChecks.map((c) => `\`${c.name}\` = ${JSON.stringify(c.value)} (limit ${JSON.stringify(c.limit)})${c.note ? ` — ${String(c.note).slice(0, 240)}` : ''}`).join('; ')}`);
         if (s.suspected) L.push(`  - suspected file: \`${s.suspected}\``);
         if (s.logFile) L.push(`  - log: \`${s.logFile}\``);
@@ -329,13 +329,13 @@ function renderMd(summary) {
 }
 
 async function prepareRoot(root) {
-  const marker = path.join(root, '.af-smoke');
+  const marker = path.join(root, '.imaginarium-smoke');
   if (existsSync(root) && !existsSync(marker)) {
     const entries = await fs.readdir(root);
-    if (entries.length) throw new Error(`Folder ${root} exists and was not created by the smoke run (no .af-smoke) — choose another with --root.`);
+    if (entries.length) throw new Error(`Folder ${root} exists and was not created by the smoke run (no .imaginarium-smoke) — choose another with --root.`);
   }
   await fs.mkdir(root, { recursive: true });
-  await fs.writeFile(marker, 'AstraForge forge smoke work folder (scripts/forge-smoke.mjs); safe to delete.\n');
+  await fs.writeFile(marker, 'Imaginarium forge smoke work folder (scripts/forge-smoke.mjs); safe to delete.\n');
   for (const sub of ['lib', 'rt']) await fs.rm(path.join(root, sub), { recursive: true, force: true, maxRetries: 3 });
 }
 
@@ -359,7 +359,7 @@ async function main() {
   console.log(`Godot:   ${godot.ok ? godot.version : 'none'} ${godot.path}`);
   if (!blender.ok) throw new Error(blender.error || 'Blender not found');
   const notes = [];
-  if (!godot.ok || !String(godot.version).startsWith('4.5.1')) notes.push(`Godot for checks: ${godot.version || 'not found'} (4.5.1 required; ASTRA_GODOT=${process.env.ASTRA_GODOT || '—'}).`);
+  if (!godot.ok || !String(godot.version).startsWith('4.5.1')) notes.push(`Godot for checks: ${godot.version || 'not found'} (4.5.1 required; IMAGINARIUM_GODOT=${process.env.IMAGINARIUM_GODOT || '—'}).`);
 
   // the cases to run: the requested ones plus what they need, in the CASES order
   const want = new Set(only || CASES.map((c) => c.id));

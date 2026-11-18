@@ -15,14 +15,14 @@ import {
 } from '../server/venv-health.mjs';
 
 const REPO = path.resolve(import.meta.dirname, '..');
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-venvh-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-venvh-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
 // the uv + base python the real installs use, with honest skips when a dev box has neither
-const uvCandidates = [process.env.ASTRA_TEST_UV, path.join(REPO, 'runtime', 'uv', 'uv'), (spawnSync('sh', ['-c', 'command -v uv'], { encoding: 'utf8' }).stdout || '').trim()];
+const uvCandidates = [process.env.IMAGINARIUM_TEST_UV, path.join(REPO, 'runtime', 'uv', 'uv'), (spawnSync('sh', ['-c', 'command -v uv'], { encoding: 'utf8' }).stdout || '').trim()];
 const UV = uvCandidates.find((c) => c && (() => { try { return statSync(c).isFile(); } catch { return false; } })());
 const basePy = [path.join(REPO, 'runtime', 'python', 'cpython-3.12-linux-x86_64-gnu', 'bin', 'python3.12'),
-  process.env.ASTRA_TEST_PY, (spawnSync('sh', ['-c', 'command -v python3.12 || command -v python3'], { encoding: 'utf8' }).stdout || '').trim()]
+  process.env.IMAGINARIUM_TEST_PY, (spawnSync('sh', ['-c', 'command -v python3.12 || command -v python3'], { encoding: 'utf8' }).stdout || '').trim()]
   .find((c) => c && (() => { try { return statSync(c).isFile(); } catch { return false; } })());
 const HAVE = Boolean(UV && basePy);
 
@@ -129,7 +129,7 @@ test('repairStudioVenvs: a folder that is not installed is skipped silently; the
   assert.deepEqual(v.map((x) => x.label), ['comfy', 'pixal3d', 'triposg', 'sound']);
   assert.equal(v[0].dir, '/app/runtime/ComfyUI');
   // the env seams the config readers honor ride through the same list:
-  assert.equal(studioVenvs({ env: { ASTRA_COMFY_DIR: '/else/comfy' }, appRoot: '/app' })[0].dir, '/else/comfy');
+  assert.equal(studioVenvs({ env: { IMAGINARIUM_COMFY_DIR: '/else/comfy' }, appRoot: '/app' })[0].dir, '/else/comfy');
 });
 
 test('pythonFailText / venvSpawnFailText: name the broken thing and the exact fixing command', () => {
@@ -146,8 +146,8 @@ test('pythonFailText / venvSpawnFailText: name the broken thing and the exact fi
 
 test('the wrapped spawn sites (uv unwrap, preprocess, comfy client) trade ENOENT for the sentence', async () => {
   const comfy = path.join(tmp, 'empty-comfy'); mkdirSync(path.join(comfy, '.venv', 'bin'), { recursive: true });
-  const savedComfy = process.env.ASTRA_COMFY_DIR;
-  process.env.ASTRA_COMFY_DIR = comfy;                 // every reader resolves the venv through this seam
+  const savedComfy = process.env.IMAGINARIUM_COMFY_DIR;
+  process.env.IMAGINARIUM_COMFY_DIR = comfy;                 // every reader resolves the venv through this seam
   try {
     const { unwrapUV } = await import('../server/uv.mjs');
     const mesh = { id: '00000000-0000-4000-8000-000000000001', positions: [0, 0, 0, 1, 0, 0, 0, 1, 0], indices: [0, 1, 2] };
@@ -160,7 +160,7 @@ test('the wrapped spawn sites (uv unwrap, preprocess, comfy client) trade ENOENT
     const { runPython } = await import('../scripts/views/comfy_client.mjs');
     await assert.rejects(runPython('x.py', []), /needs the studio's Python at .* it does not start/);
   } finally {
-    if (savedComfy === undefined) delete process.env.ASTRA_COMFY_DIR; else process.env.ASTRA_COMFY_DIR = savedComfy;
+    if (savedComfy === undefined) delete process.env.IMAGINARIUM_COMFY_DIR; else process.env.IMAGINARIUM_COMFY_DIR = savedComfy;
   }
 });
 

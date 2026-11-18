@@ -105,10 +105,10 @@ export function studioVenvs({ env = process.env, appRoot } = {}) {
   const e = env;
   const rt = path.join(appRoot, 'runtime');
   return [
-    { dir: e.ASTRA_COMFY_DIR || path.join(rt, 'ComfyUI'), what: 'ComfyUI (the 3D and 2D engines)', ids: ['comfydeps'], label: 'comfy' },
-    { dir: e.ASTRA_PIXAL3D_DIR || path.join(rt, 'ComfyUI-Pixal3D'), what: 'Pixal3D', ids: ['pixal3d'], label: 'pixal3d' },
-    { dir: e.ASTRA_TRIPOSG_DIR || path.join(rt, 'triposg'), what: 'TripoSG', ids: ['triposg'], label: 'triposg' },
-    { dir: e.ASTRA_SOUND_DIR || path.join(rt, 'sound'), what: 'Sound', ids: ['sound'], label: 'sound' },
+    { dir: e.IMAGINARIUM_COMFY_DIR || path.join(rt, 'ComfyUI'), what: 'ComfyUI (the 3D and 2D engines)', ids: ['comfydeps'], label: 'comfy' },
+    { dir: e.IMAGINARIUM_PIXAL3D_DIR || path.join(rt, 'ComfyUI-Pixal3D'), what: 'Pixal3D', ids: ['pixal3d'], label: 'pixal3d' },
+    { dir: e.IMAGINARIUM_TRIPOSG_DIR || path.join(rt, 'triposg'), what: 'TripoSG', ids: ['triposg'], label: 'triposg' },
+    { dir: e.IMAGINARIUM_SOUND_DIR || path.join(rt, 'sound'), what: 'Sound', ids: ['sound'], label: 'sound' },
   ];
 }
 

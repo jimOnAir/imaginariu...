@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { StepQueue, parseProtocolLine, progressOf, runBlenderStep, blenderInfo, lastErrorLine } from '../server/blender.mjs';
 
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-blender-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-blender-'));
 after(() => rmSync(tmp, { recursive: true, force: true, maxRetries: 3 }));
 const fake = path.join(tmp, 'fake-blender.mjs');
 writeFileSync(fake, `
@@ -22,27 +22,27 @@ out('Blender 5.0.1 (fake)');
 out('Read prefs: nothing');
 if (mode === 'ok' || mode === 'slow' || mode === 'checkfail') {
   if (mode === 'slow') writeFileSync(path.join(req.out_dir, 'start.txt'), String(Date.now()));
-  out('AFLOG ' + JSON.stringify({ t: 0.1, msg: 'import', progress: 0.25 }));
+  out('IMAGINARIUM_LOG ' + JSON.stringify({ t: 0.1, msg: 'import', progress: 0.25 }));
   process.stderr.write('warning: something on stderr\\n');
-  out('AFLOG ' + JSON.stringify({ t: 0.2, msg: 'frames', frame: 3, frames: 4 }));
-  out('AFLOG {not json');
+  out('IMAGINARIUM_LOG ' + JSON.stringify({ t: 0.2, msg: 'frames', frame: 3, frames: 4 }));
+  out('IMAGINARIUM_LOG {not json');
   const finish = () => {
     if (mode === 'slow') writeFileSync(path.join(req.out_dir, 'end.txt'), String(Date.now()));
     const res = mode === 'checkfail'
       ? { ok: false, step, outputs: {}, checks: [{ name: 'unweighted_vertices', ok: false, severity: 'error' }], error: 'checks failed: unweighted_vertices' }
       : { ok: true, step, outputs: { glb: path.join(req.out_dir, 'out.glb') }, stats: { tris: 12, echo: req.inputs }, checks: [], warnings: [] };
     writeFileSync(path.join(req.out_dir, 'result.json'), JSON.stringify(res));
-    out('AFRESULT ' + JSON.stringify(res));
+    out('IMAGINARIUM_RESULT ' + JSON.stringify(res));
   };
   if (mode === 'slow') setTimeout(finish, 350); else finish();
 } else if (mode === 'error') {
-  out('AFERROR ' + JSON.stringify({ step, error: 'RuntimeError: no mesh', trace: 'Traceback...' }));
+  out('IMAGINARIUM_ERROR ' + JSON.stringify({ step, error: 'RuntimeError: no mesh', trace: 'Traceback...' }));
   process.exit(1);
 } else if (mode === 'noresult') {
   out('done without protocol');
 } else if (mode === 'pyerror') {
-  // like a --python script that raises before af_run's handler: traceback on stderr, exit code 0
-  process.stderr.write('Traceback (most recent call last):\\n  File "af_run.py", line 40, in <module>\\n');
+  // like a --python script that raises before imaginarium_run's handler: traceback on stderr, exit code 0
+  process.stderr.write('Traceback (most recent call last):\\n  File "imaginarium_run.py", line 40, in <module>\\n');
   process.stderr.write('FileNotFoundError: [Errno 2] No such file or directory: request.json\\n');
   out('Blender quit');
 } else if (mode === 'fileonly') {
@@ -50,7 +50,7 @@ if (mode === 'ok' || mode === 'slow' || mode === 'checkfail') {
 } else if (mode === 'hang') {
   const child = spawn(process.execPath, ['-e', 'setInterval(() => {}, 1000)'], { stdio: 'ignore' });
   writeFileSync(path.join(req.out_dir, 'child.pid'), String(child.pid));
-  out('AFLOG ' + JSON.stringify({ msg: 'started', progress: 0.1 }));
+  out('IMAGINARIUM_LOG ' + JSON.stringify({ msg: 'started', progress: 0.1 }));
   setInterval(() => {}, 1000);
 }
 `);
@@ -62,10 +62,10 @@ const alive = (pid) => { try { process.kill(pid, 0); return true; } catch (e) { 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 test('protocol lines are parsed and progress normalised', () => {
-  assert.deepEqual(parseProtocolLine('AFLOG {"msg":"x","progress":0.5}\r').data, { msg: 'x', progress: 0.5 });
-  assert.equal(parseProtocolLine('AFRESULT {"ok":true}').type, 'result');
-  assert.equal(parseProtocolLine('AFERROR {"error":"e"}').type, 'error');
-  assert.equal(parseProtocolLine('AFLOG {broken').type, 'text');
+  assert.deepEqual(parseProtocolLine('IMAGINARIUM_LOG {"msg":"x","progress":0.5}\r').data, { msg: 'x', progress: 0.5 });
+  assert.equal(parseProtocolLine('IMAGINARIUM_RESULT {"ok":true}').type, 'result');
+  assert.equal(parseProtocolLine('IMAGINARIUM_ERROR {"error":"e"}').type, 'error');
+  assert.equal(parseProtocolLine('IMAGINARIUM_LOG {broken').type, 'text');
   assert.equal(parseProtocolLine('Blender 5.0.1').type, 'text');
   assert.equal(progressOf({ progress: 0.5 }), 50);
   assert.equal(progressOf({ progress: 40 }), 40);
@@ -73,7 +73,7 @@ test('protocol lines are parsed and progress normalised', () => {
   assert.equal(progressOf({ msg: 'no progress' }), null);
 });
 
-test('a successful step streams AFLOG, writes request.json and the log file, returns AFRESULT', async () => {
+test('a successful step streams IMAGINARIUM_LOG, writes request.json and the log file, returns IMAGINARIUM_RESULT', async () => {
   const logs = [];
   const progress = [];
   const r = req({ mode: 'ok' }, { mesh: 'C:/x.glb' });
@@ -85,17 +85,17 @@ test('a successful step streams AFLOG, writes request.json and the log file, ret
   assert.equal(run.result.ok, true);
   assert.deepEqual(run.result.stats.echo, { mesh: 'C:/x.glb' });
   assert.deepEqual(progress, [25, 75]);
-  assert.ok(logs.some((l) => l.msg === 'import'), 'Russian AFLOG text survives UTF-8 decoding');
+  assert.ok(logs.some((l) => l.msg === 'import'), 'Russian IMAGINARIUM_LOG text survives UTF-8 decoding');
   const request = JSON.parse(readFileSync(path.join(r.out_dir, 'request.json'), 'utf8'));
   assert.equal(request.step, 'inspect');
   assert.equal(request.inputs.mesh, 'C:/x.glb');
   const log = readFileSync(path.join(logDir, 'inspect.log'), 'utf8');
-  assert.match(log, /AFRESULT/);
+  assert.match(log, /IMAGINARIUM_RESULT/);
   assert.match(log, /\[stderr\] warning/);
   assert.ok(run.logTail.length > 0 && run.logTail.length <= 40);
 });
 
-test('AFERROR, missing result and ok:false are reported distinctly', async () => {
+test('IMAGINARIUM_ERROR, missing result and ok:false are reported distinctly', async () => {
   const queue = new StepQueue(1);
   await assert.rejects(runBlenderStep({ step: 'cleanup', request: req({ mode: 'error' }), command, queue, logDir: tmp }),
     (e) => e.code === 'step_error' && /no mesh/.test(e.message) && e.payload.trace === 'Traceback...');
@@ -104,7 +104,7 @@ test('AFERROR, missing result and ok:false are reported distinctly', async () =>
   await assert.rejects(runBlenderStep({ step: 'inspect', request: req({ mode: 'pyerror' }), command, queue, logDir: tmp }),
     (e) => e.code === 'no_result' && /\(code 0\): FileNotFoundError: \[Errno 2\]/.test(e.message), 'the Python error is in the message');
   assert.equal(lastErrorLine(['[stderr] Traceback (most recent call last):', '[stderr] RuntimeError: no mesh', 'Blender quit']), 'RuntimeError: no mesh');
-  assert.equal(lastErrorLine(['Blender 5.0.1', 'AFLOG {}']), null);
+  assert.equal(lastErrorLine(['Blender 5.0.1', 'IMAGINARIUM_LOG {}']), null);
   const fileOnly = await runBlenderStep({ step: 'cleanup', request: req({ mode: 'fileonly' }), command, queue, logDir: tmp });
   assert.equal(fileOnly.result.ok, true, 'falls back to result.json written during this run');
   const bad = await runBlenderStep({ step: 'rig_humanoid', request: req({ mode: 'checkfail' }), command, queue, logDir: tmp });

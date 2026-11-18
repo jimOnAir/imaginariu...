@@ -1,7 +1,7 @@
 {
   "version": 1,
   "source": "https://simonschreibt.notion.site/Textures-for-VFX-Database-2c72eccccfa84a0eae927d778ad746cc",
-  "sourceNote": "The Texture Generators section of Simon Schreibt's Textures for VFX database (GDC). The programs themselves are not part of AstraForge: scripts/vfx/Install-VfxTools.ps1 downloads them from the official sites.",
+  "sourceNote": "The Texture Generators section of Simon Schreibt's Textures for VFX database (GDC). The programs themselves are not part of Imaginarium: scripts/vfx/Install-VfxTools.ps1 downloads them from the official sites.",
   "kinds": {
     "desktop": "Desktop programs",
     "installer": "Programs with an installer",

@@ -1,7 +1,7 @@
 extends SceneTree
-## AstraForge: background check of a Godot project (af_engine.mjs test).
-##   godot --headless --path <project> --script res://.astraforge_check.gd -- --out=<json> [--frames=120] [--scene=res://...]
-## Every scene under res://astraforge and res://scenes (or the one --scene) is loaded, instanced and run for N frames;
+## Imaginarium: background check of a Godot project (imaginarium_engine.mjs test).
+##   godot --headless --path <project> --script res://.imaginarium_check.gd -- --out=<json> [--frames=120] [--scene=res://...]
+## Every scene under res://imaginarium and res://scenes (or the one --scene) is loaded, instanced and run for N frames;
 ## the JSON lists load/instance, node and mesh counts, the size of the visible geometry, animations with loop modes.
 ## Engine errors are taken from the process output by the caller.
 ##   godot --path <project> --position -30000,-30000 --script ... -- --shot=<png> --scene=res://...  renders one frame
@@ -22,7 +22,7 @@ func _scenes() -> Array[String]:
 	if _args.has("scene"):
 		out.append(_args["scene"])
 		return out
-	for root in ["res://astraforge", "res://scenes"]:
+	for root in ["res://imaginarium", "res://scenes"]:
 		_collect(root, out)
 	var main := str(ProjectSettings.get_setting("application/run/main_scene", ""))
 	if main != "" and not out.has(main):
@@ -103,8 +103,8 @@ func _run() -> void:
 		inst.queue_free()
 		await process_frame
 	if report["scenes"].is_empty():
-		report["note"] = "no scenes under res://astraforge or res://scenes"
-	var f := FileAccess.open(_args.get("out", "user://af_engine_check.json"), FileAccess.WRITE)
+		report["note"] = "no scenes under res://imaginarium or res://scenes"
+	var f := FileAccess.open(_args.get("out", "user://imaginarium_engine_check.json"), FileAccess.WRITE)
 	f.store_string(JSON.stringify(report, " "))
 	f.close()
 	print("AFENGINE ", JSON.stringify({"ok": report["ok"], "scenes": report["scenes"].size()}))

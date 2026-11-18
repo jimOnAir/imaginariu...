@@ -22,7 +22,7 @@ import './forge.css';
 
 // App.jsx renders this panel through ForgeTab.jsx (lazy chunk); the tab icon lives there.
 
-const STORE_KEY = 'astraforge.forge.v1';
+const STORE_KEY = 'imaginarium.forge.v1';
 function readStore() {
   try {
     return JSON.parse(localStorage.getItem(STORE_KEY) || '{}') || {};

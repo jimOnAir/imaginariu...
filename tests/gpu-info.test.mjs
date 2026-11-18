@@ -1,7 +1,7 @@
 // gpu-info + the Pixal3D driver-570 gate (0.6.10 wave ticket 20). The floor (570) and the
 // nvidia-smi query are the 0.6.8 interface facts; the refusal before spawning anything is the
 // behavior; the wording is this branch's. No real nvidia-smi here - every read is a scripted
-// spawnFn or an env seam (ASTRA_DRIVER_VERSION / ASTRA_VRAM_MIB), the same style as ticket 02.
+// spawnFn or an env seam (IMAGINARIUM_DRIVER_VERSION / IMAGINARIUM_VRAM_MIB), the same style as ticket 02.
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { driverMajor, gpuInfo, oldDriverText, resetGpuInfo, MIN_NVIDIA_DRIVER } from '../server/gpu-info.mjs';
@@ -32,7 +32,7 @@ test('gpuInfo: one read answers name, size and driver; failures answer null, nev
 
 test('the seams pin driver and size for tests and odd setups', () => {
   resetGpuInfo();
-  const info = gpuInfo({ env: { ASTRA_DRIVER_VERSION: '560.35.03', ASTRA_VRAM_MIB: '8192' }, spawnFn: spawn('GeForce RTX 4000 SFF, 5734, 535.10') });
+  const info = gpuInfo({ env: { IMAGINARIUM_DRIVER_VERSION: '560.35.03', IMAGINARIUM_VRAM_MIB: '8192' }, spawnFn: spawn('GeForce RTX 4000 SFF, 5734, 535.10') });
   assert.equal(info.driverVersion, '560.35.03');
   assert.equal(info.vramMiB, 8192);
   assert.equal(oldDriverText(info, 'Pixal3D').includes('560.35.03'), true, 'the sentence names what was detected');

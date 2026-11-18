@@ -19,7 +19,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import _paint_lib as pl
 from steps import _parts_lib as pt
@@ -31,7 +31,7 @@ TX = TY = 400.0
 
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_parts_")
+    return tempfile.mkdtemp(prefix="imaginarium_parts_")
 
 
 def _add_box(bm, lo, hi):
@@ -114,12 +114,12 @@ def _head_part(path, flipped=False, stretch=1.1, thin=0.85):
     me.transform(M)
     if flipped:
         me.transform(mathutils.Matrix.Rotation(math.pi, 4, "Z"))
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     return path
 
 
 def _bbox(ob):
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     return np.array(lo), np.array(hi)
 
 
@@ -128,7 +128,7 @@ def _setup(tmp, flipped=False):
     base_glb = os.path.join(tmp, "base.glb")
     concept = os.path.join(tmp, "front.png")
     _concept(concept, base)
-    af.export_glb(base_glb, objects=[base], animations=False, skins=False)
+    ima.export_glb(base_glb, objects=[base], animations=False, skins=False)
     head = _head_part(os.path.join(tmp, "head.glb"), flipped)
     parts = [{"name": "head", "mesh": head, "box": _px_box(*BOXES["head"])}]
     for n in ("torso", "arm_l", "arm_r", "legs"):
@@ -140,7 +140,7 @@ def _run(inputs, params, out_dir):
     mod = importlib.import_module("steps.assemble_parts")
     req = {"step": "assemble_parts", "inputs": inputs, "params": dict({"preview": False}, **params), "out_dir": out_dir}
     os.makedirs(out_dir, exist_ok=True)
-    return af.finish(req, mod.run(req))
+    return ima.finish(req, mod.run(req))
 
 
 def _check(res, name):
@@ -199,9 +199,9 @@ def test_hunyuan_export_is_bbox_centred_with_long_side_two():
     base = _base()
     path = os.path.join(_tmp(), "mv.glb")
     info = pt.export_hunyuan(base, path)
-    af.reset_scene()
-    objs = af.import_any(path)
-    lo, hi = af.world_bbox(objs)
+    ima.reset_scene()
+    objs = ima.import_any(path)
+    lo, hi = ima.world_bbox(objs)
     size = hi - lo
     assert abs(max(size) - 2.0) < 1e-4, size
     assert abs(size.z - 2.0) < 1e-4 and np.abs(np.array((lo + hi) / 2)).max() < 1e-3, (lo, hi)

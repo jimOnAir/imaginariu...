@@ -77,7 +77,7 @@ test('prompts: left and right are different, mirror conventions are stated, back
 
 test('MV-Adapter workflow and the memory-safe size', () => {
   const w = mvadapterWorkflow({ refName: 'r.png', azimuths: [0, 90, 180, 270], size: 640, steps: 30, cfg: 3, seed: 21, prefix: 'x' });
-  assert.equal(w['2'].class_type, 'AstraMVAdapterViews');
+  assert.equal(w['2'].class_type, 'ImagiMVAdapterViews');
   assert.equal(w['2'].inputs.azimuths, '0,90,180,270');
   assert.equal(w['2'].inputs.ckpt_name, 'sd_xl_base_1.0.safetensors');
   assert.equal(w['2'].inputs.adapter_name, 'mvadapter_i2mv_sdxl.safetensors');
@@ -102,7 +102,7 @@ let root, server, base, calls;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 before(async () => {
-  root = mkdtempSync(path.join(tmpdir(), 'af-views-'));
+  root = mkdtempSync(path.join(tmpdir(), 'imaginarium-views-'));
   calls = [];
   const runner = {
     ...real,
@@ -257,17 +257,17 @@ test('forJob: generator inputs of a set, front included', async () => {
 // ---------- ticket 44: the views fp8 memory tier ----------
 test('fp8 tier: on for NVIDIA ≤16384 MiB, env gate respected, unknown VRAM stays fp16', () => {
   assert.equal(FP8_STEP_MAX_MS, 10 * 60 * 1000);
-  const keys = ['ASTRA_VIEWS_FP8', 'ASTRA_VIEWS_FP8_MAX_MIB'];
+  const keys = ['IMAGINARIUM_VIEWS_FP8', 'IMAGINARIUM_VIEWS_FP8_MAX_MIB'];
   const saved = keys.map((k) => process.env[k]);
   try {
     assert.equal(viewsFp8Tier(12227), true);   // this machine's RTX 5070 class
     assert.equal(viewsFp8Tier(16384), true);   // gate is <=, the node's rule
     assert.equal(viewsFp8Tier(16385), false);
     assert.equal(viewsFp8Tier(null), false);   // gpu-info silent (no NVIDIA) = fp16 path
-    process.env.ASTRA_VIEWS_FP8 = '0';
+    process.env.IMAGINARIUM_VIEWS_FP8 = '0';
     assert.equal(viewsFp8Tier(12227), false);
-    process.env.ASTRA_VIEWS_FP8 = 'auto';
-    process.env.ASTRA_VIEWS_FP8_MAX_MIB = '8192';
+    process.env.IMAGINARIUM_VIEWS_FP8 = 'auto';
+    process.env.IMAGINARIUM_VIEWS_FP8_MAX_MIB = '8192';
     assert.equal(viewsFp8Tier(12227), false);
     assert.equal(viewsFp8Tier(8192), true);
   } finally {
@@ -281,5 +281,5 @@ test('fp8 tier loosens only the step sentinel: the call is tiered, the fp16 env 
   assert.match(mv, /stepMaxMs: fp8 \? FP8_STEP_MAX_MS : undefined/); // undefined = env default for fp16
   assert.match(mv, /o\.fp8Tier \?\? viewsFp8Tier\(vram\)/);           // probe seam, tests override
   const guard = readFileSync(path.join(repo, 'tests/slow-step-guard.test.mjs'), 'utf8');
-  assert.match(guard, /ASTRA_VIEWS_STEP_MAX_SEC/);                    // the pinned 5-min sentinel stays
+  assert.match(guard, /IMAGINARIUM_VIEWS_STEP_MAX_SEC/);                    // the pinned 5-min sentinel stays
 });

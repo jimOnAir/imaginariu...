@@ -16,7 +16,7 @@ const VERDICTS = [
   { id: 'rejected', Icon: Ban, cls: 'reject' },
 ];
 const verdictTitle = (id) => t('forge.learn.verdict.' + id);
-const STORE_KEY = 'astraforge.forge.learn.v1';
+const STORE_KEY = 'imaginarium.forge.learn.v1';
 const STATUS_MARK = { completed: '✓', failed: '✗', cancelled: '–' };
 
 function readPrefs() {

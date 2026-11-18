@@ -1,6 +1,6 @@
 // The GPU card pool (0.7.11): enumeration parsing, fit-first choice, per-card lock naming and
 // the card->CUDA_VISIBLE_DEVICES mapping. No nvidia-smi is ever run here: the probe comes through
-// spawnFn, the whole card list through the ASTRA_GPU_CARDS seam.
+// spawnFn, the whole card list through the IMAGINARIUM_GPU_CARDS seam.
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { enumerateGpus, pickCard, vramNeedMiB, cardLockName, cardEnv, sharesCard, claimEngineCard, engineCardFor, resetGpuPool, ENGINE_VRAM_NEED_MIB, noCardText } from '../server/gpu-pool.mjs';
@@ -33,10 +33,10 @@ test('enumerateGpus: no nvidia-smi answer means NO pool (null), never a guessed 
   assert.equal(one[0].freeMiB, 7900);
 });
 
-test('ASTRA_GPU_CARDS fakes the whole pool (deterministic tests, rescue lever on odd machines)', () => {
-  const cards = enumerateGpus({ env: { ASTRA_GPU_CARDS: JSON.stringify([{ index: 1, uuid: 'U1', name: 'Big', memoryTotalMiB: 16311, memoryUsedMiB: 0 }]) }, spawnFn: () => { throw new Error('must not probe'); } });
+test('IMAGINARIUM_GPU_CARDS fakes the whole pool (deterministic tests, rescue lever on odd machines)', () => {
+  const cards = enumerateGpus({ env: { IMAGINARIUM_GPU_CARDS: JSON.stringify([{ index: 1, uuid: 'U1', name: 'Big', memoryTotalMiB: 16311, memoryUsedMiB: 0 }]) }, spawnFn: () => { throw new Error('must not probe'); } });
   assert.equal(cards[0].name, 'Big');
-  assert.equal(enumerateGpus({ env: { ASTRA_GPU_CARDS: '{not json' }, spawnFn: fakeSpawn(CSV) }).length, 2, 'a broken seam falls through to the real probe');
+  assert.equal(enumerateGpus({ env: { IMAGINARIUM_GPU_CARDS: '{not json' }, spawnFn: fakeSpawn(CSV) }).length, 2, 'a broken seam falls through to the real probe');
 });
 
 test('pickCard is fit-first: the heavy engine gets the big card, a light job must not eat it', () => {
@@ -62,17 +62,17 @@ test('pickCard: claimed cards are never offered, free:false answers the most sui
 
 test('vramNeedMiB: branch profiles with an env override', () => {
   assert.equal(vramNeedMiB('pixal3d', {}), ENGINE_VRAM_NEED_MIB.pixal3d);
-  assert.equal(vramNeedMiB('pixal3d', { ASTRA_GPU_NEED_MIB_PIXAL3D: '0' }), 0, '0 disables the preference');
+  assert.equal(vramNeedMiB('pixal3d', { IMAGINARIUM_GPU_NEED_MIB_PIXAL3D: '0' }), 0, '0 disables the preference');
   assert.equal(vramNeedMiB('unknown-engine', {}), 0);
 });
 
 test('cardLockName: one lock per physical card (UUID), legacy global name without a card', () => {
   const cards = enumerateGpus({ env: {}, spawnFn: fakeSpawn(CSV) });
   const a = cardLockName(cards[0]), b = cardLockName(cards[1]);
-  assert.match(a, /^Global\\AF_GPU_RENDER_GPU-d7cc0128-7dbd-c868-180e-4f88b1ae663a$/);
+  assert.match(a, /^Global\\IMA_GPU_RENDER_GPU-d7cc0128-7dbd-c868-180e-4f88b1ae663a$/);
   assert.notEqual(a, b, 'two cards never share a lock');
   assert.equal(cardLockName(null), null, 'no pool -> the caller keeps the legacy default name');
-  assert.match(cardLockName({ index: 3 }), /AF_GPU_RENDER_3$/, 'a card without UUID still gets its own name');
+  assert.match(cardLockName({ index: 3 }), /IMA_GPU_RENDER_3$/, 'a card without UUID still gets its own name');
 });
 
 test('cardEnv pins CUDA_VISIBLE_DEVICES only when a card was chosen', () => {

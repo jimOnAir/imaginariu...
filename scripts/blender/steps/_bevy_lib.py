@@ -1,19 +1,19 @@
 """_bevy_lib — helpers for bevy_package (docs/forge/bevy.md, 0.6.10 wave ticket 28).
 
 Pure logic (no bpy): the Bevy passport of a package is a small JSON contract that the
-astraforge_bevy crate reads (ticket 29) - clips with their real GLB animation names, the default
+imaginarium_bevy crate reads (ticket 29) - clips with their real GLB animation names, the default
 clip to autostart, effect sockets with their parent bone, the collider plan, collision hulls,
-fx + fx presets, and the model/scene summary. Every rule that decides WHAT goes into af_bevy.json
+fx + fx presets, and the model/scene summary. Every rule that decides WHAT goes into ima_bevy.json
 lives here so the step file stays Blender plumbing and the rules are testable in one place.
 """
 import json
 import re
 import struct
 
-PASSPORT_FILE = "af_bevy.json"
+PASSPORT_FILE = "ima_bevy.json"
 GLB_FILE = "model.glb"
 FX_PRESETS_FILE = "fx_presets.json"
-FORMAT = "astraforge-bevy-package/1"
+FORMAT = "imaginarium-bevy-package/1"
 
 # collision meshes of the model contract (same names the Godot/Unity packers honour):
 # COL_* prefixes and *-colonly / *-convcolonly suffixes
@@ -137,7 +137,7 @@ def rig_summary(info):
 
 def build_passport(asset_id, info, *, clips, default_clip, sockets, collider, collision, fx,
                    fx_presets_file, rig, kind):
-    """The af_bevy.json document - exactly the contract keys, in reading order."""
+    """The ima_bevy.json document - exactly the contract keys, in reading order."""
     return {
         "format": FORMAT,
         "asset_id": asset_id,

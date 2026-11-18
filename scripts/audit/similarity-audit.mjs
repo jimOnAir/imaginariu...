@@ -11,7 +11,7 @@
 //
 //   node scripts/audit/similarity-audit.mjs [--ref <dir>] [--out <json>] [--k 8] [--trees 0.4.16,0.5.3]
 //
-// --ref defaults to ~/github/AstraForge-0.4.16-ref ; the work papers (CHANGE*, CHANGED*, notes/,
+// --ref defaults to ~/github/Imaginarium-0.4.16-ref ; the work papers (CHANGE*, CHANGED*, notes/,
 // EXCLUDED.md, README.md at its root) are included only with --papers. Exit code is 0 unless the
 // scan itself failed; findings never change the exit code (the suite must stay green over this).
 import { readFileSync, readdirSync, statSync, existsSync, writeFileSync } from 'node:fs';
@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url';
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 const argv = process.argv.slice(2);
 const arg = (name, dflt) => { const i = argv.indexOf('--' + name); return i >= 0 ? argv[i + 1] : dflt; };
-const REF = path.resolve(arg('ref', path.join(os.homedir(), 'github', 'AstraForge-0.4.16-ref')));
+const REF = path.resolve(arg('ref', path.join(os.homedir(), 'github', 'Imaginarium-0.4.16-ref')));
 const OUT = arg('out', null);
 const K = parseInt(arg('k', '8'), 10);
 const TREES = arg('trees', '0.4.16,0.5.0,0.5.1,0.5.3').split(',');

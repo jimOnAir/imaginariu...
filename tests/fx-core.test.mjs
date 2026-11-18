@@ -1,16 +1,16 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import fs from 'node:fs';import zlib from 'node:zlib';import {fileURLToPath} from 'node:url';
-import * as fx from '../src/fx-core.js';import {FX_PRESETS_DATA,AF_FX_MOUNT_GD} from '../src/fx-data.js';import {FX_PRESETS as FORGE_FX} from '../src/forge/forge-core.js';
+import * as fx from '../src/fx-core.js';import {FX_PRESETS_DATA,Imaginarium_FX_MOUNT_GD} from '../src/fx-data.js';import {FX_PRESETS as FORGE_FX} from '../src/forge/forge-core.js';
 const root=new URL('../',import.meta.url),read=p=>fs.readFileSync(new URL(p,root),'utf8');
 const IDS=FX_PRESETS_DATA&&Object.keys(FX_PRESETS_DATA.presets);
 // Alpha-channel sums of the 64x64 textures from the Python reference (_export_lib.make_fx_texture, numpy 2.4): the JS port produces bit-identical images.
 const PY_ALPHA_SUM={soft:132360,spark:64004,star:99652,smoke:153580,ring:298828};
 
 // The data copy in src/fx-data.js is needed because the Vite server does not serve scripts/ to the browser. FX_SYNC=1 overwrites the copy.
-test('fx-data: the copy matches fx_presets.json and af_fx_mount.gd (FX_SYNC=1 updates it)',()=>{
- const json=JSON.parse(read('scripts/blender/data/fx_presets.json')),gd=read('scripts/blender/godot/af_fx_mount.gd').replace(/\r\n/g,'\n');
- if(process.env.FX_SYNC){const head=read('src/fx-data.js').split('\n').slice(0,2).join('\n');fs.writeFileSync(fileURLToPath(new URL('src/fx-data.js',root)),head+'\nexport const FX_PRESETS_DATA='+JSON.stringify(json)+';\nexport const AF_FX_MOUNT_GD='+JSON.stringify(gd)+';\n');return;}
+test('fx-data: the copy matches fx_presets.json and ima_fx_mount.gd (FX_SYNC=1 updates it)',()=>{
+ const json=JSON.parse(read('scripts/blender/data/fx_presets.json')),gd=read('scripts/blender/godot/ima_fx_mount.gd').replace(/\r\n/g,'\n');
+ if(process.env.FX_SYNC){const head=read('src/fx-data.js').split('\n').slice(0,2).join('\n');fs.writeFileSync(fileURLToPath(new URL('src/fx-data.js',root)),head+'\nexport const FX_PRESETS_DATA='+JSON.stringify(json)+';\nexport const Imaginarium_FX_MOUNT_GD='+JSON.stringify(gd)+';\n');return;}
  assert.deepEqual(FX_PRESETS_DATA,json,'src/fx-data.js is out of date: FX_SYNC=1 node --test tests/fx-core.test.mjs');
- assert.equal(AF_FX_MOUNT_GD.replace(/\r\n/g,'\n'),gd,'af_fx_mount.gd changed: FX_SYNC=1 node --test tests/fx-core.test.mjs');
+ assert.equal(Imaginarium_FX_MOUNT_GD.replace(/\r\n/g,'\n'),gd,'ima_fx_mount.gd changed: FX_SYNC=1 node --test tests/fx-core.test.mjs');
  assert.equal(FX_PRESETS_DATA.format,fx.FX_FORMAT);});
 
 test('all 12 Forge presets are present in the data and normalize without corrections',()=>{
@@ -134,21 +134,21 @@ test('the emitter scale is baked into the parameters as merge_fx(scale=k)',()=>{
  const r=fx.resolveFx(fx.makeFx('fire',1)),s=fx.scaleFx(r,2.5);assert.equal(s.quad_size,r.quad_size*2.5);assert.deepEqual(s.velocity,r.velocity.map(v=>v*2.5));assert.deepEqual(s.gravity,r.gravity.map(v=>v*2.5));assert.equal(s.emission.radius,r.emission.radius*2.5);assert.equal(s.light.range,r.light.range*2.5);assert.deepEqual(s.visibility_aabb,[-10,-10,-10,20,20,20]);
  assert.equal(fx.scaleFx(r,1),r);assert.equal(fx.scaleFx(r,0),r);assert.equal(r.quad_size,.35,'the source parameters are untouched');assert.equal(s.amount,r.amount);assert.equal(s.lifetime,r.lifetime);});
 
-test('Godot package: scenes, textures, mounts, README and af_fx_mount.gd',()=>{
+test('Godot package: scenes, textures, mounts, README and ima_fx_mount.gd',()=>{
  const tf=(pos=[0,1,0],scale=[1,1,1])=>({position:pos,rotation:[0,0,0],quaternion:[0,0,0,1],scale});
- const items=[{name:'FX · Fire',fx:fx.makeFx('fire',1),node:'FX · Fire',nodePath:'AstraForge/Sword/FX · Fire',parent:'Sword',transform:tf([0,1.2,0],[2,2,2])},{name:'FX · Fire',fx:fx.makeFx('fire',2),node:'FX · Fire',nodePath:'AstraForge/FX · Fire',parent:null,transform:tf()},
+ const items=[{name:'FX · Fire',fx:fx.makeFx('fire',1),node:'FX · Fire',nodePath:'Imaginarium/Sword/FX · Fire',parent:'Sword',transform:tf([0,1.2,0],[2,2,2])},{name:'FX · Fire',fx:fx.makeFx('fire',2),node:'FX · Fire',nodePath:'Imaginarium/FX · Fire',parent:null,transform:tf()},
   {name:'Sparks: test',fx:fx.patchFx(fx.makeFx('sparks',3),{textureAsset:{id:'a1',url:'/api/assets/a1.webp',name:'flash.webp'},flipbook:{h:2,v:2,fps:12}}),node:'sparks.1',parent:'hand.R',transform:tf()}];
  const pkg=fx.buildFxPackage(items),paths=pkg.files.map(f=>f.path);assert.deepEqual(paths.filter(p=>p.endsWith('.tscn')),['fx/fire.tscn','fx/fire_2.tscn','fx/sparks_test.tscn']);
- for(const p of ['fx/textures/soft.png','fx/textures/sparks_test_tex.webp','fx_bindings.json','af_fx_mount.gd','README.md'])assert.ok(paths.includes(p),p);assert.equal(paths.filter(p=>p==='fx/textures/soft.png').length,1,'built-in textures are not duplicated');
+ for(const p of ['fx/textures/soft.png','fx/textures/sparks_test_tex.webp','fx_bindings.json','ima_fx_mount.gd','README.md'])assert.ok(paths.includes(p),p);assert.equal(paths.filter(p=>p==='fx/textures/soft.png').length,1,'built-in textures are not duplicated');
  const file=p=>pkg.files.find(f=>f.path===p);assert.ok(file('fx/textures/soft.png').bytes instanceof Uint8Array);assert.equal(file('fx/textures/sparks_test_tex.webp').url,'/api/assets/a1.webp');
  const scaled=file('fx/fire.tscn').text;assert.ok(scaled.includes('Vector2(0.7, 0.7)'),'emitter scale 2 x quad_size 0.35');
- assert.equal(pkg.bindings.length,3);const b=pkg.bindings[0];assert.equal(b.scene,'fx/fire.tscn');assert.equal(b.parent,'Sword');assert.equal(b.node,'FX · Fire');assert.equal(b.node_godot,'FX · Fire');assert.deepEqual(b.transform.position,[0,1.2,0]);assert.deepEqual(b.transform.scale,[2,2,2]);assert.equal(pkg.bindings[1].parent,'AstraForge');assert.equal(pkg.bindings[2].parent_godot,'hand_R');assert.equal(pkg.bindings[2].node_godot,'sparks_1');
- assert.deepEqual(JSON.parse(file('fx_bindings.json').text),pkg.bindings);assert.equal(file('af_fx_mount.gd').text,AF_FX_MOUNT_GD);assert.ok(file('fx/sparks_test.tscn').text.includes('textures/sparks_test_tex.webp')&&file('fx/sparks_test.tscn').text.includes('particles_anim_h_frames = 2'));
- const readme=file('README.md').text;for(const s of ['af_fx_mount.gd','fx_bindings.json','fx/fire.tscn','GPUParticles3D'])assert.ok(readme.includes(s),s);
+ assert.equal(pkg.bindings.length,3);const b=pkg.bindings[0];assert.equal(b.scene,'fx/fire.tscn');assert.equal(b.parent,'Sword');assert.equal(b.node,'FX · Fire');assert.equal(b.node_godot,'FX · Fire');assert.deepEqual(b.transform.position,[0,1.2,0]);assert.deepEqual(b.transform.scale,[2,2,2]);assert.equal(pkg.bindings[1].parent,'Imaginarium');assert.equal(pkg.bindings[2].parent_godot,'hand_R');assert.equal(pkg.bindings[2].node_godot,'sparks_1');
+ assert.deepEqual(JSON.parse(file('fx_bindings.json').text),pkg.bindings);assert.equal(file('ima_fx_mount.gd').text,Imaginarium_FX_MOUNT_GD);assert.ok(file('fx/sparks_test.tscn').text.includes('textures/sparks_test_tex.webp')&&file('fx/sparks_test.tscn').text.includes('particles_anim_h_frames = 2'));
+ const readme=file('README.md').text;for(const s of ['ima_fx_mount.gd','fx_bindings.json','fx/fire.tscn','GPUParticles3D'])assert.ok(readme.includes(s),s);
  assert.equal(fx.fxSlug('FX · Fire'),'fire');assert.equal(fx.fxSlug('Engine trail'),'engine_trail');assert.equal(fx.fxSlug('###'),'fx');const used=new Set();assert.deepEqual(['a','a','a'].map(n=>fx.fxSlug(n,used)),['a','a_2','a_3']);assert.equal(fx.godotNodeName('a.b:c@d/e"f%g'),'a_b_c_d_e_f_g');
  assert.equal(fx.buildFxPackage([]).bindings.length,0);});
 
-test('the seed of a new emitter is a 31-bit integer, different on repeated calls',()=>{const s=Array.from({length:50},()=>fx.newSeed());assert.ok(s.every(v=>Number.isInteger(v)&&v>=0&&v<2**31));assert.ok(new Set(s).size>45);assert.equal(fx.makeFx('fire').format,'astraforge-fx/1');assert.equal(JSON.stringify(JSON.parse(JSON.stringify(fx.makeFx('fire',5)))),JSON.stringify(fx.makeFx('fire',5)));});
+test('the seed of a new emitter is a 31-bit integer, different on repeated calls',()=>{const s=Array.from({length:50},()=>fx.newSeed());assert.ok(s.every(v=>Number.isInteger(v)&&v>=0&&v<2**31));assert.ok(new Set(s).size>45);assert.equal(fx.makeFx('fire').format,'imaginarium-fx/1');assert.equal(JSON.stringify(JSON.parse(JSON.stringify(fx.makeFx('fire',5)))),JSON.stringify(fx.makeFx('fire',5)));});
 
 test('performance: 5 effects of 300 particles each fit within the frame budget',()=>{
  const cs=['fire','smoke','magic_cast','poison','aura'].map((id,i)=>[fx.compileFx(fx.resolveFx(fx.patchFx(fx.makeFx(id,i+1),{params:{amount:300}}))),i+1]),o={};const t0=performance.now();let n=0;
@@ -157,7 +157,7 @@ test('performance: 5 effects of 300 particles each fit within the frame budget',
 // ---------------------------------------------------------------- runtime (fx-runtime.js) without WebGL: real Object3D and buffers, a studio stub
 import * as T from 'three';import {installFxTools} from '../src/fx-runtime.js';
 function makeStudio(){
- class Stub{constructor(){this.scene=new T.Scene();this.content=new T.Group();this.content.name='AstraForge';this.scene.add(this.content);this.editor={time:0,duration:8,bases:{},tracks:{},preset:'none'};this.camera=new T.PerspectiveCamera(40,1,.01,200);this.camera.position.set(5,3,5);this.camera.updateMatrixWorld(true);this.playing=false;this.recording=false;this.selected=null;this.history=[];this.editRevision=0;this.box={visible:false};this.ray=new T.Raycaster();this.orbit={target:new T.Vector3(),update(){}};this.emits=0;this.initFxTools();}
+ class Stub{constructor(){this.scene=new T.Scene();this.content=new T.Group();this.content.name='Imaginarium';this.scene.add(this.content);this.editor={time:0,duration:8,bases:{},tracks:{},preset:'none'};this.camera=new T.PerspectiveCamera(40,1,.01,200);this.camera.position.set(5,3,5);this.camera.updateMatrixWorld(true);this.playing=false;this.recording=false;this.selected=null;this.history=[];this.editRevision=0;this.box={visible:false};this.ray=new T.Raycaster();this.orbit={target:new T.Vector3(),update(){}};this.emits=0;this.initFxTools();}
   pause(){this.playing=false;} checkpoint(){this.history.push(this.content.toJSON());this.editRevision++;} emit(){this.emits++;} rigPick(){return null;} frame(){}
   select(id){this.selected=id?this.content.getObjectByProperty('uuid',id):null;this.emit();}
   snapshot(){const objects=[];this.content.traverse(o=>{if(o!==this.content)objects.push({id:o.uuid,name:o.name});});return {objects};}
@@ -170,10 +170,10 @@ const resolved=(s,id)=>fx.resolveFx(s.content.getObjectByProperty('uuid',id).use
 
 test('runtime: an effect is added to the selected object and ends up in the snapshot, the overlay is outside content',()=>{
  const s=makeStudio(),mesh=new T.Group();mesh.name='Sword';s.content.add(mesh);s.select(mesh.uuid);
- const id=s.addFx('fire'),o=s.content.getObjectByProperty('uuid',id);assert.equal(o.parent,mesh);assert.equal(o.name,'FX · Fire');assert.equal(o.userData.fx.preset,'fire');assert.equal(o.userData.fx.format,'astraforge-fx/1');assert.equal(s.selected,o);assert.equal(s.history.length,1);
+ const id=s.addFx('fire'),o=s.content.getObjectByProperty('uuid',id);assert.equal(o.parent,mesh);assert.equal(o.name,'FX · Fire');assert.equal(o.userData.fx.preset,'fire');assert.equal(o.userData.fx.format,'imaginarium-fx/1');assert.equal(s.selected,o);assert.equal(s.history.length,1);
  const snap=s.snapshot();assert.equal(snap.fx.list.length,1);assert.equal(snap.fx.list[0].parent,'Sword');assert.equal(snap.fx.target,'Sword','an emitter is selected -> the target is its parent');assert.equal(snap.objects.find(x=>x.id===id).fx,true);assert.equal(snap.objects.find(x=>x.id===mesh.uuid).fx,undefined);assert.equal(snap.fx.selected.id,id);assert.equal(snap.fx.selected.res.amount,48);
  frames(s,2);assert.equal(s.fx.items.size,1);assert.ok(s.fx.overlay.parent===s.scene&&s.content.getObjectByProperty('uuid',s.fx.overlay.uuid)===undefined,'overlay outside content');
- const json=JSON.stringify(s.content.toJSON());assert.ok(json.includes('astraforge-fx/1')&&!json.includes('aPos')&&!json.includes('PointLight'),'only the emitter data goes into the project');
+ const json=JSON.stringify(s.content.toJSON());assert.ok(json.includes('imaginarium-fx/1')&&!json.includes('aPos')&&!json.includes('PointLight'),'only the emitter data goes into the project');
  const root=makeStudio();root.addFx('empty');root.select(null);assert.equal(root.snapshot().fx.target,null,'no selection - the scene center');assert.equal(root.fxParent(),root.content);});
 
 test('runtime: particles live around the emitter, computed from the live clock and from the timeline time',()=>{
@@ -214,9 +214,9 @@ test('runtime: light, sorting, deletion, duplicates, particle budget',()=>{
 test('runtime: the Godot package from the studio collects effect mounts with paths and transforms',async()=>{
  const s=makeStudio(),arm=new T.Group();arm.name='Hand';s.content.add(arm);s.select(arm.uuid);const id=s.addFx('magic_cast'),o=s.content.getObjectByProperty('uuid',id);o.position.set(0,.5,0);o.scale.setScalar(1.5);
  const origFetch=globalThis.fetch,hadDoc='document' in globalThis;let sent;globalThis.document={createElement:()=>({click(){}, remove(){}}),body:{appendChild(){}}};
- globalThis.fetch=async(url,opt)=>{sent=opt?.body;return {ok:true,json:async()=>({url:'/x',name:'AstraForge-FX.zip'})};};
- try{const pkg=await s.exportFxPackage();assert.equal(pkg.bindings.length,1);const b=pkg.bindings[0];assert.equal(b.parent,'Hand');assert.equal(b.node_path,'AstraForge/Hand/FX · Magic cast');assert.deepEqual(b.transform.position,[0,.5,0]);assert.deepEqual(b.transform.scale,[1.5,1.5,1.5]);assert.ok(sent instanceof FormData,'the ZIP went through download()');
-  const file=sent.get('file');assert.ok(file.size>1000);const JSZip=(await import('jszip')).default,z=await JSZip.loadAsync(await file.arrayBuffer());assert.ok(z.file('fx_bindings.json')&&z.file('af_fx_mount.gd')&&z.file('README.md')&&z.file('fx/magic_cast.tscn')&&z.file('fx/textures/star.png'));
+ globalThis.fetch=async(url,opt)=>{sent=opt?.body;return {ok:true,json:async()=>({url:'/x',name:'Imaginarium-FX.zip'})};};
+ try{const pkg=await s.exportFxPackage();assert.equal(pkg.bindings.length,1);const b=pkg.bindings[0];assert.equal(b.parent,'Hand');assert.equal(b.node_path,'Imaginarium/Hand/FX · Magic cast');assert.deepEqual(b.transform.position,[0,.5,0]);assert.deepEqual(b.transform.scale,[1.5,1.5,1.5]);assert.ok(sent instanceof FormData,'the ZIP went through download()');
+  const file=sent.get('file');assert.ok(file.size>1000);const JSZip=(await import('jszip')).default,z=await JSZip.loadAsync(await file.arrayBuffer());assert.ok(z.file('fx_bindings.json')&&z.file('ima_fx_mount.gd')&&z.file('README.md')&&z.file('fx/magic_cast.tscn')&&z.file('fx/textures/star.png'));
   assert.ok((await z.file('fx/magic_cast.tscn').async('string')).includes('Vector2(0.18, 0.18)'),'scale 1.5 x quad 0.12 is baked into the scene');}
  finally{globalThis.fetch=origFetch;if(!hadDoc)delete globalThis.document;}
  await assert.rejects(makeStudio().exportFxPackage(),/at least one effect/);});

@@ -70,7 +70,7 @@ checks (error): tris_within_target, no_nan_verts, height_matches, grounded,
 import os
 import time
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 SILHOUETTE_WARN = 0.97
@@ -86,13 +86,13 @@ def run(req):
 
     def lap(name, t0):
         timings[name] = round(time.time() - t0, 2)
-        af.log(name, seconds=timings[name])
+        ima.log(name, seconds=timings[name])
 
     # ---------------------------------------------------------------- import & normalise
     src_path = ml.input_path(req)
     t0 = time.time()
-    af.reset_scene()
-    objs = af.import_any(src_path)
+    ima.reset_scene()
+    objs = ima.import_any(src_path)
     objs, helpers = ml.purge_import_helpers(objs)
     sock_recs = []
     objs = ml.prepare_meshes(objs, warnings, sockets=sock_recs)
@@ -107,13 +107,13 @@ def run(req):
 
     name = p.get("name") or "Body"
     if p.get("join", True):
-        objs = [af.join(objs, name=name)]
+        objs = [ima.join(objs, name=name)]
         objs[0].data.name = name
     height = p.get("height_m")
     ml.rotate_z(objs + sockets, float(p.get("rotate_z_deg") or 0.0))
-    af.normalize(objs + sockets, height=height, ground=p.get("ground", True), center=p.get("center", True))
+    ima.normalize(objs + sockets, height=height, ground=p.get("ground", True), center=p.get("center", True))
     ml.sockets_unit_scale(sockets)
-    lo, hi = af.world_bbox(objs)
+    lo, hi = ima.world_bbox(objs)
     h = float(hi.z - lo.z) or 1.0
 
     # "before" render: the input as it came (normalised, original normals), shared framing
@@ -123,7 +123,7 @@ def run(req):
     views = ("front", "three_quarter")
     if p.get("preview", True):
         t0 = time.time()
-        _, sheet_before = ml.render_sheet(af.out_path(req, "_before.png"), objs, views=views,
+        _, sheet_before = ml.render_sheet(ima.out_path(req, "_before.png"), objs, views=views,
                                           size=psize, bbox=frame)
         lap("render_before", t0)
 
@@ -303,46 +303,46 @@ def run(req):
 
     # ---------------------------------------------------------------- outputs
     t0 = time.time()
-    outputs["glb"] = af.export_glb(af.out_path(req, "clean.glb"), objects=objs + sockets,
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "clean.glb"), objects=objs + sockets,
                                    animations=False, skins=False)
     lap("export_glb", t0)
     compare = None
     if p.get("preview", True):
         t0 = time.time()
-        _, sheet_after = ml.render_sheet(af.out_path(req, "_after.png"), objs, views=views,
+        _, sheet_after = ml.render_sheet(ima.out_path(req, "_after.png"), objs, views=views,
                                          size=psize, bbox=frame_after)
         compare = ml.render_compare(sheet_before, sheet_after)
-        outputs["preview"] = ml.side_by_side(af.out_path(req, "preview.png"),
+        outputs["preview"] = ml.side_by_side(ima.out_path(req, "preview.png"),
                                              [ml.np.concatenate(sheet_before, axis=1),
                                               ml.np.concatenate(sheet_after, axis=1)])
         for tmp in ("_before.png", "_after.png"):
             try:
-                os.remove(af.out_path(req, tmp))
+                os.remove(ima.out_path(req, tmp))
             except OSError:
                 pass
         lap("render_after", t0)
     t0 = time.time()
     orphans = ml.purge_orphans()  # e.g. the original 4K maps after a remesh + bake
-    outputs["blend"] = af.save_blend(af.out_path(req, "clean.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "clean.blend"))
     lap("save_blend", t0)
 
     # ---------------------------------------------------------------- checks
     checks = []
     if target:
-        checks.append(af.check("tris_within_target", after["tris"] <= target, after["tris"],
+        checks.append(ima.check("tris_within_target", after["tris"] <= target, after["tris"],
                                target))
-    checks.append(af.check("no_nan_verts", after["nan_verts"] == 0, after["nan_verts"], 0))
+    checks.append(ima.check("no_nan_verts", after["nan_verts"] == 0, after["nan_verts"], 0))
     size_z = after["size"][2]
     if height:
-        checks.append(af.check("height_matches", abs(size_z - float(height)) <= 1e-3 * float(height),
+        checks.append(ima.check("height_matches", abs(size_z - float(height)) <= 1e-3 * float(height),
                                round(size_z, 5), float(height)))
     if p.get("ground", True):
-        checks.append(af.check("grounded", abs(after["bbox_min"][2]) <= 1e-4 * max(size_z, 1e-6),
+        checks.append(ima.check("grounded", abs(after["bbox_min"][2]) <= 1e-4 * max(size_z, 1e-6),
                                after["bbox_min"][2], 0.0))
     if p.get("center", True):
         cx = (after["bbox_min"][0] + after["bbox_max"][0]) / 2
         cy = (after["bbox_min"][1] + after["bbox_max"][1]) / 2
-        checks.append(af.check("centered", max(abs(cx), abs(cy)) <= 1e-3 * max(size_z, 1e-6),
+        checks.append(ima.check("centered", max(abs(cx), abs(cy)) <= 1e-3 * max(size_z, 1e-6),
                                [round(cx, 6), round(cy, 6)], 0.0, severity="warning"))
     in_colour = {k: v["base_color"] for k, v in tex_before.items() if "base_color" in v}
     out_colour = [v["base_color"] for v in tex_after.values() if "base_color" in v]
@@ -351,28 +351,28 @@ def run(req):
         if in_colour:
             biggest = max(max(s) for s in in_colour.values())
             kept = bool(out_colour) and max(max(s) for s in out_colour) >= biggest
-            checks.append(af.check("base_color_texture_kept", kept,
+            checks.append(ima.check("base_color_texture_kept", kept,
                                    out_colour[0] if out_colour else None, biggest))
         if before["uv_layers"]:
-            checks.append(af.check("uv_kept", after["uv_layers"] >= 1, after["uv_layers"], 1))
+            checks.append(ima.check("uv_kept", after["uv_layers"] >= 1, after["uv_layers"], 1))
     if bake_info and bake_info.get("miss_fraction") is not None:
-        checks.append(af.check("bake_coverage", bake_info["miss_fraction"] <= 0.02,
+        checks.append(ima.check("bake_coverage", bake_info["miss_fraction"] <= 0.02,
                                bake_info["miss_fraction"], 0.02, severity="warning",
                                note="share of sampled texels left black (ray missed)"))
     if p.get("bake_normal") and (voxel > 0 or target):
         mats = [m for o in objs for m in o.data.materials if m is not None]
         have = sum(1 for m in mats if "normal" in tex_after.get(m.name, {}))
-        checks.append(af.check("normal_map_baked", bool(mats) and have == len(mats), have,
+        checks.append(ima.check("normal_map_baked", bool(mats) and have == len(mats), have,
                                len(mats), note="materials with a baked tangent-space normal map"))
     if compare and compare["silhouette_iou"] is not None:
-        checks.append(af.check("silhouette_iou", compare["silhouette_iou"] >= SILHOUETTE_WARN,
+        checks.append(ima.check("silhouette_iou", compare["silhouette_iou"] >= SILHOUETTE_WARN,
                                compare["silhouette_iou"], SILHOUETTE_WARN, severity="warning",
                                note="before/after alpha IoU, front + 3/4 views"))
-        checks.append(af.check("silhouette_iou_min", compare["silhouette_iou"] >= SILHOUETTE_FAIL,
+        checks.append(ima.check("silhouette_iou_min", compare["silhouette_iou"] >= SILHOUETTE_FAIL,
                                compare["silhouette_iou"], SILHOUETTE_FAIL,
                                note="the shape changed too much (collapsed or torn parts)"))
     if compare and compare["color_mae"] is not None:
-        checks.append(af.check("render_color_mae", compare["color_mae"] <= 0.08,
+        checks.append(ima.check("render_color_mae", compare["color_mae"] <= 0.08,
                                compare["color_mae"], 0.08, severity="warning",
                                note="before/after mean |RGB| on covered pixels (Workbench)"))
     if welded["non_manifold_edges"] > before["non_manifold_edges"]:

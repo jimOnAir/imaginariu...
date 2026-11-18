@@ -1,5 +1,5 @@
-"""unreal_package — the Unreal Engine 5 package of a GLB (FBX + textures + af_unreal.json) for the
-Python-only importer plugin (unreal/AstraForge), which builds the engine assets itself.
+"""unreal_package — the Unreal Engine 5 package of a GLB (FBX + textures + ima_unreal.json) for the
+Python-only importer plugin (unreal/Imaginarium), which builds the engine assets itself.
 Behavior per ADR-0004, ticket 05; the flow and the unverified-by-design status: docs/product/unreal.md.
 
 inputs.glb        the asset (socket empties named socket_*, clips with the '-loop' suffix - the same
@@ -15,9 +15,9 @@ params:
   lod_ratios     [0.5, 0.2] by default
   collision      'auto' (default: meshes named *-colonly / *-convcolonly / COL_* become UCX convex
                  hulls and never render) | 'none'
-outputs: package (folder), fbx, manifest (af_unreal.json), readme
+outputs: package (folder), fbx, manifest (ima_unreal.json), readme
 No Unreal Editor is needed to build a package; when one exists it is driven by
-scripts/engines/af_engine.mjs test, never from this step.
+scripts/engines/imaginarium_engine.mjs test, never from this step.
 """
 import json
 import math
@@ -27,7 +27,7 @@ import re
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _export_lib as xl
 from steps import _unreal_lib as ul
 
@@ -95,9 +95,9 @@ def _extract_material(mat, asset_id, slot, tex_dir, warnings):
     base = _linked_image(link_of("Base Color"))
     if base is not None and base.size > 0:
         w, h, rows = _image_rows(base)
-        entry["textures"]["baseColor"] = _save_png("af_bc_" + slot, w, h, rows, os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_BaseColor.png"), True)
+        entry["textures"]["baseColor"] = _save_png("imaginarium_bc_" + slot, w, h, rows, os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_BaseColor.png"), True)
     else:
-        entry["textures"]["baseColor"] = _save_png("af_bc_" + slot, 2, 2, _flat_rows(_bsdf_default(bsdf, "Base Color", [0.8, 0.8, 0.8, 1.0])), os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_BaseColor.png"), True)
+        entry["textures"]["baseColor"] = _save_png("imaginarium_bc_" + slot, 2, 2, _flat_rows(_bsdf_default(bsdf, "Base Color", [0.8, 0.8, 0.8, 1.0])), os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_BaseColor.png"), True)
 
     nrm = None
     if bsdf is not None and "Normal" in bsdf.inputs and bsdf.inputs["Normal"].links:
@@ -108,7 +108,7 @@ def _extract_material(mat, asset_id, slot, tex_dir, warnings):
         w, h, rows = _image_rows(nrm)
         rows = rows.copy()
         rows[:, 1] = 1.0 - rows[:, 1]                    # OpenGL green -> DirectX green (UE's rule)
-        entry["textures"]["normal"] = _save_png("af_nrm_" + slot, w, h, rows, os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_Normal.png"), False)
+        entry["textures"]["normal"] = _save_png("imaginarium_nrm_" + slot, w, h, rows, os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_Normal.png"), False)
         entry["normal_space"] = "directX"
 
     mr = _bsdf_default(bsdf, "Metallic", [0.0])[0]
@@ -119,9 +119,9 @@ def _extract_material(mat, asset_id, slot, tex_dir, warnings):
         orm = np.ones((w * h, 4), dtype=np.float32)
         orm[:, 1] = rows[:, 1]                           # glTF G = roughness
         orm[:, 2] = rows[:, 2]                           # glTF B = metallic; R stays occlusion
-        entry["textures"]["orm"] = _save_png("af_orm_" + slot, w, h, orm, os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_ORM.png"), False)
+        entry["textures"]["orm"] = _save_png("imaginarium_orm_" + slot, w, h, orm, os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_ORM.png"), False)
     else:
-        entry["textures"]["orm"] = _save_png("af_orm_" + slot, 2, 2, _flat_rows([1.0, rg, mr, 1.0]), os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_ORM.png"), False)
+        entry["textures"]["orm"] = _save_png("imaginarium_orm_" + slot, 2, 2, _flat_rows([1.0, rg, mr, 1.0]), os.path.join(tex_dir, ul.ue_name("T", asset_id, slot) + "_ORM.png"), False)
     if tree is None:
         warnings.append("material %s has no node tree; flat colours packaged" % mat.name)
     return entry
@@ -219,9 +219,9 @@ def run(req):
         with open(inputs["manifest"], "r", encoding="utf-8-sig") as fh:
             passport = json.load(fh)
 
-    af.log("importing %s" % os.path.basename(glb))
-    af.reset_scene()
-    af.import_any(glb)
+    ima.log("importing %s" % os.path.basename(glb))
+    ima.reset_scene()
+    ima.import_any(glb)
     objs = [o for o in bpy.context.view_layer.objects if o is not None]
     render, coll_sources = _split_collision([o for o in objs if o.type in ("MESH", "ARMATURE", "EMPTY")])
     render_meshes = [o for o in render if o.type == "MESH"]
@@ -298,9 +298,9 @@ def run(req):
     lod_objs = [o for o in bpy.context.view_layer.objects if o is not None and o.type == "MESH" and re.search(r"_LOD\d$", o.name)]
     export_objs = armatures + render_meshes + lod_objs + ucx_objs
     fbx = os.path.join(pkg, main_name + ".fbx")
-    af.log("writing %s" % os.path.basename(fbx))
+    ima.log("writing %s" % os.path.basename(fbx))
     has_anim = any(xl.fcurves_of(a) for a in bpy.data.actions)
-    af.export_fbx(fbx, objects=export_objs, axis_forward="-Y", axis_up="Z",
+    ima.export_fbx(fbx, objects=export_objs, axis_forward="-Y", axis_up="Z",
                   apply_unit_scale=True, bake_space_transform=False, embed_textures=False,
                   bake_anim=has_anim, bake_anim_use_nla_strips=False, bake_anim_use_all_actions=has_anim)
 
@@ -311,11 +311,11 @@ def run(req):
         "fbx": os.path.basename(fbx), "main": {"mesh": main_name, "rig": "skeletal" if skinned else "static"},
         "meshes": mesh_entries, "materials": material_entries, "collision": coll_entries,
         "sockets": sockets, "animations": clips, "fps": float(bpy.context.scene.render.fps),
-        "master_material": "M_AstraForge", "actor_blueprint": ul.ue_name("A", asset_id),
+        "master_material": "M_Imaginarium", "actor_blueprint": ul.ue_name("A", asset_id),
         "passport": passport,
-        "studio": {"tool": "AstraForge unreal_package", "version": _studio_version()},
+        "studio": {"tool": "Imaginarium unreal_package", "version": _studio_version()},
     }
-    man_path = os.path.join(pkg, "af_unreal.json")
+    man_path = os.path.join(pkg, "ima_unreal.json")
     with open(man_path, "w", encoding="utf-8") as fh:
         json.dump(manifest, fh, ensure_ascii=False, indent=2)
     readme = os.path.join(pkg, "README.md")
@@ -324,14 +324,14 @@ def run(req):
 
     pngs = [f for f in os.listdir(tex_dir) if f.endswith(".png")]
     checks = [
-        af.check("package_fbx", os.path.isfile(fbx), os.path.basename(fbx)),
-        af.check("package_manifest", os.path.isfile(man_path)),
-        af.check("naming_prefix", main_name.startswith(("SM_", "SK_")), main_name),
-        af.check("collision_ucx", all(c["ucx"].startswith("UCX_") for c in coll_entries), len(coll_entries), severity="warning"),
-        af.check("textures_packaged", len(pngs) > 0, len(pngs), severity="warning"),
+        ima.check("package_fbx", os.path.isfile(fbx), os.path.basename(fbx)),
+        ima.check("package_manifest", os.path.isfile(man_path)),
+        ima.check("naming_prefix", main_name.startswith(("SM_", "SK_")), main_name),
+        ima.check("collision_ucx", all(c["ucx"].startswith("UCX_") for c in coll_entries), len(coll_entries), severity="warning"),
+        ima.check("textures_packaged", len(pngs) > 0, len(pngs), severity="warning"),
     ]
     return {"outputs": {"package": pkg, "fbx": fbx, "manifest": man_path, "readme": readme},
-            "stats": dict(af.scene_stats(xl.render_meshes(list(bpy.context.view_layer.objects))),
+            "stats": dict(ima.scene_stats(xl.render_meshes(list(bpy.context.view_layer.objects))),
                           sockets=len(sockets), collision=len(coll_entries),
                           lods=sum(len(m["lods"]) for m in mesh_entries)),
             "checks": checks, "warnings": warnings}
@@ -349,8 +349,8 @@ def _studio_version():
 def readme_text(main_name, materials, collision, sockets, clips):
     return "\n".join([
         "# %s - Unreal Engine 5 package" % main_name, "",
-        "Import with the AstraForge importer plugin (unreal/AstraForge): run",
-        "`astraforge_unreal.import_package` over the `af_unreal.json` beside this README.", "",
+        "Import with the Imaginarium importer plugin (unreal/Imaginarium): run",
+        "`imaginarium_unreal.import_package` over the `ima_unreal.json` beside this README.", "",
         "The package carries the FBX (%s), %d material instance(s) with their" % (main_name + ".fbx", len(materials)),
         "BaseColor / Normal(DirectX) / ORM textures, %d UCX collision hull(s), %d socket(s)," % (len(collision), len(sockets)),
         "and %d animation(s); units are centimetres, Z up, nose +X, assets are named" % len(clips),

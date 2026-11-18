@@ -19,7 +19,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 LUMA = np.array([0.2126, 0.7152, 0.0722], dtype=np.float32)
@@ -950,7 +950,7 @@ def smooth_fill_welded(colors, fixed, canon, nc, cedges, iters):
 def pack_uv(ob, margin=0.002, shape="AABB"):
     """Repack the UV islands of ob (Smart UV leaves ~30 % of a noisy AI mesh's square used; AABB
     packing with rotation gives ~37 % in milliseconds, CONCAVE ~45 % in ~10 s)."""
-    af.select_only([ob])
+    ima.select_only([ob])
     with bpy.context.temp_override(object=ob, active_object=ob, selected_objects=[ob],
                                    selected_editable_objects=[ob]):
         bpy.ops.object.mode_set(mode="EDIT")
@@ -1208,12 +1208,12 @@ def render_camera_tiles(objects, cam, window, size, color_type="TEXTURE", light=
     x0, y0, side = window
     r, u, d = cam.basis()
     cx, cy = x0 + side / 2.0, y0 + side / 2.0
-    lo, hi = af.world_bbox(objects)
+    lo, hi = ima.world_bbox(objects)
     extent = max(float(np.linalg.norm(np.array(hi) - np.array(lo))), 1e-3)
     scene = bpy.context.scene
-    cam_data = bpy.data.cameras.new("af_paint_cam")
+    cam_data = bpy.data.cameras.new("imaginarium_paint_cam")
     cam_data.clip_start = 0.001
-    cam_ob = bpy.data.objects.new("af_paint_cam", cam_data)
+    cam_ob = bpy.data.objects.new("imaginarium_paint_cam", cam_data)
     scene.collection.objects.link(cam_ob)
     if cam.k > 0:
         # pinhole 1/k in front of the centre; focal length from px_per_m at the centre plane, the window
@@ -1241,18 +1241,18 @@ def render_camera_tiles(objects, cam, window, size, color_type="TEXTURE", light=
 
 def render_view_tiles(objects, dirs, size, bbox=None, margin=1.04, color_type="TEXTURE", light="FLAT", cavity=True):
     """Workbench orthographic tiles from directions (vector target -> camera, Z up), framed on bbox."""
-    lo, hi = bbox if bbox is not None else af.world_bbox(objects)
+    lo, hi = bbox if bbox is not None else ima.world_bbox(objects)
     lo, hi = mathutils.Vector(list(lo)), mathutils.Vector(list(hi))
     centre = (lo + hi) / 2
     extent = max((hi - lo).length, 1e-3)
     scene = bpy.context.scene
     tiles = []
     for dvec in dirs:
-        cam_data = bpy.data.cameras.new("af_paint_view")
+        cam_data = bpy.data.cameras.new("imaginarium_paint_view")
         cam_data.type = "ORTHO"
         cam_data.ortho_scale = max(hi.z - lo.z, 0.5 * extent) * margin
         cam_data.clip_end = extent * 20
-        cam_ob = bpy.data.objects.new("af_paint_view", cam_data)
+        cam_ob = bpy.data.objects.new("imaginarium_paint_view", cam_data)
         scene.collection.objects.link(cam_ob)
         dv = mathutils.Vector([float(x) for x in dvec]).normalized()
         cam_ob.location = centre + dv * extent * 4
@@ -1276,7 +1276,7 @@ def _render_with(cam_ob, cam_data, objects, size, color_type, light, cavity):
         ml.set_active_basecolor_nodes(objects)
     scene.camera = cam_ob
     rr = scene.render
-    rr.engine = af.engine_id("WORKBENCH")
+    rr.engine = ima.engine_id("WORKBENCH")
     rr.resolution_x = rr.resolution_y = int(size)
     rr.resolution_percentage = 100
     rr.film_transparent = True
@@ -1293,7 +1293,7 @@ def _render_with(cam_ob, cam_data, objects, size, color_type, light, cavity):
     sh.show_cavity = bool(cavity)
     sh.show_object_outline = False
     sh.show_specular_highlight = light != "FLAT"
-    tmp = os.path.join(bpy.app.tempdir or os.environ.get("TEMP", "."), "af_paint_%d.png" % os.getpid())
+    tmp = os.path.join(bpy.app.tempdir or os.environ.get("TEMP", "."), "imaginarium_paint_%d.png" % os.getpid())
     try:
         rr.filepath = tmp
         bpy.ops.render.render(write_still=True)

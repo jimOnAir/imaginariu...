@@ -11,8 +11,8 @@ export const APP_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)
 export const DATA = path.join(APP_ROOT, 'data');
 export const DEFAULT_COMFY_URL = 'http://127.0.0.1:8190';
 
-// ComfyUI install: env ASTRA_COMFY_DIR, else <app>/runtime/ComfyUI
-export function comfyDir() { return process.env.ASTRA_COMFY_DIR || path.join(APP_ROOT, 'runtime', 'ComfyUI'); }
+// ComfyUI install: env IMAGINARIUM_COMFY_DIR, else <app>/runtime/ComfyUI
+export function comfyDir() { return process.env.IMAGINARIUM_COMFY_DIR || path.join(APP_ROOT, 'runtime', 'ComfyUI'); }
 // Windows venv layout is Scripts/python.exe, POSIX is bin/python (mirrors server/storage.mjs).
 export function pythonExe() { return path.join(comfyDir(), '.venv', ...(process.platform === 'win32' ? ['Scripts', 'python.exe'] : ['bin', 'python'])); }
 
@@ -32,7 +32,7 @@ export async function comfyQueue(url) {
 export async function requireNodes(url, nodes) {
   let info;
   try { info = await jsonFetch(url + '/object_info', { signal: AbortSignal.timeout(15000) }); } catch {
-    throw new Error('The local 3D engine is not running. Start AstraForge (Start.cmd) or click "Start 3D engine" in Connections.');
+    throw new Error('The local 3D engine is not running. Start Imaginarium (Start.cmd) or click "Start 3D engine" in Connections.');
   }
   for (const n of nodes) if (!info[n]) throw new Error('ComfyUI has no node ' + n + '. Restart the 3D engine (Stop.cmd, then Start.cmd): nodes are loaded at startup.');
   return info;
@@ -56,9 +56,9 @@ export async function runWorkflow(url, workflow, { signal, onProgress, timeoutMs
   // ONE step ran 24 minutes and the job waited out its cap having done nothing - "a step over
   // 5 minutes means the card is paging; stop the job at once with the real reason"). The
   // watchdog watches ComfyUI's own progress frames: a step that outlives stepMaxMs (default
-  // 300 s, env ASTRA_VIEWS_STEP_MAX_SEC, 0 disables) is interrupted and reported honestly.
+  // 300 s, env IMAGINARIUM_VIEWS_STEP_MAX_SEC, 0 disables) is interrupted and reported honestly.
   const stepLimit = stepMaxMs === undefined
-    ? Math.max(0, Number(process.env.ASTRA_VIEWS_STEP_MAX_SEC || 300)) * 1000
+    ? Math.max(0, Number(process.env.IMAGINARIUM_VIEWS_STEP_MAX_SEC || 300)) * 1000
     : (Number(stepMaxMs) || 0);
   const clientId = randomUUID();
   const queued = await jsonFetch(url + '/prompt', {

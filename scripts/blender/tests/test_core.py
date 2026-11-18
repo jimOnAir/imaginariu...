@@ -16,14 +16,14 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 # On-disk fixtures for the test_real_* cases (every one returns a "skip: ..." string when its file
-# is missing). Environment overrides: AF_NECRO_GLB, AF_NECRO_HIGH_GLB, AF_ART_RAW.
-NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
-NECRO_HIGH = os.environ.get("AF_NECRO_HIGH_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-MC-high.glb"
-ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+# is missing). Environment overrides: Imaginarium_NECRO_GLB, Imaginarium_NECRO_HIGH_GLB, Imaginarium_ART_RAW.
+NECRO = os.environ.get("Imaginarium_NECRO_GLB") or r"C:/Imaginarium/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+NECRO_HIGH = os.environ.get("Imaginarium_NECRO_HIGH_GLB") or r"C:/Imaginarium/test-assets/ReferenceFidelity/Corrected-MC-high.glb"
+ART_RAW = os.environ.get("Imaginarium_ART_RAW") or r"C:/Imaginarium/test-assets/art/raw"
 GRIFFIN = os.path.join(ART_RAW, "griffin", "model.glb")
 ZOMBIE_RIG = os.path.join(ART_RAW, "zombie", "mixamo_rigged.fbx")
 
@@ -41,13 +41,13 @@ STAFF_REGIONS = [
 # --------------------------------------------------------------------------- helpers
 
 def _purge_stale_sessions(max_age_s=2 * 3600):
-    """Old af_core_* session folders of earlier runs (only ours, only stale ones)."""
+    """Old imaginarium_core_* session folders of earlier runs (only ours, only stale ones)."""
     import shutil
     root = tempfile.gettempdir()
     now = time.time()
     for name in os.listdir(root):
         path = os.path.join(root, name)
-        if name.startswith("af_core_") and os.path.isdir(path):
+        if name.startswith("imaginarium_core_") and os.path.isdir(path):
             try:
                 if now - os.path.getmtime(path) > max_age_s:
                     shutil.rmtree(path, ignore_errors=True)
@@ -56,7 +56,7 @@ def _purge_stale_sessions(max_age_s=2 * 3600):
 
 
 _purge_stale_sessions()
-_SESSION = tempfile.mkdtemp(prefix="af_core_")  # every test writes below this folder
+_SESSION = tempfile.mkdtemp(prefix="imaginarium_core_")  # every test writes below this folder
 
 
 def _tmp():
@@ -68,7 +68,7 @@ def _run(step, inputs, params, out_dir=None):
     req = {"step": step, "inputs": inputs, "params": params, "out_dir": out_dir or _tmp()}
     os.makedirs(req["out_dir"], exist_ok=True)
     res = mod.run(req)
-    return af.finish(req, res)
+    return ima.finish(req, res)
 
 
 def _check(res, name):
@@ -102,7 +102,7 @@ def _textured_material(img):
 
 def _sphere_glb(path, with_island=True, segments=48, rings=24):
     """UV sphere r=1 with the half texture, plus a tiny floating cube (an island)."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("sphere")
     bm = bmesh.new()
     bm.loops.layers.uv.new("UVMap")  # calc_uvs writes into the active UV layer
@@ -118,7 +118,7 @@ def _sphere_glb(path, with_island=True, segments=48, rings=24):
     me.materials.append(_textured_material(_half_texture()))
     for poly in me.polygons:
         poly.use_smooth = True
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     return path
 
 
@@ -172,8 +172,8 @@ def _loop_colours(ob, img):
 
 
 def _imported_base_color(path):
-    af.reset_scene()
-    objs = af.import_any(path)
+    ima.reset_scene()
+    objs = ima.import_any(path)
     rep = ml.texture_report(objs)
     sizes = [v["base_color"] for v in rep.values() if "base_color" in v]
     return objs, sizes
@@ -182,12 +182,12 @@ def _imported_base_color(path):
 def _rigged_glb(path, height=1.7):
     """Skinned cylinder (2 bones) exported as GLB: re-importing it makes the glTF importer add
     its 2 m bone-shape 'Icosphere' in the collection glTF_not_exported."""
-    af.reset_scene()
+    ima.reset_scene()
     body = _cylinder("Body", radius=0.15, height=height, segments=16, rings=12)
     arm_data = bpy.data.armatures.new("Armature")
     arm = bpy.data.objects.new("Armature", arm_data)
     bpy.context.scene.collection.objects.link(arm)
-    af.select_only([arm])
+    ima.select_only([arm])
     bpy.ops.object.mode_set(mode="EDIT")
     hips = arm_data.edit_bones.new("hips")
     hips.head, hips.tail = (0, 0, 0), (0, 0, height / 2)
@@ -202,27 +202,27 @@ def _rigged_glb(path, height=1.7):
         g_chest.add([v.index], w, "REPLACE")
     body.parent = arm
     body.modifiers.new("Armature", "ARMATURE").object = arm
-    af.export_glb(path, objects=None, animations=False, skins=True)
+    ima.export_glb(path, objects=None, animations=False, skins=True)
     return path
 
 
 def _assert_rigged_inputs_clean(glb, height, d):
     """Rigged GLB through convert (FBX, GLB + height), cleanup join:false and separate loose:
     one mesh each, the right height, feet on z=0 and no bone-shape helper anywhere."""
-    af.reset_scene()
-    af.import_any(glb, purge_helpers=False)  # precondition: the raw importer still adds the helper
+    ima.reset_scene()
+    ima.import_any(glb, purge_helpers=False)  # precondition: the raw importer still adds the helper
     assert bpy.data.collections.get("glTF_not_exported") is not None, \
         "test input does not trigger the importer helper any more"
     # (a) FBX without params: one mesh, stored height, nothing extra in the file
     res = _run("convert", {"mesh": glb}, {"format": "fbx"}, os.path.join(d, "fbx"))
     assert res["ok"], (res.get("error"), res["checks"])
     rt = res["stats"]["roundtrip"]
-    # af.import_any now purges the helper itself, so the step may find nothing left to remove
+    # ima.import_any now purges the helper itself, so the step may find nothing left to remove
     assert res["stats"]["import_helpers_removed"] in ([], ["Icosphere"]), res["stats"]
     assert rt["meshes"] == 1 and rt["armatures"] == 1, rt
     assert abs(rt["size"][2] - height) < 2e-3 * height and abs(rt["bbox_min"][2]) < 1e-3, rt
-    af.reset_scene()
-    names = [o.name for o in af.meshes(af.import_any(res["outputs"]["fbx"]))]
+    ima.reset_scene()
+    names = [o.name for o in ima.meshes(ima.import_any(res["outputs"]["fbx"]))]
     assert len(names) == 1 and not any("Icosphere" in n for n in names), names
     # (b) GLB with height_m=1.8: the model, not the helper, is 1.8 m and grounded
     res = _run("convert", {"mesh": glb}, {"format": "glb", "height_m": 1.8},
@@ -238,7 +238,7 @@ def _assert_rigged_inputs_clean(glb, height, d):
     after = res["stats"]["after"]
     assert after["objects"] == 1 and abs(after["size"][2] - height) < 2e-3 * height, after
     assert abs(after["bbox_min"][2]) < 1e-4, after
-    af.reset_scene()  # clean.blend is the current file after the step saved it
+    ima.reset_scene()  # clean.blend is the current file after the step saved it
     with bpy.data.libraries.load(res["outputs"]["blend"]) as (src, _dst):
         assert not any("Icosphere" in n for n in src.objects), list(src.objects)
     # (d) separate loose: one real part, no fake 'small'
@@ -286,8 +286,8 @@ def _vertex_colour_sphere(name="vc_sphere", with_material=True):
 
 def _red_blue_agreement(glb):
     """Share of loops whose baked colour says red on the +X side and blue on the -X side."""
-    af.reset_scene()
-    objs = ml.prepare_meshes(af.import_any(glb))
+    ima.reset_scene()
+    objs = ml.prepare_meshes(ima.import_any(glb))
     low = objs[0]
     img = ml.image_into(low.data.materials[0], "Base Color").image
     co, col = _loop_colours(low, img)
@@ -329,7 +329,7 @@ def test_components_matches_bfs():
 def test_metrics_and_islands():
     a = _cylinder("a")
     b = _cylinder("b", z0=3.0)
-    ob = af.join([a, b], name="ab")
+    ob = ima.join([a, b], name="ab")
     m = ml.mesh_metrics([ob])
     assert m["loose_parts"] == 2, m
     assert m["boundary_edges"] == 0 and m["non_manifold_edges"] == 0, m
@@ -355,7 +355,7 @@ def test_rotate_z_quaternion_mode():
     cube.scale = (2.0, 0.5, 0.5)
     bpy.context.view_layer.update()
     ml.rotate_z([cube], 90)
-    lo, hi = af.world_bbox([cube])
+    lo, hi = ima.world_bbox([cube])
     assert abs((hi - lo).x - 1.0) < 1e-4 and abs((hi - lo).y - 4.0) < 1e-4, (lo, hi)
 
 
@@ -386,7 +386,7 @@ def test_cut_by_boxes_closes_both_sides():
     assert v_top > 0 and v_rest > 0, (v_top, v_rest)
     assert abs(v_top + v_rest - vol0) < 0.01 * vol0, (v_top, v_rest, vol0)
     assert abs(v_top / vol0 - 0.4) < 0.02, v_top / vol0
-    lo, hi = af.world_bbox([part])
+    lo, hi = ima.world_bbox([part])
     assert abs(lo.z - 1.2) < 1e-4 and abs(hi.z - 2.0) < 1e-4, (lo, hi)
 
 
@@ -476,11 +476,11 @@ def test_cleanup_planar_waits_for_collapse_on_heavy_meshes():
 
 def test_cleanup_rotate_and_keep_scale():
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     bpy.ops.mesh.primitive_cube_add()
     cube = bpy.context.active_object
     cube.scale = (2.0, 0.5, 0.25)
-    src = af.export_glb(os.path.join(d, "box.glb"), objects=[cube], animations=False,
+    src = ima.export_glb(os.path.join(d, "box.glb"), objects=[cube], animations=False,
                         skins=False)
     res = _run("cleanup", {"mesh": src}, {"rotate_z_deg": 90, "preview": False},
                os.path.join(d, "out"))
@@ -492,10 +492,10 @@ def test_cleanup_rotate_and_keep_scale():
 
 def test_cleanup_without_join_splits_budget():
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     a = _cylinder("shaft", radius=0.05, segments=32, rings=60)
     b = _cylinder("guard", radius=0.3, height=0.1, segments=64, rings=6, z0=1.0)
-    src = af.export_glb(os.path.join(d, "two.glb"), objects=[a, b], animations=False,
+    src = ima.export_glb(os.path.join(d, "two.glb"), objects=[a, b], animations=False,
                         skins=False)
     t_in = ml.tris_of(a) + ml.tris_of(b)
     res = _run("cleanup", {"mesh": src}, {"join": False, "target_tris": t_in // 3,
@@ -503,8 +503,8 @@ def test_cleanup_without_join_splits_budget():
     assert res["ok"], (res.get("error"), res["checks"])
     assert res["stats"]["after"]["objects"] == 2, res["stats"]["after"]
     assert res["stats"]["after"]["tris"] <= t_in // 3
-    af.reset_scene()
-    names = sorted(o.name for o in af.meshes(af.import_any(res["outputs"]["glb"])))
+    ima.reset_scene()
+    names = sorted(o.name for o in ima.meshes(ima.import_any(res["outputs"]["glb"])))
     assert names == ["guard", "shaft"], names
 
 
@@ -522,11 +522,11 @@ def test_cleanup_voxel_remesh_bakes_colour():
     assert os.path.isfile(res["outputs"]["baked_base_color"])
     # compare colours: original texture at original UVs vs baked texture at new UVs, matched by
     # nearest position — red/blue sides must agree
-    af.reset_scene()
-    orig = ml.prepare_meshes(af.import_any(src))[0]
-    af.normalize([orig], height=2.0)
+    ima.reset_scene()
+    orig = ml.prepare_meshes(ima.import_any(src))[0]
+    ima.normalize([orig], height=2.0)
     co_a, col_a = _loop_colours(orig, ml.image_into(orig.data.materials[0], "Base Color").image)
-    objs = ml.prepare_meshes(af.import_any(res["outputs"]["glb"]))
+    objs = ml.prepare_meshes(ima.import_any(res["outputs"]["glb"]))
     low = objs[0]
     img = ml.image_into(low.data.materials[0], "Base Color").image
     co_b, col_b = _loop_colours(low, img)
@@ -551,9 +551,9 @@ def test_cleanup_remesh_bake_normal_shading_and_orphans():
     s = res["stats"]
     assert s["shading"] == "smooth (bake_normal)" and s["sharp_edges"] == 0, s["shading"]
     assert s["orphans_purged"] > 0, s["orphans_purged"]
-    af.reset_scene()
-    objs = af.import_any(res["outputs"]["blend"])
-    body = af.meshes(objs)[0]
+    ima.reset_scene()
+    objs = ima.import_any(res["outputs"]["blend"])
+    body = ima.meshes(objs)[0]
     smooth = np.zeros(len(body.data.polygons), dtype=bool)
     body.data.polygons.foreach_get("use_smooth", smooth)
     assert smooth.all() and ml.sharp_edge_count(body) == 0
@@ -565,7 +565,7 @@ def test_cleanup_join_false_budgets():
     """join:false: a 12-tri box is left whole when decimating, and after a voxel remesh the
     budget is split over the remeshed counts (the box used to collapse into a tetrahedron)."""
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ball = _cylinder("ball", radius=0.4, height=1.0, segments=96, rings=80)
     ball.data.materials.append(_textured_material(_half_texture()))
     bpy.ops.mesh.primitive_cube_add(size=0.5, location=(1.2, 0.0, 0.25))
@@ -573,13 +573,13 @@ def test_cleanup_join_false_budgets():
     box.name = "box"
     shaft = _cylinder("shaft", radius=0.1, height=1.0, segments=48, rings=60)
     shaft.location = (-1.2, 0.0, 0.0)
-    src = af.export_glb(os.path.join(d, "three.glb"), objects=[ball, box, shaft],
+    src = ima.export_glb(os.path.join(d, "three.glb"), objects=[ball, box, shaft],
                         animations=False, skins=False)
     res = _run("cleanup", {"mesh": src}, {"join": False, "target_tris": 3000,
                                           "preview_size": 192}, os.path.join(d, "dec"))
     assert res["ok"], (res.get("error"), res["checks"])
-    af.reset_scene()
-    tris = {o.name: ml.tris_of(o) for o in af.meshes(af.import_any(res["outputs"]["glb"]))}
+    ima.reset_scene()
+    tris = {o.name: ml.tris_of(o) for o in ima.meshes(ima.import_any(res["outputs"]["glb"]))}
     assert tris["box"] == 12 and sum(tris.values()) <= 3000, tris
     res = _run("cleanup", {"mesh": src}, {"join": False, "voxel_remesh_m": 0.04,
                                           "target_tris": 3000, "bake_size": 128,
@@ -589,8 +589,8 @@ def test_cleanup_join_false_budgets():
     s = res["stats"]
     assert s["after"]["tris"] <= 3000 and min(s["budgets"]) > 100, s["budgets"]
     assert s["render_compare"]["silhouette_iou"] >= 0.95, s["render_compare"]
-    af.reset_scene()
-    objs = {o.name: o for o in af.meshes(af.import_any(res["outputs"]["blend"]))}
+    ima.reset_scene()
+    objs = {o.name: o for o in ima.meshes(ima.import_any(res["outputs"]["blend"]))}
     vol = ml.signed_volume(objs["box"])
     assert abs(vol - 0.125) < 0.15 * 0.125, vol  # a tetrahedron would keep a third of it
 
@@ -600,13 +600,13 @@ def test_cleanup_vertex_colours():
     material's Color Attribute node, or a temporary one when the mesh has no material), and the
     previews draw them (VERTEX mode) so render_color_mae can see a loss."""
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob = _vertex_colour_sphere()
-    src = af.export_glb(os.path.join(d, "vc.glb"), objects=[ob], animations=False, skins=False)
-    af.reset_scene()
-    objs = af.import_any(src)
+    src = ima.export_glb(os.path.join(d, "vc.glb"), objects=[ob], animations=False, skins=False)
+    ima.reset_scene()
+    objs = ima.import_any(src)
     assert ml.preview_color_type(objs) == "VERTEX"
-    assert ml.color_source(af.meshes(objs)[0]) == "linked"
+    assert ml.color_source(ima.meshes(objs)[0]) == "linked"
     res = _run("cleanup", {"mesh": src}, {"height_m": 2.0, "target_tris": 600,
                                           "preview_size": 160}, os.path.join(d, "dec"))
     assert res["ok"], (res.get("error"), res["checks"])
@@ -621,7 +621,7 @@ def test_cleanup_vertex_colours():
     share = _red_blue_agreement(res["outputs"]["glb"])
     assert share > 0.95, share
     # no material at all, colours only in the attribute (.blend input)
-    af.reset_scene()
+    ima.reset_scene()
     _vertex_colour_sphere("bare", with_material=False)
     blend = os.path.join(d, "bare.blend")
     bpy.ops.wm.save_as_mainfile(filepath=blend, copy=True)
@@ -688,7 +688,7 @@ def _ridged_sphere_glb(path, flat_rgba=None, segments=160, rings=80, flip_top=Fa
     """Dense sphere (~25k tris) with 16 sharp meridian ridges and no UVs: geometry-only detail
     like a Pixal3D mesh. flat_rgba: one flat Principled material, else no material at all.
     flip_top: the upper half faces inward (an AI mesh wound two ways)."""
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("ridged")
     bm = bmesh.new()
     bmesh.ops.create_uvsphere(bm, u_segments=segments, v_segments=rings, radius=1.0)
@@ -710,7 +710,7 @@ def _ridged_sphere_glb(path, flat_rgba=None, segments=160, rings=80, flip_top=Fa
         mat.use_nodes = True
         ml.principled_of(mat).inputs["Base Color"].default_value = flat_rgba
         me.materials.append(mat)
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     return path
 
 
@@ -728,9 +728,9 @@ def _normal_map_detail(glb, inverted=False):
     [, share of texels pointing INTO the surface: a source read inside out])."""
     g = _glb_json(glb)
     with_nrm = sum(1 for m in g.get("materials", []) if "normalTexture" in m)
-    af.reset_scene()
-    objs = af.import_any(glb)
-    imgs = [ml.image_into(m, "Normal").image for o in af.meshes(objs) for m in o.data.materials
+    ima.reset_scene()
+    objs = ima.import_any(glb)
+    imgs = [ml.image_into(m, "Normal").image for o in ima.meshes(objs) for m in o.data.materials
             if m is not None and ml.image_into(m, "Normal") is not None]
     if not imgs:
         return (with_nrm, 0.0, 1.0) if inverted else (with_nrm, 0.0)
@@ -804,8 +804,8 @@ def test_cleanup_decimate_bake_normal_without_colour():
     with_nrm, tilted = _normal_map_detail(res["outputs"]["glb"])
     assert with_nrm == 1 and tilted > 0.05, (with_nrm, tilted)
     # the high-poly copy is gone: one mesh in the blend
-    af.reset_scene()
-    assert len(af.meshes(af.import_any(res["outputs"]["blend"]))) == 1
+    ima.reset_scene()
+    assert len(ima.meshes(ima.import_any(res["outputs"]["blend"]))) == 1
     # one flat material: kept (same colour, same name), normal map added
     src2 = _ridged_sphere_glb(os.path.join(d, "flat.glb"), flat_rgba=(0.2, 0.6, 0.3, 1.0))
     res = _run("cleanup", {"mesh": src2},
@@ -865,7 +865,7 @@ def test_convert_mixamo_fbx():
 def _rigged_clipped_glb(path, height=1.7):
     """Skinned cylinder (2 bones) plus one keyframed clip "wave": the ticket-56 LOD fixture -
     every LOD must carry both the skin and the clip."""
-    af.reset_scene()
+    ima.reset_scene()
     body = _cylinder("Body", radius=0.15, height=height, segments=16, rings=12)
     bm = bmesh.new()
     bm.from_mesh(body.data)
@@ -875,7 +875,7 @@ def _rigged_clipped_glb(path, height=1.7):
     arm_data = bpy.data.armatures.new("Armature")
     arm = bpy.data.objects.new("Armature", arm_data)
     bpy.context.scene.collection.objects.link(arm)
-    af.select_only([arm])
+    ima.select_only([arm])
     bpy.ops.object.mode_set(mode="EDIT")
     hips = arm_data.edit_bones.new("hips")
     hips.head, hips.tail = (0, 0, 0), (0, 0, height / 2)
@@ -899,18 +899,18 @@ def _rigged_clipped_glb(path, height=1.7):
     pb.rotation_euler = (math.radians(20), 0.0, 0.0)
     pb.keyframe_insert("rotation_euler", frame=12)
     bpy.context.scene.frame_start, bpy.context.scene.frame_end = 1, 12
-    return af.export_glb(path, objects=None, animations=True, skins=True)
+    return ima.export_glb(path, objects=None, animations=True, skins=True)
 
 
 def test_convert_lods_and_compact():
-    """0.7.9 fold wave ticket 56: lods -> <name>_lodN.glb (af-mesh-rs hits the exact fraction,
-    gltfpack -si approximates as the no-af-mesh fallback), compress -> <name>.compact.glb with
+    """0.7.9 fold wave ticket 56: lods -> <name>_lodN.glb (imaginarium-mesh-rs hits the exact fraction,
+    gltfpack -si approximates as the no-imaginarium-mesh fallback), compress -> <name>.compact.glb with
     EXT_meshopt_compression. Main and LOD files stay PLAIN GLB (Godot opens them) and every
     LOD carries the skin and the clip; stats.lods/compact carry the tool provenance."""
     conv = importlib.import_module("steps.convert")
-    af_mesh, gltf = conv._af_mesh_rs(), conv._gltfpack()
-    if not af_mesh and not gltf:
-        print("SKIP convert lods: neither af-mesh-rs nor gltfpack found")
+    imaginarium_mesh, gltf = conv._imaginarium_mesh_rs(), conv._gltfpack()
+    if not imaginarium_mesh and not gltf:
+        print("SKIP convert lods: neither imaginarium-mesh-rs nor gltfpack found")
         return
 
     def gj(path):
@@ -937,10 +937,10 @@ def test_convert_lods_and_compact():
         g = gj(os.path.join(os.path.dirname(main), r["file"]))
         t = tris(g)
         assert t == r["tris"], (r, t)
-        if af_mesh:  # the exact-fraction contract of the ticket (meshopt can be 1 triangle off)
+        if imaginarium_mesh:  # the exact-fraction contract of the ticket (meshopt can be 1 triangle off)
             assert abs(t - r["target_tris"]) <= 1, r
             assert abs(t - main_tris * frac) <= max(2, 0.01 * main_tris * frac), (r, main_tris)
-        else:  # the sanctioned no-af-mesh approximation (provenance says so)
+        else:  # the sanctioned no-imaginarium-mesh approximation (provenance says so)
             assert abs(t - main_tris * frac) <= max(4, 0.25 * main_tris * frac), (r, main_tris)
             assert r["tool"].startswith("gltfpack"), r
         assert len(g.get("skins", [])) == 1, r["file"]  # bones carried
@@ -964,15 +964,15 @@ def test_convert_lods_and_compact():
     else:  # the honest absence row: a warning, the plain output untouched
         assert "compact" not in res["outputs"]
         assert any("gltfpack not found" in w for w in res["warnings"]), res["warnings"]
-    # af-mesh-rs absent (but gltfpack present): the LOD falls back and says so in provenance
-    if af_mesh and gltf:
-        keep = conv._af_mesh_rs
-        conv._af_mesh_rs = lambda: None
+    # imaginarium-mesh-rs absent (but gltfpack present): the LOD falls back and says so in provenance
+    if imaginarium_mesh and gltf:
+        keep = conv._imaginarium_mesh_rs
+        conv._imaginarium_mesh_rs = lambda: None
         try:
             res3 = _run("convert", {"mesh": src}, {"format": "glb", "name": "hero", "lods": [0.5]},
                         os.path.join(d, "fallback"))
         finally:
-            conv._af_mesh_rs = keep
+            conv._imaginarium_mesh_rs = keep
         assert res3["ok"], (res3.get("error"), res3["checks"])
         r3 = res3["stats"]["lods"][0]
         assert r3["tool"].startswith("gltfpack"), r3
@@ -1000,9 +1000,9 @@ def test_convert_lods_and_compact():
 
 def test_separate_regions_union_and_rest():
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob = _cylinder("staff", radius=0.05, height=2.0)
-    src = af.export_glb(os.path.join(d, "staff.glb"), objects=[ob], animations=False, skins=False)
+    src = ima.export_glb(os.path.join(d, "staff.glb"), objects=[ob], animations=False, skins=False)
     regions = [{"name": "ends", "min": [-0.2, -0.2, -0.1], "max": [0.2, 0.2, 0.6]},
                {"name": "ends", "min": [-0.2, -0.2, 1.4], "max": [0.2, 0.2, 2.1]}]
     res = _run("separate", {"mesh": src}, {"mode": "regions", "regions": regions,
@@ -1014,22 +1014,22 @@ def test_separate_regions_union_and_rest():
     assert parts["ends"]["closed"] and parts["body"]["closed"], parts
     total = parts["ends"]["volume_m3"] + parts["body"]["volume_m3"]
     assert abs(parts["body"]["volume_m3"] / total - 0.4) < 0.03, parts
-    af.reset_scene()
-    objs = af.import_any(res["outputs"]["glb"])
-    names = sorted(o.name for o in af.meshes(objs))
+    ima.reset_scene()
+    objs = ima.import_any(res["outputs"]["glb"])
+    names = sorted(o.name for o in ima.meshes(objs))
     assert names == ["body", "ends"], names
 
 
 def test_separate_loose_and_material():
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     a = _cylinder("a")
     b = _cylinder("b", z0=3.0, radius=0.2, segments=48)  # more vertices -> listed first
     m1, m2 = bpy.data.materials.new("Wood"), bpy.data.materials.new("Iron")
     a.data.materials.append(m1)
     b.data.materials.append(m2)
-    ob = af.join([a, b], name="ab")
-    src = af.export_glb(os.path.join(d, "ab.glb"), objects=[ob], animations=False, skins=False)
+    ob = ima.join([a, b], name="ab")
+    src = ima.export_glb(os.path.join(d, "ab.glb"), objects=[ob], animations=False, skins=False)
     res = _run("separate", {"mesh": src}, {"mode": "loose", "names": ["big", "thin"],
                                            "preview": False}, os.path.join(d, "loose"))
     assert res["ok"] and res["stats"]["part_count"] == 2, res["stats"]
@@ -1168,7 +1168,7 @@ def test_two_sided_open_sheet():
     """An open sheet has no inside for recalc_normals to find; two_sided gives every face a reversed
     twin behind it, so a ray from either side first meets a face that looks at it."""
     from mathutils.bvhtree import BVHTree
-    af.reset_scene()
+    ima.reset_scene()
     bpy.ops.mesh.primitive_grid_add(x_subdivisions=8, y_subdivisions=8, size=2.0)
     sheet = bpy.context.active_object
     tris = ml.tris_of(sheet)
@@ -1181,7 +1181,7 @@ def test_two_sided_open_sheet():
 def _dumbbell_glb(path, neck=0.02):
     """Two cubes joined by a thin neck (one watertight mesh by a voxel remesh): a sleeve fused to a
     robe side in miniature. Left cube x -0.5..0, neck x 0..0.06 (+-neck in y/z), right cube 0.06..0.56."""
-    af.reset_scene()
+    ima.reset_scene()
     objs = []
     for lo, hi in (((-0.5, -0.25, -0.25), (0.0, 0.25, 0.25)), ((-0.01, -neck, -neck), (0.07, neck, neck)),
                    ((0.06, -0.25, -0.25), (0.56, 0.25, 0.25))):
@@ -1195,13 +1195,13 @@ def _dumbbell_glb(path, neck=0.02):
         ob = bpy.data.objects.new("c", me)
         bpy.context.scene.collection.objects.link(ob)
         objs.append(ob)
-    ob = af.join(objs, name="db")
+    ob = ima.join(objs, name="db")
     mod = ob.modifiers.new("r", "REMESH")
     mod.mode = "VOXEL"
     mod.voxel_size = 0.008
-    af.select_only([ob])
+    ima.select_only([ob])
     bpy.ops.object.modifier_apply(modifier=mod.name)
-    return af.export_glb(path, objects=[ob], animations=False, skins=False)
+    return ima.export_glb(path, objects=[ob], animations=False, skins=False)
 
 
 def _islands_after_weld(ob, dist=1e-6):
@@ -1218,8 +1218,8 @@ def _islands_after_weld(ob, dist=1e-6):
 def test_slit_rip_separates_without_caps():
     d = _tmp()
     src = _dumbbell_glb(os.path.join(d, "db.glb"))
-    af.reset_scene()
-    ob = af.join([o for o in af.import_any(src) if o.type == "MESH"], name="db")
+    ima.reset_scene()
+    ob = ima.join([o for o in ima.import_any(src) if o.type == "MESH"], name="db")
     ml.merge_by_distance(ob, 1e-6)
     n0, m0 = _islands_after_weld(ob)
     assert n0 == 1 and m0["boundary_edges"] == 0, (n0, m0)
@@ -1246,8 +1246,8 @@ def test_slit_slab_caps_each_side_and_curve():
     s0 = reg["slits"][0]
     assert s0["faces_removed"] > 0 and s0["caps"]["+"] > 0 and s0["caps"]["-"] > 0, s0
     assert _check(res, "slit_neck_cut")["ok"] and _check(res, "slit_neck_capped")["ok"]
-    af.reset_scene()
-    ob = af.join([o for o in af.import_any(res["outputs"]["glb"]) if o.type == "MESH"], name="db")
+    ima.reset_scene()
+    ob = ima.join([o for o in ima.import_any(res["outputs"]["glb"]) if o.type == "MESH"], name="db")
     assert [o.name for o in bpy.context.scene.objects if o.type == "MESH"] == ["db"]
     n, m = _islands_after_weld(ob, 1e-5)
     assert n == 2 and m["boundary_edges"] == 0, (n, m)      # two closed pieces, each with its own cap
@@ -1260,9 +1260,9 @@ def test_slit_slab_caps_each_side_and_curve():
 
 def test_separate_delete_kind_open_or_capped_and_facing():
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob = _cylinder("robe", radius=0.3, height=1.5)
-    src = af.export_glb(os.path.join(d, "robe.glb"), objects=[ob], animations=False, skins=False)
+    src = ima.export_glb(os.path.join(d, "robe.glb"), objects=[ob], animations=False, skins=False)
     region = {"name": "bottom", "kind": "delete", "min": [-0.5, -0.5, -0.01], "max": [0.5, 0.5, 0.04],
               "facing": [0, 0, -1], "facing_min": 0.5}
     res = _run("separate", {"mesh": src}, {"mode": "regions", "preview": False, "ground": False, "center": False,
@@ -1280,16 +1280,16 @@ def test_separate_delete_kind_open_or_capped_and_facing():
 
 
 def _socket_scene_glb(path, height=1.0):
-    af.reset_scene()
+    ima.reset_scene()
     ob = _cylinder("body", radius=0.2, height=height)
-    e = af.add_socket("socket_fx_test", location=(0.1, -0.2, 0.8 * height), rotation=(0.3, 0.0, 0.5), kind="fx",
+    e = ima.add_socket("socket_fx_test", location=(0.1, -0.2, 0.8 * height), rotation=(0.3, 0.0, 0.5), kind="fx",
                       size_class="S")
-    return af.export_glb(path, objects=[ob, e], animations=False, skins=False), e.matrix_world.copy()
+    return ima.export_glb(path, objects=[ob, e], animations=False, skins=False), e.matrix_world.copy()
 
 
 def _socket_in(glb, name):
-    af.reset_scene()
-    objs = af.import_any(glb)
+    ima.reset_scene()
+    objs = ima.import_any(glb)
     s = [o for o in objs if o.type == "EMPTY" and (o.get("game_socket") == name or o.name == name)]
     return s[0] if s else None
 

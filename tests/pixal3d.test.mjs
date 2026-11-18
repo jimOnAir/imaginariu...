@@ -18,7 +18,7 @@ import { resetGpuPool, engineCardFor, claimEngineCard } from '../server/gpu-pool
 import { generatePixal3d, explainPixal3dError, PIXAL3D_PHASES } from '../server/pixal3d-run.mjs';
 import { validateGeneratedMesh } from '../server/mesh-validation.mjs';
 
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-pixal3d-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-pixal3d-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 const ID = '0f0f0f0f-0f0f-4f0f-8f0f-0f0f0f0f0f0f';
 const classes = (w) => Object.values(w).map((n) => n.class_type);
@@ -26,7 +26,7 @@ const classes = (w) => Object.values(w).map((n) => n.class_type);
 // ---------- workflow ----------
 
 test('pixal3dWorkflow: four views -> multi-view graph (front, left, back, right = azimuth 0, 90, 180, 270)', () => {
-  const w = pixal3dWorkflow({ front: 'f.png', left: 'l.png', back: 'b.png', right: 'r.png' }, { seed: 1000, prefix: 'astra/x' });
+  const w = pixal3dWorkflow({ front: 'f.png', left: 'l.png', back: 'b.png', right: 'r.png' }, { seed: 1000, prefix: 'imaginarium/x' });
   assert.equal(w['1'].inputs.modelname, PIXAL3D_MODEL);
   assert.equal(w['1'].inputs.pixal3d_multiview, true);
   assert.equal(w['1'].inputs.keep_models_loaded, false);
@@ -50,7 +50,7 @@ test('pixal3dWorkflow: four views -> multi-view graph (front, left, back, right 
   assert.equal(w['6'].inputs.shape_sampler, 'heun');
   assert.equal(w['23'].inputs.target_face_num, 700000);
   assert.equal(w['25'].inputs.target_face_num, 700000);
-  assert.equal(w['27'].inputs.filename_prefix, 'astra/x');
+  assert.equal(w['27'].inputs.filename_prefix, 'imaginarium/x');
   assert.equal(w['27'].inputs.file_format, 'glb');
 });
 
@@ -96,10 +96,10 @@ test('pixal3dWorkflow is shape only: no texturing, rasterising or nvdiffrast nod
   assert.ok(MV_SLOTS.includes('front'));
 });
 
-test('pixal3dWorkflow reproduces the graphs that were evaluated on the militia (when the evaluation files exist)', { skip: !existsSync('C:/AstraForge/incoming/units_1013/militia/pixal3d/pixal3d_mv.api.json') }, () => {
+test('pixal3dWorkflow reproduces the graphs that were evaluated on the militia (when the evaluation files exist)', { skip: !existsSync('C:/Imaginarium/incoming/units_1013/militia/pixal3d/pixal3d_mv.api.json') }, () => {
   // the evaluated graphs used meshlib for the second hole fill; it is replaced by CuMesh (MIT) — meshlib is non-commercial only
   const noMeshlib = (g) => { if (g['24']?.class_type === 'Trellis2FillHolesNicelyWithMeshlib') g['24'] = { class_type: 'Trellis2FillHolesWithCuMesh', inputs: { mesh: ['23', 0], max_permieters: 1 } }; return g; };
-  const load = (f) => noMeshlib(JSON.parse(readFileSync('C:/AstraForge/incoming/units_1013/militia/pixal3d/' + f, 'utf8')));
+  const load = (f) => noMeshlib(JSON.parse(readFileSync('C:/Imaginarium/incoming/units_1013/militia/pixal3d/' + f, 'utf8')));
   const norm = (g) => JSON.parse(JSON.stringify(g, (k, v) => (k === 'image' && typeof v === 'string' ? 'IMG' : k === 'filename_prefix' ? 'P' : v)));
   const sorted = (o) => JSON.stringify(o, (k, v) => (v && typeof v === 'object' && !Array.isArray(v) ? Object.fromEntries(Object.entries(v).sort(([a], [b]) => a.localeCompare(b))) : v));
   assert.equal(sorted(norm(pixal3dWorkflow({ front: 'f', left: 'l', back: 'b', right: 'r' }, { seed: 1000 }))), sorted(norm(load('pixal3d_mv.api.json'))));
@@ -115,7 +115,7 @@ test('generation schema: engine defaults to hunyuan (old API clients unchanged),
 
 // ---------- settings and installation ----------
 
-test('settings: ASTRA_PIXAL3D_DIR beats config/paths.json beats the default; the URL must be local', () => {
+test('settings: IMAGINARIUM_PIXAL3D_DIR beats config/paths.json beats the default; the URL must be local', () => {
   const app = path.join(tmp, 'app1');
   mkdirSync(path.join(app, 'config'), { recursive: true });
   assert.equal(pixal3dConfig({ env: {}, appRoot: app }).dir, process.platform === 'win32' ? path.resolve(DEFAULT_PIXAL3D_DIR) : path.join(app, 'runtime', 'ComfyUI-Pixal3D'));
@@ -125,13 +125,13 @@ test('settings: ASTRA_PIXAL3D_DIR beats config/paths.json beats the default; the
   const fromFile = pixal3dConfig({ env: {}, appRoot: app });
   assert.equal(fromFile.dir, path.resolve('D:/Engines/Pixal3D'));
   assert.equal(fromFile.source, 'paths.json');
-  const fromEnv = pixal3dConfig({ env: { ASTRA_PIXAL3D_DIR: 'E:/px', ASTRA_PIXAL3D_URL: 'http://127.0.0.1:9191/' }, appRoot: app });
+  const fromEnv = pixal3dConfig({ env: { IMAGINARIUM_PIXAL3D_DIR: 'E:/px', IMAGINARIUM_PIXAL3D_URL: 'http://127.0.0.1:9191/' }, appRoot: app });
   assert.equal(fromEnv.dir, path.resolve('E:/px'));
   assert.equal(fromEnv.source, 'env');
   assert.equal(fromEnv.url, 'http://127.0.0.1:9191');
   assert.equal(fromEnv.port, 9191);
   assert.equal(pixal3dConfig({ env: {}, appRoot: app }).port, 8191);
-  assert.throws(() => pixal3dConfig({ env: { ASTRA_PIXAL3D_URL: 'http://example.com:8191' }, appRoot: app }), /local/);
+  assert.throws(() => pixal3dConfig({ env: { IMAGINARIUM_PIXAL3D_URL: 'http://example.com:8191' }, appRoot: app }), /local/);
   writeFileSync(path.join(app, 'config', 'paths.json'), '{ broken');
   assert.equal(pixal3dConfig({ env: {}, appRoot: app }).source, 'default', 'a broken paths.json does not break the studio');
 });
@@ -155,7 +155,7 @@ test('install detection: complete / missing folder / missing pieces are told apa
   const noFolder = pixal3dInstallState(none);
   assert.equal(noFolder.installed, false);
   assert.match(noFolder.message, /Pixal3D is not installed/);
-  assert.match(noFolder.message, /ASTRA_PIXAL3D_DIR/);
+  assert.match(noFolder.message, /IMAGINARIUM_PIXAL3D_DIR/);
 
   const dino = 'ComfyUI/models/facebook/dinov3-vitl16-pretrain-lvd1689m/model.safetensors';
   const partial = pixal3dInstallState(fakeInstall('partial', { skip: [dino] }));
@@ -271,7 +271,7 @@ test('runtime start: a card from the GPU pool is pinned into the child environme
 });
 
 test('runtime start: the environment drops system CUDA / Python variables like the bat file does', () => {
-  const cfg = { dir: 'C:/AstraForge/ComfyUI-Pixal3D', port: 8191 };
+  const cfg = { dir: 'C:/Imaginarium/ComfyUI-Pixal3D', port: 8191 };
   const env = pixal3dEnv(cfg, { cuda_path: 'x', CUDA_HOME: 'y', PYTHONPATH: 'z', VIRTUAL_ENV: 'v', Path: 'C:\\Tools', windir: 'C:\\Windows', KEEP: '1' });
   for (const k of ['cuda_path', 'CUDA_HOME', 'PYTHONPATH', 'VIRTUAL_ENV']) assert.equal(env[k], undefined, k);
   assert.equal(env.KEEP, '1');
@@ -369,9 +369,9 @@ test('normalizeGlb: refuses broken or flat files with a Russian message', () => 
 });
 
 test('normalizeGlb gives the same vertices as the evaluated Python normaliser (when the militia files exist)',
-  { skip: !existsSync('C:/AstraForge/incoming/units_1013/militia/mv/mesh_mv_pixal3d.glb') }, () => {
-    const raw = readFileSync('C:/AstraForge/incoming/units_1013/militia/pixal3d/pixal3d_mv.glb');
-    const ref = parseGlb(readFileSync('C:/AstraForge/incoming/units_1013/militia/mv/mesh_mv_pixal3d.glb'));
+  { skip: !existsSync('C:/Imaginarium/incoming/units_1013/militia/mv/mesh_mv_pixal3d.glb') }, () => {
+    const raw = readFileSync('C:/Imaginarium/incoming/units_1013/militia/pixal3d/pixal3d_mv.glb');
+    const ref = parseGlb(readFileSync('C:/Imaginarium/incoming/units_1013/militia/mv/mesh_mv_pixal3d.glb'));
     const out = parseGlb(normalizeGlb(raw).buffer);
     const at = (g) => { const acc = g.json.accessors[g.json.meshes[0].primitives[0].attributes.POSITION]; return [acc.count, g.json.bufferViews[acc.bufferView].byteOffset || 0]; };
     const [n, oa] = at(out), [m, ob] = at(ref);
@@ -418,7 +418,7 @@ function fakeEngine({ outcome = 'success', pollsBeforeDone = 1, foreign = false 
         state.polls += 1;
         if (state.polls <= pollsBeforeDone) return json({});
         if (outcome === 'oom') return json({ p1: { status: { status_str: 'error', completed: false, messages: [['execution_error', { exception_message: 'CUDA out of memory. Tried to allocate 2.00 GiB' }]] }, outputs: {} } });
-        return json({ p1: { status: { status_str: 'success', completed: true, messages: [] }, outputs: { 27: { '3d': [{ filename: 'px_00001_.glb', subfolder: 'astra', type: 'output' }] } } } });
+        return json({ p1: { status: { status_str: 'success', completed: true, messages: [] }, outputs: { 27: { '3d': [{ filename: 'px_00001_.glb', subfolder: 'imaginarium', type: 'output' }] } } } });
       }
       if (url.pathname === '/view') { res.writeHead(200, { 'Content-Type': 'model/gltf-binary' }); return res.end(glb); }
       if (url.pathname === '/queue' && req.method === 'POST') { state.queueDeletes += 1; return json({}); }
@@ -457,12 +457,12 @@ test('generatePixal3d: uploads the cut-outs, queues the graph, follows the progr
     });
     assert.equal(acquired.name, 'pixal3d', 'the card is taken for the Pixal3D side of the hand-over');
     assert.equal(acquired.opts.urls.pixal3d, engine.url);
-    assert.deepEqual(engine.state.uploads, ['astra-px-ab12cd34-front.png', 'astra-px-ab12cd34-left.png', 'astra-px-ab12cd34-back.png', 'astra-px-ab12cd34-right.png']);
+    assert.deepEqual(engine.state.uploads, ['imaginarium-px-ab12cd34-front.png', 'imaginarium-px-ab12cd34-left.png', 'imaginarium-px-ab12cd34-back.png', 'imaginarium-px-ab12cd34-right.png']);
     const graph = engine.state.prompt.prompt;
     assert.equal(graph['38'].inputs.azimuths, '0,90,180,270');
-    assert.equal(graph['30'].inputs.image, 'astra-px-ab12cd34-front.png');
-    assert.equal(graph['33'].inputs.image, 'astra-px-ab12cd34-right.png');
-    assert.equal(graph['27'].inputs.filename_prefix, 'astra/px-ab12cd34');
+    assert.equal(graph['30'].inputs.image, 'imaginarium-px-ab12cd34-front.png');
+    assert.equal(graph['33'].inputs.image, 'imaginarium-px-ab12cd34-right.png');
+    assert.equal(graph['27'].inputs.filename_prefix, 'imaginarium/px-ab12cd34');
     assert.equal(graph['5'].inputs.seed, 1000);
     assert.equal(promptSeen, 'p1');
     assert.equal(result.promptId, 'p1');

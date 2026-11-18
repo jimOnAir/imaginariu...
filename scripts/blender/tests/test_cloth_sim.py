@@ -23,20 +23,20 @@ import bpy  # noqa: E402
 import numpy as np  # noqa: E402
 from mathutils import Matrix, Quaternion, Vector  # noqa: E402
 
-import af_common as af  # noqa: E402
+import imaginarium_common as ima  # noqa: E402
 from steps import _anim_lib as A  # noqa: E402
 from steps import _cloth_lib as CL  # noqa: E402
 from steps import _export_lib as xl  # noqa: E402
 
 _CACHE = {}
-LICH = r"C:/AstraForge/library/assets/e91bad4d-4ad9-40f5-aef9-d4f788d82705/v001/05_motion_style/styled.blend"
+LICH = r"C:/Imaginarium/library/assets/e91bad4d-4ad9-40f5-aef9-d4f788d82705/v001/05_motion_style/styled.blend"
 
 
 _TMP = []
 
 
 def _tmp():
-    d = tempfile.mkdtemp(prefix="af_cloth_")
+    d = tempfile.mkdtemp(prefix="imaginarium_cloth_")
     _TMP.append(d)
     atexit.register(shutil.rmtree, d, True)      # fallback: the shared runner ends with os._exit
     return d
@@ -111,23 +111,23 @@ def _mannequin(robe=True):
     if key in _CACHE and os.path.exists(_CACHE[key]):
         return _CACHE[key]
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob, _gt = hl.make_mannequin("A", robe=robe)
     glb = os.path.join(d, "mannequin.glb")
-    af.export_glb(glb, objects=[ob], animations=False, skins=False)
+    ima.export_glb(glb, objects=[ob], animations=False, skins=False)
     rig = _run("rig_humanoid", {"inputs": {"mesh": glb}, "params": {"deform_test": False, "intersections": False},
                                 "out_dir": os.path.join(d, "rig")})
     assert rig["ok"], rig["failed"]
-    af.open_blend(rig["outputs"]["blend"])
+    ima.open_blend(rig["outputs"]["blend"])
     arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     _procedural_clips(arm)
-    path = af.save_blend(os.path.join(d, "animated.blend"))
+    path = ima.save_blend(os.path.join(d, "animated.blend"))
     _CACHE[key] = path
     return path
 
 
 def _cloth(blend, params, d):
-    af.open_blend(blend)
+    ima.open_blend(blend)
     p = dict({"preview": False}, **params)
     return _run("cloth_sim", {"inputs": {"blend": blend}, "params": p, "out_dir": d})
 
@@ -239,7 +239,7 @@ def test_render_cache_switches_with_the_clip():
 
 def test_segment_finds_the_mannequin_robe():
     blend = _mannequin(robe=True)
-    af.open_blend(blend)
+    ima.open_blend(blend)
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     body = max((o for o in bpy.data.objects if o.type == "MESH"), key=lambda o: len(o.data.vertices))
     sk = CL.Skeleton(rig)
@@ -283,7 +283,7 @@ def test_cloth_sim_mannequin_robe_end_to_end():
         assert any(b.startswith("cloth_lower_") for b in bones), bones[:40]
         assert st["cloth_bones"] > 0
         # the saved scene plays the cache with the clip (render_sprites path)
-        af.open_blend(res["outputs"]["blend"])
+        ima.open_blend(res["outputs"]["blend"])
         rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
         g = bpy.data.objects["Body_cloth_lower"]
         act = bpy.data.actions["walk-loop"]

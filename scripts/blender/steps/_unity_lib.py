@@ -1,10 +1,10 @@
 """Unity side of the export module: find the editor, keep the check project, run batchmode validation.
 
-The check project (URP; by default C:/AstraForge/unity/AFUnityCheck on Windows and
-<data>/unity/AFUnityCheck next to the studio elsewhere) references the importer package
-unity/com.astraforge.unity of this repository by a file: path, so it always runs the current importer code.
-A validation copies the packages into Assets/AstraForge/<asset_id>/ of that project and runs
-AstraForge.Editor.AFBatch.Validate in `Unity -batchmode`; the method writes a JSON report and screenshots.
+The check project (URP; by default C:/Imaginarium/unity/ImaginariumUnityCheck on Windows and
+<data>/unity/ImaginariumUnityCheck next to the studio elsewhere) references the importer package
+unity/dev.imaginarium3d.unity of this repository by a file: path, so it always runs the current importer code.
+A validation copies the packages into Assets/Imaginarium/<asset_id>/ of that project and runs
+Imaginarium.Editor.ImaginariumBatch.Validate in `Unity -batchmode`; the method writes a JSON report and screenshots.
 Nothing is written to any other Unity project here (the send command does that on an explicit request).
 """
 import glob
@@ -17,22 +17,22 @@ import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 APP_DIR = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))          # scripts/blender/steps -> APP
-UNITY_PACKAGE_DIR = os.path.join(APP_DIR, "unity", "com.astraforge.unity")
+UNITY_PACKAGE_DIR = os.path.join(APP_DIR, "unity", "dev.imaginarium3d.unity")
 # Unity Hub installs editors here: on Windows under Program Files, on Linux in the home folder
 HUB_EDITORS = r"C:/Program Files/Unity/Hub/Editor" if os.name == "nt" else os.path.expanduser("~/Unity/Hub/Editor")
 UNITY_EXE_NAME = "Unity.exe" if os.name == "nt" else "Unity"
 UNITY_DEFAULT_VERSION = "6000.0.64f1"
 # the same default as the MCP unity_status tool (server lives in ai/mcp/server.mjs)
-CHECK_PROJECT_DEFAULT = (r"C:/AstraForge/unity/AFUnityCheck" if os.name == "nt"
-                         else os.path.join(APP_DIR, "data", "unity", "AFUnityCheck"))
+CHECK_PROJECT_DEFAULT = (r"C:/Imaginarium/unity/ImaginariumUnityCheck" if os.name == "nt"
+                         else os.path.join(APP_DIR, "data", "unity", "ImaginariumUnityCheck"))
 URP_VERSION = "17.0.4"                     # URP of Unity 6000.0 LTS (same as the owner's projects)
-LOCK_NAME = ".af_unity_check.lock"
+LOCK_NAME = ".imaginarium_unity_check.lock"
 
 
 def find_unity(params=None):
-    """The editor executable: params.unity, ASTRA_UNITY, the default LTS under Unity Hub, else the newest 6000.x."""
+    """The editor executable: params.unity, IMAGINARIUM_UNITY, the default LTS under Unity Hub, else the newest 6000.x."""
     params = params or {}
-    for cand in (params.get("unity"), os.environ.get("ASTRA_UNITY"),
+    for cand in (params.get("unity"), os.environ.get("IMAGINARIUM_UNITY"),
                  os.path.join(HUB_EDITORS, UNITY_DEFAULT_VERSION, "Editor", UNITY_EXE_NAME)):
         if cand and os.path.isfile(cand):
             return cand
@@ -47,7 +47,7 @@ def unity_version(exe):
 
 def check_project(params=None):
     params = params or {}
-    return os.path.abspath(params.get("unity_project") or os.environ.get("ASTRA_UNITY_PROJECT")
+    return os.path.abspath(params.get("unity_project") or os.environ.get("IMAGINARIUM_UNITY_PROJECT")
                            or CHECK_PROJECT_DEFAULT)
 
 
@@ -63,7 +63,7 @@ def write_manifest(proj, pipeline="urp"):
         with open(path, "r", encoding="utf-8-sig") as fh:
             data = json.load(fh)
     deps = data.setdefault("dependencies", {})
-    deps["com.astraforge.unity"] = _file_url(UNITY_PACKAGE_DIR)
+    deps["dev.imaginarium3d.unity"] = _file_url(UNITY_PACKAGE_DIR)
     if pipeline == "urp":
         deps.setdefault("com.unity.render-pipelines.universal", URP_VERSION)
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -113,9 +113,9 @@ def project_template(exe, pipeline):
 
 def ensure_project(exe, proj, log_dir, pipeline="urp"):
     """Create the check project once (createProject from the editor's offline URP template + the importer in
-    manifest.json + AFSetup.ConfigureCheckProject). Returns {ok, created, error, log}."""
+    manifest.json + ImaginariumSetup.ConfigureCheckProject). Returns {ok, created, error, log}."""
     os.makedirs(log_dir, exist_ok=True)
-    marker = os.path.join(proj, "ProjectSettings", "af_check_project.json")
+    marker = os.path.join(proj, "ProjectSettings", "imaginarium_check_project.json")
     if os.path.isfile(marker):
         write_manifest(proj, pipeline)        # keep the file: path current (the repo may have moved)
         return {"ok": True, "created": False}
@@ -130,7 +130,7 @@ def ensure_project(exe, proj, log_dir, pipeline="urp"):
                     "log": os.path.join(log_dir, "create.log")}
     write_manifest(proj, pipeline)
     log = os.path.join(log_dir, "setup.log")
-    code, text, _sec = run_unity(exe, proj, ["-executeMethod", "AstraForge.Editor.AFSetup.ConfigureCheckProject",
+    code, text, _sec = run_unity(exe, proj, ["-executeMethod", "Imaginarium.Editor.ImaginariumSetup.ConfigureCheckProject",
                                              "-afPipeline", pipeline, "-quit"], log)
     if license_problem(text):
         return {"ok": False, "error": "license", "log": log}
@@ -185,7 +185,7 @@ def project_open_in_editor(proj):
 
 
 def validate(packages, out_dir, params=None, timeout=1800):
-    """Copy package folders into the check project and run AFBatch.Validate once for all of them.
+    """Copy package folders into the check project and run ImaginariumBatch.Validate once for all of them.
 
     packages: [(asset_id, package_dir)]. Returns {ok, result, log, seconds, unity, error, shots}."""
     params = params or {}
@@ -205,7 +205,7 @@ def validate(packages, out_dir, params=None, timeout=1800):
             return {"ok": False, "error": prep["error"], "log": prep.get("log"), "unity": unity_version(exe)}
         rels = []
         for asset_id, src in packages:
-            dst = os.path.join(proj, "Assets", "AstraForge", asset_id)
+            dst = os.path.join(proj, "Assets", "Imaginarium", asset_id)
             if os.path.isdir(dst):
                 shutil.rmtree(dst)
             # Unity keeps the .meta of a removed folder's assets only when the folder stays; a clean copy
@@ -214,13 +214,13 @@ def validate(packages, out_dir, params=None, timeout=1800):
             if os.path.isfile(meta):
                 os.remove(meta)
             shutil.copytree(src, dst, ignore=shutil.ignore_patterns("_unity_check", "*.meta"))
-            rels.append("Assets/AstraForge/%s" % asset_id)
+            rels.append("Assets/Imaginarium/%s" % asset_id)
         report = os.path.join(log_dir, "unity_report.json")
         shots = os.path.join(out_dir, "unity_shots")
         if os.path.isfile(report):
             os.remove(report)
         log = os.path.join(log_dir, "validate.log")
-        code, text, sec = run_unity(exe, proj, ["-executeMethod", "AstraForge.Editor.AFBatch.Validate",
+        code, text, sec = run_unity(exe, proj, ["-executeMethod", "Imaginarium.Editor.ImaginariumBatch.Validate",
                                                 "-afPackages", ";".join(rels), "-afReport", report,
                                                 "-afShots", shots, "-quit"], log, timeout=timeout)
     if license_problem(text):

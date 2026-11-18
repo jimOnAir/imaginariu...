@@ -679,7 +679,7 @@ export function frontTileWidth(width, height) {
  * sheet). When the block describes another size than the loaded PNG (a downscaled sheet, or
  * only the front tile), its pixels are scaled by the height ratio: tiles sit side by side, so
  * both readings map by height.
- * Fallback: bbox from markers.json + the natural image size, reproducing af_common.render_views
+ * Fallback: bbox from markers.json + the natural image size, reproducing imaginarium_common.render_views
  * (square orthographic tiles, ortho_scale = |bbox diagonal| * margin, front view is the first tile).
  */
 export function markerProjection(json, imageSize, { margin = 1.08 } = {}) {
@@ -1383,7 +1383,7 @@ const HAS_CYRILLIC = /[\u0430-\u044f\u0451]/i;
  * rewriting it by keywords produced false messages.
  */
 const ERROR_RULES = [
-  [/blender.*not found|ENOENT.*blender|ASTRA_BLENDER/i, 'core.error.blender'],
+  [/blender.*not found|ENOENT.*blender|IMAGINARIUM_BLENDER/i, 'core.error.blender'],
   [/godot.*not found/i, 'core.error.godot'],
   [/\btimed? ?out\b|\btimeout\b/i, 'core.error.timeout'],
   [/\bcancel+ed\b|\bAbortError\b/i, 'core.error.cancelled'],
@@ -1400,7 +1400,7 @@ const ERROR_RULES = [
 export function humanizeError(text) {
   const s = String(text ?? '').trim();
   if (!s) return t('core.error.unknown');
-  // The quality-check marker of af_run is exact, so it is translated even inside a Russian frame.
+  // The quality-check marker of imaginarium_run is exact, so it is translated even inside a Russian frame.
   const checks = s.match(/checks failed:\s*(.+)$/im);
   if (checks) return t('core.error.checks', { list: checks[1].trim().replace(/\.$/, '') });
   if (HAS_CYRILLIC.test(s)) return s;

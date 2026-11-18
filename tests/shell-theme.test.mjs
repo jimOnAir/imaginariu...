@@ -18,7 +18,7 @@ test('the default theme preference is dark, invalid stored values fall back to i
   assert.equal(readThemePref(undefined), 'dark', 'no storage at all (SSR/tests) is still dark');
 });
 
-test('the choice persists under astra.theme and reads back', () => {
+test('the choice persists under imaginarium.theme and reads back', () => {
   const s = memStorage();
   saveThemePref('light', s);
   assert.equal(s.data[THEME_KEY], 'light');
@@ -47,7 +47,7 @@ test('index.html applies the stored theme before first paint; main.jsx loads the
   const html = readFileSync(path.join(ROOT, 'index.html'), 'utf8');
   const script = html.match(/<script>([\s\S]*?)<\/script>/)[1];
   assert.ok(html.indexOf('<script>') < html.indexOf('<title>'), 'the theme script runs before the body and styles');
-  assert.match(script, /localStorage\.getItem\('astra\.theme'\)/);
+  assert.match(script, /localStorage\.getItem\('imaginarium\.theme'\)/);
   assert.match(script, /data-theme/);
   assert.match(script, /prefers-color-scheme: dark/);
   const main = readFileSync(path.join(ROOT, 'src', 'main.jsx'), 'utf8');

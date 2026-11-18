@@ -1,5 +1,5 @@
 // Forge API client. Every /api/forge endpoint path used by the wizard lives in this file
-// (docs/forge/API.md). Requests carry the same x-astra-client: studio header as src/api.js.
+// (docs/forge/API.md). Requests carry the same x-imaginarium-client: studio header as src/api.js.
 import { api, upload } from '../api.js';
 import { assetRelPath } from './forge-core.js';
 import { t } from '../i18n/index.js';
@@ -67,7 +67,7 @@ async function request(path, { method = 'GET', body, headers } = {}) {
       method,
       body: body === undefined ? undefined : isForm || typeof body === 'string' ? body : JSON.stringify(body),
       headers: {
-        'x-astra-client': 'studio',
+        'x-imaginarium-client': 'studio',
         ...(body !== undefined && !isForm ? { 'Content-Type': 'application/json' } : {}),
         ...headers,
       },

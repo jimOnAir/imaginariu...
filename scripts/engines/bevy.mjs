@@ -1,8 +1,8 @@
 #!/usr/bin/env node
-// AstraForge <-> Bevy 0.20 (0.6.10 wave ticket 30): the engine driver. Godot/Unity/Unreal get
+// Imaginarium <-> Bevy 0.20 (0.6.10 wave ticket 30): the engine driver. Godot/Unity/Unreal get
 // their engine through a downloaded editor binary; Bevy's "editor" is the Rust toolchain: a
 // package is validated by compiling a small app around it and running that headless-ish. When
-// cargo is on PATH the studio checks every Bevy package (the crate's own af_bevy_check binary)
+// cargo is on PATH the studio checks every Bevy package (the crate's own imaginarium_bevy_check binary)
 // and captures preview frames; when it is not, the export is byte-identical minus the check -
 // the same honest absence line the Godot and Unreal columns use.
 //
@@ -11,13 +11,13 @@
 //   node scripts/engines/bevy.mjs send   --project <folder> <package|export.zip> [...]
 //   node scripts/engines/bevy.mjs test   --project <folder> --slug <asset_id> [--out <dir>]
 //   node scripts/engines/bevy.mjs check-package --package <pkg dir> --out <dir>
-//        (used by the bevy_package forge step: a scratch scaffold + af_bevy_check, prints the
-//         final 'AFBEVYCHECK {json}' line; task ids af_bevy_check, af_bevy_send_<slug>)
+//        (used by the bevy_package forge step: a scratch scaffold + imaginarium_bevy_check, prints the
+//         final 'AFBEVYCHECK {json}' line; task ids imaginarium_bevy_check, imaginarium_bevy_send_<slug>)
 //
 // Everything cargo speaks streams into a log file with an idle-kill: a stuck toolchain (a lock
-// another build holds) must never hang the forge job - after ASTRA_CARGO_IDLE_MIN of silence
-// the whole process group dies and the check answers "idle-killed". ASTRA_CARGO_TIMEOUT_MIN is
-// the hard ceiling. The build cache (ASTRA_CARGO_TARGET_DIR) is shared across checks, so the
+// another build holds) must never hang the forge job - after IMAGINARIUM_CARGO_IDLE_MIN of silence
+// the whole process group dies and the check answers "idle-killed". IMAGINARIUM_CARGO_TIMEOUT_MIN is
+// the hard ceiling. The build cache (IMAGINARIUM_CARGO_TARGET_DIR) is shared across checks, so the
 // first package pays the minutes-long Bevy compile and every package after it pays seconds.
 import { spawn, spawnSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
@@ -31,18 +31,18 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 export const APP_DIR = path.resolve(HERE, '..', '..');
 
 export const BEVY_VERSION = '0.20';
-export const BEVY_CRATE_DIR = path.join(APP_DIR, 'bevy', 'astraforge_bevy');
-export const BEVY_TEMPLATE_DIR = path.join(APP_DIR, 'ai', 'skills', 'astraforge-integrator', 'templates', 'bevy');
+export const BEVY_CRATE_DIR = path.join(APP_DIR, 'bevy', 'imaginarium_bevy');
+export const BEVY_TEMPLATE_DIR = path.join(APP_DIR, 'ai', 'skills', 'imaginarium-integrator', 'templates', 'bevy');
 
 export function cargoTargetDir(env = process.env) {
-  return env.ASTRA_CARGO_TARGET_DIR || path.join(APP_DIR, 'data', 'engines', 'bevy', 'target');
+  return env.IMAGINARIUM_CARGO_TARGET_DIR || path.join(APP_DIR, 'data', 'engines', 'bevy', 'target');
 }
-export function cargoTimeoutMin(env = process.env) { return Number(env.ASTRA_CARGO_TIMEOUT_MIN) || 25; }
-export function cargoIdleMin(env = process.env) { return Number(env.ASTRA_CARGO_IDLE_MIN) || 4; }
+export function cargoTimeoutMin(env = process.env) { return Number(env.IMAGINARIUM_CARGO_TIMEOUT_MIN) || 25; }
+export function cargoIdleMin(env = process.env) { return Number(env.IMAGINARIUM_CARGO_IDLE_MIN) || 4; }
 
-/** ASTRA_CARGO wins; then PATH (the `which` idiom of the other drivers); then rustup's home. */
+/** IMAGINARIUM_CARGO wins; then PATH (the `which` idiom of the other drivers); then rustup's home. */
 export function findCargo({ env = process.env } = {}) {
-  const forced = env.ASTRA_CARGO;
+  const forced = env.IMAGINARIUM_CARGO;
   if (forced) return existsSync(forced) ? forced : null;
   const found = spawnSync('which', ['cargo'], { encoding: 'utf8', env });
   const p = found.status === 0 && found.stdout.trim().split(/\r?\n/)[0];
@@ -116,14 +116,14 @@ export async function bevyStatus({ env = process.env } = {}) {
   return {
     hasCargo: !!cargo, cargo, cargoVersion, bevy: BEVY_VERSION,
     targetDir: cargoTargetDir(env), crate, template,
-    reason: cargo ? (!crate ? `the astraforge_bevy crate is missing at ${BEVY_CRATE_DIR}` : null)
+    reason: cargo ? (!crate ? `the imaginarium_bevy crate is missing at ${BEVY_CRATE_DIR}` : null)
       : 'cargo is not on PATH - Bevy packages export unchanged and stay unchecked here',
   };
 }
 
 /** Does this folder hold a cargo project that uses the crate? */
 export function isBevyProject(dir) {
-  try { return /astraforge_bevy\b/.test(readFileSync(path.join(dir, 'Cargo.toml'), 'utf8')); } catch { return false; }
+  try { return /imaginarium_bevy\b/.test(readFileSync(path.join(dir, 'Cargo.toml'), 'utf8')); } catch { return false; }
 }
 
 /** The bevy version a project pinned (Cargo.toml dependency, then Cargo.lock), or null. */
@@ -152,7 +152,7 @@ export async function createBevyProject({ name, dir, env = process.env } = {}) {
   let toml = readFileSync(tomlFile, 'utf8');
   toml = toml.replace(/^name\s*=\s*"[^"]*"/m, `name = "${name}"`);
   const rel = path.relative(target, BEVY_CRATE_DIR).split(path.sep).join('/');
-  toml = toml.replace(/astraforge_bevy\s*=\s*\{[^}]*\}/, `astraforge_bevy = { path = ${JSON.stringify(rel)}, version = "0.20" }`);
+  toml = toml.replace(/imaginarium_bevy\s*=\s*\{[^}]*\}/, `imaginarium_bevy = { path = ${JSON.stringify(rel)}, version = "0.20" }`);
   writeFileSync(tomlFile, toml);
   return { dir: target, name, bevy: bevyVersionOf(target), status: await bevyStatus({ env }) };
 }
@@ -161,21 +161,21 @@ export async function createBevyProject({ name, dir, env = process.env } = {}) {
 export function installCrate({ project }) {
   const tomlFile = path.join(project, 'Cargo.toml');
   let toml; try { toml = readFileSync(tomlFile, 'utf8'); } catch { throw new Error(`installCrate: ${project} has no Cargo.toml.`); }
-  if (/astraforge_bevy\b/.test(toml)) return { added: false, project };
+  if (/imaginarium_bevy\b/.test(toml)) return { added: false, project };
   const rel = path.relative(project, BEVY_CRATE_DIR).split(path.sep).join('/');
   if (!/^\[dependencies\]/m.test(toml)) { toml += '\n[dependencies]\n'; }
-  toml = toml.replace(/^\[dependencies\]\s*$/m, `[dependencies]\nastraforge_bevy = { path = ${JSON.stringify(rel)}, version = "0.20" }`);
+  toml = toml.replace(/^\[dependencies\]\s*$/m, `[dependencies]\nimaginarium_bevy = { path = ${JSON.stringify(rel)}, version = "0.20" }`);
   writeFileSync(tomlFile, toml);
   return { added: true, project };
 }
 
 /**
  * Put an exported package (a folder or the studio's export.zip of one) into the project's
- * assets/astraforge/<asset_id>/, replacing the previous copy. Returns the task id the UI can
+ * assets/imaginarium/<asset_id>/, replacing the previous copy. Returns the task id the UI can
  * show while more sends queue up.
  */
 export async function sendBevy({ project, sources }) {
-  if (!isBevyProject(project)) throw new Error(`sendBevy: ${project} is not a Bevy project with astraforge_bevy (engine_project_create or installCrate first).`);
+  if (!isBevyProject(project)) throw new Error(`sendBevy: ${project} is not a Bevy project with imaginarium_bevy (engine_project_create or installCrate first).`);
   const list = Array.isArray(sources) ? sources : [sources];
   const sent = [];
   for (const src of list) {
@@ -183,16 +183,16 @@ export async function sendBevy({ project, sources }) {
     if (src.toLowerCase().endsWith('.zip')) {
       dir = await unzipToTemp(src);
       const inner = findAfBevy(dir);
-      if (inner) dir = inner; else throw new Error(`sendBevy: ${src} has no af_bevy.json inside.`);
+      if (inner) dir = inner; else throw new Error(`sendBevy: ${src} has no ima_bevy.json inside.`);
     }
-    let man; try { man = JSON.parse(readFileSync(path.join(dir, 'af_bevy.json'), 'utf8')); }
-    catch { throw new Error(`sendBevy: ${src} is not a Bevy package (no af_bevy.json).`); }
+    let man; try { man = JSON.parse(readFileSync(path.join(dir, 'ima_bevy.json'), 'utf8')); }
+    catch { throw new Error(`sendBevy: ${src} is not a Bevy package (no ima_bevy.json).`); }
     const slug = String(man.asset_id || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'asset';
-    const dest = path.join(project, 'assets', 'astraforge', slug);
+    const dest = path.join(project, 'assets', 'imaginarium', slug);
     rmSync(dest, { recursive: true, force: true });
     mkdirSync(path.dirname(dest), { recursive: true });
     cpSync(dir, dest, { recursive: true });
-    sent.push({ id: `af_bevy_send_${slug}`, asset_id: slug, dest });
+    sent.push({ id: `imaginarium_bevy_send_${slug}`, asset_id: slug, dest });
   }
   return sent;
 }
@@ -201,8 +201,8 @@ export async function sendBevy({ project, sources }) {
 export async function testBevy({ project, slug, out, env = process.env, onLine = () => {} }) {
   const cargo = findCargo({ env });
   if (!cargo) return { ok: false, skipped: 'cargo not found', report: null };
-  const pkg = path.join(project, 'assets', 'astraforge', slug);
-  if (!existsSync(path.join(pkg, 'af_bevy.json'))) throw new Error(`testBevy: ${project} has no package ${slug} (send it first).`);
+  const pkg = path.join(project, 'assets', 'imaginarium', slug);
+  if (!existsSync(path.join(pkg, 'ima_bevy.json'))) throw new Error(`testBevy: ${project} has no package ${slug} (send it first).`);
   return runCheck({ slug, assetsRoot: project, out: out || path.join(pkg, '_bevy_check'), cargo, env, onLine });
 }
 
@@ -212,16 +212,16 @@ export async function checkPackage({ packageDir, out, env = process.env, onLine 
   if (!cargo) {
     return { ok: false, skipped: 'cargo not found - the package exports unchecked here (install Rust to validate)', report: null };
   }
-  const slug = String((safeJson(readFileSync(path.join(packageDir, 'af_bevy.json'), 'utf8')) || {}).asset_id || '').toLowerCase().replace(/[^a-z0-9_]/g, '') || 'asset';
+  const slug = String((safeJson(readFileSync(path.join(packageDir, 'ima_bevy.json'), 'utf8')) || {}).asset_id || '').toLowerCase().replace(/[^a-z0-9_]/g, '') || 'asset';
   const scaffold = path.join(out, '_bevy_check');
   rmSync(scaffold, { recursive: true, force: true });
-  const assetsDest = path.join(scaffold, 'assets', 'astraforge', slug);
+  const assetsDest = path.join(scaffold, 'assets', 'imaginarium', slug);
   mkdirSync(assetsDest, { recursive: true });
   cpSync(packageDir, assetsDest, { recursive: true });
   return runCheck({ slug, assetsRoot: scaffold, out, cargo, env, onLine });
 }
 
-/** cargo run --features check --bin af_bevy_check with cwd=the folder whose assets/ hold the package. */
+/** cargo run --features check --bin imaginarium_bevy_check with cwd=the folder whose assets/ hold the package. */
 async function runCheck({ slug, assetsRoot, out, cargo, env, onLine }) {
   mkdirSync(out, { recursive: true });
   const target = cargoTargetDir(env);
@@ -229,7 +229,7 @@ async function runCheck({ slug, assetsRoot, out, cargo, env, onLine }) {
   const r = await runCargo({
     cargo,
     args: ['run', '--quiet', '--manifest-path', path.join(BEVY_CRATE_DIR, 'Cargo.toml'),
-      '--features', 'check', '--bin', 'af_bevy_check', '--', '--slug', slug, '--out', path.resolve(out)],
+      '--features', 'check', '--bin', 'imaginarium_bevy_check', '--', '--slug', slug, '--out', path.resolve(out)],
     cwd: assetsRoot,
     env: { ...env, CARGO_TARGET_DIR: target },
     out: path.join(out, 'bevy_log.txt'),
@@ -238,7 +238,7 @@ async function runCheck({ slug, assetsRoot, out, cargo, env, onLine }) {
   const line = r.log.split(/\r?\n/).reverse().find((l) => l.startsWith('AFBEVY '));
   const report = line ? safeJson(line.slice(7)) : null;
   if (report) report.log = path.join(out, 'bevy_log.txt');
-  const taskId = 'af_bevy_check';   // the pinned task id of the check verb (spec T3-Bevy)
+  const taskId = 'imaginarium_bevy_check';   // the pinned task id of the check verb (spec T3-Bevy)
   if (r.timedOut || r.idle) return { ok: false, taskId, skipped: null, timedOut: r.timedOut, idle: r.idle, report, code: r.code };
   return { ok: !!report?.ok, taskId, skipped: null, report, code: r.code };
 }
@@ -273,7 +273,7 @@ export async function installBrpMcp({ env = process.env, log = () => {}, cargo =
   fetchImpl = null, version = BRP_MCP.version, sha256 = BRP_MCP.sha256 } = {}) {
   if (!cargo) throw new Error('installBrpMcp: cargo is not on PATH - the Bevy MCP bridge needs the Rust toolchain.');
   if (existsSync(brpBinary({ env }))) { log('bevy_brp_mcp: already installed'); return { installed: true, skipped: 'already installed' }; }
-  const tmpRoot = await mkdtemp(path.join(os.tmpdir(), 'af_brp_'));
+  const tmpRoot = await mkdtemp(path.join(os.tmpdir(), 'imaginarium_brp_'));
   try {
     const crateFile = path.join(tmpRoot, `bevy_brp_mcp-${version}.crate`);
     if (fetchImpl) await fetchImpl(BRP_MCP.url(version), crateFile);
@@ -307,15 +307,15 @@ function safeJson(text) { try { return JSON.parse(text); } catch { return null; 
 
 async function unzipToTemp(src) {
   const { mkdtemp } = await import('node:fs/promises');
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'af_bevy_send_'));
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'imaginarium_bevy_send_'));
   const r = spawnSync('unzip', ['-o', '-q', path.resolve(src), '-d', dir], { encoding: 'utf8' });
   if (r.status !== 0) throw new Error(`sendBevy: unzip failed for ${src}: ${r.stderr || r.stdout}`);
   return dir;
 }
 
-/** The folder holding af_bevy.json somewhere inside a freshly unzipped studio export. */
+/** The folder holding ima_bevy.json somewhere inside a freshly unzipped studio export. */
 function findAfBevy(root, depth = 0) {
-  if (existsSync(path.join(root, 'af_bevy.json'))) return root;
+  if (existsSync(path.join(root, 'ima_bevy.json'))) return root;
   if (depth > 2) return null;
   let entries = [];
   try { entries = readdirSync(root, { withFileTypes: true }); } catch { return null; }

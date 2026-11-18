@@ -6,7 +6,7 @@ step segments them, splits them into cloth objects, simulates every clip with Bl
 capsules, held poles and the floor, and bakes a per-clip cache that render_sprites switches together with the clip.
 For the GLB (Godot, any engine) the same motion is carried by secondary cloth-bone chains.
 
-inputs.blend    styled.blend of motion_style (af_run opens it); clips.json next to it gives loops / categories
+inputs.blend    styled.blend of motion_style (imaginarium_run opens it); clips.json next to it gives loops / categories
 params (all optional):
   cloth          'auto' (default) | false (pass-through) | [{"kind": robe|skirt|tabard|back_panel|cape|hood|sleeve|
                  banner|none, "min": [x,y,z], "max": [x,y,z], "only": bool}] region boxes in the bind pose (metres)
@@ -43,13 +43,13 @@ params (all optional):
   bone_spacing_m 0.2, bone_joints 4, bone_chains_max 16: chain spacing along the attachment line, joints per
                  chain, chains per garment
   fit_weights    true: the GLB weights are fitted (least squares, 4 influences) to the simulated garment
-  death_morph    true: a corrective morph af_cloth_settle (driven by a Hips property the death ramps 0 -> 1) puts the
+  death_morph    true: a corrective morph imaginarium_cloth_settle (driven by a Hips property the death ramps 0 -> 1) puts the
                  GLB garment exactly onto the simulated one at the end of the death (bones alone swing a lying robe
                  like a fan)
   time_budget_s  300: warning when the step takes longer
   preview        true: preview.png (skinned vs cloth rows for walk / attack-cast / death) and segmentation.png
 outputs: blend (cloth.blend: Body without the garments; Body_cloth_<group> garments with their Armature modifier and
-per-clip shape-key caches (af_cloth_cache = {armature action: shape-key action}; render_sprites switches them with
+per-clip shape-key caches (imaginarium_cloth_cache = {armature action: shape-key action}; render_sprites switches them with
 the clip through _export_lib.bind_cloth_cache); hidden Body_glb = the whole body with cloth-bone weights), glb
 (cloth.glb: rig + cloth bones, the same clip names), clips (clips.json of motion_style + per clip cloth metrics),
 report (cloth.json: segmentation, groups, per clip and garment QA cloth vs original skinning, timing), preview,
@@ -62,7 +62,7 @@ import time
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 
 try:
     from steps import _anim_lib as A
@@ -102,7 +102,7 @@ def _seg_png(path, body, seg):
            "back_panel": (0.1, 0.7, 0.85), "cape": (0.6, 0.25, 0.9), "hood": (0.2, 0.75, 0.3),
            "sleeve": (0.9, 0.85, 0.2), "banner": (0.9, 0.3, 0.7)}
     me = body.data
-    attr = me.color_attributes.new("af_cloth_seg", "FLOAT_COLOR", "POINT")
+    attr = me.color_attributes.new("imaginarium_cloth_seg", "FLOAT_COLOR", "POINT")
     c = np.full((len(me.vertices), 4), 0.72)
     c[:, 3] = 1.0
     for j, k in enumerate(seg["kinds"]):
@@ -121,14 +121,14 @@ def _seg_png(path, body, seg):
     if arm:
         arm.data.pose_position = "REST"
     try:
-        af.render_views(path, objects=[body], views=("front", "left", "back", "three_quarter"), size=360,
+        ima.render_views(path, objects=[body], views=("front", "left", "back", "three_quarter"), size=360,
                         color="VERTEX")
     finally:
         if arm:
             arm.data.pose_position = pos
         if old is not None:
             me.color_attributes.active_color = old
-        me.color_attributes.remove(me.color_attributes["af_cloth_seg"])
+        me.color_attributes.remove(me.color_attributes["imaginarium_cloth_seg"])
         for m, s in shown:
             m.show_render = s
     return path
@@ -146,7 +146,7 @@ def _export_glb(req, rig, body_glb, body_render, keep_actions):
     body_glb.hide_set(False)
     try:
         with A.gltf_only_actions(keep_actions, exp, rig) as only:
-            path = af.export_glb(af.out_path(req, "cloth.glb"), objects=exp, animations=True, skins=True,
+            path = ima.export_glb(ima.out_path(req, "cloth.glb"), objects=exp, animations=True, skins=True,
                                  animation_mode="ACTIONS", morph=body_glb.data.shape_keys is not None)
         notes += only.notes
     finally:
@@ -164,7 +164,7 @@ def run(req):
     blend = I.get("blend")
     if blend:
         if os.path.normcase(os.path.abspath(bpy.data.filepath or "")) != os.path.normcase(os.path.abspath(blend)):
-            af.open_blend(blend)
+            ima.open_blend(blend)
     else:
         raise ValueError("inputs.blend (styled.blend of motion_style) is required")
     gate = str(P.get("qa_gate", "warning")).lower()
@@ -180,7 +180,7 @@ def run(req):
     if rig.animation_data:
         rig.animation_data.action = None
     meta, clips_doc = _clip_meta(blend)
-    acts = [a for a in A.rig_actions(rig, meshes) if not a.name.startswith("AF_")]
+    acts = [a for a in A.rig_actions(rig, meshes) if not a.name.startswith("Imaginarium_")]
     order = [r.get("gltf_name") for r in (clips_doc or {}).get("clips", [])]
     acts.sort(key=lambda a: (order.index(a.name) if a.name in order else 999, a.name))
     if not acts:
@@ -205,24 +205,24 @@ def run(req):
     outputs = {}
     if P.get("preview", True):
         try:
-            outputs["segmentation"] = _seg_png(af.out_path(req, "segmentation.png"), body, seg)
+            outputs["segmentation"] = _seg_png(ima.out_path(req, "segmentation.png"), body, seg)
         except Exception as exc:
             warnings.append("segmentation preview failed: %s" % exc)
     report = {"segmentation": seg["stats"], "groups": {g: {k: v for k, v in d.items() if k != "settings"}
                                                        for g, d in groups.items()},
               "presets": {g: d["settings"] for g, d in groups.items()}, "clips": {}}
-    checks.append(af.check("cloth_regions", bool(groups), {g: d["vertices"] for g, d in groups.items()}, ">=1 garment",
+    checks.append(ima.check("cloth_regions", bool(groups), {g: d["vertices"] for g, d in groups.items()}, ">=1 garment",
                            severity="warning", note="loose garments found (none = the step passes the scene through)"))
     clip_recs = []
     if not groups:
         warnings.append("no loose garment found: scene passed through unchanged (skinned clothing)")
         exp, notes = A.export_objects(rig, meshes)
         with A.gltf_only_actions(acts, exp, rig) as only:
-            outputs["glb"] = af.export_glb(af.out_path(req, "cloth.glb"), objects=exp, animations=True, skins=True,
+            outputs["glb"] = ima.export_glb(ima.out_path(req, "cloth.glb"), objects=exp, animations=True, skins=True,
                                            animation_mode="ACTIONS",
                                            morph=any(o.type == "MESH" and o.data.shape_keys is not None for o in exp))
         warnings += notes + only.notes
-        outputs["blend"] = af.save_blend(af.out_path(req, "cloth.blend"))
+        outputs["blend"] = ima.save_blend(ima.out_path(req, "cloth.blend"))
         return _finish(req, outputs, report, clips_doc, clip_recs, checks, warnings, timing, T0, P)
 
     # ------------------------------------------------------------ split, proxies, colliders
@@ -245,7 +245,7 @@ def run(req):
     for g, r in renders.items():
         o = r.copy()
         o.data = r.data.copy()
-        o.name = "AF_qa_orig_" + g
+        o.name = "Imaginarium_qa_orig_" + g
         for c in r.users_collection:
             c.objects.link(o)
         o[CL.CLOTH_ROLE] = "qa"
@@ -262,7 +262,7 @@ def run(req):
         if remesh == "auto":
             remesh = len(r.data.vertices) > int(P.get("remesh_above", 12000))
         px = CL.build_proxy(r, edge_m=edge, hand=groups[g].get("hand"), remesh=bool(remesh))
-        groups[g]["proxy"] = px.get("af_proxy_method")
+        groups[g]["proxy"] = px.get("imaginarium_proxy_method")
         if g == "lower" and P.get("pelvis_follow", True):
             # a robe / skirt / tabard / cape tail hangs from the pelvis: the thighs push it by collision instead of
             # tearing it through their skin weights (render cloth keeps the original weights on its pinned seam)
@@ -317,8 +317,8 @@ def run(req):
         use = body_cols
         if g.startswith("banner"):
             side = "Left" if g.endswith("l") else "Right"
-            use = [o for o in body_cols if o.get("af_pole_side") != side]
-        colls[g] = CL.collider_collection("AF_COLL_" + g, use)
+            use = [o for o in body_cols if o.get("imaginarium_pole_side") != side]
+        colls[g] = CL.collider_collection("Imaginarium_COLL_" + g, use)
         st = dict(groups[g]["settings"])
         if P.get("quality"):
             st["quality"] = int(P["quality"])
@@ -361,7 +361,7 @@ def run(req):
             attempt += 1
             warnings.append("clip %s: cloth of %s exploded, re-simulated with doubled steps and damping" % (act.name, bad))
             for g in bad:
-                s = proxies[g].modifiers["AF_Cloth"].settings
+                s = proxies[g].modifiers["Imaginarium_Cloth"].settings
                 s.quality = min(20, s.quality * 2)
                 s.air_damping *= 2.0
         rec["qa_frames"] = qa_frames
@@ -388,30 +388,30 @@ def run(req):
             else:
                 warnings.append("clip %s: cloth of %s still unstable - this clip stays skinned" % (act.name, g))
             q["far_from_body_m"] = round(far[g], 3)
-            checks.append(af.check("cloth_stable_" + tag, ok, round(far[g], 3), max_disp, severity="warning",
+            checks.append(ima.check("cloth_stable_" + tag, ok, round(far[g], 3), max_disp, severity="warning",
                                    note="farthest simulated point from the body capsules, m (NaN = inf); an exploded "
                                         "clip is re-simulated once with doubled steps and damping, then stays skinned"))
         clip_recs.append(rec)
-        af.log("cloth clip", clip=act.name, frames=len(tl["times"]), seconds=round(secs, 1))
+        ima.log("cloth clip", clip=act.name, frames=len(tl["times"]), seconds=round(secs, 1))
     timing["simulate_s"] = round(time.time() - t_sim, 2)
 
     # ------------------------------------------------------------ bake caches, bind render cloth
     t = time.time()
     for o in list(cols.values()):
         bpy.data.objects.remove(o, do_unlink=True)
-    for nm in ["AF_CLOTH_COLLIDERS"] + ["AF_COLL_" + g for g in proxies]:
+    for nm in ["Imaginarium_CLOTH_COLLIDERS"] + ["Imaginarium_COLL_" + g for g in proxies]:
         c = bpy.data.collections.get(nm)
         if c is not None:
             bpy.data.collections.remove(c)
     for px in proxies.values():
-        px.modifiers["AF_Cloth"].show_viewport = False
-        px.modifiers["AF_Cloth"].show_render = False
+        px.modifiers["Imaginarium_Cloth"].show_viewport = False
+        px.modifiers["Imaginarium_Cloth"].show_render = False
     binds = {g: CL.bind_embedded(renders[g], px) for g, px in proxies.items()}
     maps = {}
     for g, px in proxies.items():
-        if "af_render_index" in px.data.attributes:
+        if "imaginarium_render_index" in px.data.attributes:
             m_ = np.empty(len(px.data.vertices), dtype=np.int32)
-            px.data.attributes["af_render_index"].data.foreach_get("value", m_)
+            px.data.attributes["imaginarium_render_index"].data.foreach_get("value", m_)
             maps[g] = m_
     fws = {g: CL.free_weights(renders[g]) for g in renders}
     bind_err = {}
@@ -484,19 +484,19 @@ def run(req):
                 rg["death_lying_height_cm"] = round(100 * CL.lying_height(last_a, allv), 1)
                 rg["death_lying_height_skinned_cm"] = round(100 * CL.lying_height(last_b, allv), 1)
                 rg["death_floor_min_cm"] = round(100 * float(last_a[:, 2].min()), 1)
-                checks.append(af.check("cloth_death_floor_" + tag, rg["death_floor_min_cm"] >= -2.0,
+                checks.append(ima.check("cloth_death_floor_" + tag, rg["death_floor_min_cm"] >= -2.0,
                                        rg["death_floor_min_cm"], -2.0, severity=gate,
                                        note="lowest point of the garment on the last death frame, cm (on the floor, not "
                                             "through it); lying height %.1f cm, skinned %.1f cm" % (
                                                 rg["death_lying_height_cm"], rg["death_lying_height_skinned_cm"])))
             pen_ok = a["penetration_frac"] <= max(pen_lim, b["penetration_frac"] + 0.01)
-            checks.append(af.check("cloth_penetration_" + tag, pen_ok, [a["penetration_frac"], b["penetration_frac"]],
+            checks.append(ima.check("cloth_penetration_" + tag, pen_ok, [a["penetration_frac"], b["penetration_frac"]],
                                    pen_lim, severity=gate,
                                    note="share of free garment points > 1 cm inside the body capsules, worst sampled "
                                         "frame [cloth, original skinning]; deepest %.1f / %.1f cm" % (
                                             a["depth_max_cm"], b["depth_max_cm"])))
             st_ok = a["stretch_p99"] is None or a["stretch_p99"] <= max(str_lim, (b["stretch_p99"] or 0) + 0.05)
-            checks.append(af.check("cloth_stretch_" + tag, st_ok, [a["stretch_p99"], b["stretch_p99"]], str_lim,
+            checks.append(ima.check("cloth_stretch_" + tag, st_ok, [a["stretch_p99"], b["stretch_p99"]], str_lim,
                                    severity=gate, note="99th percentile edge length / rest length of the free garment "
                                                        "[cloth, original skinning]; torn share %.2f / %.2f %%" % (
                                                            100 * a["torn_frac"], 100 * b["torn_frac"])))
@@ -526,7 +526,7 @@ def run(req):
     A.assign_action(rig, acts[0])
     scene.frame_set(0)
     xl.bind_cloth_cache([acts[0]])
-    outputs["blend"] = af.save_blend(af.out_path(req, "cloth.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "cloth.blend"))
 
     # ------------------------------------------------------------ GLB from the saved scene
     # (exported after a reload: drivers created in this session - the death morph - are only baked into morph
@@ -534,7 +534,7 @@ def run(req):
     t = time.time()
     names = {"rig": rig.name, "body": body.name, "glb": body_glb.name if body_glb is not None else None,
              "renders": {g: r.name for g, r in renders.items()}, "acts": [a.name for a in acts]}
-    af.open_blend(outputs["blend"])
+    ima.open_blend(outputs["blend"])
     scene = bpy.context.scene
     rig = bpy.data.objects[names["rig"]]
     body = bpy.data.objects[names["body"]]
@@ -548,23 +548,23 @@ def run(req):
         warnings += notes
         summ = A.glb_summary(outputs["glb"])
         got = sorted(a["name"] for a in summ["animations"])
-        checks.append(af.check("gltf_animations", got == sorted(a.name for a in acts), got, sorted(a.name for a in acts)))
-        checks.append(af.check("gltf_skin", bool(summ["skins"]) and summ["skinned_primitives"] > 0,
+        checks.append(ima.check("gltf_animations", got == sorted(a.name for a in acts), got, sorted(a.name for a in acts)))
+        checks.append(ima.check("gltf_skin", bool(summ["skins"]) and summ["skinned_primitives"] > 0,
                                {"skins": summ["skins"], "skinned_primitives": summ["skinned_primitives"]}, ">=1"))
-        checks.append(af.check("gltf_no_nan", all(a["nan"] == 0 for a in summ["animations"]),
+        checks.append(ima.check("gltf_no_nan", all(a["nan"] == 0 for a in summ["animations"]),
                                sum(a["nan"] for a in summ["animations"]), 0))
-        checks.append(af.check("cloth_bones", bones_info["bones"] > 0, bones_info["bones"], ">0", severity="warning",
+        checks.append(ima.check("cloth_bones", bones_info["bones"] > 0, bones_info["bones"], ">0", severity="warning",
                                note="secondary cloth-bone chains in the GLB, weighted to the garments"))
         if bones_info.get("death_morph"):
             dm = _glb_morph_peak(outputs["glb"])
             bones_info["death_morph"]["glb_weight_peak"] = dm
-            checks.append(af.check("gltf_death_morph", dm.get("death", 0.0) >= 0.99, dm, 1.0, severity="warning",
-                                   note="peak weight of the af_cloth_settle morph per animation in the GLB (death 1, "
+            checks.append(ima.check("gltf_death_morph", dm.get("death", 0.0) >= 0.99, dm, 1.0, severity="warning",
+                                   note="peak weight of the imaginarium_cloth_settle morph per animation in the GLB (death 1, "
                                         "others 0)"))
     else:
         exp, notes = A.export_objects(rig, [body] + list(renders.values()))
         with A.gltf_only_actions(keep_actions, exp, rig) as only:
-            outputs["glb"] = af.export_glb(af.out_path(req, "cloth.glb"), objects=exp, animations=True, skins=True,
+            outputs["glb"] = ima.export_glb(ima.out_path(req, "cloth.glb"), objects=exp, animations=True, skins=True,
                                            animation_mode="ACTIONS", morph=False)
         warnings += notes + only.notes
     timing["glb_s"] = round(time.time() - t, 2)
@@ -616,7 +616,7 @@ def _cloth_bones(rig, sk, proxies, pins, renders, body_glb, seg, acts, meta, sim
     group_v = np.array([None] * len(src), dtype=object)
     for g, r in renders.items():
         s_idx = np.empty(len(r.data.vertices), dtype=np.int32)
-        r.data.attributes["af_src_index"].data.foreach_get("value", s_idx)
+        r.data.attributes["imaginarium_src_index"].data.foreach_get("value", s_idx)
         group_v[s_idx] = g
     all_rows = {}
     for g, px in proxies.items():
@@ -694,7 +694,7 @@ def _cloth_bones(rig, sk, proxies, pins, renders, body_glb, seg, acts, meta, sim
             if r is None or not render_cache.get(g):
                 continue
             s_idx = np.empty(len(r.data.vertices), dtype=np.int32)
-            r.data.attributes["af_src_index"].data.foreach_get("value", s_idx)
+            r.data.attributes["imaginarium_src_index"].data.foreach_get("value", s_idx)
             M = Winv @ np.array(r.matrix_world)
             samples = []
             for aname, arr in render_cache[g]:
@@ -725,7 +725,7 @@ def _cloth_bones(rig, sk, proxies, pins, renders, body_glb, seg, acts, meta, sim
                 if arr is None or r is None:
                     continue
                 s_idx = np.empty(len(r.data.vertices), dtype=np.int32)
-                r.data.attributes["af_src_index"].data.foreach_get("value", s_idx)
+                r.data.attributes["imaginarium_src_index"].data.foreach_get("value", s_idx)
                 M = Winv @ np.array(r.matrix_world)
                 idx_all.append(s_idx)
                 tgt_all.append(arr[-1].astype(np.float64) @ M[:3, :3].T + M[:3, 3])
@@ -768,7 +768,7 @@ def _preview(req, rig, body, renders, acts, meta):
             for f in frames:
                 shots.append((setup, f))
                 labels.append("%s %s %d" % (a.name.replace("-loop", ""), mode, f))
-    path = CL.render_frames(af.out_path(req, "preview.png"), objs, shots, size=220, labels=labels, cols=5,
+    path = CL.render_frames(ima.out_path(req, "preview.png"), objs, shots, size=220, labels=labels, cols=5,
                             title="cloth_sim  rows: skinned / cloth")
     xl.bind_cloth_cache([acts[0]])
     return path
@@ -778,13 +778,13 @@ def _finish(req, outputs, report, clips_doc, clip_recs, checks, warnings, timing
     total = round(time.time() - T0, 2)
     timing["total_s"] = total
     budget = float(P.get("time_budget_s", 300))
-    checks.append(af.check("cloth_time_budget", total <= budget, total, budget, severity="warning",
+    checks.append(ima.check("cloth_time_budget", total <= budget, total, budget, severity="warning",
                            note="seconds for segmentation, simulation of every clip, bake, cloth bones and GLB"))
     report["clips"] = {r["name"]: r for r in clip_recs}
     report["timing"] = timing
-    rp = af.out_path(req, "cloth.json")
+    rp = ima.out_path(req, "cloth.json")
     with open(rp, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(report), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(report), fh, ensure_ascii=False, indent=1)
     outputs["report"] = rp
     doc = dict(clips_doc or {"clips": []})
     by = {r["name"]: r for r in clip_recs}
@@ -795,9 +795,9 @@ def _finish(req, outputs, report, clips_doc, clip_recs, checks, warnings, timing
     doc["cloth"] = {"groups": report.get("groups"), "glb": outputs.get("glb"), "timing": timing}
     if outputs.get("glb"):
         doc["glb"] = outputs["glb"]
-    cj = af.out_path(req, "clips.json")
+    cj = ima.out_path(req, "clips.json")
     with open(cj, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(doc), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(doc), fh, ensure_ascii=False, indent=1)
     outputs["clips"] = cj
     stats = {"groups": report.get("groups"), "timing": timing,
              "clips": {r["name"]: {"mode": r.get("mode"), "sim_s": r.get("sim_s"),

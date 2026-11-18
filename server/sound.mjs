@@ -47,11 +47,11 @@ export function soundPresets() {
   };
 }
 
-/** Where the Sound stack lives: ASTRA_SOUND_DIR, else config/paths.json (key soundDir), else runtime/sound. */
+/** Where the Sound stack lives: IMAGINARIUM_SOUND_DIR, else config/paths.json (key soundDir), else runtime/sound. */
 export function soundConfig({ env = process.env, appRoot = root, dataDir = data } = {}) {
   const paths = pathsConfig(appRoot);
   let dir = path.join(appRoot, DEFAULT_SOUND_DIR), source = 'default';
-  if (env.ASTRA_SOUND_DIR) { dir = env.ASTRA_SOUND_DIR; source = 'env'; }
+  if (env.IMAGINARIUM_SOUND_DIR) { dir = env.IMAGINARIUM_SOUND_DIR; source = 'env'; }
   else if (typeof paths.soundDir === 'string' && paths.soundDir.trim()) { dir = paths.soundDir.trim(); source = 'paths.json'; }
   return { dir: path.resolve(dir), source, appRoot, dataDir };
 }
@@ -270,7 +270,7 @@ export function encodeOgg(id, { spawnFn = spawn, cfg = soundConfig() } = {}) {
 
 // The strings that would name this product inside an exported file: the `afmk` RIFF chunk of the
 // provenance machinery (never shipped on this branch) and the product name in any spelling.
-const PROVENANCE_WORDS = ['afmk', 'AstraForge', 'astraforge', 'ASTRA_'];
+const PROVENANCE_WORDS = ['afmk', 'Imaginarium', 'imaginarium', 'IMAGINARIUM_'];
 
 /**
  * The export guard (branch policy Q5/Q11): a sound this studio releases carries no provenance
@@ -323,9 +323,9 @@ export function soundDiskBytes(cfg = soundConfig()) {
  */
 /**
  * Engine-shaped sound export (0.6.10 wave ticket 31). engine 'bevy' lays down exactly what the
- * astraforge_bevy crate reads (ticket 29's sound.rs): the bank folder
- * `assets/astraforge/sounds/<slug>/` under `out`, the ogg companions inside it (wav when a sound
- * has none), and the `af_sounds.json` manifest - format "astraforge-soundbank/1", one entry per
+ * imaginarium_bevy crate reads (ticket 29's sound.rs): the bank folder
+ * `assets/imaginarium/sounds/<slug>/` under `out`, the ogg companions inside it (wav when a sound
+ * has none), and the `ima_sounds.json` manifest - format "imaginarium-soundbank/1", one entry per
  * bound event: name (what the game plays by), file, loop (kind == 'loop'), gain 1.0. The binding
  * table (sound_bind) is the source of truth; a re-export replaces the bank folder wholesale, so
  * the manifest can never outlive one of its files. Absent sounds answer in `missing`, never fatal.
@@ -335,7 +335,7 @@ export function exportSoundBank({ assetId, engine, out, cfg = soundConfig() } = 
   if (engine !== 'bevy') throw new Error(`exportSoundBank: engine ${JSON.stringify(engine)} has no bank layout (only "bevy" so far).`);
   if (!out) throw new Error('exportSoundBank: out (the destination folder) is required.');
   const slug = String(assetId).trim().toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'asset';
-  const dir = path.join(path.resolve(out), 'assets', 'astraforge', 'sounds', slug);
+  const dir = path.join(path.resolve(out), 'assets', 'imaginarium', 'sounds', slug);
   const bindings = loadBindings(cfg)[assetId] || {};
   const byId = new Map(soundLibrary(cfg).map((x) => [x.id, x]));
   const { lib } = soundPaths(cfg);
@@ -355,8 +355,8 @@ export function exportSoundBank({ assetId, engine, out, cfg = soundConfig() } = 
     files.push({ event, soundId, name: item.name, format: ext, file, bytes: statSync(path.join(dir, file)).size });
   }
   sounds.sort((a, b) => a.name.localeCompare(b.name));
-  const manifest = path.join(dir, 'af_sounds.json');
-  writeFileSync(manifest, JSON.stringify({ format: 'astraforge-soundbank/1', slug, sounds }, null, 1) + '\n');
+  const manifest = path.join(dir, 'ima_sounds.json');
+  writeFileSync(manifest, JSON.stringify({ format: 'imaginarium-soundbank/1', slug, sounds }, null, 1) + '\n');
   return { engine: 'bevy', folder: dir, slug, manifest, files, missing };
 }
 

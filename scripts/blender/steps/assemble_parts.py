@@ -73,7 +73,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import _paint_lib as pl
 from steps import _parts_lib as pt
@@ -89,10 +89,10 @@ def _open_input(req):
         if not os.path.isfile(src):
             raise FileNotFoundError("inputs.mesh not found: %s" % src)
         if src.lower().endswith(".blend"):
-            af.open_blend(src)
+            ima.open_blend(src)
         else:
-            af.reset_scene()
-            af.import_any(src)
+            ima.reset_scene()
+            ima.import_any(src)
         return src
     blend = inputs.get("blend")
     if not blend:
@@ -101,25 +101,25 @@ def _open_input(req):
     if not os.path.isfile(blend):
         raise FileNotFoundError("inputs.blend not found: %s" % blend)
     if os.path.normcase(os.path.abspath(bpy.data.filepath or "")) != os.path.normcase(blend):
-        af.open_blend(blend)
+        ima.open_blend(blend)
     return blend
 
 
 def _weld(ob):
     """glTF import splits vertices at normal / UV seams: the topology is open, the Boolean solver wants a
     closed manifold. Weld them (1e-5 of the object size)."""
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     ml.merge_by_distance(ob, 1e-5 * max(float(max(hi - lo)), 1e-6))
 
 
 def _import_part(path, name, warnings):
     """One generated part -> a single mesh object in world space with applied transforms."""
-    objs = af.import_any(path)
+    objs = ima.import_any(path)
     objs, _helpers = ml.purge_import_helpers(objs)
     objs = ml.prepare_meshes(objs, warnings)
     if not objs:
         raise ValueError("no mesh in part file %s" % path)
-    ob = af.join(objs, name="part_" + name)
+    ob = ima.join(objs, name="part_" + name)
     ob.data.name = "part_" + name
     bpy.context.view_layer.update()
     _weld(ob)
@@ -131,15 +131,15 @@ def _render_rows(path, base, asm, lo, hi, head_box, size, closeup):
     views = ("front", "back", "right")
     rows = []
     for ob in (base, asm):
-        _p, tiles = ml.render_sheet(af.out_path({"out_dir": os.path.dirname(path)}, "_row.png"), [ob], views=views,
+        _p, tiles = ml.render_sheet(ima.out_path({"out_dir": os.path.dirname(path)}, "_row.png"), [ob], views=views,
                                     size=size, bbox=(lo, hi), color_type="MATERIAL")
         if closeup and head_box is not None:
-            _p, t2 = ml.render_sheet(af.out_path({"out_dir": os.path.dirname(path)}, "_row.png"), [ob],
+            _p, t2 = ml.render_sheet(ima.out_path({"out_dir": os.path.dirname(path)}, "_row.png"), [ob],
                                      views=("front", "three_quarter"), size=size, bbox=head_box, color_type="MATERIAL")
             tiles = tiles + t2
         rows.append(np.concatenate(tiles, axis=1))
     try:
-        os.remove(af.out_path({"out_dir": os.path.dirname(path)}, "_row.png"))
+        os.remove(ima.out_path({"out_dir": os.path.dirname(path)}, "_row.png"))
     except OSError:
         pass
     # Blender arrays are bottom row first: the LAST row of the stack is the top of the picture
@@ -155,7 +155,7 @@ def run(req):
 
     def lap(name, t0):
         timings[name] = round(time.time() - t0, 2)
-        af.log(name, seconds=timings[name])
+        ima.log(name, seconds=timings[name])
 
     inputs = req.get("inputs") or {}
     concept_path = inputs.get("concept") or p.get("concept_file")
@@ -173,9 +173,9 @@ def run(req):
     objs = ml.prepare_meshes([o for o in bpy.context.scene.objects if o.type in ("MESH", "ARMATURE", "EMPTY")], warnings)
     if not objs:
         raise ValueError("no mesh objects in %s" % src_path)
-    base = af.join(objs, name="Base")
+    base = ima.join(objs, name="Base")
     base.data.name = "Base"
-    af.normalize([base], height=height, ground=True, center=True)
+    ima.normalize([base], height=height, ground=True, center=True)
     _weld(base)
     bpy.context.view_layer.update()
     Vb, Tb = pt.world_arrays(base)
@@ -195,7 +195,7 @@ def run(req):
     else:
         cam, iou_base = pt.fit_front_camera(Vb, Tb, fit_mask)
     lap("camera", t0)
-    af.log("front camera", iou=round(iou_base, 4), px_per_m=round(cam.s, 2))
+    ima.log("front camera", iou=round(iou_base, 4), px_per_m=round(cam.s, 2))
 
     # ------------------------------------------------------------------ parts
     voxel = p.get("voxel_m")
@@ -230,7 +230,7 @@ def run(req):
         ob.data.transform(mathutils.Matrix(M.tolist()))
         ob.data.update()
         bpy.context.view_layer.update()
-        lo, hi = af.world_bbox([ob])
+        lo, hi = ima.world_bbox([ob])
         scale = [float(np.linalg.norm(M[:3, k])) for k in range(3)]
         rec = {"name": name, "mesh": part["mesh"], "box_px": part["box"],
                "box_m": [round(v, 5) for v in wb], "subject_m": [round(v, 5) for v in subj],
@@ -251,7 +251,7 @@ def run(req):
                                   round(float(max(wb[2] - lo.z, hi.z - wb[3], 0.0)), 5)]
         fit_report.append(rec)
         placed.append((part, ob, wb))
-        af.log("part placed", part=name, rms_mm=round(1000 * rec["residual_rms_m"], 2), iou=rec["iou_final"],
+        ima.log("part placed", part=name, rms_mm=round(1000 * rec["residual_rms_m"], 2), iou=rec["iou_final"],
                aspect=rec["aspect_vs_generator"], flipped=rec["flipped"])
     timings["place_parts"] = round(time.time() - t_icp, 2)
 
@@ -303,7 +303,7 @@ def run(req):
     fuse_objs = [ob for _p, ob, _w in placed] + pieces
     if rest_ob is not None:
         fuse_objs.append(rest_ob)
-    asm = af.join(fuse_objs, name="Assembled")
+    asm = ima.join(fuse_objs, name="Assembled")
     asm.data.name = "Assembled"
     tris_in = ml.tris_of(asm)
     vt = ml.voxel_remesh(asm, voxel)
@@ -323,7 +323,7 @@ def run(req):
         ml.recalc_normals(asm)
         lap("decimate", t0)
     ml.apply_shading(asm, p.get("shade_auto_smooth_deg", 40))
-    af.normalize([asm], height=height, ground=True, center=True)
+    ima.normalize([asm], height=height, ground=True, center=True)
     bpy.context.view_layer.update()
     metrics = ml.mesh_metrics([asm])
     # base for the previews and the metrics keeps its normalised frame; the assembled result moved by the re-normalisation
@@ -341,29 +341,29 @@ def run(req):
     # ------------------------------------------------------------------ outputs
     outputs = {}
     t0 = time.time()
-    outputs["glb"] = af.export_glb(af.out_path(req, "assembled.glb"), objects=[asm], animations=False, skins=False)
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "assembled.glb"), objects=[asm], animations=False, skins=False)
     mv = None
     if p.get("export_mv"):
-        mv = pt.export_hunyuan(asm, af.out_path(req, "assembled_mv.glb"))
-        outputs["glb_mv"] = af.out_path(req, "assembled_mv.glb")
+        mv = pt.export_hunyuan(asm, ima.out_path(req, "assembled_mv.glb"))
+        outputs["glb_mv"] = ima.out_path(req, "assembled_mv.glb")
     lap("export_glb", t0)
-    fit_doc = {"format": "astraforge.parts_fit/1", "height_m": height, "voxel_m": voxel,
+    fit_doc = {"format": "imaginarium.parts_fit/1", "height_m": height, "voxel_m": voxel,
                "camera": dict(cam.to_dict(), iou=round(iou_base, 4)), "parts": fit_report, "joints": joints,
                "joint_overlap_m": eps, "remainder": remainder,
                "iou": {"base_vs_reference": round(iou_base, 4), "assembled_vs_reference": round(iou_asm, 4),
                        "assembled_vs_base": round(iou_vs_base, 4)}}
-    with open(af.out_path(req, "parts_fit.json"), "w", encoding="utf-8") as fh:
+    with open(ima.out_path(req, "parts_fit.json"), "w", encoding="utf-8") as fh:
         json.dump(fit_doc, fh, indent=1, ensure_ascii=False)
-    outputs["parts_fit"] = af.out_path(req, "parts_fit.json")
+    outputs["parts_fit"] = ima.out_path(req, "parts_fit.json")
     if p.get("preview", True):
         t0 = time.time()
-        lo, hi = af.world_bbox([asm])
+        lo, hi = ima.world_bbox([asm])
         head_box = None
         head = next((pl_ for pl_ in placed if pl_[0]["name"] == "head"), None)
         if head is not None and p.get("head_closeup", True):
             wb = head[2]
             head_box = (mathutils.Vector((wb[0], -0.16 * height / 1.8, wb[2])), mathutils.Vector((wb[1], 0.16 * height / 1.8, wb[3])))
-        outputs["preview"] = _render_rows(af.out_path(req, "preview.png"), base, asm, lo, hi, head_box,
+        outputs["preview"] = _render_rows(ima.out_path(req, "preview.png"), base, asm, lo, hi, head_box,
                                           int(p.get("preview_size", 384)), head_box is not None)
         lap("preview", t0)
     # the base stays in the .blend (hidden from render) so the result can be compared again
@@ -372,29 +372,29 @@ def run(req):
     asm.name = "Body"
     asm.data.name = "Body"
     ml.purge_orphans()
-    outputs["blend"] = af.save_blend(af.out_path(req, "assembled.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "assembled.blend"))
 
     # ------------------------------------------------------------------ checks
-    checks = [af.check("parts_found", bool(placed), len(placed), 1)]
-    checks.append(af.check("no_nan_verts", metrics["nan_verts"] == 0, metrics["nan_verts"], 0))
+    checks = [ima.check("parts_found", bool(placed), len(placed), 1)]
+    checks.append(ima.check("no_nan_verts", metrics["nan_verts"] == 0, metrics["nan_verts"], 0))
     size_z = metrics["size"][2]
-    checks.append(af.check("height_matches", abs(size_z - height) <= 1e-3 * height, round(size_z, 5), height))
-    checks.append(af.check("grounded", abs(metrics["bbox_min"][2]) <= 1e-4 * max(size_z, 1e-6), metrics["bbox_min"][2], 0.0))
-    checks.append(af.check("watertight", metrics["boundary_edges"] == 0, metrics["boundary_edges"], 0,
+    checks.append(ima.check("height_matches", abs(size_z - height) <= 1e-3 * height, round(size_z, 5), height))
+    checks.append(ima.check("grounded", abs(metrics["bbox_min"][2]) <= 1e-4 * max(size_z, 1e-6), metrics["bbox_min"][2], 0.0))
+    checks.append(ima.check("watertight", metrics["boundary_edges"] == 0, metrics["boundary_edges"], 0,
                            note="open edges of the fused mesh"))
-    checks.append(af.check("manifold", metrics["non_manifold_edges"] == 0, metrics["non_manifold_edges"], 0,
+    checks.append(ima.check("manifold", metrics["non_manifold_edges"] == 0, metrics["non_manifold_edges"], 0,
                            severity="warning", note="edges shared by 3+ faces"))
-    checks.append(af.check("silhouette_iou_min", iou_asm >= IOU_FAIL, round(iou_asm, 4), IOU_FAIL,
+    checks.append(ima.check("silhouette_iou_min", iou_asm >= IOU_FAIL, round(iou_asm, 4), IOU_FAIL,
                            note="assembled front silhouette vs the front reference"))
-    checks.append(af.check("silhouette_iou", iou_asm >= iou_base - 0.01, round(iou_asm, 4), round(iou_base - 0.01, 4),
+    checks.append(ima.check("silhouette_iou", iou_asm >= iou_base - 0.01, round(iou_asm, 4), round(iou_base - 0.01, 4),
                            severity="warning", note="not below the base mesh IoU by more than 0.01"))
     warn_m = float(p.get("icp_warn_m", 0.012))
     for rec in fit_report:
         if rec["residual_rms_m"] is not None:
-            checks.append(af.check("part_residual_" + rec["name"], rec["residual_rms_m"] <= warn_m, rec["residual_rms_m"],
+            checks.append(ima.check("part_residual_" + rec["name"], rec["residual_rms_m"] <= warn_m, rec["residual_rms_m"],
                                    warn_m, severity="warning", note="trimmed ICP RMS to the base, m"))
         if rec.get("flipped"):
-            checks.append(af.check("part_flipped_" + rec["name"], False, True, False, severity="warning",
+            checks.append(ima.check("part_flipped_" + rec["name"], False, True, False, severity="warning",
                                    note="the part was generated turned 180 deg about Z and was turned back"))
 
     timings["total"] = round(time.time() - t_all, 2)

@@ -20,7 +20,7 @@ export const LANGS = [
   { id: 'ru', label: 'RU' },
 ];
 const DICTS = { en, ru };
-const STORAGE_KEY = 'astra.lang';
+const STORAGE_KEY = 'imaginarium.lang';
 const DEFAULT_LANG = 'en';
 
 function stored() {

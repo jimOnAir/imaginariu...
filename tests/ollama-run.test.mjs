@@ -9,7 +9,7 @@ import path from 'node:path';
 import { ollamaExecutable, isLocalServeUrl, pickChatModel, ollamaTags, ollamaModels, ollamaCatalog, ensureOllama, ollamaModelsDir, NO_TEXT_MODEL_HINT, CHAT_LADDER } from '../server/ollama-run.mjs';
 import { isVisionModelName, pickReviewModel, publishQaModel, FALLBACK_REVIEW_MODEL } from '../server/vlm.mjs';
 
-const mkTmp = () => mkdtempSync(path.join(tmpdir(), 'af-ollama-'));
+const mkTmp = () => mkdtempSync(path.join(tmpdir(), 'imaginarium-ollama-'));
 const exeFile = (p) => { writeFileSync(p, '#!/bin/sh\n'); chmodSync(p, 0o755); return p; };
 const M = (name, extra = {}) => ({ name, size: 6.2e9, digest: 'sha256:' + name, details: { family: 'qwen3vl', parameter_size: '8.2B' }, ...extra });
 const tagsBody = (models) => ({ ok: true, json: async () => ({ models }) });
@@ -22,7 +22,7 @@ test('isLocalServeUrl: only the loopback default port may ever be auto-started',
   for (const u of ['http://127.0.0.1:11435', 'http://127.0.0.1', 'http://192.168.1.9:11434', 'https://127.0.0.1:11434', 'https://ollama.com', '', null]) assert.ok(!isLocalServeUrl(u), String(u));
 });
 
-test('ollamaExecutable: ASTRA_OLLAMA_EXE, then config/paths.json (ollama), then PATH', () => {
+test('ollamaExecutable: IMAGINARIUM_OLLAMA_EXE, then config/paths.json (ollama), then PATH', () => {
   const dir = mkTmp();
   try {
     const fromEnv = exeFile(path.join(dir, 'env-ollama'));
@@ -33,7 +33,7 @@ test('ollamaExecutable: ASTRA_OLLAMA_EXE, then config/paths.json (ollama), then 
     writeFileSync(path.join(app, 'config', 'paths.json'), JSON.stringify({ ollama: fromCfg }));
     // only files inside the sandbox count, so this test behaves the same on a machine that has Ollama
     const exists = (p) => p.startsWith(dir);
-    assert.equal(ollamaExecutable({ env: { ASTRA_OLLAMA_EXE: fromEnv, PATH: dir }, appRoot: app, exists }), fromEnv, 'env wins');
+    assert.equal(ollamaExecutable({ env: { IMAGINARIUM_OLLAMA_EXE: fromEnv, PATH: dir }, appRoot: app, exists }), fromEnv, 'env wins');
     assert.equal(ollamaExecutable({ env: { PATH: dir }, appRoot: app, exists }), fromCfg, 'the installer-written path wins over PATH');
     assert.equal(ollamaExecutable({ env: { PATH: dir }, appRoot: path.join(dir, 'empty'), exists }), fromBin, 'PATH is the fallback');
     assert.equal(ollamaExecutable({ env: {}, appRoot: path.join(dir, 'empty'), exists: () => false }), null, 'not installed is null, never a guess');
@@ -122,7 +122,7 @@ test('ensureOllama: starts the installed program and waits; one start attempt pe
     let spawned = 0, calls = 0;
     const spawnFn = () => { spawned++; return { unref() {} }; };
     const fetchFn = async () => (++calls > 3 ? tagsBody([M('qwen3:8b')]) : offline);
-    const opts = { url: 'http://127.0.0.1:11434', appRoot: dir, env: { ASTRA_OLLAMA_EXE: exe, PATH: '' }, exists: (p) => p.startsWith(dir), fetchFn, spawnFn, waitMs: 5000, sleepFn: async () => {} };
+    const opts = { url: 'http://127.0.0.1:11434', appRoot: dir, env: { IMAGINARIUM_OLLAMA_EXE: exe, PATH: '' }, exists: (p) => p.startsWith(dir), fetchFn, spawnFn, waitMs: 5000, sleepFn: async () => {} };
     const [a, b] = await Promise.all([ensureOllama(opts), ensureOllama(opts)]);   // two requests while it is down
     assert.equal(a.running, true); assert.equal(a.started, true); assert.equal(a.exe, exe);
     assert.deepEqual(b, a, 'the second caller waits for the same start, it does not spawn a second server');
@@ -139,7 +139,7 @@ test('ensureOllama honest failures: not installed, and started-but-silent', asyn
     assert.match(none.reason, /not installed/i); assert.match(none.reason, /install\.sh/);
     let spawned = 0;
     const slow = await ensureOllama({
-      appRoot: dir, env: { ASTRA_OLLAMA_EXE: exe, PATH: '' }, exists: (p) => p.startsWith(dir), fetchFn: async () => offline,
+      appRoot: dir, env: { IMAGINARIUM_OLLAMA_EXE: exe, PATH: '' }, exists: (p) => p.startsWith(dir), fetchFn: async () => offline,
       spawnFn: () => { spawned++; return { unref() {} }; }, waitMs: 40, everyMs: 5,
       now: (() => { let t = 0; return () => (t += 25); })(), sleepFn: async () => {},
     });
@@ -152,9 +152,9 @@ test('ensureOllama honest failures: not installed, and started-but-silent', asyn
 
 test('pickReviewModel: env, then the configured pick, then the card tier', () => {
   const big = 12288, small = 8192;
-  const byEnv = pickReviewModel(big, ['qwen3.5:9b'], { ASTRA_REVIEW_VLM: 'my-vl:2b' }, 'qwen3.5:9b');
+  const byEnv = pickReviewModel(big, ['qwen3.5:9b'], { IMAGINARIUM_REVIEW_VLM: 'my-vl:2b' }, 'qwen3.5:9b');
   assert.deepEqual([byEnv.model, byEnv.installed], ['my-vl:2b', false], 'the env override wins even over an installed tier model');
-  assert.equal(pickReviewModel(big, ['my-vl:2b'], { ASTRA_REVIEW_VLM: 'my-vl:2b' }, '').model, 'my-vl:2b');
+  assert.equal(pickReviewModel(big, ['my-vl:2b'], { IMAGINARIUM_REVIEW_VLM: 'my-vl:2b' }, '').model, 'my-vl:2b');
 
   const chosen = pickReviewModel(big, ['qwen2.5-vl:7b', 'qwen3.5:9b'], {}, 'qwen2.5-vl:7b');
   assert.deepEqual([chosen.model, chosen.reason], ['qwen2.5-vl:7b', 'chosen in Connections'], 'the user pick, whatever generation it is');
@@ -186,18 +186,18 @@ test('publishQaModel hands the pick to the Blender step - but never overwrites a
   const env = {};
   const pick = { model: 'qwen2.5-vl:3b', installed: true, reason: 'x' };
   assert.deepEqual(publishQaModel(pick, env), { published: true, model: 'qwen2.5-vl:3b', reason: '' });
-  assert.equal(env.ASTRA_QA_VLM, 'qwen2.5-vl:3b');
+  assert.equal(env.IMAGINARIUM_QA_VLM, 'qwen2.5-vl:3b');
 
-  const kept = { ASTRA_QA_VLM: 'my-vl:1b' };
+  const kept = { IMAGINARIUM_QA_VLM: 'my-vl:1b' };
   assert.equal(publishQaModel(pick, kept, 'my-vl:1b').published, false, 'a variable from the real process environment');
-  assert.equal(kept.ASTRA_QA_VLM, 'my-vl:1b', 'set by hand wins');
+  assert.equal(kept.IMAGINARIUM_QA_VLM, 'my-vl:1b', 'set by hand wins');
   publishQaModel({ model: 'other-vl:2b', installed: true }, kept, 'my-vl:1b');
-  assert.equal(kept.ASTRA_QA_VLM, 'my-vl:1b', 'and the next republish does not touch it either');
+  assert.equal(kept.IMAGINARIUM_QA_VLM, 'my-vl:1b', 'and the next republish does not touch it either');
 
-  const gone = { ASTRA_QA_VLM: 'stale-vl:1b' };
+  const gone = { IMAGINARIUM_QA_VLM: 'stale-vl:1b' };
   const r = publishQaModel({ model: 'qwen3.5:9b', installed: false, reason: 'not installed: install.sh' }, gone);
   assert.equal(r.model, null); assert.match(r.reason, /install\.sh/);
-  assert.equal(gone.ASTRA_QA_VLM, undefined, 'with no usable model the step must say so, not review with a name nobody has');
+  assert.equal(gone.IMAGINARIUM_QA_VLM, undefined, 'with no usable model the step must say so, not review with a name nobody has');
 });
 
 // ---------------------------------------------------------------- ticket 22: model placement
@@ -226,14 +226,14 @@ test('ensureOllama: a studio-spawned serve inherits the placed OLLAMA_MODELS - t
     let up = false;
     const spawnFn = (file, args, o) => { seen.push({ file, args, env: o.env }); up = true; return { unref() {} }; };
     const fetchFn = async () => (up ? tagsBody([M('qwen3:8b')]) : (() => { throw new Error('ECONNREFUSED'); })());
-    const r = await ensureOllama({ url: 'http://127.0.0.1:11434', appRoot: dir, env: { ASTRA_OLLAMA_EXE: exe, PATH: '' }, spawnFn, fetchFn, waitMs: 4000, everyMs: 50, now: (() => { let t = 0; return () => (t += 100); }) });
+    const r = await ensureOllama({ url: 'http://127.0.0.1:11434', appRoot: dir, env: { IMAGINARIUM_OLLAMA_EXE: exe, PATH: '' }, spawnFn, fetchFn, waitMs: 4000, everyMs: 50, now: (() => { let t = 0; return () => (t += 100); }) });
     assert.equal(r.started, true);
     assert.deepEqual(seen[0].args, ['serve']);
     assert.equal(seen[0].env.OLLAMA_MODELS, placed, 'the placed folder rides the spawn env');
     assert.ok(existsSync(placed), 'and the folder exists before the serve starts');
     // user value untouched:
     seen.length = 0; up = false;
-    const r2 = await ensureOllama({ url: 'http://127.0.0.1:11434', appRoot: dir, env: { ASTRA_OLLAMA_EXE: exe, OLLAMA_MODELS: '/home/user/own', PATH: '' }, spawnFn, fetchFn, waitMs: 4000, everyMs: 50, now: (() => { let t = 0; return () => (t += 100); }) });
+    const r2 = await ensureOllama({ url: 'http://127.0.0.1:11434', appRoot: dir, env: { IMAGINARIUM_OLLAMA_EXE: exe, OLLAMA_MODELS: '/home/user/own', PATH: '' }, spawnFn, fetchFn, waitMs: 4000, everyMs: 50, now: (() => { let t = 0; return () => (t += 100); }) });
     assert.equal(r2.started, true);
     assert.equal(seen[0].env.OLLAMA_MODELS, '/home/user/own', 'the user folder passes through unchanged');
     assert.equal(existsSync(placed), true);

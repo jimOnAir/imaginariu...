@@ -1,4 +1,4 @@
-"""tripoSG_run.py - AstraForge's one-shot TripoSG worker (behavior per ADR-0004, ticket 01).
+"""tripoSG_run.py - Imaginarium's one-shot TripoSG worker (behavior per ADR-0004, ticket 01).
 
 Spawned by server/triposg.mjs inside the install's own venv (runtime/triposg/.venv):
 

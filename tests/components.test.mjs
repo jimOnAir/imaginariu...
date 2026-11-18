@@ -4,7 +4,7 @@
 // the scan is the shared core module, so the same behaviors are checked with an importCore stub and
 // a fake spawn. Ticket 24 changed the child contract: the installer is DETACHED (stdio ignored -
 // a closed studio must not kill it) and reports progress into the file named by its env
-// ASTRA_INSTALL_STATUS (WriteInstallStatus in installer/af_download.sh), so the fakes below write
+// IMAGINARIUM_INSTALL_STATUS (WriteInstallStatus in installer/imaginarium_download.sh), so the fakes below write
 // that file, exactly like a live run does, and the studio re-attaches by reading it plus pid.json.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -15,10 +15,10 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseScanList, createComponents } from '../server/components.mjs';
-import * as CORE from '../installer/af_scan.mjs';
+import * as CORE from '../installer/imaginarium_scan.mjs';
 
 const APP = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-comp-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-comp-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 const T = String.fromCharCode(9);
 const item = (...f) => ['##ITEM', ...f].join(T);
@@ -50,7 +50,7 @@ function manualSpawn() {
     child.pid = process.pid;                      // alive, so re-attach reads see a live run
     child.unref = () => {};
     child.status = (progress, text, extra = {}) => {
-      writeFileSync(o.env.ASTRA_INSTALL_STATUS, JSON.stringify(
+      writeFileSync(o.env.IMAGINARIUM_INSTALL_STATUS, JSON.stringify(
         { at: new Date().toISOString(), pid: child.pid, progress, text, ...extra }) + '\n', { flag: 'a' });
     };
     child.finish = (code) => child.emit('exit', code);
@@ -141,7 +141,7 @@ test('install: the detached run reports through the status file; progress, done,
   assert.equal(calls[0].opts.detached, true, 'the run must survive a studio closing');
   assert.equal(calls[0].opts.stdio, 'ignore', 'and never die on the studio\'s closed stdout');
   const statusFile = path.join(data, 'update', 'install-run', 'status.jsonl');
-  assert.equal(calls[0].opts.env.ASTRA_INSTALL_STATUS, statusFile, 'the run is told where to report');
+  assert.equal(calls[0].opts.env.IMAGINARIUM_INSTALL_STATUS, statusFile, 'the run is told where to report');
   const pidInfo = JSON.parse(readFileSync(path.join(data, 'update', 'install-run', 'pid.json'), 'utf8'));
   assert.equal(pidInfo.pid, process.pid);
   assert.deepEqual(pidInfo.ids, ['godot', 'clips']);

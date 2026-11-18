@@ -14,13 +14,13 @@ import tempfile
 
 import bpy
 
-import af_common as af
+import imaginarium_common as ima
 from steps import unreal_package as up
 
 
 def _tmp(prefix):
     d = tempfile.mkdtemp(prefix=prefix)
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         atexit.register(shutil.rmtree, d, True)
     return d
 
@@ -34,7 +34,7 @@ def _material(name="Hull", rgba=(0.2, 0.5, 0.8, 1.0)):
 
 
 def _static_glb(d, subdivisions=0, kind_mesh=None):
-    af.reset_scene()
+    ima.reset_scene()
     if subdivisions:
         bpy.ops.mesh.primitive_ico_sphere_add(subdivisions=subdivisions, radius=1.0)
     else:
@@ -53,7 +53,7 @@ def _static_glb(d, subdivisions=0, kind_mesh=None):
     bpy.context.collection.objects.link(emp)
     emp.location = (0, 0, 0.6)
     glb = os.path.join(d, "asset.glb")
-    af.export_glb(glb)
+    ima.export_glb(glb)
     return glb
 
 
@@ -77,13 +77,13 @@ def _run(req):
 
 
 def test_unreal_static_package_contract():
-    d = _tmp("af_unreal_static_")
+    d = _tmp("imaginarium_unreal_static_")
     res = _run(_req(_static_glb(d), d))
     assert all(c["ok"] for c in res["checks"] if c.get("severity", "error") == "error"), res["checks"]
     man_path = res["outputs"]["manifest"]
     with open(man_path, "r", encoding="utf-8") as fh:
         man = json.load(fh)
-    assert man["format"] == "astraforge-unreal-package/1"
+    assert man["format"] == "imaginarium-unreal-package/1"
     assert man["units"] == "cm"
     assert man["axes"]["up"] == "Z" and man["axes"]["forward"] == "+X" and man["axes"]["handed"] == "left"
     assert man["axes"]["source_forward_glb"] == "-Z" and man["axes"]["root_rotation_z_deg"] == 0.0
@@ -109,12 +109,12 @@ def test_unreal_static_package_contract():
     assert [s["name"] for s in man["sockets"]] == ["socket_mount"]
     assert man["passport"]["kind"] == "ship"
     assert man["meshes"][0]["lods"] == []
-    assert man["actor_blueprint"] == "A_test_unreal_asset" and man["master_material"] == "M_AstraForge"
+    assert man["actor_blueprint"] == "A_test_unreal_asset" and man["master_material"] == "M_Imaginarium"
     assert os.path.isfile(res["outputs"]["readme"])
 
 
 def test_unreal_lods_for_dense_mesh():
-    d = _tmp("af_unreal_lod_")
+    d = _tmp("imaginarium_unreal_lod_")
     res = _run(_req(_static_glb(d, subdivisions=5), d))
     assert all(c["ok"] for c in res["checks"] if c.get("severity", "error") == "error"), res["checks"]
     with open(res["outputs"]["manifest"], "r", encoding="utf-8") as fh:
@@ -126,7 +126,7 @@ def test_unreal_lods_for_dense_mesh():
 
 
 def test_unreal_character_source_forward():
-    d = _tmp("af_unreal_fwd_")
+    d = _tmp("imaginarium_unreal_fwd_")
     res = _run(_req(_static_glb(d), d, passport_kind="humanoid"))
     with open(res["outputs"]["manifest"], "r", encoding="utf-8") as fh:
         man = json.load(fh)
@@ -135,7 +135,7 @@ def test_unreal_character_source_forward():
 
 
 def test_unreal_collision_off():
-    d = _tmp("af_unreal_nocol_")
+    d = _tmp("imaginarium_unreal_nocol_")
     res = _run(_req(_static_glb(d), d, collision="none"))
     with open(res["outputs"]["manifest"], "r", encoding="utf-8") as fh:
         man = json.load(fh)
@@ -143,7 +143,7 @@ def test_unreal_collision_off():
 
 
 def test_unreal_input_guards():
-    d = _tmp("af_unreal_guard_")
+    d = _tmp("imaginarium_unreal_guard_")
     glb = _static_glb(d)
     for bad in ({"asset_id": "Bad ID"}, {"asset_id": "ok_id", "profile": "godot"}):
         req = {"step": "unreal_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out2"), "params": bad}

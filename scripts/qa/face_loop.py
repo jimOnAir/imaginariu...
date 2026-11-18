@@ -28,10 +28,10 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 PY = sys.executable
 BLENDER_DEFAULT = (r"C:\Program Files\Blender Foundation\Blender 5.0\blender.exe" if os.name == "nt" else "blender")
 # front/back body renders for the overview sheet: a copy of the video's tools/bl_paint_check.py role lives
-# next to this file (scripts/qa); ASTRA_PAINT_CHECK overrides
-PAINT_CHECK = os.environ.get("ASTRA_PAINT_CHECK") or os.path.join(HERE, "bl_paint_check.py")
+# next to this file (scripts/qa); IMAGINARIUM_PAINT_CHECK overrides
+PAINT_CHECK = os.environ.get("IMAGINARIUM_PAINT_CHECK") or os.path.join(HERE, "bl_paint_check.py")
 if not os.path.isfile(PAINT_CHECK):
-    PAINT_CHECK = r"C:\Dorn\Dops media\02 Проекты\Таймлапс AstraForge\01 Лучник\tools\bl_paint_check.py"
+    PAINT_CHECK = r"C:\Dorn\Dops media\02 Проекты\Таймлапс Imaginarium\01 Лучник\tools\bl_paint_check.py"
 
 for _s in (sys.stdout, sys.stderr):
     try:
@@ -189,7 +189,7 @@ def main():
     ap.add_argument("--resume-from-best", action="store_true", help="continue starting from the best model (after editing the scripts)")
     ap.add_argument("--finalize-only", action="store_true")
     ap.add_argument("--body-refs", default=None)
-    ap.add_argument("--blender", default=os.environ.get("HG_BLENDER") or os.environ.get("ASTRA_BLENDER") or BLENDER_DEFAULT)
+    ap.add_argument("--blender", default=os.environ.get("HG_BLENDER") or os.environ.get("IMAGINARIUM_BLENDER") or BLENDER_DEFAULT)
     ap.add_argument("--plateau", type=int, default=2, help="stop if the score does not grow for this many iterations in a row")
     ap.add_argument("--thresholds", default=None, help="pass thresholds for face_match (JSON or a path to .json), see face_match.py --thresholds")
     a = ap.parse_args()

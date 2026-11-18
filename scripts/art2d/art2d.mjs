@@ -29,8 +29,8 @@ for (let i = 1; i < argv.length; i++) {
     if (i + 1 < argv.length && !argv[i + 1].startsWith('--')) opt[k] = argv[++i]; else opt[k] = true;
   } else pos.push(a);
 }
-const comfyUrl = opt.comfy || process.env.ASTRA_COMFY_URL || DEFAULT_COMFY_URL;
-const root = opt.root || process.env.ASTRA_ART2D_ROOT || ART2D_ROOT;
+const comfyUrl = opt.comfy || process.env.IMAGINARIUM_COMFY_URL || DEFAULT_COMFY_URL;
+const root = opt.root || process.env.IMAGINARIUM_ART2D_ROOT || ART2D_ROOT;
 const list = (v) => (v ? String(v).split(',').map((s) => s.trim()).filter(Boolean) : undefined);
 const IMG = /\.(png|jpe?g|webp)$/i;
 

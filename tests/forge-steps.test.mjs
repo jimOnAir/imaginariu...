@@ -384,7 +384,7 @@ test('kitbash, ship_from_mesh paint / armour / decals / palette and rotary turre
   assert.deepEqual(s.palette.enum, ['input', 'faction']);
   assert.ok(s.materials.enum.includes('paint'));
   normalizeParams('ship_from_mesh', { palette: 'input', paint: { image: 'x.png', regions: [{ box: [0.1, 0.2, 0.3, 0.4], label: 'glass' }] },
-    decals: [{ text: 'AF-03', side: 'both', position: [-13.6, 2.7], size: [11.2, 4.8] }], armor_texture: 'armor_hex' });
+    decals: [{ text: 'Imaginarium-03', side: 'both', position: [-13.6, 2.7], size: [11.2, 4.8] }], armor_texture: 'armor_hex' });
   assert.throws(() => normalizeParams('ship_from_mesh', { palette: 'rainbow' }), /palette/);
   assert.throws(() => normalizeParams('ship_from_mesh', { paint: { camera: 'fit' } }), /paint/);
   assert.throws(() => normalizeParams('ship_from_mesh', { paint: { asset: 'not-a-uuid' } }), /paint\.asset/);

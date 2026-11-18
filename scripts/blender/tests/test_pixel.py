@@ -16,7 +16,7 @@ import time
 
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _export_lib as xl
 from steps import render_sprites
 from test_export import build_marker_figure
@@ -27,13 +27,13 @@ import pixelize as px  # noqa: E402
 
 def _tmp(prefix):
     d = tempfile.mkdtemp(prefix=prefix)
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         atexit.register(shutil.rmtree, d, True)
     return d
 
 
 def _done(*dirs):
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         for d in dirs:
             shutil.rmtree(d, ignore_errors=True)
 
@@ -41,7 +41,7 @@ def _done(*dirs):
 def _run(glb, out, **params):
     base = {"profile": "pixel", "asset_id": "marker", "directions": ["S", "E"], "validate_godot": False}
     base.update(params)
-    af.reset_scene()
+    ima.reset_scene()
     return render_sprites.run({"step": "render_sprites", "inputs": {"mesh": glb}, "params": base, "out_dir": out})
 
 
@@ -55,7 +55,7 @@ def _sheet_pixels(res):
 
 def test_pixel_profile_palette_alpha_and_outputs():
     """Every visible sheet pixel is a palette colour, alpha is only 0/255, palette.png/.gpl and an enlarged preview lie next to the sheets."""
-    d = _tmp("af_pixel_")
+    d = _tmp("imaginarium_pixel_")
     glb = build_marker_figure(os.path.join(d, "figure.glb"))
     res = _run(glb, os.path.join(d, "out"), outline="auto", colors=12, levels=True)
     assert not _errors(res), _errors(res)
@@ -83,7 +83,7 @@ def test_pixel_profile_palette_alpha_and_outputs():
 
 def test_pixel_profile_deterministic_and_palette_file():
     """Two runs give identical sheets; a .gpl palette takes only the file's colours; dithering and the outline stay inside the palette."""
-    d = _tmp("af_pixel_pal_")
+    d = _tmp("imaginarium_pixel_pal_")
     glb = build_marker_figure(os.path.join(d, "figure.glb"))
     a = _run(glb, os.path.join(d, "a"), outline="dark", dither=True, colors=8)
     b = _run(glb, os.path.join(d, "b"), outline="dark", dither=True, colors=8)
@@ -104,7 +104,7 @@ def test_pixel_profile_deterministic_and_palette_file():
 
 def test_pixel_profile_downscale_nearest_and_guards():
     """downscale renders k times larger and takes nearest; invalid parameters are rejected before the render."""
-    d = _tmp("af_pixel_ds_")
+    d = _tmp("imaginarium_pixel_ds_")
     glb = build_marker_figure(os.path.join(d, "figure.glb"))
     res = _run(glb, os.path.join(d, "ok"), downscale=3, directions=["S"], palette="none")
     assert not _errors(res), _errors(res)

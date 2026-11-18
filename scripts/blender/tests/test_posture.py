@@ -20,7 +20,7 @@ if ROOT not in sys.path:
 import bpy  # noqa: E402
 from mathutils import Quaternion, Vector  # noqa: E402
 
-import af_common as af  # noqa: E402
+import imaginarium_common as ima  # noqa: E402
 from steps import _posture_lib as PL  # noqa: E402
 from steps import _style_lib as SL  # noqa: E402
 from steps import motion_style as ms  # noqa: E402
@@ -32,7 +32,7 @@ _CACHE = {}
 
 def _tmp():
     import tempfile
-    return tempfile.mkdtemp(prefix="af_posture_")
+    return tempfile.mkdtemp(prefix="imaginarium_posture_")
 
 
 def _animated_blend():

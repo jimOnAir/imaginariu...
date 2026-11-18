@@ -1,4 +1,4 @@
-"""sound_run.py - AstraForge's one-shot Sound worker (behavior per ADR-0004, ticket 04).
+"""sound_run.py - Imaginarium's one-shot Sound worker (behavior per ADR-0004, ticket 04).
 
 Spawned by server/sound.mjs inside the install's own venv (runtime/sound/.venv):
 

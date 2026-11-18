@@ -11,7 +11,7 @@ import express from 'express';
 import { randomUUID } from 'node:crypto';
 import { decide, seamCap, parseScores, tuneTable, THRESHOLDS, AXES, createAutoReviewService, registerAutoReview } from '../server/autoreview.mjs';
 
-const tmp = () => mkdtempSync(path.join(os.tmpdir(), 'astra-ar-'));
+const tmp = () => mkdtempSync(path.join(os.tmpdir(), 'imaginarium-ar-'));
 
 // ---------------------------------------------------------------- decide(): the fixed table decides, never the model
 
@@ -157,8 +157,8 @@ test('the mesh numbers out-vote a delighted VLM end to end: cap -> redo -> journ
   assert.equal(r.status, 'rejected', 'a hole-riddled mesh cannot be accepted by taste');
 });
 
-test('the ASTRA_AUTOREVIEW=0 gate and the child-job guard: start() declines without a fuss', async () => {
-  const gated = createAutoReviewService({ dataDir: tmp(), libraryDir: tmp(), env: { ASTRA_AUTOREVIEW: '0' }, getJob: () => null, createJob: async () => { throw new Error('no'); } });
+test('the IMAGINARIUM_AUTOREVIEW=0 gate and the child-job guard: start() declines without a fuss', async () => {
+  const gated = createAutoReviewService({ dataDir: tmp(), libraryDir: tmp(), env: { IMAGINARIUM_AUTOREVIEW: '0' }, getJob: () => null, createJob: async () => { throw new Error('no'); } });
   assert.equal(await gated.start({ id: randomUUID(), asset: { id: randomUUID(), extension: '.glb' } }, { auto: true }), null);
   const open = createAutoReviewService({ dataDir: tmp(), libraryDir: tmp(), env: {}, getJob: () => null, createJob: async () => { throw new Error('no'); } });
   assert.equal(await open.start({ id: randomUUID(), autoreviewOf: randomUUID(), asset: { id: randomUUID(), extension: '.glb' } }), null, 'a retry child is reviewed by its own record');
@@ -170,7 +170,7 @@ test('the ASTRA_AUTOREVIEW=0 gate and the child-job guard: start() declines with
 function routeApp() {
   const svc = createAutoReviewService({ dataDir: tmp(), libraryDir: tmp(), env: {}, getJob: () => null, createJob: async () => ({ id: randomUUID() }) });
   const app = express();
-  app.use((req, res, next) => { if (!['GET', 'HEAD'].includes(req.method) && req.path.startsWith('/api') && req.headers['x-astra-client'] !== 'studio') return res.status(403).json({ error: 'The request must be sent from the studio.' }); next(); });
+  app.use((req, res, next) => { if (!['GET', 'HEAD'].includes(req.method) && req.path.startsWith('/api') && req.headers['x-imaginarium-client'] !== 'studio') return res.status(403).json({ error: 'The request must be sent from the studio.' }); next(); });
   app.use(express.json());
   const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
   registerAutoReview(app, asyncRoute, { service: svc, dataDir: svc.rootDir.replace(/\/autoreview$/, '') });
@@ -196,8 +196,8 @@ test('routes: studio guard, empty list, thresholds readout, honest 404s, orbit f
   assert.equal(orbit.status, 404, 'the attempt and file names are whitelisted, not joined blindly');
   const post = await fetch(base + '/api/autoreview', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{}' });
   assert.equal(post.status, 403, 'a mutating call without the studio header is refused');
-  const ok = await fetch(base + '/api/autoreview', { method: 'POST', headers: { 'content-type': 'application/json', 'x-astra-client': 'studio' }, body: JSON.stringify({ jobId: randomUUID() }) });
+  const ok = await fetch(base + '/api/autoreview', { method: 'POST', headers: { 'content-type': 'application/json', 'x-imaginarium-client': 'studio' }, body: JSON.stringify({ jobId: randomUUID() }) });
   assert.equal(ok.status, 404, 'a job this studio never had cannot be reviewed');
-  const junk = await fetch(base + '/api/autoreview', { method: 'POST', headers: { 'content-type': 'application/json', 'x-astra-client': 'studio' }, body: JSON.stringify({ jobId: 'cucumber' }) });
+  const junk = await fetch(base + '/api/autoreview', { method: 'POST', headers: { 'content-type': 'application/json', 'x-imaginarium-client': 'studio' }, body: JSON.stringify({ jobId: 'cucumber' }) });
   assert.ok(junk.status >= 400 && junk.status < 500);
 });

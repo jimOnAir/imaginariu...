@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { soundArgs, soundConfig, soundInstallState, soundLibrary, soundPresets, soundStatus, addSoundToLibrary, trashSound, loadBindings, setBinding, exportSoundBank, createSoundTask, soundTask, findAudioMarks, SOUND_REQUIREMENTS, SOUND_EVENTS } from '../server/sound.mjs';
 
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-sound-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-sound-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
 /** A cfg whose install folder really holds every SOUND_REQUIREMENTS file, plus a private data dir. */
@@ -22,7 +22,7 @@ function fakeInstall(name) {
     mkdirSync(path.dirname(p), { recursive: true });
     if (!existsSync(p)) writeFileSync(p, 'x');
   }
-  return soundConfig({ env: { ASTRA_SOUND_DIR: dir }, appRoot: dir, dataDir: path.join(dir, 'data') });
+  return soundConfig({ env: { IMAGINARIUM_SOUND_DIR: dir }, appRoot: dir, dataDir: path.join(dir, 'data') });
 }
 
 /** A stand-in worker: writes a WAV, then replays the given stdout lines and exits. */
@@ -73,7 +73,7 @@ const settle = (task) => new Promise((resolve) => {
 // - - - - - - - - - - the install message and the status - - - - - - - - - - - - - - - - - - - - - -
 
 test('an absent Sound worker says exactly what is missing and how to install it', () => {
-  const cfg = soundConfig({ env: { ASTRA_SOUND_DIR: path.join(tmp, 'nowhere') }, appRoot: tmp });
+  const cfg = soundConfig({ env: { IMAGINARIUM_SOUND_DIR: path.join(tmp, 'nowhere') }, appRoot: tmp });
   const state = soundInstallState(cfg, () => false);
   assert.equal(state.installed, false);
   assert.deepEqual(state.missing.map((m) => m.path), SOUND_REQUIREMENTS.map(([p]) => p));
@@ -161,7 +161,7 @@ test('the queue refuses impossible requests before it ever spawns', () => {
   assert.throws(() => createSoundTask({ kind: 'sfx', prompt: '  ' }, { cfg }), /Describe the sound/);
   assert.throws(() => createSoundTask({ kind: 'sfx', prompt: 'x', seconds: 45 }, { cfg }), /1\.\.30/);
   assert.throws(() => createSoundTask({ kind: 'loop', prompt: 'x', bars: 16 }, { cfg }), /1\.\.8 bars/);
-  const empty = soundConfig({ env: { ASTRA_SOUND_DIR: path.join(tmp, 'nowhere') }, appRoot: tmp });
+  const empty = soundConfig({ env: { IMAGINARIUM_SOUND_DIR: path.join(tmp, 'nowhere') }, appRoot: tmp });
   assert.throws(() => createSoundTask({ kind: 'sfx', prompt: 'x', seconds: 5 }, { cfg: empty }), (e) => e.code === 'sound_not_installed');
 });
 
@@ -217,15 +217,15 @@ test('exports are plain audio: no afmk chunk, no product name in a RIFF chunk or
   const listed = Buffer.concat([plainWav(), Buffer.from('LIST', 'latin1'), Buffer.from([4, 0, 0, 0]), Buffer.from('info')]);
   assert.deepEqual(findAudioMarks(listed), ['wav chunk LIST']);
 
-  const vendor = Buffer.from('AstraForge', 'latin1');
+  const vendor = Buffer.from('Imaginarium', 'latin1');
   const tagged = Buffer.concat([
     Buffer.from('OggS', 'latin1'), Buffer.alloc(27),
     Buffer.from('\x03vorbis', 'latin1'), Buffer.from([vendor.length, 0, 0, 0]), vendor, Buffer.from([0, 0, 0, 0]),
   ]);
-  assert.deepEqual(findAudioMarks(tagged), ['AstraForge', 'ogg field AstraForge']);
+  assert.deepEqual(findAudioMarks(tagged), ['Imaginarium', 'ogg field Imaginarium']);
 });
 
-test('the bevy sound bank export is exactly what the astraforge_bevy crate parses (0.6.10 wave ticket 31)', () => {
+test('the bevy sound bank export is exactly what the imaginarium_bevy crate parses (0.6.10 wave ticket 31)', () => {
   const cfg = fakeInstall('bank');
   const { lib } = soundPathsOf(cfg);
   mkdirSync(lib, { recursive: true });
@@ -240,10 +240,10 @@ test('the bevy sound bank export is exactly what the astraforge_bevy crate parse
 
   const out = path.join(tmp, 'bank-out');
   const r = exportSoundBank({ assetId: asset, engine: 'bevy', out, cfg });
-  assert.equal(r.folder, path.join(out, 'assets', 'astraforge', 'sounds', r.slug));
+  assert.equal(r.folder, path.join(out, 'assets', 'imaginarium', 'sounds', r.slug));
   assert.equal(r.slug, '33333333_3333_4333_8333_333333333333', 'the bank slug follows the sendBevy slug rule');
   const man = JSON.parse(readFileSync(r.manifest, 'utf8'));
-  assert.equal(man.format, 'astraforge-soundbank/1', 'the versioned format the crate BankManifest demands');
+  assert.equal(man.format, 'imaginarium-soundbank/1', 'the versioned format the crate BankManifest demands');
   assert.deepEqual(man.sounds, [
     { name: 'ambient', file: `${r.slug}-ambient.ogg`, loop: true, gain: 1.0 },   // kind loop -> loop true
     { name: 'attack', file: `${r.slug}-attack.wav`, loop: false, gain: 1.0 },     // no ogg companion -> the wav travels

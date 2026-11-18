@@ -1,7 +1,7 @@
 """kitbash — put detailed procedural parts onto an existing (AI) ship model at its sockets or at given points.
 
-Input: inputs.blend (ship.blend of ship_from_mesh / a previous kitbash: LOD0 + LOD1/LOD2 roots, sockets, AF_*
-materials and the forge metadata scene["af_ship"] with the manifest) or inputs.mesh (ship.glb; siblings
+Input: inputs.blend (ship.blend of ship_from_mesh / a previous kitbash: LOD0 + LOD1/LOD2 roots, sockets, Imaginarium_*
+materials and the forge metadata scene["imaginarium_ship"] with the manifest) or inputs.mesh (ship.glb; siblings
 ship_lod1.glb / ship_lod2.glb and ship.json are used when present).
 
 params.parts — list of part specs, applied in order:
@@ -13,7 +13,7 @@ params.parts — list of part specs, applied in order:
      adds socket_muzzle_<place> (glTF -Z = fire direction) and extras builtin on the turret socket
   {kind: 'nozzle', at: 'socket_thruster_*', diameter?, length?, throat_d?, collar_len?, ribs, bands, actuators,
    axis (exhaust, default aft -Y), remove?}
-     ribbed dark bell, glowing inner surface (AF_EmissiveDrive) and throat, steel collar / flanges / rim,
+     ribbed dark bell, glowing inner surface (Imaginarium_EmissiveDrive) and throat, steel collar / flanges / rim,
      actuator pistons, mount plate; the socket keeps its frame, mount_d_m follows the new exit diameter
   {kind: 'piping', points: [[x, y, z], ...], radius, count, spread: [dx, dy, dz], mirror: 'x', material}
   {kind: 'antenna' | 'mast', at: [x, y] (snapped down onto the hull) | [x, y, z], height, style: whip | mast |
@@ -41,13 +41,13 @@ import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _kitbash_lib as kl
 from steps import _ship_lib as sl
 from steps import ship_from_mesh as sfm
 from steps import ship_gen
 
-GEN_KITBASH = "af_kitbash_v1"
+GEN_KITBASH = "imaginarium_kitbash_v1"
 KINDS = ("gatling", "nozzle", "piping", "antenna", "mast", "nav_light", "vent_grille", "block", "remove")
 
 
@@ -57,22 +57,22 @@ def load_input(req, warnings):
     inputs = req.get("inputs") or {}
     meta = {}
     if inputs.get("blend"):
-        af.open_blend(inputs["blend"])
-        raw = bpy.context.scene.get("af_ship")
+        ima.open_blend(inputs["blend"])
+        raw = bpy.context.scene.get("imaginarium_ship")
         if raw:
             meta = json.loads(raw)
         else:
-            warnings.append("input .blend has no forge metadata (scene['af_ship']); manifest not updated")
+            warnings.append("input .blend has no forge metadata (scene['imaginarium_ship']); manifest not updated")
     elif inputs.get("mesh"):
         path = inputs["mesh"]
-        af.reset_scene()
-        af.import_any(path)
+        ima.reset_scene()
+        ima.import_any(path)
         stem, ext = os.path.splitext(path)
         for k in (1, 2):
             lp = "%s_lod%d%s" % (stem, k, ext)
             if os.path.isfile(lp):
-                af.import_any(lp)
-        # the importer makes 'AF_Armor.001' for every further file: map LOD materials back to the LOD0 ones
+                ima.import_any(lp)
+        # the importer makes 'Imaginarium_Armor.001' for every further file: map LOD materials back to the LOD0 ones
         for o in bpy.context.scene.objects:
             if o.type != "MESH":
                 continue
@@ -114,7 +114,7 @@ def socket_objects(root):
 
 
 def material_table(sets):
-    """Material per Kit key: the materials the LOD0 objects already use (textured AF_Armor included);
+    """Material per Kit key: the materials the LOD0 objects already use (textured Imaginarium_Armor included);
     missing keys get library materials (emission colours copied from an existing glow material)."""
     used = {}
     for o in sets[0][1]:
@@ -166,7 +166,7 @@ def snap(bvh, origin, direction, max_d):
 
 
 def merge_kit(kit, set_objs, parent, suffix, mats):
-    """Kit -> one temporary object per material, UVs (metric box; tile from the material's af_tile_m), then
+    """Kit -> one temporary object per material, UVs (metric box; tile from the material's imaginarium_tile_m), then
     joined into the LOD set object with the same material (new object only for a material the set lacks)."""
     if not kit.bm.faces:
         return set_objs, 0
@@ -180,7 +180,7 @@ def merge_kit(kit, set_objs, parent, suffix, mats):
                   else "UVMap")
         if not t.data.uv_layers:
             t.data.uv_layers.new(name=uvname)
-        sfm.box_uv_metres(t, float(mat.get("af_tile_m", 4.0)))
+        sfm.box_uv_metres(t, float(mat.get("imaginarium_tile_m", 4.0)))
         if target is None:
             t.name = "M_hull_%s%s" % (sl.SHORT.get(next((k for k, m in mats.items() if m == mat), "armor"),
                                                   "part"), suffix)
@@ -598,8 +598,8 @@ def run(req):
     col, col_info = sl.convex_collision(objs0, parent=root)
     empties = [o for o in root.children if o.type == "EMPTY"]
     bpy.context.view_layer.update()
-    out_glb = af.out_path(req, "ship.glb")
-    af.export_glb(out_glb, [root] + objs0 + [col] + empties, animations=False, skins=False, export_tangents=False,
+    out_glb = ima.out_path(req, "ship.glb")
+    ima.export_glb(out_glb, [root] + objs0 + [col] + empties, animations=False, skins=False, export_tangents=False,
                   export_image_format="AUTO", export_draco_mesh_compression_enable=False)
     summ = sl.glb_summary(out_glb)
     outputs = {"glb": out_glb}
@@ -609,19 +609,19 @@ def run(req):
             if k not in sets:
                 continue
             r, objs = sets[k]
-            path = af.out_path(req, "ship_lod%d.glb" % k)
-            af.export_glb(path, [r] + objs, animations=False, skins=False, export_tangents=False,
+            path = ima.out_path(req, "ship_lod%d.glb" % k)
+            ima.export_glb(path, [r] + objs, animations=False, skins=False, export_tangents=False,
                           export_image_format="AUTO", export_draco_mesh_compression_enable=False)
             lod_tris["lod%d" % k] = sl.glb_summary(path)["triangles"]
             outputs["lod%d" % k] = lod_paths["lod%d" % k] = path
     checks = sl.budget_checks(summ, cls, lod_tris or None)
-    checks.append(af.check("collision_vertices", col_info["vertices"] <= 64, col_info["vertices"], 64))
-    checks.append(af.check("kitbash_parts_placed", not failed, failed, [],
+    checks.append(ima.check("collision_vertices", col_info["vertices"] <= 64, col_info["vertices"], 64))
+    checks.append(ima.check("kitbash_parts_placed", not failed, failed, [],
                            note="every part spec resolved its anchor and found the hull"))
     thr = [x for x in summ["sockets"] if x["extras"].get("kind") == "thruster"]
     frame = meta.get("thruster_frame") or (thr[0]["extras"].get("frame") if thr else "thrust") or "thrust"
     if thr:
-        checks.append(af.check("thruster_frame", all(sl.thruster_frame_ok(x, frame) for x in thr), len(thr),
+        checks.append(ima.check("thruster_frame", all(sl.thruster_frame_ok(x, frame) for x in thr), len(thr),
                                sl.THRUSTER_AXIS_TEXT.get(frame, frame)))
         checks.append(sl.thruster_diameter_check(thr))
     if any(x["game_socket"].startswith("socket_fx_nav_") for x in summ["sockets"]):
@@ -636,22 +636,22 @@ def run(req):
                 d = np.array(x["position_gltf"]) - pos[m]
                 if np.linalg.norm(d) > 1e-6 and float(np.dot(d / np.linalg.norm(d), x["neg_z_gltf"])) < 0.9:
                     bad.append(x["game_socket"])
-        checks.append(af.check("muzzle_frame_fire_axis", not bad, bad, [],
+        checks.append(ima.check("muzzle_frame_fire_axis", not bad, bad, [],
                                note="glTF -Z of every muzzle points away from its mount (fire direction)"))
     lod_sil = sl.lod_silhouettes(out_glb, lod_paths) if lod_paths else {}
     for key, v in lod_sil.items():
-        checks.append(af.check("silhouette_iou_%s" % key, min(v["top"], v["side"]) >= 0.85, v, 0.85,
+        checks.append(ima.check("silhouette_iou_%s" % key, min(v["top"], v["side"]) >= 0.85, v, 0.85,
                                note="gate 10: top/side silhouette IoU vs LOD0 (same window)"))
     if p.get("preview", True):
         col.hide_render = True
         for k, (r, objs) in sets.items():
             for o in objs:
                 o.hide_render = k != 0
-        outputs["preview"] = sl.render_grid(af.out_path(req, "preview.png"), objs0, tile=int(p.get("preview_size", 300)),
+        outputs["preview"] = sl.render_grid(ima.out_path(req, "preview.png"), objs0, tile=int(p.get("preview_size", 300)),
                                             views=("three_quarter_long", "rear_quarter_long", "side", "top", "front"),
                                             color_type="TEXTURE")
         if len(sets) > 1:
-            outputs["lod_strip"] = sl.lod_strip(af.out_path(req, "lod_strip.png"), [sets[k][1] for k in sorted(sets)],
+            outputs["lod_strip"] = sl.lod_strip(ima.out_path(req, "lod_strip.png"), [sets[k][1] for k in sorted(sets)],
                                                 tile=int(p.get("preview_size", 300)), color_type="TEXTURE")
     man = meta.get("manifest")
     if man:
@@ -684,11 +684,11 @@ def run(req):
         man["notes"] = (str(man.get("notes", "")) + "; kitbash: %s" % ", ".join(
             "%s x%d" % (k, sum(1 for q in live if q["kind"] == k)) for k in KINDS
             if any(q["kind"] == k for q in live)))[:1800]
-        outputs["manifest"] = sl.write_json(af.out_path(req, "ship.json"), man)
+        outputs["manifest"] = sl.write_json(ima.out_path(req, "ship.json"), man)
     meta2 = dict(meta, step="kitbash", asset_id=asset_id, budget_class=cls, manifest=man or meta.get("manifest"),
                  kitbash=[{k_: v for k_, v in pl["spec"].items()} for pl in plans if pl.get("spec")][:64])
-    bpy.context.scene["af_ship"] = json.dumps(af._jsonable(meta2), ensure_ascii=False)
-    outputs["blend"] = sl.save_blend_clean(af.out_path(req, "ship.blend"))
+    bpy.context.scene["imaginarium_ship"] = json.dumps(ima._jsonable(meta2), ensure_ascii=False)
+    outputs["blend"] = sl.save_blend_clean(ima.out_path(req, "ship.blend"))
     stats = {"asset_id": asset_id, "budget_class": cls, "tris": summ["triangles"], "tris_lod1": lod_tris.get("lod1"),
              "tris_lod2": lod_tris.get("lod2"), "tris_before": tris_before, "removed_faces": removed,
              "part_tris": part_tris, "surfaces": summ["surfaces_lod0"], "materials": summ["material_names_used"],

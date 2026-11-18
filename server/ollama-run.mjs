@@ -53,7 +53,7 @@ const inPath = (name, env = process.env) => {
 };
 
 /**
- * Where the `ollama` program is: ASTRA_OLLAMA_EXE, then config/paths.json (key `ollama`, the same
+ * Where the `ollama` program is: IMAGINARIUM_OLLAMA_EXE, then config/paths.json (key `ollama`, the same
  * key the installer's scan writes), then the usual locations, then PATH. First hit or null.
  */
 export function ollamaExecutable({ env = process.env, appRoot = root, exists = existsSync } = {}) {
@@ -62,7 +62,7 @@ export function ollamaExecutable({ env = process.env, appRoot = root, exists = e
   const std = win
     ? [path.join(env.LOCALAPPDATA || path.join(os.homedir(), 'AppData', 'Local'), 'Programs', 'Ollama', name)]
     : ['/usr/local/bin/' + name, '/usr/bin/' + name, path.join(os.homedir(), '.ollama', 'bin', name)];
-  const candidates = [env.ASTRA_OLLAMA_EXE, pathsConfig(appRoot).ollama, ...std, inPath(name, env)].filter(Boolean);
+  const candidates = [env.IMAGINARIUM_OLLAMA_EXE, pathsConfig(appRoot).ollama, ...std, inPath(name, env)].filter(Boolean);
   for (const c of candidates) if (isExe(String(c), exists)) return String(c);
   return null;
 }

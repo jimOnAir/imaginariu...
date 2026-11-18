@@ -16,9 +16,9 @@ import { forgeError, isUuid, readJsonFile, writeJsonAtomic } from './forge-pipel
 import { listSteps } from './forge-steps.mjs';
 
 export const DECISIONS = ['approved', 'rework', 'rejected'];
-export const REVIEW_STATE_ENV = 'ASTRA_FORGE_REVIEW_STATE';
-export const REVIEW_ROLES_ENV = 'ASTRA_FORGE_REVIEW_ROLES';
-export const REVIEW_DECISIONS_ENV = 'ASTRA_FORGE_REVIEW_DECISIONS';
+export const REVIEW_STATE_ENV = 'IMAGINARIUM_REVIEW_STATE';
+export const REVIEW_ROLES_ENV = 'IMAGINARIUM_REVIEW_ROLES';
+export const REVIEW_DECISIONS_ENV = 'IMAGINARIUM_REVIEW_DECISIONS';
 export const DECISIONS_FILE_NAME = 'review_decisions.json';
 
 const BATCH_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;

@@ -15,7 +15,7 @@ const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const CLI = path.join(ROOT, 'scripts', 'forge.mjs');
 const GLB = Buffer.concat([Buffer.from('glTF'), Buffer.from([2, 0, 0, 0, 20, 0, 0, 0]), Buffer.alloc(8)]);
 const FBX = Buffer.concat([Buffer.from('Kaydara FBX Binary  \0'), Buffer.alloc(32)]);
-const dir = mkdtempSync(path.join(tmpdir(), 'af-routes-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'imaginarium-routes-'));
 let server;
 let base;
 let engine;
@@ -68,7 +68,7 @@ before(async () => {
     const host = req.headers.host?.split(':')[0];
     if (!['127.0.0.1', 'localhost', '['].includes(host)) return res.status(403).json({ error: 'Invalid Host' });
     if (req.path.startsWith('/api') && req.headers.origin && req.headers.origin !== `http://${req.headers.host}`) return res.status(403).json({ error: 'Invalid request origin' });
-    if (!['GET', 'HEAD'].includes(req.method) && req.path.startsWith('/api') && req.headers['x-astra-client'] !== 'studio') return res.status(403).json({ error: 'The request must be sent from the studio.' });
+    if (!['GET', 'HEAD'].includes(req.method) && req.path.startsWith('/api') && req.headers['x-imaginarium-client'] !== 'studio') return res.status(403).json({ error: 'The request must be sent from the studio.' });
     next();
   });
   app.use(express.json({ limit: '90mb' }));
@@ -83,7 +83,7 @@ after(async () => {
   for (const d of [dir, ...cliDirs]) await fs.rm(d, { recursive: true, force: true }).catch(() => {});
 });
 
-const H = { 'x-astra-client': 'studio' };
+const H = { 'x-imaginarium-client': 'studio' };
 async function api(method, url, body, headers = H) {
   const init = { method, headers: { ...headers } };
   if (body instanceof FormData) init.body = body;
@@ -296,23 +296,23 @@ test('CLI talks to the server over HTTP', async () => {
 });
 
 test('CLI --direct works without a server', async () => {
-  const libDir = mkdtempSync(path.join(tmpdir(), 'af-cli-'));
+  const libDir = mkdtempSync(path.join(tmpdir(), 'imaginarium-cli-'));
   cliDirs.push(libDir);
   const env = {
-    ASTRA_FORGE_LIBRARY: path.join(libDir, 'library'), ASTRA_FORGE_RUNTIME: path.join(libDir, 'runtime'),
-    ASTRA_BLENDER: path.join(libDir, 'no-blender.exe'), ASTRA_GODOT: path.join(libDir, 'no-godot.exe'),
+    IMAGINARIUM_LIBRARY: path.join(libDir, 'library'), IMAGINARIUM_RUNTIME: path.join(libDir, 'runtime'),
+    IMAGINARIUM_BLENDER: path.join(libDir, 'no-blender.exe'), IMAGINARIUM_GODOT: path.join(libDir, 'no-godot.exe'),
   };
   const status = await runCli(['status', '--direct', '--json'], env);
   assert.equal(status.code, 0, status.stderr);
   const s = JSON.parse(status.stdout);
   assert.equal(s.blender.ok, false);
   assert.match(s.blender.error, /Blender not found/);
-  assert.equal(s.library.path, env.ASTRA_FORGE_LIBRARY);
+  assert.equal(s.library.path, env.IMAGINARIUM_LIBRARY);
   const created = await runCli(['create', '--direct', '--json', '--kind', 'ship', '--name', 'Scout', '--params', '{"seed":4}'], env);
   assert.equal(created.code, 0, created.stderr);
   const m = JSON.parse(created.stdout);
   assert.equal(m.name, 'Scout');
-  assert.ok(existsSync(path.join(env.ASTRA_FORGE_LIBRARY, 'assets', m.id, 'asset.json')));
+  assert.ok(existsSync(path.join(env.IMAGINARIUM_LIBRARY, 'assets', m.id, 'asset.json')));
   const glbPath = path.join(libDir, 'model.glb');
   await fs.writeFile(glbPath, GLB);
   const upload = await runCli(['create', '--direct', '--json', '--kind', 'prop', '--from-glb', glbPath], env);
@@ -326,7 +326,7 @@ test('CLI --direct works without a server', async () => {
   const report = JSON.parse(noWait.stdout);
   assert.equal(report.status, 'failed');
   assert.match(report.error, /Blender was not found/);   // ticket 42: the honest remedy text replaced the raw spawn message
-  const record = JSON.parse(await fs.readFile(path.join(env.ASTRA_FORGE_LIBRARY, 'jobs', report.id + '.json'), 'utf8'));
+  const record = JSON.parse(await fs.readFile(path.join(env.IMAGINARIUM_LIBRARY, 'jobs', report.id + '.json'), 'utf8'));
   assert.equal(record.status, 'failed', 'the job record exists and is final');
   const shown = JSON.parse((await runCli(['show', report.assetId, '--direct', '--json'], env)).stdout);
   assert.equal(shown.versions[0].status, 'failed', 'the version is not left "queued"');

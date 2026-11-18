@@ -12,7 +12,7 @@ import { readJson, parseJson } from '../server/storage.mjs';
 import { pixal3dConfig } from '../server/pixal3d.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-bom-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-bom-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 const mkdirp = (d) => mkdirSync(d, { recursive: true });
 
@@ -43,11 +43,11 @@ test('paths-env.mjs exports installer paths from a BOM file for start.sh', () =>
   const f = path.join(app, 'paths.json');
   writeFileSync(f, '\uFEFF' + JSON.stringify({ pixal3dDir: '/opt/pixal3d', node: '/opt/node/bin/node' }), 'utf8');
   const env = { ...process.env };
-  delete env.ASTRA_PIXAL3D_DIR;
-  delete env.ASTRA_NODE;
-  delete env.ASTRA_NODE_PATH;
+  delete env.IMAGINARIUM_PIXAL3D_DIR;
+  delete env.IMAGINARIUM_NODE;
+  delete env.IMAGINARIUM_NODE_PATH;
   const r = spawnSync(process.execPath, [path.join(root, 'scripts', 'paths-env.mjs'), f], { encoding: 'utf8', env });
   assert.equal(r.status, 0, r.stderr);
-  assert.match(r.stdout, /export ASTRA_PIXAL3D_DIR="\/opt\/pixal3d";/);
-  assert.match(r.stdout, /export ASTRA_NODE_PATH="\/opt\/node\/bin\/node";/);
+  assert.match(r.stdout, /export IMAGINARIUM_PIXAL3D_DIR="\/opt\/pixal3d";/);
+  assert.match(r.stdout, /export IMAGINARIUM_NODE_PATH="\/opt\/node\/bin\/node";/);
 });

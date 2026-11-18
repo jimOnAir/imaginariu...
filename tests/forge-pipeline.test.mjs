@@ -100,7 +100,7 @@ const hang = (o) => new Promise((resolve, reject) => {
 });
 
 async function makeEngine(overrides = {}, opts = {}) {
-  const dir = opts.dir || tempDir('af-forge-');
+  const dir = opts.dir || tempDir('imaginarium-forge-');
   const stub = opts.stub || stubRunner(overrides);
   const engine = new ForgeEngine({
     libraryDir: path.join(dir, 'library'),
@@ -157,7 +157,7 @@ test('a .vrm upload is a glTF container that declares VRM', async () => {
   await assert.rejects(() => assertVrmContainer(makeGlb({ asset: { version: '2.0' } })), (e) => e.code === 'bad_vrm' && /not a VRM/i.test(e.message), 'a plain renamed .glb must not enter as .vrm');
   await assert.rejects(() => assertVrmContainer(GLB), (e) => e.code === 'bad_vrm');
   // file branch: a JSON chunk larger than the upload head's 64 KB window must still be read whole
-  const dir = await fs.mkdtemp(path.join(tmpdir(), 'af-vrm-'));
+  const dir = await fs.mkdtemp(path.join(tmpdir(), 'imaginarium-vrm-'));
   try {
     const f = path.join(dir, 'big.vrm');
     await fs.writeFile(f, makeGlb({ asset: { version: '2.0' }, extensionsUsed: ['VRMC_vrm'], nodes: Array.from({ length: 5000 }, (_, i) => ({ name: `bone${i}` })) }));
@@ -173,7 +173,7 @@ test('game asset ids are snake_case ASCII', () => {
   assert.equal(assetSlug({ id, name: 'X-Wing Mk.2' }), 'x_wing_mk_2_1a2b3c4d');
   assert.equal(assetSlug({ id, name: '42 ★' }), 'asset_42_1a2b3c4d');
   assert.equal(assetSlug({ id, name: '' }), 'asset_1a2b3c4d');
-  assert.equal(assetSlug({ id, name: 'x', profile: { asset_id: 'af_militia' } }), 'af_militia');
+  assert.equal(assetSlug({ id, name: 'x', profile: { asset_id: 'imaginarium_militia' } }), 'imaginarium_militia');
   for (const s of ['volshebnik_ispravlennyy_1a2b3c4d', 'asset_1a2b3c4d']) assert.match(s, ASSET_ID_RE);
 });
 
@@ -559,7 +559,7 @@ test('patch rules, trash instead of delete, batches and clip library maintenance
 
   const status = await engine.status();
   assert.equal(status.library.clips, LIB.length - 1);
-  assert.equal(status.gpuLock.name, process.env.ASTRA_GPU_LOCK_NAME || process.env.ASTRA_GPU_MUTEX || 'Global\\AF_GPU_RENDER');
+  assert.equal(status.gpuLock.name, process.env.IMAGINARIUM_GPU_LOCK_NAME || process.env.IMAGINARIUM_GPU_MUTEX || 'Global\\IMA_GPU_RENDER');
   assert.equal(typeof status.queue.running, 'number');
   const jobs = await engine.listJobs();
   assert.ok(jobs.length >= 4 && jobs.every((j) => j.id && j.status));
@@ -568,7 +568,7 @@ test('patch rules, trash instead of delete, batches and clip library maintenance
 // ------------------------------------------------------------------ fix round (review 10.10)
 
 test('fx socket masks are expanded against the sockets of the input GLB', async () => {
-  const tmp = tempDir('af-glb-');
+  const tmp = tempDir('imaginarium-glb-');
   const file = path.join(tmp, 'ship.glb');
   await fs.writeFile(file, SHIP_GLB);
   const sockets = await readGlbSockets(file);
@@ -917,12 +917,12 @@ test('godot_package after render_sprites packs the sprites of the same model', a
 });
 
 test('a step error reaches the job unchanged (render_sprites units hint through the real Blender runner)', async () => {
-  const tmp = tempDir('af-fake-');
+  const tmp = tempDir('imaginarium-fake-');
   const fake = path.join(tmp, 'fake-blender.mjs');
   const units = 'ValueError: projected model is only 0.4 px (min_body_px=24; model 0.018 m tall at rest, 100 px/m; fix the units with params.height_m or change pixels_per_meter)';
   await fs.writeFile(fake, [
     "const step = process.argv[2];",
-    `process.stdout.write('AFERROR ' + JSON.stringify({ step, error: ${JSON.stringify(units)}, trace: 'Traceback ...' }) + '\\n');`,
+    `process.stdout.write('IMAGINARIUM_ERROR ' + JSON.stringify({ step, error: ${JSON.stringify(units)}, trace: 'Traceback ...' }) + '\\n');`,
     'process.exit(1);',
   ].join('\n'));
   const queue = new StepQueue(1);
@@ -932,7 +932,7 @@ test('a step error reaches the job unchanged (render_sprites units hint through 
   const job = await engine.waitJob((await engine.startRun(a.id, { steps: [{ step: 'render_sprites', params: { profile: 'iso8' } }] })).jobId);
   assert.equal(job.status, 'failed');
   assert.ok(job.error.includes(units), job.error);
-  assert.equal(job.steps[0].result.af_error, units, 'the raw AFERROR text is kept for the UI');
+  assert.equal(job.steps[0].result.imaginarium_error, units, 'the raw IMAGINARIUM_ERROR text is kept for the UI');
   assert.equal(job.steps[0].result.code, 'step_error');
   const m = await engine.getAsset(a.id);
   assert.ok(m.pipeline[0].result.error.includes('params.height_m'));
@@ -1148,7 +1148,7 @@ test('sculpt: transfer source_asset resolves to the source model, the recipe kee
   // the CLI (--direct) may point at a file that exists
   const cli = await makeEngine({}, { engine: { allowLocalPaths: true } });
   const b2 = await cli.engine.createAsset({ kind: 'humanoid', name: 'Hero 2', source: { type: 'upload' } }, { buffer: GLB, originalName: 'b.glb' });
-  const file = path.join(tempDir('af-sculpt-src-'), 'head.obj');
+  const file = path.join(tempDir('imaginarium-sculpt-src-'), 'head.obj');
   await fs.writeFile(file, OBJ);
   await cli.engine.waitJob((await cli.engine.startRun(b2.id, { steps: [{ step: 'sculpt', params: { ops: [{ op: 'transfer', source: file }] } }] })).jobId);
   assert.equal(cli.calls[0].request.params.ops[0].source, file);

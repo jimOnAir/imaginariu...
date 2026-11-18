@@ -14,9 +14,9 @@ import { registerVfxTools, resolveInside, validateCatalog, loadCatalog, isTextur
 const PNG = Buffer.concat([Buffer.from([137, 80, 78, 71, 13, 10, 26, 10]), Buffer.alloc(24, 7)]);
 const IS_WIN = process.platform === 'win32';
 const OPENER = IS_WIN ? 'explorer.exe' : 'xdg-open';
-const root = mkdtempSync(path.join(tmpdir(), 'af-vfx-root-'));
+const root = mkdtempSync(path.join(tmpdir(), 'imaginarium-vfx-root-'));
 const MM_EXE = path.join(root, 'apps', 'material-maker', IS_WIN ? 'material_maker.exe' : 'material_maker.x86_64');
-const programs = mkdtempSync(path.join(tmpdir(), 'af-vfx-programs-'));
+const programs = mkdtempSync(path.join(tmpdir(), 'imaginarium-vfx-programs-'));
 const catalog = loadCatalog();
 const calls = [];
 const saved = [];
@@ -33,7 +33,7 @@ const fakeSpawn = (exe, args, opts) => {
   process.nextTick(() => child.emit('spawn'));
   return child;
 };
-const post = (url, body) => fetch(base + url, { method: 'POST', headers: { 'x-astra-client': 'studio', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body && JSON.stringify(body) });
+const post = (url, body) => fetch(base + url, { method: 'POST', headers: { 'x-imaginarium-client': 'studio', ...(body ? { 'Content-Type': 'application/json' } : {}) }, body: body && JSON.stringify(body) });
 const tool = async (id) => (await (await fetch(base + '/api/vfx-tools')).json()).tools.find((t) => t.id === id);
 
 before(async () => {
@@ -380,7 +380,7 @@ test(`install and folders: from the catalog only, ${IS_WIN ? 'explorer.exe' : 'x
 
 // --- the 0.4.15 integrity gate in the catalog: every download over https, PixaFlux (installer,
 // Blender add-on, samples) pinned by sha256. The scripts refuse to unpack a file that fails it
-// (installer/af_download.sh, covered by tests/install-download.test.mjs).
+// (installer/imaginarium_download.sh, covered by tests/install-download.test.mjs).
 test('catalog: downloads are https-only and PixaFlux ships sha256 pins', () => {
   for (const t of catalog.tools) {
     for (const d of [t.download, t.linux?.download, ...(t.download?.extra || []), ...(t.linux?.download?.extra || [])]) {
@@ -423,14 +423,14 @@ test('ticket 15: the tools list surfaces the optional reason (the tab distinguis
 
 test('ticket 15 shell: an optional entry that cannot download is named-and-skipped, a hard one fails the step', async () => {
   const { spawnSync } = await import('node:child_process');
-  const root = mkdtempSync(path.join(tmpdir(), 'af-vfx15-'));
+  const root = mkdtempSync(path.join(tmpdir(), 'imaginarium-vfx15-'));
   const file = path.join(root, 'catalog.json');
   const stub = (opt) => ({ tools: [
     { id: 'optone', name: 'Optional One', license: 'MIT', kind: 'file', url: 'https://author.example/optone',
-      local: { file: 'downloads/opt.bin' }, download: { url: 'file:///astraforge15-no-such-file.bin', file: 'downloads/opt.bin', ...(opt ? { optional: 'the author pulled the link (2026-11-08)' } : {}) } },
+      local: { file: 'downloads/opt.bin' }, download: { url: 'file:///imaginarium15-no-such-file.bin', file: 'downloads/opt.bin', ...(opt ? { optional: 'the author pulled the link (2026-11-08)' } : {}) } },
   ] });
   const run = () => spawnSync('bash', [path.join(import.meta.dirname, '..', 'scripts', 'vfx', 'install-vfx.sh'), '-Only', 'optone'],
-    { env: { ...process.env, ASTRA_VFX_CATALOG: file, ASTRA_VFX_TOOLS: path.join(root, 'vfx') }, encoding: 'utf8', timeout: 120000 });
+    { env: { ...process.env, IMAGINARIUM_VFX_CATALOG: file, IMAGINARIUM_VFX_TOOLS: path.join(root, 'vfx') }, encoding: 'utf8', timeout: 120000 });
   writeFileSync(file, JSON.stringify(stub(true)));
   const soft = run();
   assert.equal(soft.status, 0, soft.stdout + soft.stderr);

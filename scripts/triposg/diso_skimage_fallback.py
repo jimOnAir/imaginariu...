@@ -1,8 +1,8 @@
-"""diso_skimage_fallback - AstraForge's license-clean stand-in for the CUDA `diso` extension
+"""diso_skimage_fallback - Imaginarium's license-clean stand-in for the CUDA `diso` extension
 (docs/product/triposg.md, ADR-0004 ticket 01).
 
 Why this exists: TripoSG (MIT) extracts the iso-surface through `diso` (SarahWeiii/diso), which
-is licensed CC BY-NC 4.0 - non-commercial. AstraForge is commercial software, so `diso` is never
+is licensed CC BY-NC 4.0 - non-commercial. Imaginarium is commercial software, so `diso` is never
 installed here. Instead the worker (scripts/triposg/triposg_run.py) registers this module as
 `sys.modules['diso']` before importing the upstream code; the one call site that exists
 (triposg/inference_utils.py, the octree geometry extractor) then resolves to this class.

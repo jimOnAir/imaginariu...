@@ -1,6 +1,6 @@
 """motion_style - a character's own way of moving, and procedural humanoid deaths.
 
-inputs.blend - the animated .blend of retarget (af_run opens it): a humanoid rig whose clips are actions
+inputs.blend - the animated .blend of retarget (imaginarium_run opens it): a humanoid rig whose clips are actions
                written per frame for every bone (retarget's layered actions); clips.json next to it (if
                there) gives categories, loops and in-place locomotion, otherwise the clip names do.
 params:
@@ -29,7 +29,7 @@ params:
                        posture_tol_deg 25   tolerance; death clips are measured but exempt
   floor_tolerance_m 0.02, floor_samples 16, ground_samples 2000
   preview true, preview_cols 6, preview_tile 220
-  robe_settle true     a robed body that lies after a procedural death: corrective shape key af_death_settle lowers
+  robe_settle true     a robed body that lies after a procedural death: corrective shape key imaginarium_death_settle lowers
                        the robe/skirt cloth onto the legs and the floor at the end of the death (no stiff bell),
                        driven by a Hips custom property the death action ramps 0 -> 1 (other clips key 0)
   deform_qa true       measure torn/stretched surface on every final clip (every deform_every-th frame, default 2)
@@ -51,7 +51,7 @@ import os
 import bpy
 from mathutils import Quaternion, Vector
 
-import af_common as af
+import imaginarium_common as ima
 
 try:
     from steps import _anim_lib as A
@@ -299,7 +299,7 @@ def _true_floor_correction(rig, meshes, act, n, impact, target=0.003, tol=0.005,
     return out
 
 
-SETTLE_KEY = "af_death_settle"
+SETTLE_KEY = "imaginarium_death_settle"
 
 
 def _set_prop_curve(rig, act, path, frames_values):
@@ -327,7 +327,7 @@ def _robe_settle(R, rig, meshes, cloth, act, n, impact, all_actions, keep=0.2, m
     of its height above it (the robe drapes over the legs and onto the floor). The world offsets are turned
     into rest-space shape-key offsets through the skinning Jacobian of that frame (measured numerically: three
     unit offsets through the armature modifier), so the key gives exactly that shape on the lying pose. The
-    key "af_death_settle" is driven by a custom property of the Hips pose bone that the death action ramps
+    key "imaginarium_death_settle" is driven by a custom property of the Hips pose bone that the death action ramps
     0 -> 1 between the impact and the settle (every other clip keys it 0, so switching clips never inherits
     it); the glTF exporter samples armature-driven shape keys into morph-weight animation. Returns info or
     None when there is no bell (no robe, or it already lies low)."""
@@ -377,7 +377,7 @@ def _robe_settle(R, rig, meshes, cloth, act, n, impact, all_actions, keep=0.2, m
         base = np.empty(nv * 3)
         kb_basis.data.foreach_get("co", base)
         base = base.reshape(-1, 3)
-        tmp = ob.shape_key_add(name="af_tmp_jacobian", from_mix=False)
+        tmp = ob.shape_key_add(name="imaginarium_tmp_jacobian", from_mix=False)
         tmp.value = 1.0
         J = np.zeros((len(idx), 3, 3))
         for k in range(3):
@@ -463,10 +463,10 @@ def run(req):
     if blend:
         want = os.path.normcase(os.path.abspath(blend))
         if os.path.normcase(os.path.abspath(bpy.data.filepath or "")) != want:
-            af.open_blend(blend)
+            ima.open_blend(blend)
     elif I.get("mesh"):
-        af.reset_scene()
-        af.import_any(I["mesh"])
+        ima.reset_scene()
+        ima.import_any(I["mesh"])
     else:
         raise ValueError("inputs.blend (the animated .blend of retarget) is required")
     rig, scheme, tmap = A.find_target_rig(list(bpy.context.scene.objects))
@@ -506,7 +506,7 @@ def run(req):
     gate = str(P.get("deform_gate", "error")).lower()
     if gate not in ("error", "warning"):
         raise ValueError("deform_gate must be error or warning")
-    af.log("motion_style", rig=rig.name, clips=len(names), death=death, style={k: style[k] for k in SL.STYLE_KEYS},
+    ima.log("motion_style", rig=rig.name, clips=len(names), death=death, style={k: style[k] for k in SL.STYLE_KEYS},
            props={s: {"len": round(v["len"], 2), "upright": v["upright"]} for s, v in props.items()})
 
     report, out_actions = [], []
@@ -594,7 +594,7 @@ def run(req):
         st_info = _robe_settle(R, rig, meshes, cloth, act_d, n_d, imp_d, out_actions)
         dinfo_d["robe_settle"] = st_info
         if st_info and st_info.get("applied"):
-            af.log("robe settle", **{k: v for k, v in st_info.items() if k != "meshes"})
+            ima.log("robe settle", **{k: v for k, v in st_info.items() if k != "meshes"})
 
     # ---------------------------------------------------------------- measurements
     scene = bpy.context.scene
@@ -606,17 +606,17 @@ def run(req):
         tag = rec["gltf_name"]
         ev = A.evaluate_action(tr, act, n, root_travel=False, hips_travel=False)
         rec["nan"] = ev["nan"]
-        checks.append(af.check("no_nan_" + tag, ev["nan"] == 0, ev["nan"], 0))
+        checks.append(ima.check("no_nan_" + tag, ev["nan"] == 0, ev["nan"], 0))
         pinfo = rec.get("posture")
         if pinfo:
-            checks.append(af.check("posture_twist_" + tag, not pinfo["over"], pinfo["worst_deg"],
+            checks.append(ima.check("posture_twist_" + tag, not pinfo["over"], pinfo["worst_deg"],
                                    float(P.get("posture_tol_deg", 25.0)), severity="warning",
                                    note="deg the style moved the upper-arm twist past tolerance%s%s"
                                         % (" (excess was rotated back)" if pinfo["fixed"] else "",
                                            " - death clips are exempt" if pinfo["exempt"] else "")))
         if rec["loop"]:
             rec["seam_rot_deg"], rec["seam_pos_mm"] = ev["seam_rot_deg"], ev["seam_pos_mm"]
-            checks.append(af.check("loop_seam_" + tag, ev["seam_rot_deg"] <= 0.5 and ev["seam_pos_mm"] <= 1.0,
+            checks.append(ima.check("loop_seam_" + tag, ev["seam_rot_deg"] <= 0.5 and ev["seam_pos_mm"] <= 1.0,
                                    [ev["seam_rot_deg"], ev["seam_pos_mm"]], [0.5, 1.0],
                                    note="deg, mm between the first and the last pose"))
         src_feet = rec.pop("_src_feet", None)
@@ -638,13 +638,13 @@ def run(req):
             rec["foot_skate_cm"], rec["foot_skate_in_cm"] = sk["skate_cm"], sk_in["skate_cm"]
             rec["foot_plant_drift_cm"], rec["foot_plant_drift_in_cm"] = sk["drift_cm"], sk_in["drift_cm"]
             lim = round(max(2.0, 1.3 * sk_in["skate_cm"]), 1)
-            checks.append(af.check("foot_skate_" + tag, sk["skate_cm"] <= lim, sk["skate_cm"], lim, severity="warning",
+            checks.append(ima.check("foot_skate_" + tag, sk["skate_cm"] <= lim, sk["skate_cm"], lim, severity="warning",
                                    note="cm the contact point moves on the input's contact frames (game frame for "
                                         "in-place locomotion), vs max(2, 1.3 x input %.1f)" % sk_in["skate_cm"]))
         fr = A.floor_report(rig, meshes, descend, act, n, samples=int(P.get("floor_samples", 16)))
         rec["floor"] = fr
         if fr.get("body_min_z_m") is not None:
-            checks.append(af.check("floor_body_" + tag, fr["body_min_z_m"] >= -fl_lim, fr["body_min_z_m"], -fl_lim,
+            checks.append(ima.check("floor_body_" + tag, fr["body_min_z_m"] >= -fl_lim, fr["body_min_z_m"], -fl_lim,
                                    severity="warning", note="lowest skinned point over the sampled frames, m"))
         if rec.get("mode") == "procedural_death" and gs is not None:
             A.assign_action(rig, act)
@@ -656,7 +656,7 @@ def run(req):
             cl = [z for z in (_min_z(o, dg, cloth.get(o.name), invert=True) for o in meshes) if z is not None]
             rec["death_cloth_lowest_m"] = round(min(cl), 4) if cl else None
             rec["cloth_vertices"] = int(sum(int(m.sum()) for m in cloth.values()))
-            checks.append(af.check("death_on_floor_" + tag, low is not None and abs(low) <= fl_lim,
+            checks.append(ima.check("death_on_floor_" + tag, low is not None and abs(low) <= fl_lim,
                                    rec["death_final_lowest_m"], fl_lim,
                                    note="the dead body ends ON the floor: lowest point of the last frame within "
                                         "+-tolerance of z = 0 (robe/skirt cloth carried by the Hips is a stiff shell "
@@ -679,10 +679,10 @@ def run(req):
                 ("; robe %.2f %% (limit %.0f %%)" % (100 * d["worst_robe_frac"], 100 * SL.CLIP_TORN_LIMITS["robe"])
                  if d.get("worst_robe_frac") is not None else ""),
                 ("; mostly %s" % ", ".join(d["torn_by_bone_m2"])) if d.get("torn_by_bone_m2") else ""))
-            checks.append(af.check("clip_torn_" + tag, d["ok"], d["worst_torn_frac"], d.get("worst_limit"),
+            checks.append(ima.check("clip_torn_" + tag, d["ok"], d["worst_torn_frac"], d.get("worst_limit"),
                                    severity=gate, note=note + " (frames over a limit: %d of %d measured)" % (
                                        d["over_frames"], d["frames_measured"])))
-        af.log("clip deformation", **{k: v["worst_torn_frac"] for k, v in deform.items()})
+        ima.log("clip deformation", **{k: v["worst_torn_frac"] for k, v in deform.items()})
     A.assign_action(rig, out_actions[0])
     scene.frame_set(0)
 
@@ -695,27 +695,27 @@ def run(req):
     # actions of the rig that were replaced are gone; anything else of the rig is not exported
     with A.gltf_only_actions(keep, exp_objs, rig) as only:
         has_keys = any(o.type == "MESH" and o.data.shape_keys is not None for o in exp_objs)
-        glb = af.export_glb(af.out_path(req, "styled.glb"), objects=exp_objs, animations=True, skins=True,
+        glb = ima.export_glb(ima.out_path(req, "styled.glb"), objects=exp_objs, animations=True, skins=True,
                             animation_mode="ACTIONS", morph=has_keys)
     warnings += only.notes
     outputs["glb"] = glb
     summ = A.glb_summary(glb)
     got = [a["name"] for a in summ["animations"]]
     want = [r["gltf_name"] for r in report]
-    checks.append(af.check("gltf_animations", sorted(got) == sorted(want), got, want))
-    checks.append(af.check("gltf_sockets", set(sockets_in) <= set(summ["sockets"]), summ["sockets"], sockets_in))
-    checks.append(af.check("gltf_no_nan", all(a["nan"] == 0 for a in summ["animations"]),
+    checks.append(ima.check("gltf_animations", sorted(got) == sorted(want), got, want))
+    checks.append(ima.check("gltf_sockets", set(sockets_in) <= set(summ["sockets"]), summ["sockets"], sockets_in))
+    checks.append(ima.check("gltf_no_nan", all(a["nan"] == 0 for a in summ["animations"]),
                            sum(a["nan"] for a in summ["animations"]), 0))
     if meshes:
-        checks.append(af.check("gltf_skin", bool(summ["skins"]) and summ["skinned_primitives"] > 0,
+        checks.append(ima.check("gltf_skin", bool(summ["skins"]) and summ["skinned_primitives"] > 0,
                                {"skins": summ["skins"], "skinned_primitives": summ["skinned_primitives"]}, ">=1"))
     for rec in report:
         a = next((x for x in summ["animations"] if x["name"] == rec["gltf_name"]), None)
         rec["gltf_duration"] = a["duration"] if a else None
-    outputs["blend"] = af.save_blend(af.out_path(req, "styled.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "styled.blend"))
     if P.get("preview", True) and meshes:
         outputs["preview"] = A.render_clip_grid(
-            af.out_path(req, "preview.png"), tr, meshes,
+            ima.out_path(req, "preview.png"), tr, meshes,
             [(a, r["loop"], r["frames"]) for a, r in zip(out_actions, report)],
             cols=int(P.get("preview_cols", 6)), tile=int(P.get("preview_tile", 220)))
     doc = {"rig": rig.name, "fps": fps, "seed": seed, "build": P.get("build"),
@@ -725,9 +725,9 @@ def run(req):
                           for s, v in props.items()},
            "glb": glb, "sockets": summ["sockets"], "clips": report, "deform_qa": deform or None,
            "deform_gate": gate if deform_qa else None}
-    cj = af.out_path(req, "clips.json")
+    cj = ima.out_path(req, "clips.json")
     with open(cj, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(doc), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(doc), fh, ensure_ascii=False, indent=1)
     outputs["clips"] = cj
     stats = {"rig": rig.name, "clips": len(report), "death": death, "style": doc["style"],
              "gltf_animations": got, "held_props": doc["held_props"], "deform_qa": deform or None,

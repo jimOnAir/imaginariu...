@@ -35,7 +35,7 @@ import bmesh
 import bpy
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _items_lib as L
 
 ONE_HANDED_BUDGET = 2500
@@ -1534,16 +1534,16 @@ def build_item(params):
         item.data.transform(Rf.to_4x4())
         item.data.update()
         bpy.context.view_layer.update()
-    item["af_item_type"] = typ          # -> glTF extras; attach_prop reads it (shield fitting)
-    item["af_item_style"] = c.style
-    item["af_forward"] = forward
+    item["imaginarium_item_type"] = typ          # -> glTF extras; attach_prop reads it (shield fitting)
+    item["imaginarium_item_style"] = c.style
+    item["imaginarium_forward"] = forward
     for (name, loc, rot3, kind, extras) in c.sockets:
         L.add_item_socket(item, name, Rf @ (loc + shift), Rf @ rot3, kind=kind, size=0.04,
                           frame="grip: +Z thumb side / along shaft, -Y edge-face" if kind == "grip" else
                           "fx: +Z emission direction", **extras)
     bpy.context.view_layer.update()
-    lo, hi = af.world_bbox([item])
-    tris = af.tri_count([item])
+    lo, hi = ima.world_bbox([item])
+    tris = ima.tri_count([item])
     two = typ in TWO_HANDED
     budget = int(params.get("budget_tris", TWO_HANDED_BUDGET if two else ONE_HANDED_BUDGET))
     sockets = [L.socket_record(ch) for ch in sorted(item.children, key=lambda o: o.name)]
@@ -1551,7 +1551,7 @@ def build_item(params):
     for slot in item.material_slots:
         m = slot.material
         bsdf = next(n for n in m.node_tree.nodes if n.type == "BSDF_PRINCIPLED")
-        mats.append({"name": m.name, "role": m.get("af_role"), "principled_to_output": L.principled_ok(m),
+        mats.append({"name": m.name, "role": m.get("imaginarium_role"), "principled_to_output": L.principled_ok(m),
                      "base_color_linear": [round(x, 4) for x in bsdf.inputs["Base Color"].default_value[:3]],
                      "metallic": round(bsdf.inputs["Metallic"].default_value, 3),
                      "roughness": round(bsdf.inputs["Roughness"].default_value, 3),
@@ -1573,34 +1573,34 @@ def build_item(params):
 
 def item_checks(item, info):
     names = {s["name"] for s in info["sockets"]}
-    checks = [af.check("tris_within_budget", info["tris"] <= info["budget_tris"], info["tris"], info["budget_tris"]),
-              af.check("socket_grip_main", "socket_grip_main" in names, sorted(names), "socket_grip_main"),
-              af.check("uv_unwrapped", bool(info["uv_layers"]), info["uv_layers"], ">=1"),
-              af.check("on_ground", abs(info["bbox_min"][2]) < 1e-4, round(info["bbox_min"][2], 6), 0.0)]
+    checks = [ima.check("tris_within_budget", info["tris"] <= info["budget_tris"], info["tris"], info["budget_tris"]),
+              ima.check("socket_grip_main", "socket_grip_main" in names, sorted(names), "socket_grip_main"),
+              ima.check("uv_unwrapped", bool(info["uv_layers"]), info["uv_layers"], ">=1"),
+              ima.check("on_ground", abs(info["bbox_min"][2]) < 1e-4, round(info["bbox_min"][2], 6), 0.0)]
     if info["type"] in ("staff", "wand", "blaster_pistol", "blaster_rifle", "spear", "halberd", "torch", "bow", "crossbow"):
-        checks.append(af.check("socket_fx_tip", "socket_fx_tip" in names, sorted(names), "socket_fx_tip"))
+        checks.append(ima.check("socket_fx_tip", "socket_fx_tip" in names, sorted(names), "socket_fx_tip"))
     if info["type"] in ("greatsword", "battle_axe", "warhammer", "spear", "halberd", "staff", "crossbow", "blaster_rifle"):
-        checks.append(af.check("socket_grip_off", "socket_grip_off" in names, sorted(names), "socket_grip_off"))
+        checks.append(ima.check("socket_grip_off", "socket_grip_off" in names, sorted(names), "socket_grip_off"))
     gm = next((s for s in info["sockets"] if s["name"] == "socket_grip_main"), None)
     if gm:
         z = Vector(gm["z_axis"])
         y = Vector(gm["y_axis"])
         x = Vector(gm["x_axis"])
-        checks.append(af.check("grip_frame_right_handed", abs(x.cross(y).dot(z) - 1) < 1e-3,
+        checks.append(ima.check("grip_frame_right_handed", abs(x.cross(y).dot(z) - 1) < 1e-3,
                                round(x.cross(y).dot(z), 4), 1.0))
     bad = [m["name"] for m in info["materials"] if not m.get("principled_to_output")]
-    checks.append(af.check("materials_principled", bool(info["materials"]) and not bad,
+    checks.append(ima.check("materials_principled", bool(info["materials"]) and not bad,
                            {"slots": len(info["materials"]), "not_principled": bad}, "every slot: Principled BSDF -> Material Output",
                            note="the glTF exporter only writes PBR values from a Principled BSDF wired to the output"))
     dims = info["dimensions_m"]
-    checks.append(af.check("plausible_size", 0.05 < max(dims) < 2.6, dims, "0.05..2.6 m", severity="warning"))
+    checks.append(ima.check("plausible_size", 0.05 < max(dims) < 2.6, dims, "0.05..2.6 m", severity="warning"))
     return checks
 
 
 def export_item(item, out_dir, info, preview=True, preview_size=384):
     os.makedirs(out_dir, exist_ok=True)
     objs = [item] + list(item.children)
-    glb = af.export_glb(os.path.join(out_dir, "item.glb"), objects=objs, animations=False, skins=False)
+    glb = ima.export_glb(os.path.join(out_dir, "item.glb"), objects=objs, animations=False, skins=False)
     summ = L.glb_summary(glb)
     info["glb"] = {"sockets": sorted(summ["sockets"]), "materials": summ["materials"], "bytes": summ["bytes"]}
     outputs = {"glb": glb}
@@ -1609,13 +1609,13 @@ def export_item(item, out_dir, info, preview=True, preview_size=384):
         views = ("left", "front", "three_quarter")
         if info["type"].startswith("shield") or info["type"] == "buckler":
             views = ("front", "left", "three_quarter")
-        outputs["preview"] = af.render_views(os.path.join(out_dir, "preview.png"), [item], views=views,
+        outputs["preview"] = ima.render_views(os.path.join(out_dir, "preview.png"), [item], views=views,
                                              size=preview_size)
         outputs["tile"], outputs["tile_extent"] = L.render_tile(os.path.join(out_dir, "_tile.png"), [item],
                                                                 "three_quarter", 320, rot_z_deg=tilt)
-    outputs["blend"] = af.save_blend(os.path.join(out_dir, "item.blend"))
+    outputs["blend"] = ima.save_blend(os.path.join(out_dir, "item.blend"))
     with open(os.path.join(out_dir, "item.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(info), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable(info), fh, ensure_ascii=False, indent=2)
     outputs["json"] = os.path.join(out_dir, "item.json")
     return outputs
 
@@ -1631,7 +1631,7 @@ def run(req):
         batch = [{"seed": int(params.get("seed", 0)) + k} for k in range(n)] if n > 1 else None
     out_dir = req["out_dir"]
     if not batch:
-        af.reset_scene()
+        ima.reset_scene()
         if not params.get("type"):
             raise ValueError("params.type is required (one of %s)" % ", ".join(TYPES))
         item, info = build_item(params)
@@ -1640,7 +1640,7 @@ def run(req):
                               preview_size=int(params.get("preview_size", 384)))
         outputs.pop("tile", None)
         outputs.pop("tile_extent", None)
-        af.log("item built", type=info["type"], tris=info["tris"])
+        ima.log("item built", type=info["type"], tris=info["tris"])
         return {"outputs": outputs, "stats": {"type": info["type"], "style": info["style"], "tris": info["tris"],
                                               "budget_tris": info["budget_tris"], "dimensions_m": info["dimensions_m"],
                                               "sockets": [s["name"] for s in info["sockets"]],
@@ -1654,7 +1654,7 @@ def run(req):
     for i, var in enumerate(batch):
         p = copy.deepcopy(params)
         p.update(var)
-        af.reset_scene()
+        ima.reset_scene()
         item, info = build_item(p)
         name = p.get("name") or "%02d_%s_%s_s%d" % (i, info["type"], info["style"], info["seed"])
         # contract §3: a variant folder never leaves out_dir ('../x', 'a/b', 'C:\\x' -> one safe name)
@@ -1681,7 +1681,7 @@ def run(req):
                          "glb": outs["glb"], "blend": outs["blend"], "preview": outs.get("preview"),
                          "dimensions_m": info["dimensions_m"], "resolved": info["resolved"],
                          "sockets": [s["name"] for s in info["sockets"]]})
-        af.log("variant built", name=name, tris=info["tris"])
+        ima.log("variant built", name=name, tris=info["tris"])
     # the pipeline (ForgePipeline.advanceState) takes the first glb / blend of a list as the next input
     outputs = {"variants_dir": out_dir, "glb": [v["glb"] for v in variants], "blend": [v["blend"] for v in variants]}
     if tiles:
@@ -1691,12 +1691,12 @@ def run(req):
         outputs["contact_sheet"] = L.contact_sheet(tiles, labels, os.path.join(out_dir, "contact_sheet.png"),
                                                    cols=int(params.get("sheet_cols", 5)),
                                                    tile=int(params.get("sheet_tile", 256)), scales=scales,
-                                                   title=params.get("sheet_title", "ASTRAFORGE ITEM KIT"))
+                                                   title=params.get("sheet_title", "IMAGINARIUM ITEM KIT"))
         outputs["preview"] = outputs["contact_sheet"]
     elif variants and variants[0].get("preview"):
         outputs["preview"] = variants[0]["preview"]
     with open(os.path.join(out_dir, "batch.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable({"variants": variants}), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable({"variants": variants}), fh, ensure_ascii=False, indent=2)
     outputs["batch_json"] = os.path.join(out_dir, "batch.json")
     outputs["json"] = outputs["batch_json"]
     return {"outputs": outputs, "stats": {"variants": len(variants),

@@ -21,11 +21,11 @@ const sleepMs = (ms, signal) => new Promise((resolve, reject) => {
   signal?.addEventListener('abort', onAbort, { once: true });
 });
 
-/** URLs of both engines. hunyuan: explicit option, else ASTRA_COMFY_URL, else 8190; pixal3d: from pixal3dConfig(). */
+/** URLs of both engines. hunyuan: explicit option, else IMAGINARIUM_COMFY_URL, else 8190; pixal3d: from pixal3dConfig(). */
 export function engineUrls(urls = {}, env = process.env) {
   let pixal3d;
   try { pixal3d = pixal3dConfig({ env }).url; } catch { pixal3d = 'http://127.0.0.1:8191'; }
-  return { hunyuan: env.ASTRA_COMFY_URL || DEFAULT_HUNYUAN_URL, pixal3d, ...urls };
+  return { hunyuan: env.IMAGINARIUM_COMFY_URL || DEFAULT_HUNYUAN_URL, pixal3d, ...urls };
 }
 
 async function json(fetchFn, url, options = {}) {

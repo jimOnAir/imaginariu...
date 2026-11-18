@@ -1,6 +1,6 @@
 """anim_creature — procedural, foot-planted clips for a creature rigged by rig_creature.
 
-inputs.blend  rigged.blend from rig_creature (af_run opens it before run())
+inputs.blend  rigged.blend from rig_creature (imaginarium_run opens it before run())
 params
   clips         list (default: every clip that fits the template) of
                 idle-loop, walk-loop, run-loop, fly-loop, glide-loop (winged only), attack, hit, death
@@ -40,7 +40,7 @@ import os
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _creature_lib as L
 
 ALL_CLIPS = ["idle-loop", "walk-loop", "run-loop", "fly-loop", "glide-loop", "attack", "hit", "death"]
@@ -63,9 +63,9 @@ def qa_limits(rig):
 
 def _find(kind):
     for o in bpy.data.objects:
-        if kind == "arm" and o.type == "ARMATURE" and o.get("af_rig"):
+        if kind == "arm" and o.type == "ARMATURE" and o.get("imaginarium_rig"):
             return o
-        if kind == "mesh" and o.type == "MESH" and o.get("af_creature_mesh"):
+        if kind == "mesh" and o.type == "MESH" and o.get("imaginarium_creature_mesh"):
             return o
     return None
 
@@ -74,7 +74,7 @@ def run(req):
     p = req["params"]
     arm, ob = _find("arm"), _find("mesh")
     if arm is None or ob is None:
-        raise ValueError("inputs.blend has no rig_creature armature/mesh (af_rig / af_creature_mesh)")
+        raise ValueError("inputs.blend has no rig_creature armature/mesh (imaginarium_rig / imaginarium_creature_mesh)")
     scene = bpy.context.scene
     fps = int(p.get("fps", 30))
     scene.render.fps = fps
@@ -124,22 +124,22 @@ def run(req):
         entry.update(q)
         report.append(entry)
         acts.append(act)
-        af.log("clip baked", clip=c.name, slide=q.get("foot_slide_cm"), pen=q["ground_penetration_cm"],
+        ima.log("clip baked", clip=c.name, slide=q.get("foot_slide_cm"), pen=q["ground_penetration_cm"],
                seam=q.get("loop_seam_error_cm"))
         if q.get("foot_slide_cm") is not None:
-            checks.append(af.check("foot_slide_cm:" + c.name, q["foot_slide_cm"] <= SLIDE,
+            checks.append(ima.check("foot_slide_cm:" + c.name, q["foot_slide_cm"] <= SLIDE,
                                    q["foot_slide_cm"], SLIDE))
-        checks.append(af.check("ground_penetration_cm:" + c.name, q["ground_penetration_cm"] <= PEN,
+        checks.append(ima.check("ground_penetration_cm:" + c.name, q["ground_penetration_cm"] <= PEN,
                                q["ground_penetration_cm"], PEN))
         if c.loop:
-            checks.append(af.check("loop_seam_cm:" + c.name, q["loop_seam_error_cm"] <= SEAM,
+            checks.append(ima.check("loop_seam_cm:" + c.name, q["loop_seam_error_cm"] <= SEAM,
                                    q["loop_seam_error_cm"], SEAM))
             acc_lim = round(lim["seam_accel_ratio"] * q["interior_accel_max_cm"] + lim["seam_accel_floor_cm"], 4)
             entry["seam_accel_limit_cm"] = acc_lim
-            checks.append(af.check("loop_seam_accel_cm:" + c.name, q["seam_accel_cm"] <= acc_lim,
+            checks.append(ima.check("loop_seam_accel_cm:" + c.name, q["seam_accel_cm"] <= acc_lim,
                                    q["seam_accel_cm"], acc_lim,
                                    note="velocity pop at the loop point vs the largest interior frame"))
-        checks.append(af.check("edge_stretch:" + c.name, q["edge_stretch_p999"][1] <= 1.6,
+        checks.append(ima.check("edge_stretch:" + c.name, q["edge_stretch_p999"][1] <= 1.6,
                                q["edge_stretch_p999"], [0.6, 1.6], severity="warning"))
         if info.get("crouch_cm", 0) > 5.0 * rig.H:          # > 5 % of the height (H in metres -> cm)
             warnings.append("%s: body lowered by %.1f cm to keep the feet reachable (straight rest legs)"
@@ -152,22 +152,22 @@ def run(req):
     view = p.get("pose_view") or {"hexapod": "three_quarter", "octopod": "three_quarter",
                                   "serpent": "top"}.get(rig.template, "left")
     if p.get("poses", True) and clips:
-        outputs["poses"] = L.render_pose_sheet(af.out_path(req, "poses.png"), rig, list(zip(acts, clips)),
+        outputs["poses"] = L.render_pose_sheet(ima.out_path(req, "poses.png"), rig, list(zip(acts, clips)),
                                                (lo, hi), view=view, tile=int(p.get("tile", 240)))
     # every glTF animation is one clip; loops carry the '-loop' suffix (Godot import convention)
     L.assign_action(arm, None)
-    outputs["blend"] = af.save_blend(af.out_path(req, "animated.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "animated.blend"))
     sock = [o for o in bpy.data.objects if o.get("game_socket")]
-    outputs["glb"] = af.export_glb(af.out_path(req, "animated.glb"), objects=[arm, ob] + sock, animations=True)
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "animated.glb"), objects=[arm, ob] + sock, animations=True)
     names = L.glb_animation_names(outputs["glb"])
-    checks.append(af.check("glb_animations", sorted(names) == sorted(c.name for c in clips), names,
+    checks.append(ima.check("glb_animations", sorted(names) == sorted(c.name for c in clips), names,
                            [c.name for c in clips]))
     cj = {"template": rig.template, "fps": fps, "in_place": bool(p.get("in_place", True)),
           "poses_png": {"rows": [c.name for c in clips], "columns": "key frames: loops 0,1/4,1/2,3/4; "
                         "one-shots 0,35%,50%,70%,100% (death 0,30%,55%,80%,100%)", "view": view},
           "limits": lim,
           "clips": report, "glb_animations": names}
-    path = af.out_path(req, "clips.json")
+    path = ima.out_path(req, "clips.json")
     with open(path, "w", encoding="utf-8") as fh:
         json.dump(cj, fh, ensure_ascii=False, indent=1)
     outputs["clips_json"] = path

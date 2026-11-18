@@ -72,7 +72,7 @@ def write_png(path, arr):
         return path
     import bpy
     h, w = arr.shape[:2]
-    img = bpy.data.images.new("af_pixelize_out", width=w, height=h, alpha=True)
+    img = bpy.data.images.new("imaginarium_pixelize_out", width=w, height=h, alpha=True)
     try:
         img.pixels.foreach_set((arr[::-1].astype(np.float32) / 255.0).ravel())
         img.filepath_raw = path
@@ -293,7 +293,7 @@ def palette_strip(palette):
     return np.concatenate([pal[None], np.full((1, len(pal), 1), 255, np.uint8)], axis=2)
 
 
-def palette_gpl(palette, name="AstraForge"):
+def palette_gpl(palette, name="Imaginarium"):
     lines = ["GIMP Palette", "Name: %s" % name, "Columns: 8", "#"]
     lines += ["%3d %3d %3d\t%s" % (r, g, b, hex_of((r, g, b))) for r, g, b in np.asarray(palette)]
     return "\n".join(lines) + "\n"

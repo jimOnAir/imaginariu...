@@ -7,8 +7,8 @@
 // per-job workers here, so their memory is gone when they exit; there is nothing to evict.
 //
 // The thresholds are this branch's own tuning (never transcribed; the upstream Engine-side gate
-// is an excluded line): PIXAL3D_MIN_FREE_RAM_MIB, tunable via ASTRA_RAM_FLOOR_MIB (clamped) -
-// the ASTRA_VRAM_MIB seam style for the tests.
+// is an excluded line): PIXAL3D_MIN_FREE_RAM_MIB, tunable via IMAGINARIUM_RAM_FLOOR_MIB (clamped) -
+// the IMAGINARIUM_VRAM_MIB seam style for the tests.
 import { promises as fs } from 'node:fs';
 import { engineUrls, engineQueue } from './gpu-handover.mjs';
 
@@ -19,7 +19,7 @@ export const RAM_THRESHOLDS = {
 /** The floor for an engine, env-tunable and clamped to a sane range (0 disables the check). */
 export function ramFloor(engine = 'pixal3d', env = process.env) {
   const base = engine === 'pixal3d' ? RAM_THRESHOLDS.pixal3dMinFreeMiB : 0;
-  const over = Number(env.ASTRA_RAM_FLOOR_MIB);
+  const over = Number(env.IMAGINARIUM_RAM_FLOOR_MIB);
   const v = Number.isFinite(over) ? over : base;
   return Math.max(0, Math.min(1024 * 1024, Math.trunc(v)));   // a petabyte is obviously a typo, not a floor
 }
@@ -28,10 +28,10 @@ export function ramFloor(engine = 'pixal3d', env = process.env) {
  * Free memory in MiB from /proc/meminfo MemAvailable (the kernel's "safely reclaimable" number -
  * what a big allocation really gets). null when the system does not say (non-Linux, unreadable):
  * the caller must NOT guess - a check that cannot read does not refuse.
- * Seam for tests: ASTRA_FREE_RAM_MIB.
+ * Seam for tests: IMAGINARIUM_FREE_RAM_MIB.
  */
 export async function freeRamMiB({ env = process.env, readFile = fs.readFile } = {}) {
-  const seam = Number(env.ASTRA_FREE_RAM_MIB);
+  const seam = Number(env.IMAGINARIUM_FREE_RAM_MIB);
   if (Number.isFinite(seam) && seam > 0) return seam;
   let text = '';
   try { text = await readFile('/proc/meminfo', 'utf8'); } catch { return null; }

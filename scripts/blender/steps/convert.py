@@ -22,7 +22,7 @@ params:
                   over 10 MB, down to 512)
   lods            triangle-fraction list, e.g. [0.5, 0.2] -> extra <name>_lodN.glb at that share
                   of the main file's triangles (glb output only). The files stay PLAIN GLB that
-                  Godot opens; the skin and every clip are carried. af-mesh-rs builds them at the
+                  Godot opens; the skin and every clip are carried. imaginarium-mesh-rs builds them at the
                   exact fraction; without it gltfpack -si approximates (provenance in stats.lods)
   compress        true -> extra <name>.compact.glb with EXT_meshopt_compression (gltfpack -c, for
                   three.js / Babylon / Unity glTFast). The main file stays plain on purpose:
@@ -35,7 +35,7 @@ outputs: glb|fbx|obj, blend (converted.blend), textures (FBX/OBJ: the maps writt
 checks: round-trip re-import of the written file (triangles, mesh count, height, base colour,
 armature); with height_m also height_matches (round trip vs params.height_m, 1e-3 relative)
 and grounded (round-trip z_min = 0) when grounding is on.
-         lodN_tris (af-mesh-rs exact, gltfpack approximate as a warning) and
+         lodN_tris (imaginarium-mesh-rs exact, gltfpack approximate as a warning) and
          compact_meshopt_ext run when those params did.
 """
 import json
@@ -47,7 +47,7 @@ import subprocess
 
 import bpy
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 MIXAMO_UPLOAD_LIMIT = 10_000_000
@@ -56,8 +56,8 @@ REPO_ROOT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file
 
 
 def _external_tool(env_name, cfg_key, own):
-    """An external binary resolved the way server/af-mesh.mjs resolves af-mesh-rs (ticket 46):
-    the explicit ASTRA_* env, then config/paths.json (the installer-written key), then the
+    """An external binary resolved the way server/imaginarium-mesh.mjs resolves imaginarium-mesh-rs (ticket 46):
+    the explicit IMAGINARIUM_* env, then config/paths.json (the installer-written key), then the
     in-repo build. An env override pointing at a missing file is an honest absence, never a
     silent fallback (0.7.9 fold wave ticket 56)."""
     forced = (os.environ.get(env_name) or "").strip()
@@ -74,14 +74,14 @@ def _external_tool(env_name, cfg_key, own):
     return own if own and os.path.isfile(own) else None
 
 
-def _af_mesh_rs():
-    return _external_tool("ASTRA_AF_MESH", "afMesh",
-                          os.path.join(REPO_ROOT, "native", "af_mesh_rs", "target",
-                                       "release", "af-mesh-rs"))
+def _imaginarium_mesh_rs():
+    return _external_tool("IMAGINARIUM_AF_MESH", "afMesh",
+                          os.path.join(REPO_ROOT, "native", "imaginarium_mesh_rs", "target",
+                                       "release", "imaginarium-mesh-rs"))
 
 
 def _gltfpack():
-    return _external_tool("ASTRA_GLTFPACK", "gltfpack", None) or shutil.which("gltfpack")
+    return _external_tool("IMAGINARIUM_GLTFPACK", "gltfpack", None) or shutil.which("gltfpack")
 
 
 def _glb_json(path):
@@ -131,7 +131,7 @@ def _head_center_x(ob):
 
 def _images_in_use(objs):
     imgs = []
-    for o in af.meshes(objs):
+    for o in ima.meshes(objs):
         for m in o.data.materials:
             if m is None or m.node_tree is None:
                 continue
@@ -159,7 +159,7 @@ def _export_textures(objs, tex_dir):
         new.alpha_mode = img.alpha_mode
         remap[img] = new
         out.append(path)
-    for o in af.meshes(objs):
+    for o in ima.meshes(objs):
         for m in o.data.materials:
             if m is None or m.node_tree is None:
                 continue
@@ -173,10 +173,10 @@ def _mixamo_prepare(objs, p, warnings, stats):
     objs = ml.prepare_meshes(objs, warnings)
     if not objs:
         raise ValueError("no meshes to send to Mixamo")
-    body = af.join(objs, name="Body")
+    body = ima.join(objs, name="Body")
     body.data.name = "Body"
     ml.rotate_z([body], float(p.get("rotate_z_deg") or 0.0))
-    af.normalize([body], height=float(p.get("height_m") or 1.8), ground=True, center=True)
+    ima.normalize([body], height=float(p.get("height_m") or 1.8), ground=True, center=True)
     shift = 0.0
     if p.get("mixamo_center", "bbox") == "head":
         cx = _head_center_x(body)
@@ -193,7 +193,7 @@ def _mixamo_prepare(objs, p, warnings, stats):
     if ml.tris_of(body) > limit:
         stats["decimation"] = ml.decimate_to(body, limit)
         # decimation trims the extremes a little: restore height and feet on z=0
-        lo, hi = af.world_bbox([body])
+        lo, hi = ima.world_bbox([body])
         k = float(p.get("height_m") or 1.8) / max(hi.z - lo.z, 1e-6)
         for v in body.data.vertices:
             v.co.x *= k
@@ -206,7 +206,7 @@ def _mixamo_prepare(objs, p, warnings, stats):
 
 def _base_colour_only(objs):
     """Mixamo only previews the colour map; drop the other maps to keep the upload small."""
-    for o in af.meshes(objs):
+    for o in ima.meshes(objs):
         for m in o.data.materials:
             if m is None or m.node_tree is None:
                 continue
@@ -229,30 +229,30 @@ def _limit_textures(objs, size):
 
 def _build_lods(out, name, lods, tris_in, req, outputs, stats, warnings, checks):
     """<name>_lodN.glb at the requested triangle fractions (0.7.9 fold wave ticket 56).
-    af-mesh-rs is primary - measured: it hits the fraction exactly on UV-seamed painted
+    imaginarium-mesh-rs is primary - measured: it hits the fraction exactly on UV-seamed painted
     meshes and carries skins, clips and weights bit-exact (glb.rs, ticket 46); gltfpack
-    -si -sp -noq -ac is the no-af-mesh fallback and lands NEAR the fraction, not on it.
+    -si -sp -noq -ac is the no-imaginarium-mesh fallback and lands NEAR the fraction, not on it.
     stats["lods"] is the provenance row: file, target, tool that actually built it."""
-    af_mesh, gltf = _af_mesh_rs(), _gltfpack()
+    imaginarium_mesh, gltf = _imaginarium_mesh_rs(), _gltfpack()
     stats["lods"] = []
-    if not af_mesh and not gltf:
-        warnings.append("lods: neither af-mesh-rs nor gltfpack found (installer components, or "
-                        "ASTRA_AF_MESH / ASTRA_GLTFPACK) - no LOD files were written")
-        checks.append(af.check("lods_written", False, "no LOD tool present", severity="warning"))
+    if not imaginarium_mesh and not gltf:
+        warnings.append("lods: neither imaginarium-mesh-rs nor gltfpack found (installer components, or "
+                        "IMAGINARIUM_AF_MESH / IMAGINARIUM_GLTFPACK) - no LOD files were written")
+        checks.append(ima.check("lods_written", False, "no LOD tool present", severity="warning"))
         return
     for i, frac in enumerate(lods, 1):
         target = max(1, int(round(tris_in * frac)))
         row = {"file": "%s_lod%d.glb" % (name, i), "fraction": frac, "target_tris": target}
-        out_lod = af.out_path(req, row["file"])
+        out_lod = ima.out_path(req, row["file"])
         if target >= tris_in:
             row["error"] = "fraction %s of %d triangles leaves nothing to remove" % (frac, tris_in)
             warnings.append("lods: " + row["error"])
             stats["lods"].append(row)
             continue
-        if af_mesh:
+        if imaginarium_mesh:
             info = {}
             try:
-                r = subprocess.run([af_mesh, "simplify", "--in", out, "--out", out_lod,
+                r = subprocess.run([imaginarium_mesh, "simplify", "--in", out, "--out", out_lod,
                                     "--tris", str(target), "--json"],
                                    capture_output=True, text=True, timeout=600)
                 if r.returncode == 0:
@@ -261,11 +261,11 @@ def _build_lods(out, name, lods, tris_in, req, outputs, stats, warnings, checks)
                 info = {}
             if info.get("mode") == "simplify" and os.path.isfile(out_lod):
                 row["tris"] = int(info["trianglesAfter"])
-                row["tool"] = "af-mesh-rs"
+                row["tool"] = "imaginarium-mesh-rs"
         if "tool" not in row:
             if not gltf:
-                row["error"] = ("af-mesh-rs %s and gltfpack is not installed"
-                                % ("unavailable" if not af_mesh else "refused"))
+                row["error"] = ("imaginarium-mesh-rs %s and gltfpack is not installed"
+                                % ("unavailable" if not imaginarium_mesh else "refused"))
                 warnings.append("lods: %s - %s skipped" % (row["error"], row["file"]))
                 stats["lods"].append(row)
                 continue
@@ -283,15 +283,15 @@ def _build_lods(out, name, lods, tris_in, req, outputs, stats, warnings, checks)
             g = _glb_json(out_lod)
             row["tris"] = _glb_tris(g) if g else None
             row["tool"] = "gltfpack -si %s -sp -noq -ac (approx)" % frac
-            if af_mesh:
-                warnings.append("lods: af-mesh-rs refused %s - the gltfpack approximation was "
+            if imaginarium_mesh:
+                warnings.append("lods: imaginarium-mesh-rs refused %s - the gltfpack approximation was "
                                 "written instead" % row["file"])
         got = row.get("tris")
         if got == target:
-            checks.append(af.check("lod%d_tris" % i, True, got, target, note=row["tool"]))
+            checks.append(ima.check("lod%d_tris" % i, True, got, target, note=row["tool"]))
         else:
             near = got is not None and abs(got - target) <= max(4, 0.25 * target)
-            checks.append(af.check("lod%d_tris" % i, near, got, target, severity="warning",
+            checks.append(ima.check("lod%d_tris" % i, near, got, target, severity="warning",
                                    note=row["tool"]))
         outputs["lod%d" % i] = os.path.abspath(out_lod)
         stats["lods"].append(row)
@@ -305,10 +305,10 @@ def _build_compact(out, name, quantize, req, outputs, stats, warnings, checks):
     g = _gltfpack()
     if not g:
         warnings.append("compress: gltfpack not found (installer component gltfpack, or "
-                        "ASTRA_GLTFPACK) - no compact file written, the plain output is untouched")
-        checks.append(af.check("compact_written", False, "gltfpack missing", severity="warning"))
+                        "IMAGINARIUM_GLTFPACK) - no compact file written, the plain output is untouched")
+        checks.append(ima.check("compact_written", False, "gltfpack missing", severity="warning"))
         return
-    out_c = af.out_path(req, "%s.compact.glb" % name)
+    out_c = ima.out_path(req, "%s.compact.glb" % name)
     cmd = [g, "-i", out, "-o", out_c, "-c", "-ac"] + ([] if quantize else ["-noq"])
     try:
         r = subprocess.run(cmd, capture_output=True, timeout=600)
@@ -317,7 +317,7 @@ def _build_compact(out, name, quantize, req, outputs, stats, warnings, checks):
         ok = False
     if not ok:
         warnings.append("compress: gltfpack failed - no compact file written")
-        checks.append(af.check("compact_written", False, "gltfpack failed", severity="warning"))
+        checks.append(ima.check("compact_written", False, "gltfpack failed", severity="warning"))
         return
     gj = _glb_json(out_c) or {}
     used = sorted(set((gj.get("extensionsUsed") or []) + (gj.get("extensionsRequired") or [])))
@@ -325,7 +325,7 @@ def _build_compact(out, name, quantize, req, outputs, stats, warnings, checks):
                         "tool": "gltfpack -c -ac" + ("" if quantize else " -noq"),
                         "quantize": bool(quantize), "extensions": used}
     outputs["compact"] = os.path.abspath(out_c)
-    checks.append(af.check("compact_meshopt_ext", "EXT_meshopt_compression" in used,
+    checks.append(ima.check("compact_meshopt_ext", "EXT_meshopt_compression" in used,
                            used, "EXT_meshopt_compression"))
 
 
@@ -344,13 +344,13 @@ def run(req):
         raise ValueError("params.lods must be a list of fractions in (0, 1), got %r" % (lods,))
 
     src_path = ml.input_path(req)
-    af.reset_scene()
-    objs = af.import_any(src_path)
+    ima.reset_scene()
+    objs = ima.import_any(src_path)
     objs, stats["import_helpers_removed"] = ml.purge_import_helpers(objs)
     if not ml.model_meshes(objs):
         raise ValueError("no mesh objects in %s" % src_path)
     stats["input"] = ml.mesh_metrics(objs)
-    stats["input"]["armatures"] = len(af.armatures(objs))
+    stats["input"]["armatures"] = len(ima.armatures(objs))
     stats["input"]["actions"] = len(bpy.data.actions)
     tex_in = ml.texture_report(objs)
 
@@ -360,18 +360,18 @@ def run(req):
         default_place = p.get("height_m") is not None
         ml.rotate_z(objs, float(p.get("rotate_z_deg") or 0.0))
         if (p.get("height_m") or p.get("ground", default_place) or p.get("center", default_place)):
-            af.normalize(objs, height=p.get("height_m"), ground=p.get("ground", default_place),
+            ima.normalize(objs, height=p.get("height_m"), ground=p.get("ground", default_place),
                          center=p.get("center", default_place))
-        if fmt == "obj" and (af.armatures(objs) or bpy.data.actions):
+        if fmt == "obj" and (ima.armatures(objs) or bpy.data.actions):
             warnings.append("OBJ keeps no rig or animation; only the meshes were written")
 
-    out = af.out_path(req, "%s.%s" % (name, fmt))
+    out = ima.out_path(req, "%s.%s" % (name, fmt))
     outputs = {}
-    has_anim = bool(af.armatures(objs)) or bool(bpy.data.actions)
+    has_anim = bool(ima.armatures(objs)) or bool(bpy.data.actions)
     if fmt == "glb":
-        outputs["glb"] = af.export_glb(out, objects=None, animations=has_anim, skins=has_anim)
+        outputs["glb"] = ima.export_glb(out, objects=None, animations=has_anim, skins=has_anim)
     elif fmt == "fbx":
-        tex_dir = af.out_path(req, "textures")
+        tex_dir = ima.out_path(req, "textures")
         if mixamo:
             _base_colour_only(objs)
             size = int(p.get("texture_max", 2048))
@@ -380,18 +380,18 @@ def run(req):
             while True:
                 stats["textures_scaled"] = _limit_textures(objs, size)
                 outputs["textures"] = _export_textures(objs, tex_dir)
-                af.export_fbx(out, objects=objs, mixamo=True, **kw)
+                ima.export_fbx(out, objects=objs, mixamo=True, **kw)
                 if os.path.getsize(out) <= MIXAMO_UPLOAD_LIMIT or size <= 512:
                     break
                 size //= 2
             stats["texture_max"] = size
         else:
             outputs["textures"] = _export_textures(objs, tex_dir)
-            af.export_fbx(out, objects=None, bake_anim=has_anim)
+            ima.export_fbx(out, objects=None, bake_anim=has_anim)
         outputs["fbx"] = os.path.abspath(out)
     else:
-        outputs["textures"] = _export_textures(objs, af.out_path(req, "textures"))
-        af.select_only(af.meshes(objs))
+        outputs["textures"] = _export_textures(objs, ima.out_path(req, "textures"))
+        ima.select_only(ima.meshes(objs))
         bpy.ops.wm.obj_export(filepath=out, export_selected_objects=True, apply_modifiers=True,
                               export_materials=True, export_uv=True, export_normals=True,
                               path_mode="RELATIVE", forward_axis="NEGATIVE_Z", up_axis="Y")
@@ -399,14 +399,14 @@ def run(req):
     stats["output"] = ml.mesh_metrics(list(bpy.context.scene.objects))
     stats["bytes"] = os.path.getsize(out)
     stats["orphans_purged"] = ml.purge_orphans()  # originals replaced by the written maps
-    outputs["blend"] = af.save_blend(af.out_path(req, "converted.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "converted.blend"))
 
     # ---------------------------------------------------------------- round trip
     want_tris = stats["output"]["tris"]
     want_h = stats["output"]["size"][2]
     want_meshes = stats["output"]["objects"]
-    af.reset_scene()
-    back = af.import_any(out)
+    ima.reset_scene()
+    back = ima.import_any(out)
     # the glTF importer adds its bone-shape helper again on re-import; anything else extra
     # (e.g. a helper that slipped into the written file) is counted below
     back, _ = ml.purge_import_helpers(back)
@@ -414,44 +414,44 @@ def run(req):
     tex_back = ml.texture_report(back)
     stats["roundtrip"] = {"tris": got["tris"], "size": got["size"], "bbox_min": got["bbox_min"],
                           "meshes": got["objects"], "textures": tex_back,
-                          "armatures": len(af.armatures(back))}
+                          "armatures": len(ima.armatures(back))}
     checks = [
-        af.check("roundtrip_tris", abs(got["tris"] - want_tris) <= max(2, 0.01 * want_tris),
+        ima.check("roundtrip_tris", abs(got["tris"] - want_tris) <= max(2, 0.01 * want_tris),
                  got["tris"], want_tris),
-        af.check("roundtrip_meshes", got["objects"] == want_meshes, got["objects"], want_meshes),
-        af.check("roundtrip_height", abs(got["size"][2] - want_h) <= max(1e-4, 0.01 * want_h),
+        ima.check("roundtrip_meshes", got["objects"] == want_meshes, got["objects"], want_meshes),
+        ima.check("roundtrip_height", abs(got["size"][2] - want_h) <= max(1e-4, 0.01 * want_h),
                  got["size"][2], round(want_h, 5)),
-        af.check("no_nan_verts", got["nan_verts"] == 0, got["nan_verts"], 0),
+        ima.check("no_nan_verts", got["nan_verts"] == 0, got["nan_verts"], 0),
     ]
     want_height = float(p.get("height_m") or (1.8 if mixamo else 0.0))
     if want_height > 0:
-        checks.append(af.check("height_matches",
+        checks.append(ima.check("height_matches",
                                abs(got["size"][2] - want_height) <= 1e-3 * want_height,
                                got["size"][2], want_height,
                                note="re-imported height against params.height_m"))
     grounded = True if mixamo else p.get("ground", p.get("height_m") is not None)
     if grounded:
-        checks.append(af.check("grounded",
+        checks.append(ima.check("grounded",
                                abs(got["bbox_min"][2]) <= 1e-4 * max(got["size"][2], 1e-6),
                                got["bbox_min"][2], 0.0, note="re-imported lowest point"))
     had_tex = any(min(v.get("base_color", [0])) > 0 for v in tex_in.values())
     if had_tex:
         kept = any(min(v.get("base_color", [0])) > 0 for v in tex_back.values())
-        checks.append(af.check("roundtrip_base_color", kept, kept, True,
+        checks.append(ima.check("roundtrip_base_color", kept, kept, True,
                                note="base colour map found again after re-import"))
     if mixamo:
-        checks.append(af.check("mixamo_upload_size", stats["bytes"] <= MIXAMO_UPLOAD_LIMIT,
+        checks.append(ima.check("mixamo_upload_size", stats["bytes"] <= MIXAMO_UPLOAD_LIMIT,
                                stats["bytes"], MIXAMO_UPLOAD_LIMIT, severity="warning"))
-        checks.append(af.check("mixamo_single_mesh", len(af.meshes(back)) == 1,
-                               len(af.meshes(back)), 1))
+        checks.append(ima.check("mixamo_single_mesh", len(ima.meshes(back)) == 1,
+                               len(ima.meshes(back)), 1))
     if stats["input"]["armatures"] and fmt != "obj" and not mixamo:
-        checks.append(af.check("roundtrip_armature", len(af.armatures(back)) >= 1,
-                               len(af.armatures(back)), 1))
+        checks.append(ima.check("roundtrip_armature", len(ima.armatures(back)) >= 1,
+                               len(ima.armatures(back)), 1))
     if lods or p.get("compress"):
         if fmt != "glb":
             warnings.append("lods and compress apply to the glb output; format=%s wrote none" % fmt)
         else:
-            stats["tools"] = {"af_mesh_rs": _af_mesh_rs() or "", "gltfpack": _gltfpack() or ""}
+            stats["tools"] = {"imaginarium_mesh_rs": _imaginarium_mesh_rs() or "", "gltfpack": _gltfpack() or ""}
             if lods:
                 _build_lods(out, name, [float(f) for f in lods], want_tris, req, outputs,
                             stats, warnings, checks)

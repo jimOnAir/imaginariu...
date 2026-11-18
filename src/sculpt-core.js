@@ -53,7 +53,7 @@ const num = (v) => String(+v.toPrecision(8));
 
 /** The OBJ for SculptGL: one `o` group per part, positions and triangles only. parts: [{name, welded, faces}] */
 export function objFromParts(parts) {
-  const lines = ['# AstraForge -> SculptGL: welded mesh, positions only'];
+  const lines = ['# Imaginarium -> SculptGL: welded mesh, positions only'];
   let offset = 1;
   for (const p of parts) {
     lines.push('o ' + String(p.name || 'part').replace(/\s+/g, '_'));

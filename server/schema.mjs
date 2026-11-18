@@ -80,7 +80,7 @@ export function hunyuanWorkflow(image,checkpoint,quality,seed,prefix,meshLevel=0
  '6':{class_type:'KSampler',inputs:{model:['1',0],positive:['4',0],negative:['4',1],latent_image:['5',0],seed,steps:cfg.steps,cfg:5,sampler_name:'euler',scheduler:'simple',denoise:1}},
  '7':{class_type:'VAEDecodeHunyuan3D',inputs:{samples:['6',0],vae:['1',2],num_chunks:quality==='high'?4000:8000,octree_resolution:cfg.res}},
  // Comfy's VAE wrapper converts and clamps the signed field with (x + 1) / 2.
- '8':{class_type:'AstraMarchingCubes',inputs:{voxel:['7',0],level:(meshLevel+1)/2}},
+ '8':{class_type:'ImagiMarchingCubes',inputs:{voxel:['7',0],level:(meshLevel+1)/2}},
  '9':{class_type:'SaveGLB',inputs:{mesh:['8',0],filename_prefix:prefix}}};
 }
 // Hunyuan3D-2mv: front / left / back / right (any subset, front is required) -> one GLB.
@@ -110,7 +110,7 @@ export function hunyuanMultiViewWorkflow(images,checkpoint,quality,seed,prefix,m
 // With only the front view the single-view graph is built, otherwise the multi-view one (azimuths 0/90/180/270 = front/left/back/right).
 export const PIXAL3D_MODEL='TencentARC/Pixal3D';
 export const PIXAL3D_AZIMUTH={front:0,left:90,back:180,right:270};
-export function pixal3dWorkflow(images,{seed=1000,prefix='astra/pixal3d',targetFaces=700000,sampler='heun',fovRad=0.1,removeBackground=false}={}){
+export function pixal3dWorkflow(images,{seed=1000,prefix='imaginarium/pixal3d',targetFaces=700000,sampler='heun',fovRad=0.1,removeBackground=false}={}){
  if(!images?.front)throw new Error('Pixal3D requires a front view.');
  const slots=MV_SLOTS.filter(slot=>images[slot]),multi=slots.length>1;
  const g={};

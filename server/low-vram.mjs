@@ -4,7 +4,7 @@
 // own: the threshold is the branch's EXISTING 8 GB seam - server/triposg.mjs's
 // TRIPOSG_AUTO_MAX_VRAM_MIB (9216, compared strictly-below here) - so the installer's "Full skips what does not fit" and the engine's
 // 512 px / unload decisions can never disagree. Unknown VRAM is NOT small (ticket 33's honesty),
-// and the ASTRA_VRAM_MIB seam of gpu-info.mjs (ticket 21) overrides the probe for tests.
+// and the IMAGINARIUM_VRAM_MIB seam of gpu-info.mjs (ticket 21) overrides the probe for tests.
 import { gpuInfo } from './gpu-info.mjs';
 import { TRIPOSG_AUTO_MAX_VRAM_MIB } from './triposg.mjs';
 
@@ -26,14 +26,14 @@ export function currentVramMib(opts = {}) {
 }
 
 // Ticket 44 (views fp8 tier): the node streams the UNet as fp8 on NVIDIA cards up to
-// ASTRA_VIEWS_FP8_MAX_MIB (default 16384 — the node's own gate, astra_views._fp8_tier).
+// IMAGINARIUM_VIEWS_FP8_MAX_MIB (default 16384 — the node's own gate, astra_views._fp8_tier).
 // gpu-info only answers for NVIDIA (null on AMD/none), so a finite number here mirrors the
 // node's vendor check; unknown VRAM keeps the fp16 semantics (ticket 33's honesty).
 export const FP8_STEP_MAX_MS = 10 * 60 * 1000;
 export function viewsFp8Tier(vramMib) {
-  const mode = (process.env.ASTRA_VIEWS_FP8 || 'auto').trim().toLowerCase();
+  const mode = (process.env.IMAGINARIUM_VIEWS_FP8 || 'auto').trim().toLowerCase();
   if (mode === '0' || mode === 'off' || mode === 'no') return false;
-  const maxMib = Math.max(0, Number(process.env.ASTRA_VIEWS_FP8_MAX_MIB ?? 16384) || 0);
+  const maxMib = Math.max(0, Number(process.env.IMAGINARIUM_VIEWS_FP8_MAX_MIB ?? 16384) || 0);
   const v = Number(vramMib);
   return Number.isFinite(v) && v > 0 && (maxMib <= 0 || v <= maxMib);
 }

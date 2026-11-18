@@ -1,5 +1,5 @@
 extends Node3D
-## AstraForge Forge — FX preview stage for Godot's Movie Maker (godot_package params.fx_preview).
+## Imaginarium Forge — FX preview stage for Godot's Movie Maker (godot_package params.fx_preview).
 ## Frames the packaged asset from a three-quarter view, optionally flies it along its -Z so
 ## world-space trails stretch behind it, retriggers one-shot FX twice a second, plays autoplay.
 

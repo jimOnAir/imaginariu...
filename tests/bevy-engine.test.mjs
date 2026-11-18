@@ -1,6 +1,6 @@
 // Bevy engine driver (0.6.10 wave ticket 30). The toolchain itself is never assumed here:
 // every cargo touch runs through a stub script that speaks just enough of the CLI (AFBEVY
-// lines, the --slug/--out contract of af_bevy_check) for the driver's contract to be tested
+// lines, the --slug/--out contract of imaginarium_bevy_check) for the driver's contract to be tested
 // end to end - the real check is verified live on the machine. The absence rows (no Rust on
 // PATH) and the kill timers (a stuck cargo must never hang a forge job) are the heart of it.
 import { test, after } from 'node:test';
@@ -17,7 +17,7 @@ import {
 } from '../scripts/engines/bevy.mjs';
 
 const REPO = path.resolve(import.meta.dirname, '..');
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-bevyeng-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-bevyeng-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
 function stubCargo(file, body) {
@@ -27,7 +27,7 @@ function stubCargo(file, body) {
   return p;
 }
 
-// The af_bevy_check stand-in: answers the exact argv runCheck builds and writes the same
+// The imaginarium_bevy_check stand-in: answers the exact argv runCheck builds and writes the same
 // artifacts to the same places the real binary does.
 const CHECK_STUB = stubCargo('cargo-check', `
 slug=""; out=""; prev=""
@@ -35,7 +35,7 @@ for a in "$@"; do
   case "$prev" in --slug) slug="$a";; --out) out="$a";; esac
   prev="$a"
 done
-if [ ! -f "assets/astraforge/$slug/af_bevy.json" ]; then
+if [ ! -f "assets/imaginarium/$slug/ima_bevy.json" ]; then
   echo 'AFBEVY {"ok":false,"slug":"'$slug'","code":2,"why":"no package in the scaffold","shots":[],"checks":[]}'
   exit 2
 fi
@@ -47,13 +47,13 @@ echo "AFBEVY {\\"ok\\":true,\\"slug\\":\\"$slug\\",\\"code\\":0,\\"why\\":\\"\\"
 exit 0
 `);
 
-test('findCargo honours ASTRA_CARGO and answers honestly without it', () => {
-  assert.equal(findCargo({ env: { ASTRA_CARGO: path.join(tmp, 'nope') } }), null);
-  assert.equal(findCargo({ env: { ASTRA_CARGO: CHECK_STUB } }), CHECK_STUB);
+test('findCargo honours IMAGINARIUM_CARGO and answers honestly without it', () => {
+  assert.equal(findCargo({ env: { IMAGINARIUM_CARGO: path.join(tmp, 'nope') } }), null);
+  assert.equal(findCargo({ env: { IMAGINARIUM_CARGO: CHECK_STUB } }), CHECK_STUB);
 });
 
 test('bevyStatus: the absence line the studio shows, and the version pins', async () => {
-  const gone = await bevyStatus({ env: { ASTRA_CARGO: path.join(tmp, 'nope'), PATH: '/nonexistent' } });
+  const gone = await bevyStatus({ env: { IMAGINARIUM_CARGO: path.join(tmp, 'nope'), PATH: '/nonexistent' } });
   assert.equal(gone.hasCargo, false);
   assert.equal(gone.cargo, null);
   assert.match(gone.reason, /cargo is not on PATH/);
@@ -61,7 +61,7 @@ test('bevyStatus: the absence line the studio shows, and the version pins', asyn
   assert.equal(gone.crate, true, 'the studio ships the crate folder');
   assert.equal(gone.template, true);
   const vstub = stubCargo('cargo-version', 'echo "cargo 9.9.9 (deadbeef 2026-01-01)"');
-  const here = await bevyStatus({ env: { ASTRA_CARGO: vstub } });
+  const here = await bevyStatus({ env: { IMAGINARIUM_CARGO: vstub } });
   assert.equal(here.hasCargo, true);
   assert.equal(here.cargoVersion, '9.9.9');
   assert.equal(here.reason, null);
@@ -94,13 +94,13 @@ test('createBevyProject copies the template, names it, and points the crate at t
   const r = await createBevyProject({ name: 'Probe', dir: path.join(tmp, 'proj'), env: {} });
   const toml = readFileSync(path.join(r.dir, 'Cargo.toml'), 'utf8');
   assert.match(toml, /^name = "Probe"/m);
-  assert.match(toml, new RegExp('astraforge_bevy = \\{ path = ".*bevy/astraforge_bevy"'), 'path-dep into THIS checkout');
+  assert.match(toml, new RegExp('imaginarium_bevy = \\{ path = ".*bevy/imaginarium_bevy"'), 'path-dep into THIS checkout');
   assert.ok(toml.includes(BEVY_CRATE_DIR.split(path.sep).join('/')), 'the relative path resolves to the studio crate');
   assert.equal(existsSync(path.join(r.dir, 'src', 'player.rs')), true, 'the player starter came along');
   assert.equal(existsSync(path.join(r.dir, 'Cargo.lock')), false, 'the studio lock never ships with the copy');
   assert.equal(isBevyProject(r.dir), true);
   assert.equal(isBevyProject(tmp), false);
-  assert.equal(bevyVersionOf(r.dir), '0.20.1', "the template's pin, not astraforge_bevy's own version");
+  assert.equal(bevyVersionOf(r.dir), '0.20.1', "the template's pin, not imaginarium_bevy's own version");
 });
 
 test('installCrate adds the path dependency exactly once', () => {
@@ -109,7 +109,7 @@ test('installCrate adds the path dependency exactly once', () => {
   writeFileSync(path.join(dir, 'Cargo.toml'), '[package]\nname = "hand"\n\n[dependencies]\nserde = "1"\n');
   assert.equal(installCrate({ project: dir }).added, true);
   const once = readFileSync(path.join(dir, 'Cargo.toml'), 'utf8');
-  assert.equal((once.match(/astraforge_bevy\s*=/g) || []).length, 1, 'the dependency key appears once (the path mentions the folder again)');
+  assert.equal((once.match(/imaginarium_bevy\s*=/g) || []).length, 1, 'the dependency key appears once (the path mentions the folder again)');
   assert.ok(once.includes('serde = "1"'), 'the existing dependencies survive');
   assert.equal(installCrate({ project: dir }).added, false, 'idempotent');
   assert.throws(() => installCrate({ project: path.join(tmp, 'nowhere') }), /no Cargo\.toml/);
@@ -118,18 +118,18 @@ test('installCrate adds the path dependency exactly once', () => {
 test('sendBevy places packages and names the task ids', async () => {
   const project = path.join(tmp, 'send-proj');
   mkdirSync(project, { recursive: true });
-  writeFileSync(path.join(project, 'Cargo.toml'), '[dependencies]\nastraforge_bevy = { path = "../crate", version = "0.20" }\n');
+  writeFileSync(path.join(project, 'Cargo.toml'), '[dependencies]\nimaginarium_bevy = { path = "../crate", version = "0.20" }\n');
   const pkg = path.join(tmp, 'pkg_lantern');
   mkdirSync(pkg, { recursive: true });
-  writeFileSync(path.join(pkg, 'af_bevy.json'), JSON.stringify({ asset_id: 'Brass Lantern! 42', glb: 'model.glb' }));
+  writeFileSync(path.join(pkg, 'ima_bevy.json'), JSON.stringify({ asset_id: 'Brass Lantern! 42', glb: 'model.glb' }));
 
   const sent = await sendBevy({ project, sources: [pkg] });
-  assert.equal(sent[0].id, 'af_bevy_send_brass_lantern_42', 'slug sanitised, task id pinned');
-  assert.ok(existsSync(path.join(sent[0].dest, 'af_bevy.json')));
+  assert.equal(sent[0].id, 'imaginarium_bevy_send_brass_lantern_42', 'slug sanitised, task id pinned');
+  assert.ok(existsSync(path.join(sent[0].dest, 'ima_bevy.json')));
   // a re-send replaces, does not merge
-  writeFileSync(path.join(project, 'assets', 'astraforge', 'brass_lantern_42', 'left-over.txt'), 'from an older send');
+  writeFileSync(path.join(project, 'assets', 'imaginarium', 'brass_lantern_42', 'left-over.txt'), 'from an older send');
   await sendBevy({ project, sources: [pkg] });
-  assert.equal(existsSync(path.join(project, 'assets', 'astraforge', 'brass_lantern_42', 'left-over.txt')), false);
+  assert.equal(existsSync(path.join(project, 'assets', 'imaginarium', 'brass_lantern_42', 'left-over.txt')), false);
 
   await assert.rejects(() => sendBevy({ project: tmp, sources: [pkg] }), /not a Bevy project/);
   const junk = path.join(tmp, 'pkg_junk');
@@ -140,17 +140,17 @@ test('sendBevy places packages and names the task ids', async () => {
 test('checkPackage: no cargo - honest skip; stub cargo - the four contract outputs', async () => {
   const pkg = path.join(tmp, 'pkg_check');
   mkdirSync(pkg, { recursive: true });
-  writeFileSync(path.join(pkg, 'af_bevy.json'), JSON.stringify({ asset_id: 'check_box', clips: [] }));
-  const env = { ASTRA_CARGO_TARGET_DIR: path.join(tmp, 'target') };
+  writeFileSync(path.join(pkg, 'ima_bevy.json'), JSON.stringify({ asset_id: 'check_box', clips: [] }));
+  const env = { IMAGINARIUM_CARGO_TARGET_DIR: path.join(tmp, 'target') };
 
-  const gone = await checkPackage({ packageDir: pkg, out: path.join(tmp, 'o-gone'), env: { ...env, ASTRA_CARGO: path.join(tmp, 'no') } });
+  const gone = await checkPackage({ packageDir: pkg, out: path.join(tmp, 'o-gone'), env: { ...env, IMAGINARIUM_CARGO: path.join(tmp, 'no') } });
   assert.equal(gone.ok, false);
   assert.match(gone.skipped, /cargo not found/);
   assert.equal(gone.report, null);
 
-  const r = await checkPackage({ packageDir: pkg, out: path.join(tmp, 'o-stub'), env: { ...env, ASTRA_CARGO: CHECK_STUB } });
+  const r = await checkPackage({ packageDir: pkg, out: path.join(tmp, 'o-stub'), env: { ...env, IMAGINARIUM_CARGO: CHECK_STUB } });
   assert.equal(r.ok, true);
-  assert.equal(r.taskId, 'af_bevy_check', 'the pinned task id (spec T3-Bevy)');
+  assert.equal(r.taskId, 'imaginarium_bevy_check', 'the pinned task id (spec T3-Bevy)');
   assert.equal(r.report.shots[0], 'shots/forward.png');
   assert.equal(r.report.checks[0].name, 'scene_mounted');
   const out = path.join(tmp, 'o-stub');
@@ -158,19 +158,19 @@ test('checkPackage: no cargo - honest skip; stub cargo - the four contract outpu
     assert.ok(existsSync(path.join(out, f)), f);
   }
   assert.match(readFileSync(path.join(out, 'bevy_log.txt'), 'utf8'), /AFBEVY/);
-  assert.ok(existsSync(path.join(out, '_bevy_check', 'assets', 'astraforge', 'check_box', 'af_bevy.json')),
+  assert.ok(existsSync(path.join(out, '_bevy_check', 'assets', 'imaginarium', 'check_box', 'ima_bevy.json')),
     'the scaffold held exactly this package');
 });
 
 test('the CLI: status and check-package degrade honestly without Rust (T2-3)', () => {
-  const env = { ...process.env, ASTRA_CARGO: path.join(tmp, 'no-cargo-here') };
+  const env = { ...process.env, IMAGINARIUM_CARGO: path.join(tmp, 'no-cargo-here') };
   const st = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'engines', 'bevy.mjs'), 'status'], { env, encoding: 'utf8' });
   assert.equal(st.status, 0);
   assert.equal(JSON.parse(st.stdout).hasCargo, false);
 
   const pkg = path.join(tmp, 'pkg_cli');
   mkdirSync(pkg, { recursive: true });
-  writeFileSync(path.join(pkg, 'af_bevy.json'), '{"asset_id":"cli_box"}');
+  writeFileSync(path.join(pkg, 'ima_bevy.json'), '{"asset_id":"cli_box"}');
   const ck = spawnSync(process.execPath, [path.join(REPO, 'scripts', 'engines', 'bevy.mjs'), 'check-package',
     '--package', pkg, '--out', path.join(tmp, 'o-cli')], { env, encoding: 'utf8' });
   assert.equal(ck.status, 0, 'an honest skip is not a failed export');
@@ -210,7 +210,7 @@ test('installBrpMcp installs exactly the verified file: unpack -> sha256 -> carg
   assert.equal(t.status, 0, t.stderr);
   const real = createHash('sha256').update(readFileSync(file)).digest('hex');
   const seen = [];
-  const r = await installBrpMcp({ cargo, env: { CARGO_HOME: path.join(tmp, 'brp-home-b'), ASTRA_CARGO_TARGET_DIR: path.join(tmp, 'target-brp') },
+  const r = await installBrpMcp({ cargo, env: { CARGO_HOME: path.join(tmp, 'brp-home-b'), IMAGINARIUM_CARGO_TARGET_DIR: path.join(tmp, 'target-brp') },
     log: (s) => seen.push(s), fetchImpl: async (url, dest) => cpSync(file, dest), sha256: real });
   assert.equal(r.installed, true);
   assert.equal(r.sha256, real);
@@ -243,12 +243,12 @@ test('curlDownload: real curl, the pinned argv shape (-o before `--`) - ticket 4
   assert.throws(() => curlDownload('file://' + path.join(tmp, 'no-such-file.crate'), dst + '2'), /download failed/);
 });
 
-// ------------------------------------------------- af_engine routes the new engine (MCP parity)
+// ------------------------------------------------- imaginarium_engine routes the new engine (MCP parity)
 
-test('af_engine: bevy creates, registers, detects and sends like any other engine', () => {
+test('imaginarium_engine: bevy creates, registers, detects and sends like any other engine', () => {
   const home = path.join(tmp, 'engines-home');
-  const env = { ...process.env, ASTRA_ENGINES_HOME: home, ASTRA_CARGO: path.join(tmp, 'no-cargo-here') };
-  const cli = (args) => spawnSync(process.execPath, [path.join(REPO, 'scripts', 'engines', 'af_engine.mjs'), ...args, '--json'], { env, encoding: 'utf8' });
+  const env = { ...process.env, IMAGINARIUM_ENGINES_HOME: home, IMAGINARIUM_CARGO: path.join(tmp, 'no-cargo-here') };
+  const cli = (args) => spawnSync(process.execPath, [path.join(REPO, 'scripts', 'engines', 'imaginarium_engine.mjs'), ...args, '--json'], { env, encoding: 'utf8' });
   const c = cli(['create', '--engine', 'bevy', '--name', 'Probe']);
   assert.equal(c.status, 0, c.stderr || c.stdout);
   const created = JSON.parse(c.stdout);
@@ -257,13 +257,13 @@ test('af_engine: bevy creates, registers, detects and sends like any other engin
 
   const pkg = path.join(tmp, 'pkg_engine');
   mkdirSync(pkg, { recursive: true });
-  writeFileSync(path.join(pkg, 'af_bevy.json'), '{"asset_id":"engine_box"}');
+  writeFileSync(path.join(pkg, 'ima_bevy.json'), '{"asset_id":"engine_box"}');
   const s = cli(['send', '--project', 'Probe', pkg]);
   assert.equal(s.status, 0, s.stderr || s.stdout);
   const sent = JSON.parse(s.stdout);
   assert.equal(sent.engine, 'bevy');
-  assert.equal(sent.packages[0].id, 'af_bevy_send_engine_box', 'the pinned task id travels through the shared verb');
-  assert.ok(existsSync(path.join(created.path, 'assets', 'astraforge', 'engine_box', 'af_bevy.json')));
+  assert.equal(sent.packages[0].id, 'imaginarium_bevy_send_engine_box', 'the pinned task id travels through the shared verb');
+  assert.ok(existsSync(path.join(created.path, 'assets', 'imaginarium', 'engine_box', 'ima_bevy.json')));
 
   const st = JSON.parse(cli(['status']).stdout);
   assert.equal(st.bevy.hasCargo, false, 'status reports the honest absence row');

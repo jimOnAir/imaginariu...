@@ -94,7 +94,7 @@ export const DESCRIBE_PROMPT =
 
 /**
  * Draft the description with the installed vision model: same pick as the review step (Connections
- * choice honored, ASTRA_REVIEW_VLM wins), think:false enforced, no download - an uninstalled model
+ * choice honored, IMAGINARIUM_REVIEW_VLM wins), think:false enforced, no download - an uninstalled model
  * answers with the pick's own reason instead. Returns {style, model, reason}; the draft lands in
  * style.description (the editor keeps it under the user's control: save or re-describe).
  */

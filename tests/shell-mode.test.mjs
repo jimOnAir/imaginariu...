@@ -15,7 +15,7 @@ test('Simple is the default; only known stored modes are honored', () => {
   assert.equal(readMode(undefined), 'simple');
 });
 
-test('the mode persists under astra.mode', () => {
+test('the mode persists under imaginarium.mode', () => {
   const s = memStorage();
   saveMode('detailed', s);
   assert.equal(s.data[MODE_KEY], 'detailed');

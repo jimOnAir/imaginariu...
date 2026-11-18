@@ -5,7 +5,7 @@
 //   FORGE_TEST_MODULE=core node --test tests/integration/blender.test.mjs     (one module)
 //   FORGE_TEST_MODULE=core,items FORGE_TEST_FILTER=real node --test ...       (several, -k filter)
 //
-// Blender: env ASTRA_BLENDER, else the default install path; the test is skipped when missing.
+// Blender: env IMAGINARIUM_BLENDER, else the default install path; the test is skipped when missing.
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {spawn} from 'node:child_process';
@@ -16,7 +16,7 @@ import {fileURLToPath} from 'node:url';
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const RUNNER = join(ROOT, 'scripts', 'blender', 'tests', 'run_tests.py');
 const DEFAULT_BLENDER = 'C:/Program Files/Blender Foundation/Blender 5.0/blender.exe';
-const BLENDER = process.env.ASTRA_BLENDER || DEFAULT_BLENDER;
+const BLENDER = process.env.IMAGINARIUM_BLENDER || DEFAULT_BLENDER;
 const TIMEOUT_MS = 40 * 60 * 1000;
 
 export function parseTestResult(stdout) {
@@ -48,7 +48,7 @@ function runBlender(args) {
   });
 }
 
-const missing = !existsSync(BLENDER) ? `Blender not found at ${BLENDER} (set ASTRA_BLENDER)` : false;
+const missing = !existsSync(BLENDER) ? `Blender not found at ${BLENDER} (set IMAGINARIUM_BLENDER)` : false;
 
 test('Blender forge step self-tests pass', {skip: missing, timeout: TIMEOUT_MS + 60_000}, async (t) => {
   const args = ['-b', '--factory-startup', '--python', RUNNER, '--'];

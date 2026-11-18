@@ -37,14 +37,14 @@ test('the seams agree: scan constant, installer bash and this module call the sa
   assert.equal(isLowVram(9216), false);  // and neither fires at the seam itself
 });
 
-test('currentVramMib honors the ASTRA_VRAM_MIB seam (ticket 21) with refresh', () => {
-  const saved = process.env.ASTRA_VRAM_MIB;
+test('currentVramMib honors the IMAGINARIUM_VRAM_MIB seam (ticket 21) with refresh', () => {
+  const saved = process.env.IMAGINARIUM_VRAM_MIB;
   try {
-    process.env.ASTRA_VRAM_MIB = '8192';
+    process.env.IMAGINARIUM_VRAM_MIB = '8192';
     assert.equal(currentVramMib({ refresh: true }), 8192);
     assert.equal(isLowVram(currentVramMib({ refresh: true })), true);
   } finally {
-    if (saved === undefined) delete process.env.ASTRA_VRAM_MIB; else process.env.ASTRA_VRAM_MIB = saved;
+    if (saved === undefined) delete process.env.IMAGINARIUM_VRAM_MIB; else process.env.IMAGINARIUM_VRAM_MIB = saved;
   }
 });
 

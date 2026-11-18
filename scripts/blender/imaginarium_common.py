@@ -1,4 +1,4 @@
-"""Shared helpers for AstraForge Blender steps (Blender 5.0.1, bundled Python 3.11 + numpy).
+"""Shared helpers for Imaginarium Blender steps (Blender 5.0.1, bundled Python 3.11 + numpy).
 
 Contract: docs/FORGE-CONTRACT.md. Only the integrator edits this file; steps keep their own
 helpers in their own modules (steps/_<module>_lib.py).
@@ -34,7 +34,7 @@ def log(msg, **data):
     """Progress line for server/blender.mjs (forwarded to the job log and UI)."""
     payload = {"t": round(time.time() - T0, 2), "msg": str(msg)}
     payload.update(data)
-    print("AFLOG " + json.dumps(payload, ensure_ascii=False), flush=True)
+    print("IMAGINARIUM_LOG " + json.dumps(payload, ensure_ascii=False), flush=True)
 
 
 def out_path(req, name):
@@ -50,7 +50,7 @@ def check(name, ok, value=None, limit=None, severity="error", note=None):
 
 
 def finish(req, result):
-    """Normalise the step result, write result.json and print the AFRESULT line."""
+    """Normalise the step result, write result.json and print the IMAGINARIUM_RESULT line."""
     res = {"ok": True, "step": req.get("step"), "outputs": {}, "stats": {}, "checks": [],
            "warnings": []}
     res.update(result or {})
@@ -62,7 +62,7 @@ def finish(req, result):
     res = _jsonable(res)
     with open(out_path(req, "result.json"), "w", encoding="utf-8") as fh:
         json.dump(res, fh, ensure_ascii=False, indent=2)
-    print("AFRESULT " + json.dumps(res, ensure_ascii=False), flush=True)
+    print("IMAGINARIUM_RESULT " + json.dumps(res, ensure_ascii=False), flush=True)
     sys.stdout.flush()
     return res
 
@@ -408,11 +408,11 @@ def render_views(path, objects=None, views=("front", "left", "back", "three_quar
     lo, hi = world_bbox(objects)
     centre = (lo + hi) / 2
     extent = max((hi - lo).length, 1e-3)
-    cam_data = bpy.data.cameras.new("af_preview_cam")
+    cam_data = bpy.data.cameras.new("imaginarium_preview_cam")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = extent * margin
     cam_data.clip_end = extent * 20
-    cam = bpy.data.objects.new("af_preview_cam", cam_data)
+    cam = bpy.data.objects.new("imaginarium_preview_cam", cam_data)
     scene.collection.objects.link(cam)
     prev_cam = scene.camera
     scene.camera = cam
@@ -449,7 +449,7 @@ def render_views(path, objects=None, views=("front", "left", "back", "three_quar
         tiles.append(px)
         bpy.data.images.remove(img)
     sheet = np.concatenate(tiles, axis=1)
-    out = bpy.data.images.new("af_sheet", width=sheet.shape[1], height=sheet.shape[0], alpha=True)
+    out = bpy.data.images.new("imaginarium_sheet", width=sheet.shape[1], height=sheet.shape[0], alpha=True)
     out.pixels = sheet.ravel()
     out.filepath_raw = os.path.abspath(path)
     out.file_format = "PNG"

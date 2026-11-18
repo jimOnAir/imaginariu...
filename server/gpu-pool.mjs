@@ -7,12 +7,12 @@
 // is taken waits in the queue instead of thrashing two engines over one VRAM budget.
 //
 // Cross-process safety stays with gpu-lock.mjs, but the lock is per CARD now
-// (AF_GPU_RENDER_<uuid>): two engines on two cards run at once, two on one card serialize and
+// (IMA_GPU_RENDER_<uuid>): two engines on two cards run at once, two on one card serialize and
 // hand over. When nvidia-smi cannot be read there is no pool: engineCardFor() answers null,
 // every caller falls back to the legacy single global lock and an untouched environment -
 // exactly the pre-pool behaviour, never a guess.
 //
-// Seam style as everywhere: ASTRA_GPU_CARDS (a JSON array) fakes the enumeration for tests and
+// Seam style as everywhere: IMAGINARIUM_GPU_CARDS (a JSON array) fakes the enumeration for tests and
 // odd machines; spawnFn injects the probe; resetGpuPool() clears state between tests.
 import { spawnSync } from 'node:child_process';
 import { GPU_MUTEX_NAME } from './gpu-lock.mjs';
@@ -33,7 +33,7 @@ let probeCache = null;   // {at, cards}
 
 /** [{index,uuid,name,memoryTotalMiB,memoryUsedMiB,freeMiB,driverVersion}] or null when the pool is unavailable. */
 export function enumerateGpus({ env = process.env, spawnFn = spawnSync, refresh = false } = {}) {
-  const seam = String(env.ASTRA_GPU_CARDS || '').trim();
+  const seam = String(env.IMAGINARIUM_GPU_CARDS || '').trim();
   if (seam) {
     try {
       const list = JSON.parse(seam);
@@ -75,9 +75,9 @@ function toCard(c) {
   };
 }
 
-/** Engine need with the ASTRA_GPU_NEED_MIB_<ENGINE> override (test seam and rescue lever). */
+/** Engine need with the IMAGINARIUM_GPU_NEED_MIB_<ENGINE> override (test seam and rescue lever). */
 export function vramNeedMiB(engine, env = process.env) {
-  const over = Number(env['ASTRA_GPU_NEED_MIB_' + String(engine).toUpperCase()]);
+  const over = Number(env['IMAGINARIUM_GPU_NEED_MIB_' + String(engine).toUpperCase()]);
   if (Number.isFinite(over) && over >= 0) return over;
   return ENGINE_VRAM_NEED_MIB[engine] ?? 0;
 }

@@ -79,7 +79,7 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 POINT_OPS = ("smooth", "relax", "inflate", "deflate", "flatten", "pinch", "expand", "grab",
@@ -453,7 +453,7 @@ def _bone_descendants(arm, name, children):
 def _find_bone(ob, name):
     """The armature that owns the bone: first the one of the object's modifiers, then any."""
     cands = [m.object for m in ob.modifiers if m.type == "ARMATURE" and m.object is not None]
-    cands += [a for a in af.armatures() if a not in cands]
+    cands += [a for a in ima.armatures() if a not in cands]
     for arm in cands:
         if arm.data.bones.get(name) is not None:
             return arm
@@ -678,7 +678,7 @@ def _import_source(path):
     path = os.path.abspath(str(path))
     if not os.path.isfile(path):
         raise FileNotFoundError("transfer source not found: %s" % path)
-    objs = af.import_any(path)
+    objs = ima.import_any(path)
     bpy.context.view_layer.update()
     meshes = [o for o in objs if o.type == "MESH"]
     if not meshes:
@@ -860,7 +860,7 @@ def op_remesh(ob, op, ctx, warnings):
     src = ml.duplicate(ob, ob.name + "_sculpt_src") if keep_rig else None
     group_names = [g.name for g in ob.vertex_groups]
     arm_mods = _pop_armature_mods(ob)
-    af.select_only([ob])
+    ima.select_only([ob])
     before_tris = ml.tris_of(ob)
     if op["mode"] == "quad":
         faces = op.get("target_faces") or max(500, before_tris // 4)
@@ -888,7 +888,7 @@ def op_remesh(ob, op, ctx, warnings):
         if ob.vertex_groups.get(name) is None:
             ob.vertex_groups.new(name=name)
     if src is not None:
-        mod = ob.modifiers.new("af_wt", "DATA_TRANSFER")
+        mod = ob.modifiers.new("imaginarium_wt", "DATA_TRANSFER")
         mod.object = src
         mod.use_vert_data = True
         mod.data_types_verts = {"VGROUP_WEIGHTS"}
@@ -930,14 +930,14 @@ def op_decimate(ob, S, op, w):
     if t0 == 0:
         return {"tris_before": 0, "tris_after": 0}
     full = bool(float(w.min()) > 0.999)
-    mod = ob.modifiers.new("af_decimate", "DECIMATE")
+    mod = ob.modifiers.new("imaginarium_decimate", "DECIMATE")
     mod.decimate_type = "COLLAPSE"
     mod.use_collapse_triangulate = True
     if full:
         ratio = op["ratio"]
     else:
         wv = w[S.canon]
-        grp = ob.vertex_groups.get("af_sculpt_mask") or ob.vertex_groups.new(name="af_sculpt_mask")
+        grp = ob.vertex_groups.get("imaginarium_sculpt_mask") or ob.vertex_groups.new(name="imaginarium_sculpt_mask")
         grp.add(list(range(len(wv))), 0.0, "REPLACE")
         idx = np.nonzero(wv > 0)[0]
         q = np.round(wv[idx] * 20) / 20.0                  # 21 levels are plenty for a mask
@@ -952,7 +952,7 @@ def op_decimate(ob, S, op, w):
     arm_mods = _pop_armature_mods(ob)
     _apply(ob, mod)
     _restore_armature_mods(ob, arm_mods)
-    grp = ob.vertex_groups.get("af_sculpt_mask")
+    grp = ob.vertex_groups.get("imaginarium_sculpt_mask")
     if grp is not None:
         ob.vertex_groups.remove(grp)
     return {"tris_before": t0, "tris_after": ml.tris_of(ob), "global_ratio": round(ratio, 4)}
@@ -1025,7 +1025,7 @@ def uv_unchanged(before, after):
 
 
 def rig_snapshot():
-    arms = af.armatures()
+    arms = ima.armatures()
     snap = {"bones": {a.name: len(a.data.bones) for a in arms}, "actions": len(bpy.data.actions),
             "meshes": {}}
     for ob in ml.model_meshes(list(bpy.context.scene.objects)):
@@ -1105,7 +1105,7 @@ def fix_normals(ob, smooth_deg):
 
 def _pose_mode(mode):
     saved = []
-    for a in af.armatures():
+    for a in ima.armatures():
         saved.append((a, a.data.pose_position))
         a.data.pose_position = mode
     bpy.context.view_layer.update()
@@ -1155,12 +1155,12 @@ def run(req):
     t0 = time.time()
     inputs = req.get("inputs") or {}
     if inputs.get("blend"):
-        src_path = os.path.abspath(str(inputs["blend"]))     # af_run has opened it already
+        src_path = os.path.abspath(str(inputs["blend"]))     # imaginarium_run has opened it already
         objs = list(bpy.context.scene.objects)
     else:
         src_path = ml.input_path(req)
-        af.reset_scene()
-        objs = af.import_any(src_path)
+        ima.reset_scene()
+        objs = ima.import_any(src_path)
         objs, _helpers = ml.purge_import_helpers(objs)
     bpy.context.view_layer.update()
     meshes = ml.model_meshes(list(bpy.context.scene.objects))
@@ -1175,10 +1175,10 @@ def run(req):
         targets = meshes
     if not targets:
         raise ValueError("no mesh objects in %s" % src_path)
-    af.log("loaded", file=os.path.basename(src_path), meshes=len(targets))
+    ima.log("loaded", file=os.path.basename(src_path), meshes=len(targets))
     timings["load"] = round(time.time() - t0, 2)
 
-    has_rig = bool(af.armatures())
+    has_rig = bool(ima.armatures())
     rig_before = rig_snapshot() if has_rig else None
     if has_rig and not preserve_rig:
         warnings.append("preserve_rig=false: armature, clips and skin weights are dropped")
@@ -1193,7 +1193,7 @@ def run(req):
 
     before = welded_metrics(targets)
     stats_before = ml.mesh_metrics(targets)
-    lo0, hi0 = af.world_bbox(targets)
+    lo0, hi0 = ima.world_bbox(targets)
     height = float(hi0.z - lo0.z) or 1.0
     model_size = float(max(hi0.x - lo0.x, hi0.y - lo0.y, hi0.z - lo0.z)) or 1.0
 
@@ -1203,7 +1203,7 @@ def run(req):
     pose_saved = _pose_mode("REST") if has_rig else []
     if p.get("preview", True):
         t0 = time.time()
-        _, sheet_before = ml.render_sheet(af.out_path(req, "_before.png"), targets, views=views,
+        _, sheet_before = ml.render_sheet(ima.out_path(req, "_before.png"), targets, views=views,
                                           size=psize, bbox=(lo0.copy(), hi0.copy()))
         timings["render_before"] = round(time.time() - t0, 2)
 
@@ -1220,7 +1220,7 @@ def run(req):
         t0 = time.time()
         name = op["op"]
         rec = {"index": i, "op": name, "region": op["region"]["type"], "objects": {}}
-        af.log("op %d/%d %s" % (i + 1, len(ops), name))
+        ima.log("op %d/%d %s" % (i + 1, len(ops), name))
         sym = op["symmetry"]
         k = AXES.get(sym)
         if name in ("remesh", "symmetrize") and op["region"]["type"] != "all":
@@ -1231,7 +1231,7 @@ def run(req):
             if not path:
                 raise ValueError("ops[%d] transfer: `source` (a path) is required here; the studio "
                                  "turns `source_asset` into `source` before the run" % i)
-            t_lo, t_hi = af.world_bbox(targets)
+            t_lo, t_hi = ima.world_bbox(targets)
             V, T = _import_source(path)
             V, how = _align_source(V, np.array(t_lo), np.array(t_hi), op["align"], warnings)
             ctx["source_mesh"] = (V, T)
@@ -1303,7 +1303,7 @@ def run(req):
                 if m.type == "ARMATURE":
                     o.modifiers.remove(m)
             o.parent = None
-        for a in list(af.armatures()):
+        for a in list(ima.armatures()):
             bpy.data.objects.remove(a, do_unlink=True)
         for ac in list(bpy.data.actions):
             bpy.data.actions.remove(ac)
@@ -1311,7 +1311,7 @@ def run(req):
         if o.name in dirty:
             fix_normals(o, shade_deg)
 
-    lo1, hi1 = af.world_bbox(targets)
+    lo1, hi1 = ima.world_bbox(targets)
     after = welded_metrics(targets)
     stats_after = ml.mesh_metrics(targets)
 
@@ -1320,33 +1320,33 @@ def run(req):
     compare = None
     if p.get("preview", True):
         t0 = time.time()
-        _, sheet_after = ml.render_sheet(af.out_path(req, "_after.png"), targets, views=views,
+        _, sheet_after = ml.render_sheet(ima.out_path(req, "_after.png"), targets, views=views,
                                          size=psize, bbox=(lo0.copy(), hi0.copy()))
         compare = ml.render_compare(sheet_before, sheet_after)
-        outputs["preview"] = ml.side_by_side(af.out_path(req, "preview.png"),
+        outputs["preview"] = ml.side_by_side(ima.out_path(req, "preview.png"),
                                              [np.concatenate(sheet_before, axis=1),
                                               np.concatenate(sheet_after, axis=1)])
         for tmp in ("_before.png", "_after.png"):
             try:
-                os.remove(af.out_path(req, tmp))
+                os.remove(ima.out_path(req, tmp))
             except OSError:
                 pass
         timings["render_after"] = round(time.time() - t0, 2)
     if pose_saved:
         _restore_pose(pose_saved)
     t0 = time.time()
-    arms_now = af.armatures()
-    outputs["glb"] = af.export_glb(af.out_path(req, "sculpt.glb"), objects=None,
+    arms_now = ima.armatures()
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "sculpt.glb"), objects=None,
                                    animations=bool(bpy.data.actions) and bool(arms_now),
                                    skins=bool(arms_now))
     outputs["mesh"] = outputs["glb"]
     timings["export_glb"] = round(time.time() - t0, 2)
     ml.purge_orphans()
-    outputs["blend"] = af.save_blend(af.out_path(req, "sculpt.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "sculpt.blend"))
 
     # ------------------------------------------------------------------ checks
     checks = []
-    checks.append(af.check("no_nan_verts", after["nan_verts"] == 0, after["nan_verts"], 0))
+    checks.append(ima.check("no_nan_verts", after["nan_verts"] == 0, after["nan_verts"], 0))
     n_sym = sum(1 for o in ops if o["op"] == "symmetrize")
     has_remesh = any(o["op"] == "remesh" for o in ops)
     # symmetrize mirrors the open borders too (x2 each); a remesh of thin overlapping sheets may
@@ -1354,7 +1354,7 @@ def run(req):
     lim_boundary = before["boundary_edges"] * (2 ** n_sym)
     lim_nonman = before["nonmanifold_edges"] + (max(8, int(5e-5 * after["tris"])) if has_remesh else 0)
     ok_m = after["boundary_edges"] <= lim_boundary and after["nonmanifold_edges"] <= lim_nonman
-    checks.append(af.check("sculpt_manifold", ok_m,
+    checks.append(ima.check("sculpt_manifold", ok_m,
                            {"boundary": after["boundary_edges"], "non_manifold": after["nonmanifold_edges"]},
                            {"boundary": lim_boundary, "non_manifold": lim_nonman},
                            note="welded view (UV-split copies count as one vertex): the ops must "
@@ -1365,20 +1365,20 @@ def run(req):
     if keep_uv:
         bad = [o.name for o in targets if o.name in dirty
                and not uv_unchanged(uvs_before[o.name], uv_snapshot(o))]
-        checks.append(af.check("sculpt_uv_kept", not bad, bad or "kept", "kept",
+        checks.append(ima.check("sculpt_uv_kept", not bad, bad or "kept", "kept",
                                note="UV layers present, finite and (for point ops) bit-identical"))
     else:
-        checks.append(af.check("sculpt_uv_kept", True, "not required (keep_uv:false)", None))
+        checks.append(ima.check("sculpt_uv_kept", True, "not required (keep_uv:false)", None))
     if has_rig and preserve_rig:
         problem = rig_problem(rig_before, rig_snapshot())
-        checks.append(af.check("sculpt_rig_kept", problem is None, problem or "kept", "kept"))
+        checks.append(ima.check("sculpt_rig_kept", problem is None, problem or "kept", "kept"))
     else:
-        checks.append(af.check("sculpt_rig_kept", True, "no rig" if not has_rig else "dropped by "
+        checks.append(ima.check("sculpt_rig_kept", True, "no rig" if not has_rig else "dropped by "
                                "preserve_rig:false", None))
     moved_any = any(v.get("moved_points") or v.get("verts_added") or v.get("tris_after") is not None
                     or v.get("verts_after") is not None
                     for r in op_log for v in r["objects"].values())
-    checks.append(af.check("sculpt_changed", bool(moved_any), bool(moved_any), True,
+    checks.append(ima.check("sculpt_changed", bool(moved_any), bool(moved_any), True,
                            severity="warning",
                            note="false: the region missed the mesh or the amounts were zero"))
     if sym_for_check:
@@ -1390,14 +1390,14 @@ def run(req):
             limit = min(0.98, sym_base.get(axis, 1.0) - 0.02)
             note = ("share of points with a mirror twin (%.1f%% before); worst miss %.5f m"
                     % (100 * sym_base.get(axis, 1.0), worst))
-        checks.append(af.check("sculpt_symmetric", frac >= limit, round(frac, 4), round(limit, 4),
+        checks.append(ima.check("sculpt_symmetric", frac >= limit, round(frac, 4), round(limit, 4),
                                severity="warning", note=note))
     tol = float(p.get("tolerance_m") or 0.01 * model_size)
     if transfer_stats and transfer_stats["max"] is not None:
-        checks.append(af.check("transfer_max_dist_m", transfer_stats["max"] <= tol,
+        checks.append(ima.check("transfer_max_dist_m", transfer_stats["max"] <= tol,
                                round(transfer_stats["max"], 6), tol, severity="warning",
                                note="target vertices (full weight) to the source surface"))
-        checks.append(af.check("transfer_mean_dist_m", transfer_stats["mean"] <= tol / 4,
+        checks.append(ima.check("transfer_mean_dist_m", transfer_stats["mean"] <= tol / 4,
                                round(transfer_stats["mean"], 6), tol / 4, severity="warning"))
     elif transfer_stats is not None:
         warnings.append("transfer: no full-weight vertices to measure the distance on "

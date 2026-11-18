@@ -1,5 +1,5 @@
-"""unity_package — the Unity package of a GLB (FBX + textures + af_unity.json) for the AstraForge
-importer (unity/com.astraforge.unity), which assembles prefabs itself; validated in Unity -batchmode.
+"""unity_package — the Unity package of a GLB (FBX + textures + ima_unity.json) for the Imaginarium
+importer (unity/dev.imaginarium3d.unity), which assembles prefabs itself; validated in Unity -batchmode.
 
 inputs.glb       the asset (sockets per contract §6, clips '-loop' per §7) — as for godot_package
 inputs.manifest  optional asset.json (kind, fx)
@@ -22,13 +22,13 @@ params:
   lod            true (default): static meshes of at least lod_min_tris triangles get decimated
                  LOD1/LOD2 copies (lod_ratios); wind meshes are shared by all levels; lod_screen =
                  LODGroup transition heights
-  wind           'auto' (materials named Leaves/Leaf/Foliage or with the custom property af_wind) | 'off'
+  wind           'auto' (materials named Leaves/Leaf/Foliage or with the custom property imaginarium_wind) | 'off'
   wind_strength, wind_speed, flutter, wind_direction   as leaves_wind.gdshader of the level demo
   fx, fx_auto_scale   as godot_package (fx_presets.json; Particle System in Unity)
   autoplay       the default clip of the AnimatorController (idle, else the first looping clip)
   validate       run Unity -batchmode on the check project (default true when Unity is found);
-                 unity: editor override; unity_project: check project (ASTRA_UNITY / ASTRA_UNITY_PROJECT)
-outputs: package (folder), fbx, manifest (af_unity.json), readme, unity_check (json), unity_shots (folder)
+                 unity: editor override; unity_project: check project (IMAGINARIUM_UNITY / IMAGINARIUM_UNITY_PROJECT)
+outputs: package (folder), fbx, manifest (ima_unity.json), readme, unity_check (json), unity_shots (folder)
 """
 import json
 import math
@@ -40,12 +40,12 @@ import bpy
 import numpy as np
 from mathutils import Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _export_lib as xl
 from steps import _unity_lib as ul
 from steps import godot_package as gp
 
-FORMAT = "astraforge-unity-package/1"
+FORMAT = "imaginarium-unity-package/1"
 WIND_RE = re.compile(r"(^|[_\s.-])(leaves|leaf|foliage)", re.I)
 # Unity's humanoid auto-mapper understands Mixamo names (the 'mixamorig:' namespace is stripped)
 HUMANOID_CORE = {"Hips", "Spine", "Head", "LeftUpLeg", "RightUpLeg", "LeftLeg", "RightLeg", "LeftFoot",
@@ -212,7 +212,7 @@ def analyze_material(mat, tex, objs_with_colors, wind_mode):
             col = [float(c) * strength for c in list(ec.default_value)[:3]]
             if max(col) > 1e-4:
                 m["emission_color"] = _r(col)
-    if wind_mode != "off" and (WIND_RE.search(mat.name) or mat.get("af_wind")):
+    if wind_mode != "off" and (WIND_RE.search(mat.name) or mat.get("imaginarium_wind")):
         m["wind"] = True
         if m["alpha"] == "opaque" and base_arr is not None:
             m["alpha"] = "cutout"
@@ -323,7 +323,7 @@ def _make_lods(meshes, wind_mats, ratios, min_tris):
             c.name = "%s__LOD%d" % (o.name, li)
             for col in o.users_collection:
                 col.objects.link(c)
-            md = c.modifiers.new("af_lod", "DECIMATE")
+            md = c.modifiers.new("imaginarium_lod", "DECIMATE")
             md.ratio = float(ratio)
             md.use_collapse_triangulate = True
             _select([c])
@@ -344,7 +344,7 @@ def _make_lods(meshes, wind_mats, ratios, min_tris):
 # So each accepted hull becomes a UCX convex hull beside its render target: it rides the same FBX
 # with the same world matrix (orientation matches the parent, as in the other export steps), and
 # the source name never reaches the package as geometry. The importer post-build pass re-checks
-# the rule (AFPrefabBuilder "ucx"), so hulls stay invisible even on import settings that do not
+# the rule (ImaginariumPrefabBuilder "ucx"), so hulls stay invisible even on import settings that do not
 # consume the UCX convention.
 COL_HULL_RE = re.compile(r"-(?:conv)?colonly(?:\.\d+)?$|^COL_", re.I)
 UCX_MAX_TRIS = 64
@@ -580,10 +580,10 @@ def export_fbx(path, objs, animated):
 
 def _readme(pkg, rep):
     m = pkg
-    lines = ["# %s — Unity package (AstraForge Forge)" % m["asset_id"], "",
+    lines = ["# %s — Unity package (Imaginarium Forge)" % m["asset_id"], "",
              "Made by the `unity_package` step. Put the folder into the `Assets/` of a Unity project with the",
-             "`com.astraforge.unity` package — the importer builds the prefab `%s.prefab` itself" % m["asset_id"],
-             "(or run `node scripts/unity/af_unity_send.mjs --project <project> <this folder>`).", "",
+             "`dev.imaginarium3d.unity` package — the importer builds the prefab `%s.prefab` itself" % m["asset_id"],
+             "(or run `node scripts/unity/imaginarium_unity_send.mjs --project <project> <this folder>`).", "",
              "## Contents", "", "| File | What |", "|---|---|"]
     if m["model"]:
         lines.append("| `%s` | FBX model: 1 m = 1 Unity unit, Y up%s |" % (
@@ -593,7 +593,7 @@ def _readme(pkg, rep):
         lines.append("| `fx/textures/*.png` | particle textures |")
     if m["sprites"]["clips"]:
         lines.append("| `sprites/*.png` | sprite sheets (%d px/m = Pixels Per Unit) |" % m["sprites"]["ppu"])
-    lines += ["| `af_unity.json` | the passport for the importer |", "", "## What the importer builds", ""]
+    lines += ["| `ima_unity.json` | the passport for the importer |", "", "## What the importer builds", ""]
     if m["model"]:
         lines.append("- the prefab `%s.prefab`: the model looks along `transform.forward` (+Z)%s;" % (
             m["asset_id"], ", the `model` node is turned 180 deg" if m["model_rotation_y"] else ""))
@@ -603,20 +603,20 @@ def _readme(pkg, rep):
                 ", ".join("`%s`%s" % (c["name"], " (loop)" if c["loop"] else "") for c in m["clips"]),
                 m["asset_id"], m["default_clip"]))
         lines.append("- materials: URP Lit (Built-in — Standard, HDRP — HDRP/Lit); leaves and vertex colour — "
-                     "the `AstraForge/Foliage` shader (wind in URP and Built-in, in HDRP — HDRP/Lit without wind);")
+                     "the `Imaginarium/Foliage` shader (wind in URP and Built-in, in HDRP — HDRP/Lit without wind);")
         col = m["collider"]
         lines.append("- collider: %s;" % col["type"])
         if m["lod"]["levels"]:
             lines.append("- LOD: %d levels, triangles %s;" % (len(m["lod"]["levels"]),
                                                               " / ".join(str(t) for t in m["lod"]["tris"])))
         if m["sockets"]:
-            lines.append("- sockets: %s (the `AFSockets` component);" % ", ".join("`%s`" % s["name"] for s in m["sockets"]))
+            lines.append("- sockets: %s (the `ImaginariumSockets` component);" % ", ".join("`%s`" % s["name"] for s in m["sockets"]))
         if m["fx"]:
             lines.append("- effects (Particle System): %s;" % ", ".join(
                 "`%s` -> `%s`" % (b["preset"], b["socket"]) for b in m["fx"]))
     if m["sprites"]["clips"]:
         lines.append("- sprites: the `%s_sprite.prefab` (SpriteRenderer + 8-direction Animator, `DirX`/`DirY` "
-                     "parameters, the `AFSprite8Dir` component), clips %s." % (
+                     "parameters, the `ImaginariumSprite8Dir` component), clips %s." % (
                          m["asset_id"], ", ".join(c["name"] for c in m["sprites"]["clips"])))
     if rep:
         lines += ["", "## Unity %s check (batchmode)" % (rep.get("unity") or ""), ""]
@@ -649,12 +649,12 @@ def run(req):
         with open(inputs["manifest"], "r", encoding="utf-8-sig") as fh:
             manifest = json.load(fh)
     kind = manifest.get("kind") or p.get("kind")
-    pkg_dir = af.out_path(req, asset_id)
+    pkg_dir = ima.out_path(req, asset_id)
     if os.path.isdir(pkg_dir):
         shutil.rmtree(pkg_dir)
     os.makedirs(pkg_dir)
     pkg = {"format": FORMAT, "asset_id": asset_id, "profile": p.get("profile", "unity"), "kind": kind or "",
-           "generator": "astraforge-forge/unity_package", "pipeline_hint": p.get("pipeline", "urp"),
+           "generator": "imaginarium-forge/unity_package", "pipeline_hint": p.get("pipeline", "urp"),
            "model": "", "rig": "none", "missing_humanoid_bones": [], "model_rotation_y": 0.0,
            "source_forward": "", "size_m": [0, 0, 0], "bounds_min": [0, 0, 0], "bounds_max": [0, 0, 0],
            "tris": 0, "materials": [], "clips": [], "default_clip": "", "sockets": [],
@@ -737,7 +737,7 @@ def run(req):
                             "bone": s.get("parent_bone") or "",
                             "position": _r(turn(to_unity(fr[1]), rotate)) if fr else [0, 0, 0]})
         bad = [s["name"] for s in sockets if not gp.SOCKET_RE.match(s["name"])]
-        checks.append(af.check("socket_names_snake_ascii", not bad, bad, [], severity="warning"))
+        checks.append(ima.check("socket_names_snake_ascii", not bad, bad, [], severity="warning"))
 
         # FX (the same bindings and auto scale as godot_package)
         gp.resolve_thruster_axes(info, src_fwd, warnings)
@@ -783,8 +783,8 @@ def run(req):
         for t in sorted(fx_tex):
             xl.save_png(os.path.join(pkg_dir, "fx", "textures", "%s.png" % t), xl.make_fx_texture(t))
         pkg["fx"] = fx_bind
-        checks.append(af.check("fx_presets_known", not unknown, unknown, []))
-        checks.append(af.check("fx_sockets_exist", not missing_s, missing_s, []))
+        checks.append(ima.check("fx_presets_known", not unknown, unknown, []))
+        checks.append(ima.check("fx_sockets_exist", not missing_s, missing_s, []))
 
         # clips
         clips = []
@@ -855,7 +855,7 @@ def run(req):
         # are cross-checked in the selftest: a hull must not inflate the package).
         g = render_extent if hull_sources else sorted(info["size_gltf_m"])
         u = sorted(pkg["size_m"])
-        checks.append(af.check("size_matches_gltf", all(abs(a - b) <= max(0.01 * max(g), 1e-4) for a, b in zip(g, u)),
+        checks.append(ima.check("size_matches_gltf", all(abs(a - b) <= max(0.01 * max(g), 1e-4) for a, b in zip(g, u)),
                                {"unity": pkg["size_m"], "gltf": g, "gltf_source": "hulls excluded" if hull_sources else "glTF"},
                                "<= 1 %"))
 
@@ -871,41 +871,41 @@ def run(req):
         pkg["sprites"] = sprites_unity(sp, sp.get("profile") == "pixel" or bool(sp.get("pixel")))
         stats["sprite_clips"] = len(pkg["sprites"]["clips"])
 
-    man_path = os.path.join(pkg_dir, "af_unity.json")
+    man_path = os.path.join(pkg_dir, "ima_unity.json")
     with open(man_path, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(pkg), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(pkg), fh, ensure_ascii=False, indent=1)
 
     # Unity validation
     rep = None
     if p.get("validate", True):
         exe = ul.find_unity(p)
         if exe is None:
-            warnings.append("Unity not found: package not validated (params.unity / ASTRA_UNITY)")
-            checks.append(af.check("unity_validation", False, "unity missing", severity="warning"))
+            warnings.append("Unity not found: package not validated (params.unity / IMAGINARIUM_UNITY)")
+            checks.append(ima.check("unity_validation", False, "unity missing", severity="warning"))
         else:
-            af.log("unity batchmode validation", project=ul.check_project(p))
+            ima.log("unity batchmode validation", project=ul.check_project(p))
             rep = ul.validate([(asset_id, pkg_dir)], req["out_dir"], p)
             if rep.get("error") == "license":
                 warnings.append("Unity has no active license (sign in to Unity Hub): package not validated")
-                checks.append(af.check("unity_validation", False, "license", severity="warning"))
+                checks.append(ima.check("unity_validation", False, "license", severity="warning"))
             elif rep.get("error") == "project_open":
                 warnings.append("the Unity check project is open in the editor: close it to validate")
-                checks.append(af.check("unity_validation", False, "project open", severity="warning"))
+                checks.append(ima.check("unity_validation", False, "project open", severity="warning"))
             else:
                 res = rep.get("result") or {}
                 a = next((x for x in (res.get("assets") or []) if x.get("asset_id") == asset_id), None)
-                checks.append(af.check("unity_validation", bool(a and a.get("ok")),
+                checks.append(ima.check("unity_validation", bool(a and a.get("ok")),
                                        {"error": rep.get("error"), "failed": [c["name"] for c in (a or {}).get("checks", [])
                                                                               if not c.get("ok")]}, True,
-                                       note="AFBatch.Validate in Unity %s: prefab, materials, avatar, clips, sockets, "
+                                       note="ImaginariumBatch.Validate in Unity %s: prefab, materials, avatar, clips, sockets, "
                                             "FX, LOD, colliders, size" % rep.get("unity")))
                 for c in (a or {}).get("checks", []):
-                    checks.append(af.check("unity_" + c["name"], c.get("ok"), c.get("value"), c.get("limit"),
+                    checks.append(ima.check("unity_" + c["name"], c.get("ok"), c.get("value"), c.get("limit"),
                                            severity=c.get("severity", "error")))
                 if rep.get("engine_errors"):
-                    checks.append(af.check("unity_engine_errors", False, rep["engine_errors"][:10], [],
+                    checks.append(ima.check("unity_engine_errors", False, rep["engine_errors"][:10], [],
                                            severity="warning"))
-            with open(af.out_path(req, "unity_check.json"), "w", encoding="utf-8") as fh:
+            with open(ima.out_path(req, "unity_check.json"), "w", encoding="utf-8") as fh:
                 json.dump(rep, fh, ensure_ascii=False, indent=1)
             stats["unity_seconds"] = rep.get("seconds")
             stats["unity_version"] = rep.get("unity")
@@ -916,7 +916,7 @@ def run(req):
     if fbx_path:
         outputs["fbx"] = fbx_path
     if rep:
-        outputs["unity_check"] = af.out_path(req, "unity_check.json")
+        outputs["unity_check"] = ima.out_path(req, "unity_check.json")
         if rep.get("shots"):
             outputs["unity_shots"] = rep["shots"]
         if rep.get("log"):

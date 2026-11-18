@@ -1,10 +1,10 @@
 // Headless Blender runner for Forge steps (docs/FORGE-CONTRACT.md §3, §9).
 //
-//   blender -b --factory-startup --python scripts/blender/af_run.py -- <step> <request.json>
+//   blender -b --factory-startup --python scripts/blender/imaginarium_run.py -- <step> <request.json>
 //
-// Streams stdout, parses AFLOG / AFRESULT / AFERROR lines, keeps a per-step log file,
+// Streams stdout, parses IMAGINARIUM_LOG / IMAGINARIUM_RESULT / IMAGINARIUM_ERROR lines, keeps a per-step log file,
 // enforces timeouts, kills the whole process tree on cancel and serialises runs through a
-// FIFO queue (ASTRA_BLENDER_CONCURRENCY, default 1). GPU steps also take the shared GPU mutex.
+// FIFO queue (IMAGINARIUM_BLENDER_CONCURRENCY, default 1). GPU steps also take the shared GPU mutex.
 import { spawn } from 'node:child_process';
 import { accessSync, constants, createWriteStream, existsSync, promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -24,13 +24,13 @@ function whichSync(name, env = process.env) {
   }
   return null;
 }
-export const AF_RUN = path.join(PROJECT_ROOT, 'scripts', 'blender', 'af_run.py');
+export const Imaginarium_RUN = path.join(PROJECT_ROOT, 'scripts', 'blender', 'imaginarium_run.py');
 export const DEFAULT_TIMEOUT_SEC = 15 * 60;
 export const RENDER_TIMEOUT_SEC = 60 * 60;
 const TAIL_LINES = 40;
 
 export function blenderPath(env = process.env) {
-  if (env.ASTRA_BLENDER) return env.ASTRA_BLENDER;
+  if (env.IMAGINARIUM_BLENDER) return env.IMAGINARIUM_BLENDER;
   if (process.platform !== 'win32') return whichSync('blender', env) || 'blender';   // system Blender on PATH
   return DEFAULT_BLENDER;
 }
@@ -99,7 +99,7 @@ export function blenderInfo({ path: exe = blenderPath(), refresh = false } = {})
   if (!refresh && infoCache.has(exe)) return infoCache.get(exe);
   const probe = (async () => {
     if (!existsSync(exe)) {
-      return { path: exe, ok: false, version: null, error: `Blender not found: ${exe}. Set the path in the ASTRA_BLENDER variable.` };
+      return { path: exe, ok: false, version: null, error: `Blender not found: ${exe}. Set the path in the IMAGINARIUM_BLENDER variable.` };
     }
     try {
       const { out } = await runCapture(exe, ['-b', '--factory-startup', '--version'], { timeoutMs: 60000 });
@@ -122,7 +122,7 @@ const GODOT_CANDIDATE_DIRS = process.platform === 'win32' ? [
 ].filter(Boolean) : [];
 
 async function findGodotPath() {
-  if (process.env.ASTRA_GODOT) return process.env.ASTRA_GODOT;
+  if (process.env.IMAGINARIUM_GODOT) return process.env.IMAGINARIUM_GODOT;
   if (process.platform !== 'win32') {
     // the app-local folder the Linux installer unpacks into first, then the system package (godot / godot4)
     const linuxDirs = [path.join(PROJECT_ROOT, 'runtime', 'Godot')];
@@ -153,13 +153,13 @@ async function findGodotPath() {
 
 let godotCache = null;
 
-/** {path, ok, version, error?} for Godot (env ASTRA_GODOT or a few known folders). Cached. */
+/** {path, ok, version, error?} for Godot (env IMAGINARIUM_GODOT or a few known folders). Cached. */
 export function godotInfo({ refresh = false } = {}) {
   if (godotCache && !refresh) return godotCache;
   godotCache = (async () => {
     const exe = await findGodotPath();
     if (!exe || !existsSync(exe)) {
-      return { path: exe, ok: false, version: null, error: 'Godot not found. Set the path in the ASTRA_GODOT variable.' };
+      return { path: exe, ok: false, version: null, error: 'Godot not found. Set the path in the IMAGINARIUM_GODOT variable.' };
     }
     try {
       const { out } = await runCapture(exe, ['--headless', '--version'], { timeoutMs: 30000 });
@@ -174,10 +174,10 @@ export function godotInfo({ refresh = false } = {}) {
 
 // ------------------------------------------------------------------ protocol
 
-/** Parse one stdout line of af_run.py. */
+/** Parse one stdout line of imaginarium_run.py. */
 export function parseProtocolLine(raw) {
   const line = String(raw).replace(/\r$/, '');
-  for (const [prefix, type] of [['AFRESULT ', 'result'], ['AFERROR ', 'error'], ['AFLOG ', 'log']]) {
+  for (const [prefix, type] of [['IMAGINARIUM_RESULT ', 'result'], ['IMAGINARIUM_ERROR ', 'error'], ['IMAGINARIUM_LOG ', 'log']]) {
     if (line.startsWith(prefix)) {
       try {
         return { type, data: JSON.parse(line.slice(prefix.length)), text: line };
@@ -189,7 +189,7 @@ export function parseProtocolLine(raw) {
   return { type: 'text', text: line };
 }
 
-/** Progress in percent from an AFLOG payload, or null. */
+/** Progress in percent from an IMAGINARIUM_LOG payload, or null. */
 export function progressOf(data) {
   if (!data || typeof data !== 'object') return null;
   let p = null;
@@ -318,12 +318,12 @@ export class StepQueue {
   }
 }
 
-export const blenderQueue = new StepQueue(Number(process.env.ASTRA_BLENDER_CONCURRENCY) || 1);
+export const blenderQueue = new StepQueue(Number(process.env.IMAGINARIUM_BLENDER_CONCURRENCY) || 1);
 
 // ------------------------------------------------------------------ running a step
 
 function defaultCommand({ blender, step, requestPath }) {
-  return { command: blender, args: ['-b', '--factory-startup', '--python', AF_RUN, '--', step, requestPath] };
+  return { command: blender, args: ['-b', '--factory-startup', '--python', Imaginarium_RUN, '--', step, requestPath] };
 }
 
 /**
@@ -338,7 +338,7 @@ function defaultCommand({ blender, step, requestPath }) {
  * @param {boolean} [o.gpu]    take the GPU mutex for the duration of the run (waited for before the
  *                             queue slot, so CPU steps keep running meanwhile)
  * @param {AbortSignal} [o.signal]
- * @param {(entry:object) => void} [o.onLog]       AFLOG payloads and plain lines
+ * @param {(entry:object) => void} [o.onLog]       IMAGINARIUM_LOG payloads and plain lines
  * @param {(pct:number, data:object) => void} [o.onProgress]
  * @param {() => void} [o.onStart]                 called when the run leaves the queue
  * @returns {Promise<{result:object, logFile:string, logTail:string[], exitCode:number, seconds:number, warnings:string[]}>}
@@ -400,7 +400,7 @@ export async function runBlenderStep(o) {
 export function lastErrorLine(tail = []) {
   for (let i = tail.length - 1; i >= 0; i -= 1) {
     const line = String(tail[i] || '').replace(/^\[stderr\]\s*/, '').trim();
-    if (!line || /^AF(LOG|RESULT)\b/.test(line)) continue;
+    if (!line || /^Imaginarium(LOG|RESULT)\b/.test(line)) continue;
     if (/^Traceback\b/.test(line)) continue;
     if (/^[A-Za-z_][\w.]*(Error|Exception|Interrupt|Exit)\b/.test(line) || /\bError:/.test(line)) return line.slice(0, 500);
   }
@@ -411,10 +411,10 @@ export function lastErrorLine(tail = []) {
 // the raw errno — `Failed to start Blender (blender): spawn blender ENOENT` — the same class of
 // user-hostile text ticket 25 fixed for the venvs. The honest sentence names what was looked for
 // and the studio's own remedy (the installer row downloads Blender 5.2.4 into runtime/blender;
-// ASTRA_BLENDER/PATH may point at any system 5.x — see docs/linux.md).
+// IMAGINARIUM_BLENDER/PATH may point at any system 5.x — see docs/linux.md).
 export function blenderSpawnFailText(command, err) {
   if (err?.code === 'ENOENT') {
-    return `Blender was not found (${command}): the Forge steps need Blender 5.x. Run installer/install.sh -Yes -Only blender to download Blender 5.2.4 into runtime/blender, or point ASTRA_BLENDER at your own Blender 5.x.`;
+    return `Blender was not found (${command}): the Forge steps need Blender 5.x. Run installer/install.sh -Yes -Only blender to download Blender 5.2.4 into runtime/blender, or point IMAGINARIUM_BLENDER at your own Blender 5.x.`;
   }
   return `Failed to start Blender (${command}): ${err?.message || 'unknown error'}`;
 }
@@ -460,12 +460,12 @@ function spawnAndParse({ step, request, requestPath, logFile, timeoutSec, blende
       log.write((stream === 'stderr' ? '[stderr] ' : '') + parsed.text + '\n');
       if (parsed.type === 'result') {
         result = parsed.data;
-        remember('AFRESULT ' + (result?.ok === false ? 'ok=false' : 'ok=true'));
+        remember('IMAGINARIUM_RESULT ' + (result?.ok === false ? 'ok=false' : 'ok=true'));
         return;
       }
       if (parsed.type === 'error') {
         errorPayload = parsed.data;
-        remember('AFERROR ' + (parsed.data?.error || ''));
+        remember('IMAGINARIUM_ERROR ' + (parsed.data?.error || ''));
         return;
       }
       if (parsed.type === 'log') {
@@ -533,7 +533,7 @@ function spawnAndParse({ step, request, requestPath, logFile, timeoutSec, blende
           { code: 'step_error', payload: errorPayload, ...meta }));
       }
       if (!result) {
-        // af_run prints AFRESULT last; fall back to result.json written in this run.
+        // imaginarium_run prints IMAGINARIUM_RESULT last; fall back to result.json written in this run.
         try {
           const file = path.join(request.out_dir, 'result.json');
           const st = await fs.stat(file);
@@ -541,7 +541,7 @@ function spawnAndParse({ step, request, requestPath, logFile, timeoutSec, blende
         } catch { /* no result file */ }
       }
       if (!result) {
-        // A --python script that raises before af_run's own handler exits Blender with code 0;
+        // A --python script that raises before imaginarium_run's own handler exits Blender with code 0;
         // the Python error is only on stderr, so surface its last line.
         const pyError = lastErrorLine(tail);
         return reject(new BlenderStepError(

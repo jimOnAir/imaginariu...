@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Start the studio on Linux/macOS (the counterpart of scripts/Start.ps1).
-# Reads the paths the installer wrote to config/paths.json into ASTRA_* variables, then runs the server
+# Reads the paths the installer wrote to config/paths.json into IMAGINARIUM_* variables, then runs the server
 # detached with logs in data/runtime/. A gitignored .env in this folder is read here (secrets such as
 # CUSTOM_LLM_API_KEY); user-set environment variables win over it and over config/paths.json.
 # A missing piece is reported in Russian and English with the remedy, not as raw shell noise (0.4.14).
@@ -29,8 +29,8 @@ NO_BROWSER=0
 # Human failure (the shipped Start.ps1 words): what happened, what to do, where to write.
 fail() { # $1 = reason in Russian, $2 = reason in English
   {
-    echo "AstraForge не запускается: $1 Откройте папку $ROOT и запустите installer/install.sh — он докачает только недостающее; если не поможет — пришлите installer/install.log и data/runtime/server-error.log (контакт в README.md)." >&2
-    echo "AstraForge cannot start: $2 Open the folder $ROOT and run installer/install.sh — it downloads only what is missing; if it still fails, send installer/install.log and data/runtime/server-error.log (contact in README.md)." >&2
+    echo "Imaginarium не запускается: $1 Откройте папку $ROOT и запустите installer/install.sh — он докачает только недостающее; если не поможет — пришлите installer/install.log и data/runtime/server-error.log (контакт в README.md)." >&2
+    echo "Imaginarium cannot start: $2 Open the folder $ROOT and run installer/install.sh — it downloads only what is missing; if it still fails, send installer/install.log and data/runtime/server-error.log (contact in README.md)." >&2
   }
   exit 1
 }
@@ -50,7 +50,7 @@ take_port() {
   for i in $(seq 20); do
     if port_listening "$PORT"; then
       h="$(health)"
-      if printf '%s' "$h" | grep -q '"app":"AstraForge"'; then
+      if printf '%s' "$h" | grep -q '"app":"Imaginarium"'; then
         [ "$NO_BROWSER" = 0 ] && command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 & exit 0
       fi
       holder="$(port_holder)"
@@ -76,7 +76,7 @@ PARSER="$(command -v node || true)"
 # BOM-safe parsing (scripts/paths-env.mjs), so installer-written paths are never silently dropped.
 [ -f "$PATHS" ] && [ -n "$PARSER" ] && eval "$("$PARSER" "$ROOT/scripts/paths-env.mjs" "$PATHS" 2>/dev/null || true)"
 # Node.js is found in the app's own runtime/node too, even without config/paths.json (0.4.14).
-NODE="${ASTRA_NODE_PATH:-}"
+NODE="${IMAGINARIUM_NODE_PATH:-}"
 { [ -n "$NODE" ] && [ ! -x "$NODE" ]; } && NODE=''
 [ -z "$NODE" ] && [ -x "$ROOT/runtime/node/bin/node" ] && NODE="$ROOT/runtime/node/bin/node"
 [ -z "$NODE" ] && NODE="$PARSER"
@@ -91,13 +91,13 @@ echo $! >data/runtime/node.pid
 
 for _ in $(seq 40); do
   H="$(health)"
-  if printf '%s' "$H" | grep -q '"app":"AstraForge"'; then
+  if printf '%s' "$H" | grep -q '"app":"Imaginarium"'; then
     [ "$NO_BROWSER" = 0 ] && command -v xdg-open >/dev/null && xdg-open "$URL" >/dev/null 2>&1 &
-    echo "AstraForge is ready: $URL"
+    echo "Imaginarium is ready: $URL"
     exit 0
   fi
   sleep 0.5
 done
-echo 'AstraForge не запустилась за 20 секунд. Смотрите data/runtime/server-error.log.' >&2
-echo 'AstraForge did not start within 20 seconds. See data/runtime/server-error.log.' >&2
+echo 'Imaginarium не запустилась за 20 секунд. Смотрите data/runtime/server-error.log.' >&2
+echo 'Imaginarium did not start within 20 seconds. See data/runtime/server-error.log.' >&2
 exit 1

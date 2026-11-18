@@ -1,7 +1,7 @@
 // Forge HTTP routes under /api/forge (docs/forge/API.md).
 //
 // server/index.mjs registers them with one call after its security middleware, so every
-// mutating request already passed the loopback Host/Origin check and the x-astra-client header.
+// mutating request already passed the loopback Host/Origin check and the x-imaginarium-client header.
 import express from 'express';
 import multer from 'multer';
 import path from 'node:path';
@@ -67,7 +67,7 @@ const safeName = (name) => String(name || 'file').replace(/[<>:"/\\|?*\x00-\x1f]
  * @param {import('express').Express} app
  * @param {Function} [asyncRoute] unused (kept for symmetry with registerTripo); errors use {error, code}
  * @param {{engine?: ForgeEngine, getGenerationJob?: (id:string) => any, review?: object}} [options]
- *   `review`: {stateFile, rolesFile, decisionsFile} for the Review view (defaults: env ASTRA_FORGE_REVIEW_*)
+ *   `review`: {stateFile, rolesFile, decisionsFile} for the Review view (defaults: env IMAGINARIUM_REVIEW_*)
  * @returns {ForgeEngine}
  */
 export function registerForge(app, asyncRoute, options = {}) {

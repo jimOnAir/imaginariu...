@@ -1,7 +1,7 @@
 """extract_props — cut held props (weapons, shields, banners, bows, staffs, books ...) out of a generated
 humanoid so they stay rigid: the body is rigged alone, the items go back into the hands with attach_prop.
 
-inputs.blend (the painted .blend of paint_from_concept; af_run opens it) or inputs.mesh.
+inputs.blend (the painted .blend of paint_from_concept; imaginarium_run opens it) or inputs.mesh.
 params:
   height_m 1.8, front "auto", front_prior null ("-Y": the detector's back-to-front or uncertain answer
           loses to it - generated concepts face the camera), fix_yaw true, markers {}   (as rig_humanoid:
@@ -35,7 +35,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _humanoid_lib as hl
 from steps import _mesh_lib as ml
 from steps import _props_lib as PL
@@ -53,7 +53,7 @@ def _colour_labels(body, lab, n):
     """Vertex-colour attribute showing the labels (for detect.png)."""
     pal = [(0.95, 0.25, 0.2), (0.2, 0.55, 0.95), (0.95, 0.8, 0.15), (0.3, 0.85, 0.35), (0.8, 0.3, 0.9)]
     me = body.data
-    ca = me.color_attributes.new("af_labels", "FLOAT_COLOR", "POINT")
+    ca = me.color_attributes.new("imaginarium_labels", "FLOAT_COLOR", "POINT")
     cols = np.tile(np.array([0.72, 0.72, 0.72, 1.0]), (len(me.vertices), 1))
     for i in range(n):
         cols[lab == i, :3] = pal[i % len(pal)]
@@ -73,9 +73,9 @@ def run(req):
         raise ValueError("params.replace must be auto, never or always")
     in_socks = []
     body, Ps, prep = hl.prepare_body(req, warnings, sockets=in_socks)
-    af.log("prepared", facing=prep["facing"]["detected"], scale=prep["scale"])
+    ima.log("prepared", facing=prep["facing"]["detected"], scale=prep["scale"])
     lm, Ps, items, report = PL.detect(body, Ps, prep, H, P, hints, warnings)
-    af.log("detected", items=[(it["hand"], it["type"]) for it in items], rig_verdict=report.get("rig_verdict"))
+    ima.log("detected", items=[(it["hand"], it["type"]) for it in items], rig_verdict=report.get("rig_verdict"))
     min_v = int(P.get("min_item_vertices", 60))
     lab = PL.label_vertices(body, Ps, items, H, report, lm) if items else np.full(len(body.data.vertices), -1)
     keep = [i for i, it in enumerate(items) if it["vertices"] >= min_v]
@@ -97,11 +97,11 @@ def run(req):
             orig.data.color_attributes.render_color_index = orig.data.color_attributes.active_color_index
         except Exception:
             pass
-        outputs["detect"] = PL.render_only(af.out_path(req, "detect.png"), [orig], views=("front", "left", "three_quarter"),
+        outputs["detect"] = PL.render_only(ima.out_path(req, "detect.png"), [orig], views=("front", "left", "three_quarter"),
                                             size=int(P.get("preview_size", 320)), color="VERTEX")
         orig.data.color_attributes.remove(ca)
     objs, cut_info = PL.cut(body, lab, items, H) if items else ([], {})
-    af.log("cut", **{k: v for k, v in cut_info.items() if k != "uv"})
+    ima.log("cut", **{k: v for k, v in cut_info.items() if k != "uv"})
     style = P.get("kit_style", "auto")
     if style == "auto":
         style = "dark" if str(hints.get("faction") or "").lower() == "undead" else "medieval"
@@ -170,9 +170,9 @@ def run(req):
             ob.data.transform(Matrix.Translation(shift))
             ob.data.update()
             ob.name = "item_%s" % it["id"]
-            ob["af_item_type"] = it["type"]
-            ob["af_item_source"] = "extracted"
-            ob["af_forward"] = "-Y"
+            ob["imaginarium_item_type"] = it["type"]
+            ob["imaginarium_item_source"] = "extracted"
+            ob["imaginarium_forward"] = "-Y"
             sockets.append(PL_socket(ob, "socket_grip_main", shift, kind="grip",
                                      frame="grip: +Z thumb side / along shaft, -Y edge-face"))
             off = PL.two_handed_off(it, lm, G, R, H)
@@ -195,12 +195,12 @@ def run(req):
                              preview=bool(P.get("preview", True)), size=int(P.get("preview_size", 320)))
         rec.update({"files": outs, "tris": hl.tri_count(final), "placement_matrix": [[round(x, 6) for x in r] for r in M_place],
                     "grip_m": hl.rnd(G), "z_axis": hl.rnd(R[:, 2], 4), "y_axis": hl.rnd(R[:, 1], 4)})
-        # the placement socket on the body: rig_humanoid keeps it (child of af_bone), attach_prop refits onto it
+        # the placement socket on the body: rig_humanoid keeps it (child of imaginarium_bone), attach_prop refits onto it
         n_same = sum(1 for r in records if r.get("hand") == it["hand"] and r.get("placement_socket")) + 1
         sname = "socket_prop_%s_%d" % (it["hand"], n_same)
-        ps = af.add_socket(sname, kind="prop", size=0.05, af_bone=it.get("bone") or it["side"] + "Hand", af_hand=it["hand"],
-                           af_item=it["id"], af_item_kind=it["kind"], af_item_type=it["type"],
-                           af_grip_mode=str(it.get("grip_mode") or "shaft"))
+        ps = ima.add_socket(sname, kind="prop", size=0.05, imaginarium_bone=it.get("bone") or it["side"] + "Hand", imaginarium_hand=it["hand"],
+                           imaginarium_item=it["id"], imaginarium_item_kind=it["kind"], imaginarium_item_type=it["type"],
+                           imaginarium_grip_mode=str(it.get("grip_mode") or "shaft"))
         ps.rotation_mode = "QUATERNION"
         ps.matrix_world = M_place
         rec["placement_socket"] = sname
@@ -208,7 +208,7 @@ def run(req):
         final.matrix_world = M_place @ G_loc.inverted()
         finals.append((final, sockets, rec))
         records.append(rec)
-        af.log("item", id=it["id"], source=rec["source"], tris=rec["tris"], gate=rec["gate"]["ok"])
+        ima.log("item", id=it["id"], source=rec["source"], tris=rec["tris"], gate=rec["gate"]["ok"])
     bpy.context.view_layer.update()
     # input sockets of earlier steps (eyes of replace_part ...) follow the body
     if in_socks:
@@ -243,7 +243,7 @@ def run(req):
         for f, mw in moved:
             f.matrix_world = mw
         from steps import _items_lib as IL
-        outputs["preview"] = IL.stack_rows(rows, af.out_path(req, "exploded.png"), labels=labels)
+        outputs["preview"] = IL.stack_rows(rows, ima.out_path(req, "exploded.png"), labels=labels)
         # grips.png: every item's grip close-up (body grey, item coloured) - the cut at the fist
         crow, clab = [], []
         for k, (f, _, rec) in enumerate(finals):
@@ -252,7 +252,7 @@ def run(req):
             crow.append(PL.closeup(os.path.join(tmp, "grip_%d.png" % k), allobjs, {f: k}, g - r_, g + r_, size=size))
             clab.append("%s (%s) GRIP" % (rec["id"].upper(), rec["source"].upper()))
         if crow:
-            outputs["grips"] = IL.stack_rows(crow, af.out_path(req, "grips.png"), labels=clab)
+            outputs["grips"] = IL.stack_rows(crow, ima.out_path(req, "grips.png"), labels=clab)
     # the body file: body + placement sockets (+ kept input sockets); items live in their own files
     for f, socks, _ in finals:
         for s in socks:
@@ -261,25 +261,25 @@ def run(req):
     bpy.data.objects.remove(orig, do_unlink=True)
     bpy.context.view_layer.update()
     sock_objs = [o for o in bpy.context.scene.objects if ml.is_socket(o)]
-    outputs["glb"] = af.export_glb(af.out_path(req, "body.glb"), objects=[body] + sock_objs, animations=False, skins=False)
-    outputs["blend"] = af.save_blend(af.out_path(req, "body.blend"))
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "body.glb"), objects=[body] + sock_objs, animations=False, skins=False)
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "body.blend"))
     doc = {"items": records, "hints": hints, "detector": {k: v for k, v in report.items() if k != "hints"},
            "cut": cut_info, "body": {"glb": outputs["glb"], "blend": outputs["blend"], "tris": hl.tri_count(body)},
            "prepare": {"facing": prep["facing"], "scale": prep["scale"], "turn_deg": prep.get("turn_deg")},
            "replace": replace, "kit_style": style}
-    outputs["props_json"] = af.out_path(req, "props.json")
+    outputs["props_json"] = ima.out_path(req, "props.json")
     with open(outputs["props_json"], "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(doc), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable(doc), fh, ensure_ascii=False, indent=2)
     outputs["items"] = [r["files"]["glb"] for r in records if r.get("files")]
-    checks.append(af.check("body_faces", len(body.data.polygons) > 100, len(body.data.polygons), ">100"))
+    checks.append(ima.check("body_faces", len(body.data.polygons) > 100, len(body.data.polygons), ">100"))
     expected = sum(len(v) for v in hints["by_side"].values()) + (1 if hints.get("shield_side") else 0)
     written = len(outputs["items"])
-    checks.append(af.check("items_vs_hints", written >= expected, written, expected, severity="warning",
+    checks.append(ima.check("items_vs_hints", written >= expected, written, expected, severity="warning",
                            note="items written vs held items named by params.hints (books at the belt, sheathed "
                                 "swords are not held)"))
     for r in records:
         if r.get("gate"):
-            checks.append(af.check("gate_%s" % r["id"], r["gate"]["ok"] or r["source"] == "kit",
+            checks.append(ima.check("gate_%s" % r["id"], r["gate"]["ok"] or r["source"] == "kit",
                                    {"source": r["source"], "reasons": r["gate"]["reasons"]}, "extracted passes or kit",
                                    severity="warning"))
     stats = {"items": [{"id": r["id"], "type": r["type"], "hand": r["hand"], "source": r.get("source"),

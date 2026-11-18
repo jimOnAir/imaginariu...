@@ -4,9 +4,9 @@ Synthetic tests build a procedural mannequin with known joints (_humanoid_lib.ma
 test_real_* use assets on disk and return early when a file is missing. Temporary files only in
 tempfile.mkdtemp(). Run (until the shared runner exists):
   blender -b --factory-startup --python-expr "import sys;sys.path[:0]=[r'<root>/scripts/blender',
-  r'<root>/scripts/blender/tests'];import test_humanoid as t;import af_common as af
+  r'<root>/scripts/blender/tests'];import test_humanoid as t;import imaginarium_common as ima
   for n in sorted(dir(t)):
-      if n.startswith('test_'): af.reset_scene(); getattr(t,n)(); print('PASS',n)"
+      if n.startswith('test_'): ima.reset_scene(); getattr(t,n)(); print('PASS',n)"
 """
 import json
 import math
@@ -24,32 +24,32 @@ import bpy  # noqa: E402
 import numpy as np  # noqa: E402
 from mathutils import Matrix, Vector  # noqa: E402
 
-import af_common as af  # noqa: E402
+import imaginarium_common as ima  # noqa: E402
 from steps import _humanoid_lib as hl  # noqa: E402
 from steps import _items_lib as IL  # noqa: E402
 
 # On-disk fixtures for the test_real_* cases (every one returns a skip string when its file is missing).
-# Environment overrides: AF_NECRO_GLB, AF_ART_RAW, AF_BASE_MESHES.
-NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
-ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+# Environment overrides: Imaginarium_NECRO_GLB, Imaginarium_ART_RAW, Imaginarium_BASE_MESHES.
+NECRO = os.environ.get("Imaginarium_NECRO_GLB") or r"C:/Imaginarium/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+ART_RAW = os.environ.get("Imaginarium_ART_RAW") or r"C:/Imaginarium/test-assets/art/raw"
 KNIGHT = ART_RAW + "/meshy/01a0e2b0-c89f-7338-8b6b-dd8487d093c0/model.glb"
-BUNDLE = (os.environ.get("AF_BASE_MESHES") or r"C:/AstraForge/test-assets/human-base-meshes/"
+BUNDLE = (os.environ.get("Imaginarium_BASE_MESHES") or r"C:/Imaginarium/test-assets/human-base-meshes/"
           r"human-base-meshes-bundle-v1.4.1/human_base_meshes_bundle.blend")
 
 
 # ------------------------------------------------------------------ helpers
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_humanoid_")
+    return tempfile.mkdtemp(prefix="imaginarium_humanoid_")
 
 
 def _mannequin_glb(d, pose="A", rot_z=0.0, **kw):
-    af.reset_scene()
+    ima.reset_scene()
     ob, gt = hl.make_mannequin(pose, **kw)
     if rot_z:
         ob.data.transform(Matrix.Rotation(math.radians(rot_z), 4, "Z"))
     path = os.path.join(d, "mannequin_%s.glb" % pose)
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     return path, gt
 
 
@@ -73,7 +73,7 @@ def _detect(path, params=None):
     req = {"inputs": {"mesh": path}, "params": dict(params or {}), "out_dir": _tmp()}
     if path.lower().endswith(".blend") and not req["params"].get("objects"):
         req["inputs"] = {"blend": path}
-        af.open_blend(path)
+        ima.open_blend(path)
     w = []
     body, P, info = hl.prepare_body(req, w)
     lm, P = hl.run_landmarks(body, P, float(req["params"].get("height_m", 1.8)), req["params"], w, info)
@@ -138,11 +138,11 @@ def test_landmarks_hidden_arms():
 def test_facing_detection_rotated():
     d = _tmp()
     try:
-        af.reset_scene()
+        ima.reset_scene()
         ob, _ = hl.make_mannequin("A")
         ob.data.transform(Matrix.Rotation(math.radians(90), 4, "Z"))   # now faces +X
         path = os.path.join(d, "turned.glb")
-        af.export_glb(path, objects=[ob], animations=False, skins=False)
+        ima.export_glb(path, objects=[ob], animations=False, skins=False)
         lm, info, _ = _detect(path)
         assert info["facing"]["detected"] == "+X", info["facing"]
         assert lm.pose == "A"
@@ -153,7 +153,7 @@ def test_facing_detection_rotated():
 
 
 def test_bone_roll_convention():
-    af.reset_scene()
+    ima.reset_scene()
     _, gt = hl.make_mannequin("A")
     j = dict(gt)
     j["Spine"] = (j["Hips"] + j["Neck"]) * 0.5 - np.array([0, 0, 0.1])
@@ -198,9 +198,9 @@ def test_rig_humanoid_end_to_end():
         assert res["stats"]["shield_mounts"]["socket_mount_shield_l"]["standoff_m"] <= 0.12
         assert mk["projection"]["image"] == {"width": 1280, "height": 640}, mk["projection"]
         # re-import: skin with 25 joints and socket extras
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["glb"])
-        arms = af.armatures(objs)
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["glb"])
+        arms = ima.armatures(objs)
         assert len(arms) == 1 and len(arms[0].data.bones) == 25
         socks = {o.get("game_socket"): o for o in objs if o.get("game_socket")}
         for n in ("socket_mount_hand_r", "socket_mount_hand_l", "socket_mount_shield_r", "socket_mount_shield_l",
@@ -301,7 +301,7 @@ def test_fingers_skipped_on_mittens():
 
 
 def _textured_mannequin(d):
-    af.reset_scene()
+    ima.reset_scene()
     ob, _ = hl.make_mannequin("A")
     img = bpy.data.images.new("tex1024", 1024, 1024)
     img.pixels = np.tile(np.array([0.6, 0.3, 0.2, 1.0], dtype=np.float32), 1024 * 1024)
@@ -318,7 +318,7 @@ def _textured_mannequin(d):
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     ob.data.uv_layers.new(name="UVMap")
     path = os.path.join(d, "textured.glb")
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     return path
 
 
@@ -332,11 +332,11 @@ def test_prepare_mixamo_lite():
         assert res["stats"]["tris"] <= 12000
         assert all(max(t["size"]) <= 256 for t in res["stats"]["textures"]), res["stats"]["textures"]
         assert res["stats"]["fits_upload"]
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["fbx"])
-        lo, hi = af.world_bbox(objs)
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["fbx"])
+        lo, hi = ima.world_bbox(objs)
         assert abs(hi.z - lo.z - 1.8) < 0.02 and abs(lo.z) < 0.01, (lo, hi)
-        assert not af.armatures(objs)
+        assert not ima.armatures(objs)
     finally:
         shutil.rmtree(d, ignore_errors=True)
 
@@ -354,22 +354,22 @@ def test_prepare_mixamo_prerigged_and_import_roundtrip():
         assert res["stats"]["prerigged"]["bones"] == 25
         fbx = res["outputs"]["fbx_prerigged"]
         # emulate a Mixamo download: second-character prefix and centimetre scale
-        af.reset_scene()
-        objs = af.import_any(fbx)
-        rig = af.armatures(objs)[0]
+        ima.reset_scene()
+        objs = ima.import_any(fbx)
+        rig = ima.armatures(objs)[0]
         for bn in rig.data.bones:
             bn.name = bn.name.replace("mixamorig:", "mixamorig1:")
         cm = os.path.join(d, "from_mixamo.fbx")
-        af.export_fbx(cm, objects=[rig] + af.meshes(objs), global_scale=100.0, mixamo=True)
+        ima.export_fbx(cm, objects=[rig] + ima.meshes(objs), global_scale=100.0, mixamo=True)
         res2 = _run("import_mixamo_rig", {"inputs": {"fbx": cm}, "params": {"height_m": 1.75},
                                           "out_dir": os.path.join(d, "imr")})
         assert res2["ok"], res2["failed"]
         assert res2["stats"]["renamed_bones"] == 25
         assert _check(res2, "height")["ok"]
         assert len(res2["stats"]["sockets"]) == 9      # the same add_human_sockets (shield mounts too)
-        af.reset_scene()
-        objs = af.import_any(res2["outputs"]["glb"])
-        names = [bn.name for bn in af.armatures(objs)[0].data.bones]
+        ima.reset_scene()
+        objs = ima.import_any(res2["outputs"]["glb"])
+        names = [bn.name for bn in ima.armatures(objs)[0].data.bones]
         assert all(n.startswith("mixamorig:") for n in names), names[:3]
     finally:
         shutil.rmtree(d, ignore_errors=True)
@@ -433,10 +433,10 @@ def _glb_animation_names(path):
 
 def _arm_heads_from_fbx(path, H):
     """Arm heads of a rigged FBX in its own frame scaled to height H (feet on 0, x from the Hips)."""
-    af.reset_scene()
-    objs = af.import_any(path)
-    rig = af.armatures(objs)[0]
-    co = np.concatenate([hl.mesh_verts(o) for o in af.meshes(objs)])
+    ima.reset_scene()
+    objs = ima.import_any(path)
+    rig = ima.armatures(objs)[0]
+    co = np.concatenate([hl.mesh_verts(o) for o in ima.meshes(objs)])
     z0, h = float(co[:, 2].min()), float(co[:, 2].max() - co[:, 2].min())
     k = H / h
     hips = rig.matrix_world @ next(bn for bn in rig.data.bones if bn.name.endswith("Hips")).head_local
@@ -563,11 +563,11 @@ def test_bow_held_beside_body_rigid_quiver_ignored():
 
 def _load_rigged(path):
     if path.lower().endswith(".blend"):
-        af.open_blend(path)
+        ima.open_blend(path)
         objs = list(bpy.context.scene.objects)
     else:
-        af.reset_scene()
-        objs = af.import_any(path)
+        ima.reset_scene()
+        objs = ima.import_any(path)
     arm = next(o for o in objs if o.type == "ARMATURE")
     arm.data.pose_position = "REST"
     bpy.context.view_layer.update()
@@ -582,7 +582,7 @@ def _mat_err(A, B):
 
 def _kit_item(out, params):
     from steps import item_kit as K
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item(params)
     K.export_item(item, out, info, preview=False)
     return os.path.join(out, "item.glb")
@@ -601,7 +601,7 @@ def _attach(character, atts, out):
 def _png_rgb(arr, dst):
     """Opaque, maximally compressed RGB PNG of a top-down RGBA array (docs evidence)."""
     h, w = arr.shape[:2]
-    im = bpy.data.images.new("af_evidence", width=w, height=h, alpha=False)
+    im = bpy.data.images.new("imaginarium_evidence", width=w, height=h, alpha=False)
     im.pixels = np.ascontiguousarray(IL.over_bg(arr)[::-1]).ravel()
     st = bpy.context.scene.render.image_settings
     st.file_format, st.color_mode, st.compression = "PNG", "RGB", 100
@@ -618,17 +618,17 @@ def test_input_sockets_survive_rig_and_grip_dirs():
     rebuilt; params.grip_dirs points +Z of a rebuilt hand socket exactly ("down" for the right hand)."""
     d = _tmp()
     try:
-        af.reset_scene()
+        ima.reset_scene()
         ob, gt = hl.make_mannequin("A")
         # the mannequin is shifted / scaled on the way in: the sockets must follow
         ob.data.transform(Matrix.Translation((0.3, -0.2, 0.0)) @ Matrix.Scale(0.5, 4))
-        eye = af.add_socket("socket_fx_eye_l", location=(0.3 + 0.5 * 0.035, -0.2 + 0.5 * -0.09, 0.5 * 1.70),
+        eye = ima.add_socket("socket_fx_eye_l", location=(0.3 + 0.5 * 0.035, -0.2 + 0.5 * -0.09, 0.5 * 1.70),
                             kind="fx")
         W = Vector(gt["LeftHand"]) + (Vector(gt["LeftHandTip"]) - Vector(gt["LeftHand"])) * 0.4
-        hand = af.add_socket("socket_mount_hand_l", location=(0.3 + 0.5 * W.x, -0.2 + 0.5 * W.y, 0.5 * W.z),
+        hand = ima.add_socket("socket_mount_hand_l", location=(0.3 + 0.5 * W.x, -0.2 + 0.5 * W.y, 0.5 * W.z),
                              rotation=(0.0, 0.0, 0.0), kind="mount", grip_radius_m=0.02)
         path = os.path.join(d, "m.glb")
-        af.export_glb(path, objects=[ob, eye, hand], animations=False, skins=False)
+        ima.export_glb(path, objects=[ob, eye, hand], animations=False, skins=False)
         res = _run("rig_humanoid", {"inputs": {"mesh": path}, "out_dir": os.path.join(d, "out"),
                                     "params": {"intersections": False, "deform_test": False,
                                                "grip_dirs": {"r": "down"}}})
@@ -638,8 +638,8 @@ def test_input_sockets_survive_rig_and_grip_dirs():
         assert st["sockets_from_input"]["socket_fx_eye_l"]["bone"] == "Head", st["sockets_from_input"]
         assert st["hand_socket_frame"]["socket_mount_hand_l"]["source"] == "input", st["hand_socket_frame"]
         assert len(st["sockets"]) == 10
-        af.reset_scene()
-        objs = af.import_any(res["outputs"]["glb"])
+        ima.reset_scene()
+        objs = ima.import_any(res["outputs"]["glb"])
         socks = {o.get("game_socket"): o for o in objs if o.get("game_socket")}
         bpy.context.view_layer.update()
         e = socks["socket_fx_eye_l"]
@@ -663,7 +663,7 @@ def test_small_islands_kept_out_of_bone_heat_and_bound_rigidly():
     up on the whole mesh; they stay out of the proxy and ride rigidly on the nearest bone."""
     d = _tmp()
     try:
-        af.reset_scene()
+        ima.reset_scene()
         ob, gt = hl.make_mannequin("A")
         import bmesh
         bm = bmesh.new()
@@ -679,7 +679,7 @@ def test_small_islands_kept_out_of_bone_heat_and_bound_rigidly():
         bm.to_mesh(ob.data)
         bm.free()
         path = os.path.join(d, "m.glb")
-        af.export_glb(path, objects=[ob], animations=False, skins=False)
+        ima.export_glb(path, objects=[ob], animations=False, skins=False)
         res = _run("rig_humanoid", {"inputs": {"mesh": path}, "out_dir": os.path.join(d, "out"),
                                     "params": {"intersections": False}})
         assert res["ok"], (res["failed"], res.get("error"))
@@ -694,7 +694,7 @@ def test_small_islands_kept_out_of_bone_heat_and_bound_rigidly():
 
 
 def test_repair_for_heat_drops_nonmanifold_faces():
-    af.reset_scene()
+    ima.reset_scene()
     import bmesh
     me = bpy.data.meshes.new("t")
     bm = bmesh.new()
@@ -769,7 +769,7 @@ def test_oblique_sword_held_forward_rigid_to_hand():
 
 def _coloured_mannequin(d, rgb, name="coloured"):
     """The A-pose mannequin with a uniform base-colour texture (UVMap, image node -> Base Color), as a GLB."""
-    af.reset_scene()
+    ima.reset_scene()
     ob, _ = hl.make_mannequin("A")
     img = bpy.data.images.new(name, 64, 64)
     img.pixels = np.tile(np.array(list(rgb) + [1.0], dtype=np.float32), 64 * 64)
@@ -786,7 +786,7 @@ def _coloured_mannequin(d, rgb, name="coloured"):
     nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
     ob.data.uv_layers.new(name="UVMap")
     path = os.path.join(d, name + ".glb")
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     return path
 
 
@@ -870,7 +870,7 @@ def test_shoulders_measured_against_the_solid_head_top():
 
 
 # =========================================================================== real assets
-# Fixtures on disk (module constants above, AF_* environment overrides); every case returns a
+# Fixtures on disk (module constants above, Imaginarium_* environment overrides); every case returns a
 # "skip: ..." string when its files are missing, so a machine without the assets shows them as SKIP.
 
 def test_real_necromancer():
@@ -912,7 +912,7 @@ def test_real_necromancer_decimated_keeps_staff():
             cl = _run("cleanup", {"inputs": {"mesh": NECRO}, "params": {"target_tris": tris, "height_m": 1.8},
                                   "out_dir": os.path.join(d, "clean%d" % tris)})
             assert cl["ok"] and cl["stats"]["after"]["tris"] <= tris, cl.get("failed")
-            af.open_blend(cl["outputs"]["blend"])
+            ima.open_blend(cl["outputs"]["blend"])
             res = _run("rig_humanoid", {"inputs": {"blend": cl["outputs"]["blend"]}, "params": {"height_m": 1.8},
                                         "out_dir": os.path.join(d, "rig%d" % tris)})
             st = res["stats"]
@@ -926,8 +926,8 @@ def test_real_necromancer_decimated_keeps_staff():
         shutil.rmtree(d, ignore_errors=True)
 
 
-NECRO_V2_PLACED = (os.environ.get("AF_NECRO_V2_GLB")
-                   or r"C:/AstraForge/test-assets/NecromancerForge/v2/pre_rig/placed.glb")
+NECRO_V2_PLACED = (os.environ.get("Imaginarium_NECRO_V2_GLB")
+                   or r"C:/Imaginarium/test-assets/NecromancerForge/v2/pre_rig/placed.glb")
 
 
 def test_real_necromancer_v2_tear_gate():
@@ -970,7 +970,7 @@ def test_real_base_meshes_and_fingers():
             shutil.rmtree(d, ignore_errors=True)
 
 
-BATCH_CLEAN = os.environ.get("AF_BATCH_CLEAN") or r"C:/AstraForge/incoming/pilot2/clean"
+BATCH_CLEAN = os.environ.get("Imaginarium_BATCH_CLEAN") or r"C:/Imaginarium/incoming/pilot2/clean"
 
 
 def test_real_batch_swordsmen_blades_rigid():
@@ -1143,14 +1143,14 @@ def test_real_rotated_zombie_matches():
         return "skip: zombie asset missing: " + p
     d = _tmp()
     try:
-        af.reset_scene()
-        objs = af.import_any(p)
-        for o in af.meshes(objs):
+        ima.reset_scene()
+        objs = ima.import_any(p)
+        for o in ima.meshes(objs):
             o.data.transform(o.matrix_world)
             o.matrix_world = Matrix.Identity(4)
             o.data.transform(Matrix.Rotation(math.radians(30), 4, "Z"))
         rot = os.path.join(d, "rot30.glb")
-        af.export_glb(rot, objects=af.meshes(objs), animations=False, skins=False)
+        ima.export_glb(rot, objects=ima.meshes(objs), animations=False, skins=False)
         lm0, _, _ = _detect(p)
         lm1, info, _ = _detect(rot)
         assert info["yaw"]["corrected"]
@@ -1371,7 +1371,7 @@ def test_real_zombie_rig_takes_kit_sword_and_shield_without_refit():
         assert 0.0 < t_g < float(np.percentile(t_h, 98)), (t_g, float(np.percentile(t_h, 98)))
         lo, hi = hv.min(0) - 0.01, hv.max(0) + 0.01
         assert all(lo[i] <= g[i] <= hi[i] for i in range(3)), (g, lo, hi)   # inside the hand's box
-        blade = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("af_item_type") == "sword")
+        blade = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("imaginarium_item_type") == "sword")
         co, _, _ = IL.mesh_arrays(blade)
         rel = co - np.array(g)
         far = rel[np.argmax(np.linalg.norm(rel, axis=1))]
@@ -1379,19 +1379,19 @@ def test_real_zombie_rig_takes_kit_sword_and_shield_without_refit():
         assert cosang > 0.995, cosang                                         # the tip lies on +Z
         assert float(np.abs(rel @ np.array(z)).max()) > 0.6                   # a 0.9 m blade, not a stub
         M_sword = IL.normalized4(blade.matrix_world.copy())
-        shield = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("af_item_type") == "shield_kite")
+        shield = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("imaginarium_item_type") == "shield_kite")
         M_shield = IL.normalized4(shield.matrix_world.copy())
         # the same character without the rig's sockets: attach_prop builds them itself
         arm, body, socks = _load_rigged(os.path.join(out, "rigged.blend"))
         for n in ("socket_mount_hand_r", "socket_mount_hand_l", "socket_mount_shield_l", "socket_mount_shield_r"):
             bpy.data.objects.remove(socks[n], do_unlink=True)
-        bare = af.save_blend(os.path.join(d, "bare.blend"))
+        bare = ima.save_blend(os.path.join(d, "bare.blend"))
         res2, rep2 = _attach(bare, atts, os.path.join(d, "b"))
         assert rep2["hand_sockets"]["r"]["info"]["created"] is True
         assert rep2["mounts"]["socket_mount_shield_l"]["status"] == "created"
         _load_rigged(res2["outputs"]["blend"])
-        blade2 = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("af_item_type") == "sword")
-        shield2 = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("af_item_type") == "shield_kite")
+        blade2 = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("imaginarium_item_type") == "sword")
+        shield2 = next(o for o in bpy.data.objects if o.type == "MESH" and o.get("imaginarium_item_type") == "shield_kite")
         assert _mat_err(IL.normalized4(blade2.matrix_world.copy()), M_sword) < 1e-4
         assert _mat_err(IL.normalized4(shield2.matrix_world.copy()), M_shield) < 1e-4
     finally:
@@ -1406,11 +1406,11 @@ def make_socket_evidence(img_dir=None):
     over markers.png. Returns a dict; writes zombie_rig_sockets.png / zombie_markers_projection.png."""
     ev = {}
     for name in ("test_real_zombie_hand_socket_is_attach_prop_frame", "test_real_zombie_markers_projection_matches_png"):
-        af.reset_scene()
+        ima.reset_scene()
         globals()[name]()
     ev["hand_frame_max_abs_err"] = _ZRIG.get("hand_frame_max_abs_err")
     ev["projection_errors_px"] = _ZRIG.get("projection_errors_px")
-    af.reset_scene()
+    ima.reset_scene()
     d = _tmp()
     out, res = _zombie_rig(d)
     ev["sockets"] = res["stats"]["sockets"]

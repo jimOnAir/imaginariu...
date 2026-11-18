@@ -14,7 +14,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _kitbash_lib as kl
 from steps import _ship_lib as sl
 from steps import kitbash, ship_gen, turret_gen
@@ -41,9 +41,9 @@ def _clean(fn):
 
 
 def _run(module, step, params, inputs=None):
-    out = _mkdtemp("af_kb_test_")
+    out = _mkdtemp("imaginarium_kb_test_")
     req = {"step": step, "inputs": inputs or {}, "params": params, "out_dir": out}
-    res = af.finish(req, module.run(req))
+    res = ima.finish(req, module.run(req))
     return res, out
 
 
@@ -101,7 +101,7 @@ def test_regions_frames_and_part_builders():
 def _gunship(out):
     req = {"step": "ship_gen", "inputs": {}, "out_dir": out,
            "params": {"class": "gunship", "seed": 1, "faction": "industrial", "preview": False}}
-    res = af.finish(req, ship_gen.run(req))
+    res = ima.finish(req, ship_gen.run(req))
     assert res["ok"], _errors(res)
     return res
 
@@ -109,7 +109,7 @@ def _gunship(out):
 @_clean
 def test_kitbash_on_procedural_gunship_glb():
     """ship_gen gunship (GLB + LOD siblings + ship.json) -> every part kind; budgets, sockets, LODs, manifest."""
-    src = _mkdtemp("af_kb_src_")
+    src = _mkdtemp("imaginarium_kb_src_")
     g = _gunship(src)
     summ0 = sl.glb_summary(g["outputs"]["glb"])
     turrets = [s for s in summ0["sockets"] if s["extras"].get("kind") == "turret"]
@@ -140,8 +140,8 @@ def test_kitbash_on_procedural_gunship_glb():
     assert st["part_tris"]["lod2"].get("piping", 0) == 0 and st["part_tris"]["lod2"]["nozzle"] > 0
     summ = sl.glb_summary(res["outputs"]["glb"])
     assert summ["surfaces_lod0"] <= max(summ0["surfaces_lod0"], 9), (summ0["surfaces_lod0"], summ["surfaces_lod0"])
-    assert set(summ["material_names_used"]) <= set(summ0["material_names_used"]) | {"AF_EmissiveDrive",
-                                                                                    "AF_EmissiveStatus"}
+    assert set(summ["material_names_used"]) <= set(summ0["material_names_used"]) | {"Imaginarium_EmissiveDrive",
+                                                                                    "Imaginarium_EmissiveStatus"}
     socks = {s["game_socket"]: s for s in summ["sockets"]}
     mz = [s for s in summ["sockets"] if s["extras"].get("kind") == "muzzle"]
     assert len(mz) == len(turrets), (len(mz), len(turrets))
@@ -159,7 +159,7 @@ def test_kitbash_on_procedural_gunship_glb():
     for k in ("glb", "lod1", "lod2", "blend", "manifest"):
         assert os.path.isfile(res["outputs"][k]), k
     man = json.load(open(res["outputs"]["manifest"], encoding="utf-8"))
-    assert "af_kitbash_v1" in man["generator_version"] and man["triangles"]["lod0"] == st["tris"]
+    assert "imaginarium_kitbash_v1" in man["generator_version"] and man["triangles"]["lod0"] == st["tris"]
     sil = st["lod_silhouette_iou"]["lod2"]
     assert min(sil["top"], sil["side"]) >= 0.85, sil
 
@@ -167,7 +167,7 @@ def test_kitbash_on_procedural_gunship_glb():
 def _stub_ship(path):
     """Box hull 20 x 6 x 4 m (nose +Y) with a 3 m stub barrel sticking out of the port side and a turret socket at
     its base pointing outward (-X), as ship_from_mesh(turret_sockets='protrusions') writes it."""
-    af.reset_scene()
+    ima.reset_scene()
     root = bpy.data.objects.new("ship_stub_test", None)
     bpy.context.scene.collection.objects.link(root)
     bpy.ops.mesh.primitive_cube_add(size=1.0)
@@ -176,21 +176,21 @@ def _stub_ship(path):
     bpy.ops.mesh.primitive_cylinder_add(radius=0.25, depth=3.0, location=(-4.5, 2.0, 0.0), rotation=(0, math.pi / 2, 0),
                                         vertices=16)
     stub = bpy.context.active_object
-    af.apply_transforms([hull, stub])
-    ob = af.join([hull, stub], "M_hull_armor")
+    ima.apply_transforms([hull, stub])
+    ob = ima.join([hull, stub], "M_hull_armor")
     mats = sl.make_materials(sl.palette_for("military", 0))
     ob.data.materials.clear()
     ob.data.materials.append(mats["armor"])
     ob.parent = root
     sock = sl.add_socket("socket_turret_port_forward", "turret", (-3.0, 2.0, 0.0), z_axis=(-1, 0, 0), parent=root,
                          size_class="M", mount_d_m=1.2, barrel_length_m=3.0)
-    af.export_glb(path, [root, ob, sock], animations=False, skins=False)
+    ima.export_glb(path, [root, ob, sock], animations=False, skins=False)
     return path
 
 
 @_clean
 def test_kitbash_removes_ai_stub_and_seats_on_the_wall():
-    d = _mkdtemp("af_kb_stub_")
+    d = _mkdtemp("imaginarium_kb_stub_")
     glb = _stub_ship(os.path.join(d, "ship.glb"))
     res, out = _run(kitbash, "kitbash", {"parts": [{"kind": "gatling", "at": "socket_turret_*", "length": 2.0,
                                                     "cluster_d": 0.5, "remove": {"radius": 0.4}}],
@@ -202,8 +202,8 @@ def test_kitbash_removes_ai_stub_and_seats_on_the_wall():
     part = st["parts"][0]
     assert abs(part["seat_t"]) < 0.15 and abs(part["at"][0] + 3.0) < 0.15, part   # seated on the hull wall x = -3
     # no hull geometry of the old stub remains outside the wall beyond the new gun's housing
-    af.reset_scene()
-    objs = af.import_any(res["outputs"]["glb"])
+    ima.reset_scene()
+    objs = ima.import_any(res["outputs"]["glb"])
     socks = {o.get("game_socket"): o for o in objs if o.get("game_socket")}
     assert "socket_muzzle_port_forward" in socks
     mz = socks["socket_muzzle_port_forward"].matrix_world

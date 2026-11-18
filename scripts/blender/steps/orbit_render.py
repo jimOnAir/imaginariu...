@@ -18,7 +18,7 @@ import time
 import bpy
 import mathutils
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 
@@ -37,24 +37,24 @@ def run(req):
     elevation = math.radians(float(params.get("elevation_deg", 12)))
     count = _frames_count(params)
 
-    af.reset_scene()
-    objs = af.import_any(req["inputs"]["mesh"])
+    ima.reset_scene()
+    objs = ima.import_any(req["inputs"]["mesh"])
     stats = ml.mesh_metrics(objs)
 
     scene = bpy.context.scene
-    lo, hi = af.world_bbox(objs)
+    lo, hi = ima.world_bbox(objs)
     centre = (lo + hi) / 2
     extent = max((hi - lo).length, 1e-3)
-    cam_data = bpy.data.cameras.new("af_orbit_cam")
+    cam_data = bpy.data.cameras.new("imaginarium_orbit_cam")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = extent * 1.08
     cam_data.clip_end = extent * 20
-    cam = bpy.data.objects.new("af_orbit_cam", cam_data)
+    cam = bpy.data.objects.new("imaginarium_orbit_cam", cam_data)
     scene.collection.objects.link(cam)
     prev_cam = scene.camera
     scene.camera = cam
     r = scene.render
-    af.set_engine(scene, "WORKBENCH")
+    ima.set_engine(scene, "WORKBENCH")
     r.resolution_x = r.resolution_y = size
     r.resolution_percentage = 100
     r.film_transparent = True
@@ -76,18 +76,18 @@ def run(req):
         cam.location = centre + direction * extent * 3
         look = (centre - cam.location).normalized()
         cam.rotation_euler = look.to_track_quat("-Z", "Y").to_euler()
-        file = af.out_path(req, "orbit_%02d.png" % i)
+        file = ima.out_path(req, "orbit_%02d.png" % i)
         r.filepath = file
         bpy.ops.render.render(write_still=True)
         manifest.append({"file": os.path.basename(file), "yaw_deg": round(math.degrees(yaw), 1)})
 
     orbit = {"frames": manifest, "size": size, "elevation_deg": round(math.degrees(elevation), 1),
              "seconds": round(time.time() - started, 1)}
-    with open(af.out_path(req, "orbit.json"), "w", encoding="utf-8") as fh:
+    with open(ima.out_path(req, "orbit.json"), "w", encoding="utf-8") as fh:
         json.dump(orbit, fh, ensure_ascii=False, indent=1)
     scene.camera = prev_cam
     bpy.data.objects.remove(cam)
     bpy.data.cameras.remove(cam_data)
-    return {"outputs": {"frames": [af.out_path(req, f["file"]) for f in manifest],
-                        "orbit": af.out_path(req, "orbit.json")},
+    return {"outputs": {"frames": [ima.out_path(req, f["file"]) for f in manifest],
+                        "orbit": ima.out_path(req, "orbit.json")},
             "stats": stats, "orbit": orbit}

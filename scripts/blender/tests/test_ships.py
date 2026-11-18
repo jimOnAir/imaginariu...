@@ -17,7 +17,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _ship_lib as sl
 from steps import ship_from_mesh, ship_gen, turret_gen
 
@@ -44,9 +44,9 @@ def _clean(fn):
 
 
 def _run(module, step, params, inputs=None):
-    out = _mkdtemp("af_ships_test_")
+    out = _mkdtemp("imaginarium_ships_test_")
     req = {"step": step, "inputs": inputs or {}, "params": params, "out_dir": out}
-    res = af.finish(req, module.run(req))
+    res = ima.finish(req, module.run(req))
     return res, out
 
 
@@ -69,7 +69,7 @@ def _assert_ship(res, cls):
     assert st["tris_lod1"] <= min(b["lod1"], 0.35 * st["tris"]), (st["tris_lod1"], st["tris"])
     assert st["tris_lod2"] <= min(b["lod2"], 0.12 * st["tris"]), (st["tris_lod2"], st["tris"])
     assert st["surfaces"] <= b["surfaces"] and st["nodes"] <= b["nodes"] and st["glb_mb"] <= b["mb"]
-    assert all(m.startswith("AF_") for m in st["materials"]), st["materials"]
+    assert all(m.startswith("Imaginarium_") for m in st["materials"]), st["materials"]
     for name in st["sockets"]:
         assert sl.SOCKET_RE.match(name), name
         assert "_fore_" not in name + "_", name  # place vocabulary: forward / aft
@@ -226,7 +226,7 @@ def test_ship_gen_livery_and_counts():
     assert res["ok"], _failed(res)
     st = res["stats"]
     assert st["turrets_placed"] == 6 and st["engines"] >= 4
-    blend_mat = bpy.data.materials.get("AF_Armor")
+    blend_mat = bpy.data.materials.get("Imaginarium_Armor")
     rgb = blend_mat.node_tree.nodes["Principled BSDF"].inputs["Base Color"].default_value[:3]
     assert abs(rgb[0] - sl.srgb_to_linear(0xd0 / 255.0)) < 1e-3
 
@@ -279,8 +279,8 @@ def _synthetic_generated_mesh(out):
     req = {"step": "ship_gen", "inputs": {}, "out_dir": out,
            "params": {"class": "corvette", "seed": 11, "faction": "industrial", "lods": False, "preview": False}}
     ship_gen.run(req)
-    af.reset_scene()
-    objs = af.import_any(os.path.join(out, "ship.glb"))
+    ima.reset_scene()
+    objs = ima.import_any(os.path.join(out, "ship.glb"))
     meshes = [o for o in objs if o.type == "MESH" and not o.name.startswith("COL_")]
     bpy.context.view_layer.update()
     wm = {o: o.matrix_world.copy() for o in meshes}
@@ -291,18 +291,18 @@ def _synthetic_generated_mesh(out):
         if o not in meshes:
             bpy.data.objects.remove(o, do_unlink=True)
     bpy.context.view_layer.update()
-    ob = af.join(meshes, "fused")
+    ob = ima.join(meshes, "fused")
     ob.matrix_world = Matrix.Rotation(math.radians(90), 4, "Z") @ Matrix.Scale(0.03, 4)
-    af.apply_transforms([ob])
+    ima.apply_transforms([ob])
     path = os.path.join(out, "generated_like.glb")
-    af.export_glb(path, [ob], animations=False, skins=False)
+    ima.export_glb(path, [ob], animations=False, skins=False)
     return path
 
 
 def _two_engine_primitive(out, name="two_engine.obj"):
     """Mirror-symmetric primitive: box hull + cone nose at -X + two engine cylinders with n-gon caps sticking
     out aft at +X; separate objects, no materials, no UVs, object scale 0.01 (OBJ keeps the n-gons)."""
-    af.reset_scene()
+    ima.reset_scene()
     objs = []
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0))
     hull = bpy.context.active_object
@@ -322,7 +322,7 @@ def _two_engine_primitive(out, name="two_engine.obj"):
         o.matrix_world = Matrix.Scale(0.01, 4) @ o.matrix_world
     bpy.context.view_layer.update()
     path = os.path.join(out, name)
-    af.select_only(objs)
+    ima.select_only(objs)
     bpy.ops.wm.obj_export(filepath=path, export_selected_objects=True, export_materials=False, export_uv=False,
                           export_normals=True, apply_modifiers=True)
     return path
@@ -330,7 +330,7 @@ def _two_engine_primitive(out, name="two_engine.obj"):
 
 @_clean
 def test_ship_from_mesh_synthetic_orientation():
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     src = _synthetic_generated_mesh(tmp)
     res, out = _run(ship_from_mesh, "ship_from_mesh", {"class": "corvette", "preview": False}, {"mesh": src})
     assert res["ok"], _failed(res)
@@ -361,7 +361,7 @@ def test_ship_from_mesh_synthetic_orientation():
 
 @_clean
 def test_ship_from_mesh_explicit_nose():
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     src = _synthetic_generated_mesh(tmp)
     res, out = _run(ship_from_mesh, "ship_from_mesh", {"class": "ship_m", "nose": "-x", "length_m": 64,
                                                         "preview": False, "lods": False},
@@ -377,7 +377,7 @@ def test_ship_from_mesh_explicit_nose():
 def test_ship_from_mesh_two_engine_primitive():
     """Review case: symmetric two-engine primitive (multi-object, no materials/UVs, scale 0.01, nose -X,
     n-gon caps) must give exactly two mirrored thrusters and turret sockets on the flat back."""
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     src = _two_engine_primitive(tmp)
     res, out = _run(ship_from_mesh, "ship_from_mesh", {"class": "fighter", "preview": False},
                     {"mesh": src})
@@ -406,7 +406,7 @@ def test_ship_from_mesh_two_engine_primitive():
 
 @_clean
 def test_ship_from_mesh_provenance_and_id():
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     a_dir, b_dir = os.path.join(tmp, "meshy_job_a"), os.path.join(tmp, "plain_b")
     os.makedirs(a_dir)
     os.makedirs(b_dir)
@@ -435,7 +435,7 @@ def test_voxel_proxy_lod_budget_materials_uv():
     one edge - what stops Blender's collapse), decimated to the budget, materials from the nearest source face,
     UVs transferred, silhouette kept."""
     import bmesh
-    af.reset_scene()
+    ima.reset_scene()
     bm = bmesh.new()
     bmesh.ops.create_cube(bm, size=2.0)
     bmesh.ops.subdivide_edges(bm, edges=bm.edges[:], cuts=12, use_grid_fill=True)
@@ -484,7 +484,7 @@ def _summ(tris, surfaces=1, worst=None, worst_surf=None, nodes=4, materials=1, m
 @_clean
 def test_glb_summary_worst_mesh():
     """glb_summary counts the heaviest render mesh: collision skipped."""
-    d = _mkdtemp("af_ships_worst_")
+    d = _mkdtemp("imaginarium_ships_worst_")
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0))
     cube = bpy.context.active_object
     cube.name = "rock_a"
@@ -495,7 +495,7 @@ def test_glb_summary_worst_mesh():
     col = bpy.context.active_object
     col.name = "COL_SIMPLE-convcolonly"
     path = os.path.join(d, "bank.glb")
-    af.export_glb(path, objects=[cube, ico, col], animations=False, skins=False)
+    ima.export_glb(path, objects=[cube, ico, col], animations=False, skins=False)
     summ = sl.glb_summary(path)
     assert summ["worst_mesh_triangles"] == 320 and summ["triangles"] == 12 + 320, summ["triangles"]
     assert summ["worst_mesh_surfaces"] == 1 and summ["surfaces_lod0"] == 2, summ["surfaces_lod0"]
@@ -504,7 +504,7 @@ def test_glb_summary_worst_mesh():
 # ----------------------------------------------------------------------------- helpers
 @_clean
 def test_png_writer_roundtrip():
-    tmp = _mkdtemp("af_ships_png_")
+    tmp = _mkdtemp("imaginarium_ships_png_")
     rng = np.random.default_rng(0)
     img = (rng.random((33, 47, 3)) * 255).astype(np.uint8)
     img[5:20, 3:30] = 128
@@ -541,10 +541,10 @@ def test_silhouette_iou_sanity():
 
 @_clean
 def test_preview_leaves_no_temp_folders():
-    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "af_ship_prev_*")))
+    before = set(glob.glob(os.path.join(tempfile.gettempdir(), "imaginarium_ship_prev_*")))
     res, out = _gen("fighter", 1, lods=False, preview=True, preview_size=120)
     assert os.path.isfile(res["outputs"]["preview"])
-    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "af_ship_prev_*")))
+    after = set(glob.glob(os.path.join(tempfile.gettempdir(), "imaginarium_ship_prev_*")))
     assert not (after - before), sorted(after - before)
 
 
@@ -573,7 +573,7 @@ def _box(name, size, loc, mat=None):
 
 def _glow_ship(out, name="glow_ship.glb"):
     """Box hull (grey) + cone nose at +Y + two orange emissive engines aft + an amber status light on top."""
-    af.reset_scene()
+    ima.reset_scene()
     grey, orange, amber = _mat("hull", (0.55, 0.52, 0.48)), _mat("engine", (1.0, 0.32, 0.05), 4.0), \
         _mat("light", (1.0, 0.45, 0.08), 6.0)
     objs = [_box("hull", (4.0, 16.0, 3.0), (0, 0, 0), grey)]
@@ -586,9 +586,9 @@ def _glow_ship(out, name="glow_ship.glb"):
         objs.append(bpy.context.active_object)
         objs[-1].data.materials.append(orange)
     objs.append(_box("light", (0.4, 0.4, 0.3), (0, 2.0, 1.6), amber))
-    af.apply_transforms(objs)
+    ima.apply_transforms(objs)
     path = os.path.join(out, name)
-    af.export_glb(path, objs, animations=False, skins=False)
+    ima.export_glb(path, objs, animations=False, skins=False)
     return path
 
 
@@ -596,7 +596,7 @@ def _glow_ship(out, name="glow_ship.glb"):
 def test_ship_from_mesh_palette_input_keeps_glow_colours():
     """Review 10.10 (A2): classify replaced the input's orange glow by the faction's blue. palette 'input' (default)
     keeps drive and status colours from the input; 'faction' applies the faction palette."""
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     src = _glow_ship(tmp)
     res, _ = _run(ship_from_mesh, "ship_from_mesh", {"class": "fighter", "nose": "+y", "preview": False,
                                                      "lods": False}, {"mesh": src})
@@ -609,7 +609,7 @@ def test_ship_from_mesh_palette_input_keeps_glow_colours():
     assert res["stats"]["face_labels"].get("drive", 0) > 0 and res["stats"]["face_labels"].get("status", 0) > 0
     doc, _, _ = sl.read_glb(res["outputs"]["glb"])
     em = {m["name"]: m.get("emissiveFactor") for m in doc["materials"]}
-    assert em["AF_EmissiveDrive"][0] > em["AF_EmissiveDrive"][2] * 3, em
+    assert em["Imaginarium_EmissiveDrive"][0] > em["Imaginarium_EmissiveDrive"][2] * 3, em
     res2, _ = _run(ship_from_mesh, "ship_from_mesh", {"class": "fighter", "nose": "+y", "palette": "faction",
                                                       "faction": "military", "preview": False,
                                                       "lods": False}, {"mesh": src})
@@ -624,7 +624,7 @@ def test_ship_from_mesh_palette_input_keeps_glow_colours():
 def _barrel_ship(out):
     """Hull 6 m wide with two thin 4 m barrels per side (gun stubs) and two engines: nav lights must stay on the hull,
     turret_sockets='protrusions' puts turret sockets at the barrel bases."""
-    af.reset_scene()
+    ima.reset_scene()
     objs = [_box("hull", (6.0, 24.0, 4.0), (0, 0, 0))]
     bpy.ops.mesh.primitive_cone_add(vertices=16, radius1=2.8, depth=5.0, location=(0, 14.5, 0), rotation=(-math.pi / 2, 0, 0))
     objs.append(bpy.context.active_object)
@@ -637,9 +637,9 @@ def _barrel_ship(out):
         bpy.ops.mesh.primitive_cylinder_add(vertices=20, radius=1.0, depth=2.0, location=(x, -12.8, 0),
                                             rotation=(math.pi / 2, 0, 0))
         objs.append(bpy.context.active_object)
-    af.apply_transforms(objs)
+    ima.apply_transforms(objs)
     path = os.path.join(out, "barrel_ship.glb")
-    af.export_glb(path, objs, animations=False, skins=False)
+    ima.export_glb(path, objs, animations=False, skins=False)
     return path
 
 
@@ -647,7 +647,7 @@ def _barrel_ship(out):
 def test_ship_from_mesh_nav_lights_on_hull_and_protrusion_turrets():
     """Review 10.10 (A3): nav lights sat on the vertex with the smallest X (a barrel tip). They now sit on the main
     hull body (top view opened: thin protrusions are not hull); turret_sockets='protrusions' finds the barrels."""
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     src = _barrel_ship(tmp)
     res, _ = _run(ship_from_mesh, "ship_from_mesh", {"class": "corvette", "length_m": 34.0, "nose": "+y",
                                                      "turret_sockets": "protrusions", "turret_count": 4,
@@ -676,7 +676,7 @@ def test_ship_from_mesh_nav_lights_on_hull_and_protrusion_turrets():
 def _concept_and_plain(out):
     """A coloured synthetic ship rendered as a 'concept' (Workbench flat colours, alpha) from a 3/4 camera, and the
     same geometry without any material (what a shape generator returns)."""
-    af.reset_scene()
+    ima.reset_scene()
     light, dark, glow = _mat("armour", (0.62, 0.56, 0.5)), _mat("band", (0.008, 0.008, 0.009)), \
         _mat("glow", (1.0, 0.3, 0.04), 4.0)
     objs = [_box("hull", (4.0, 16.0, 3.0), (0, 0, 0), light), _box("band", (4.3, 3.0, 3.3), (0, 2.0, 0), dark)]
@@ -688,7 +688,7 @@ def _concept_and_plain(out):
                                             rotation=(math.pi / 2, 0, 0))
         objs.append(bpy.context.active_object)
         objs[-1].data.materials.append(glow)
-    af.apply_transforms(objs)
+    ima.apply_transforms(objs)
     scene = bpy.context.scene
     cam = sl.cam_from_params([235.0, 28.0, 46.0, 0.0, 0.0, 0.0, 0.0, 50.0], (720, 480))
     cd = bpy.data.cameras.new("c")
@@ -700,7 +700,7 @@ def _concept_and_plain(out):
     co.matrix_world = M
     scene.camera = co
     r = scene.render
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_x, r.resolution_y, r.resolution_percentage = 720, 480, 100
     r.film_transparent = True
     r.image_settings.file_format, r.image_settings.color_mode = "PNG", "RGBA"
@@ -713,7 +713,7 @@ def _concept_and_plain(out):
     for o in objs:
         o.data.materials.clear()
     plain = os.path.join(out, "plain.glb")
-    af.export_glb(plain, objs, animations=False, skins=False)
+    ima.export_glb(plain, objs, animations=False, skins=False)
     return concept, plain
 
 
@@ -721,7 +721,7 @@ def _concept_and_plain(out):
 def test_ship_from_mesh_paint_and_decals():
     """params.paint: camera fitted to the concept silhouette, labels projected (dark band -> graphite / panel, orange
     engines -> drive with the concept's colour), text decals on both sides."""
-    tmp = _mkdtemp("af_ships_src_")
+    tmp = _mkdtemp("imaginarium_ships_src_")
     concept, plain = _concept_and_plain(tmp)
     res, out = _run(ship_from_mesh, "ship_from_mesh", {
         "class": "fighter", "length_m": 24.0, "nose": "+y", "preview": False,
@@ -739,8 +739,8 @@ def test_ship_from_mesh_paint_and_decals():
     assert st["face_labels"].get("drive", 0) > 0
     # the band (input y 0.5 .. 3.5; input length 21.4 from the engines at -9.4 to the nose tip at 12, centre 1.3,
     # scaled to 24 m) is dark
-    af.reset_scene()
-    objs = af.import_any(res["outputs"]["glb"])
+    ima.reset_scene()
+    objs = ima.import_any(res["outputs"]["glb"])
     k = 24.0 / 21.4
     area = {}
     for o in objs:
@@ -755,12 +755,12 @@ def test_ship_from_mesh_paint_and_decals():
             area.setdefault(key, {}).setdefault(name, 0.0)
             area[key][name] += p.area
     band = area["band"]
-    dark = sum(v for n, v in band.items() if n in ("AF_Graphite", "AF_ServicePanel"))
+    dark = sum(v for n, v in band.items() if n in ("Imaginarium_Graphite", "Imaginarium_ServicePanel"))
     assert dark > 0.6 * sum(band.values()), band
     doc, _, _ = sl.read_glb(res["outputs"]["glb"])
     mats = {m["name"]: m for m in doc["materials"]}
-    assert mats["AF_Marking"].get("alphaMode") == "BLEND"
+    assert mats["Imaginarium_Marking"].get("alphaMode") == "BLEND"
     assert len(doc.get("images", [])) >= 1
     dec = st["decal_faces"]["lod0"]
     assert dec.get("0_port", 0) > 4 and dec.get("0_starboard", 0) > 4, dec
-    assert all("AF_" in m and "." not in m for m in st["materials"]), st["materials"]
+    assert all("Imaginarium_" in m and "." not in m for m in st["materials"]), st["materials"]

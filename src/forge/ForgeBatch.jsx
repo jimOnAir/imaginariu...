@@ -9,7 +9,7 @@ import { createBatch, createBatchWithFiles, getBatch, listGenerationJobs } from 
 import { Section, Notice, MoreParams, ProgressBar, StatusPill, NumberInput, useForge } from './ForgeUi.jsx';
 import { useT } from '../i18n/index.js';
 
-const BATCH_KEY = 'astraforge.forge.batches.v1';
+const BATCH_KEY = 'imaginarium.forge.batches.v1';
 const MODES = [
   ['seeds', 'forge.batch.mode.seeds'],
   ['files', 'forge.batch.mode.files'],

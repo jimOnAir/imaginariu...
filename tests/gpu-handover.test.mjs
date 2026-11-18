@@ -180,7 +180,7 @@ test('engineUrls: Hunyuan 8190 and Pixal3D 8191 by default, overridable', () => 
   const d = engineUrls({}, {});
   assert.equal(d.hunyuan, 'http://127.0.0.1:8190');
   assert.equal(d.pixal3d, 'http://127.0.0.1:8191');
-  const e = engineUrls({ hunyuan: 'http://127.0.0.1:9000' }, { ASTRA_PIXAL3D_URL: 'http://127.0.0.1:9191' });
+  const e = engineUrls({ hunyuan: 'http://127.0.0.1:9000' }, { IMAGINARIUM_PIXAL3D_URL: 'http://127.0.0.1:9191' });
   assert.equal(e.hunyuan, 'http://127.0.0.1:9000');
   assert.equal(e.pixal3d, 'http://127.0.0.1:9191');
 });

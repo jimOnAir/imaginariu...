@@ -14,8 +14,8 @@ import { registerSculpt, allowAssetCors, sculptOrigin, ASSET_PATH } from '../ser
 import { patchIndex, MARK } from '../scripts/sculpt/assemble.mjs';
 
 const ID = '0a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d';
-const root = mkdtempSync(path.join(tmpdir(), 'af-sculpt-root-'));
-const emptyRoot = mkdtempSync(path.join(tmpdir(), 'af-sculpt-empty-'));
+const root = mkdtempSync(path.join(tmpdir(), 'imaginarium-sculpt-root-'));
+const emptyRoot = mkdtempSync(path.join(tmpdir(), 'imaginarium-sculpt-empty-'));
 const asyncRoute = (fn) => (req, res, next) => Promise.resolve(fn(req, res, next)).catch(next);
 let app, appServer, appBase, vfx, sculpt, webBase, bare, bareBase, bareVfx, bareSculpt;
 
@@ -182,7 +182,7 @@ test('assemble.patchIndex: no Google Fonts, window.sculptApp, the bridge after s
 
 test('the built SculptGL (when installed here) contains the bridge and pulls no external resources', () => {
   const appRoot = fileURLToPath(new URL('../', import.meta.url));
-  const dir = path.join(process.env.ASTRA_VFX_TOOLS || path.join(appRoot, 'runtime', 'vfx'), 'web', 'sculptgl');
+  const dir = path.join(process.env.IMAGINARIUM_VFX_TOOLS || path.join(appRoot, 'runtime', 'vfx'), 'web', 'sculptgl');
   let html;
   try { html = readFileSync(path.join(dir, 'index.html'), 'utf8'); } catch { return; }   // not built on this machine
   assert.ok(html.includes('sculptgl-bridge.js') && html.includes('window.sculptApp = app'));

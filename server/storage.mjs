@@ -4,8 +4,8 @@ import { randomUUID } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 export const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 export const data=path.join(root,'data');
-// ComfyUI install used for its Python (.venv) and main.py: env ASTRA_COMFY_DIR, else <app>/runtime/ComfyUI
-export const comfyDir=()=>process.env.ASTRA_COMFY_DIR||path.join(root,'runtime','ComfyUI');
+// ComfyUI install used for its Python (.venv) and main.py: env IMAGINARIUM_COMFY_DIR, else <app>/runtime/ComfyUI
+export const comfyDir=()=>process.env.IMAGINARIUM_COMFY_DIR||path.join(root,'runtime','ComfyUI');
 // Python of the ComfyUI venv: Windows layout Scripts/python.exe, POSIX layout bin/python.
 export const venvPython=(comfy=comfyDir())=>path.join(comfy,'.venv',process.platform==='win32'?path.join('Scripts','python.exe'):path.join('bin','python'));
 export async function init(){for(const folder of ['assets','exports','projects','jobs','jobs/broken','runtime','runtime/input','runtime/output','runtime/temp','runtime/user'])await fs.mkdir(path.join(data,folder),{recursive:true});}

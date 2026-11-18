@@ -75,7 +75,7 @@ import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 RAYS = {"+Y": (0, 1, 0), "-Y": (0, -1, 0), "+X": (1, 0, 0), "-X": (-1, 0, 0),
@@ -90,8 +90,8 @@ def _base(name):
 
 def _load_target(req, p, warnings, sock_recs=None):
     src = ml.input_path(req)
-    af.reset_scene()
-    objs, helpers = ml.purge_import_helpers(af.import_any(src))
+    ima.reset_scene()
+    objs, helpers = ml.purge_import_helpers(ima.import_any(src))
     objs = ml.prepare_meshes(objs, warnings, sockets=sock_recs)
     names = p.get("target_objects")
     dropped = []
@@ -110,7 +110,7 @@ def _load_target(req, p, warnings, sock_recs=None):
     if not objs:
         raise ValueError("no mesh objects in %s" % src)
     first = objs[0].name
-    ob = af.join(objs, name="__target__")
+    ob = ima.join(objs, name="__target__")
     ob.data.name = "__target__"
     return ob, first, src, helpers, dropped
 
@@ -129,14 +129,14 @@ class PartCache:
         if not os.path.isfile(path):
             raise FileNotFoundError("part not found: %s" % path)
         before = set(bpy.data.objects)
-        objs, _h = ml.purge_import_helpers(af.import_any(path))
+        objs, _h = ml.purge_import_helpers(ima.import_any(path))
         sock_recs = []
         objs = ml.prepare_meshes(objs, self.warnings, sockets=sock_recs)
         for o in [x for x in bpy.data.objects if x not in before and x.type != "MESH"]:
             bpy.data.objects.remove(o, do_unlink=True)
         if not objs:
             raise ValueError("no mesh objects in part %s" % path)
-        tpl = af.join(objs, name="__part_%d__" % len(self.items))
+        tpl = ima.join(objs, name="__part_%d__" % len(self.items))
         tpl.data.name = tpl.name
         tpl.hide_render = True
         tpl.hide_set(True)
@@ -456,17 +456,17 @@ def dedupe_materials():
 
 def _closeup(path, objs, centre, n, extent, size):
     scene = bpy.context.scene
-    cd = bpy.data.cameras.new("af_pp_cam")
+    cd = bpy.data.cameras.new("imaginarium_pp_cam")
     cd.type = "ORTHO"
     cd.ortho_scale = extent
     cd.clip_start = 0.001
     cd.clip_end = 50.0
-    cam = bpy.data.objects.new("af_pp_cam", cd)
+    cam = bpy.data.objects.new("imaginarium_pp_cam", cd)
     scene.collection.objects.link(cam)
     prev = scene.camera
     scene.camera = cam
     r = scene.render
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_x = r.resolution_y = int(size)
     r.film_transparent = True
     r.image_settings.file_format = "PNG"
@@ -502,14 +502,14 @@ def _preview(req, objs, placed, size):
     ml.set_active_basecolor_nodes(objs)
     synced = ml._sync_viewport_colors(objs)
     try:
-        _, tiles = ml.render_sheet(af.out_path(req, "_pp_full.png"), objs,
+        _, tiles = ml.render_sheet(ima.out_path(req, "_pp_full.png"), objs,
                                    views=("front", "three_quarter"), size=size, color_type="TEXTURE")
         top = ml.flatten(np.concatenate(tiles, axis=1))
         cs = max(96, size // 2)
         row = []
         for rec in placed:
             ext = max(0.04, 3.2 * rec["size_m"])
-            row.append(ml.flatten(_closeup(af.out_path(req, "_pp_c.png"), objs, rec["position"],
+            row.append(ml.flatten(_closeup(ima.out_path(req, "_pp_c.png"), objs, rec["position"],
                                            rec["view_dir"], ext, cs)))
         if row:
             strip = np.concatenate(row, axis=1)
@@ -521,10 +521,10 @@ def _preview(req, objs, placed, size):
         else:
             sheet = top
         try:
-            os.remove(af.out_path(req, "_pp_full.png"))
+            os.remove(ima.out_path(req, "_pp_full.png"))
         except OSError:
             pass
-        return ml.save_png(af.out_path(req, "preview.png"), sheet)
+        return ml.save_png(ima.out_path(req, "preview.png"), sheet)
     finally:
         for m, col in synced:
             m.diffuse_color = col
@@ -567,7 +567,7 @@ def run(req):
     sockets = ml.restore_sockets(tgt_socks)   # sockets of the target (e.g. socket_fx_eye_l/r) survive
     ml.rotate_z([target] + sockets, float(p.get("rotate_z_deg") or 0.0))
     if p.get("height_m") or p.get("ground") or p.get("center"):
-        af.normalize([target] + sockets, height=p.get("height_m"), ground=bool(p.get("ground", False)),
+        ima.normalize([target] + sockets, height=p.get("height_m"), ground=bool(p.get("ground", False)),
                      center=bool(p.get("center", False)))
         ml.sockets_unit_scale(sockets)
     part_sockets = bool(p.get("part_sockets", True))
@@ -646,14 +646,14 @@ def run(req):
         copies.append(ob)
     cache.remove()
 
-    checks.append(af.check("points_hit", not missed, {"placed": len(placed), "missed": missed},
+    checks.append(ima.check("points_hit", not missed, {"placed": len(placed), "missed": missed},
                            len(points), note="every surface point needs a ray hit on the target"))
-    checks.append(af.check("part_frame", not frame_issues, frame_issues or 0, 0, severity="warning",
+    checks.append(ima.check("part_frame", not frame_issues, frame_issues or 0, 0, severity="warning",
                            note="geometry behind the back face (local +Y > 0): the frame convention is "
                                 "origin at the back-face centre, -Y outward"))
     worst = [r["name"] for r in placed
              if r["penetration"]["max_depth_m"] > 0.3 * max(r["thickness_m"], 1e-4)]
-    checks.append(af.check("penetration", not worst,
+    checks.append(ima.check("penetration", not worst,
                            {r["name"]: r["penetration"]["max_depth_m"] for r in placed},
                            "0.3 x part thickness", severity="warning",
                            note="part vertices inside the target surface (nearest-normal test)"))
@@ -662,7 +662,7 @@ def run(req):
     merged_mats = dedupe_materials()
     if p.get("join", True):
         name = ml.safe_name(p.get("name") or first_name, "placed")
-        result = af.join([target] + copies, name=name)
+        result = ima.join([target] + copies, name=name)
         result.data.name = name
         objs = [result]
     else:
@@ -675,14 +675,14 @@ def run(req):
         objs = [target] + copies
     bpy.context.view_layer.update()
     out_metrics = ml.mesh_metrics(objs)
-    checks.append(af.check("no_nan_verts", out_metrics["nan_verts"] == 0, out_metrics["nan_verts"], 0))
+    checks.append(ima.check("no_nan_verts", out_metrics["nan_verts"] == 0, out_metrics["nan_verts"], 0))
 
-    outputs = {"glb": af.export_glb(af.out_path(req, "placed.glb"), objects=objs + sockets,
+    outputs = {"glb": ima.export_glb(ima.out_path(req, "placed.glb"), objects=objs + sockets,
                                     animations=False, skins=False)}
     if p.get("preview", True) and placed:
         outputs["preview"] = _preview(req, objs, placed, int(p.get("preview_size", 512)))
     ml.purge_orphans()
-    outputs["blend"] = af.save_blend(af.out_path(req, "placed.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "placed.blend"))
     stats = {"input": src, "target_objects_dropped": dropped, "import_helpers_removed": helpers,
              "target": {k: tgt_metrics[k] for k in ("tris", "verts", "loose_parts", "bbox_min", "bbox_max")},
              "result": {k: out_metrics[k] for k in ("objects", "tris", "verts", "materials")},

@@ -19,11 +19,11 @@ import path from 'node:path';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const RESOLVER = path.join(ROOT, 'scripts', 'studio-port.mjs');
 const START_SH = path.join(ROOT, 'scripts', 'start.sh');
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-port-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-port-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
 const ask = (env = {}) => {
-  const r = spawnSync(process.execPath, [RESOLVER], { encoding: 'utf8', env: { ...process.env, ASTRA_ROOT: tmp, ...env } });
+  const r = spawnSync(process.execPath, [RESOLVER], { encoding: 'utf8', env: { ...process.env, IMAGINARIUM_ROOT: tmp, ...env } });
   assert.equal(r.status, 0, r.stderr);
   return r.stdout.trim();
 };
@@ -33,13 +33,13 @@ const putPort = (contents) => {
   writeFileSync(path.join(dir, 'port.json'), contents);
 };
 
-test('the resolver: ASTRA_PORT wins, then the recorded port.json, then the usual 3210', () => {
+test('the resolver: IMAGINARIUM_PORT wins, then the recorded port.json, then the usual 3210', () => {
   rmSync(path.join(tmp, 'data'), { recursive: true, force: true });
   assert.equal(ask(), '3210', 'nothing recorded yet - the usual port');
   putPort(JSON.stringify({ port: 3317, pid: 42, at: new Date().toISOString() }));
   assert.equal(ask(), '3317', 'the studio recorded a moved port - follow it');
-  assert.equal(ask({ ASTRA_PORT: '4101' }), '4101', 'the explicit environment wins over the file');
-  assert.equal(ask({ ASTRA_PORT: '0' }), '3317', 'ASTRA_PORT=0 is not a port, the file still decides');
+  assert.equal(ask({ IMAGINARIUM_PORT: '4101' }), '4101', 'the explicit environment wins over the file');
+  assert.equal(ask({ IMAGINARIUM_PORT: '0' }), '3317', 'IMAGINARIUM_PORT=0 is not a port, the file still decides');
 });
 
 test('the resolver survives a broken or nonsense port.json with the honest fallback', () => {
@@ -61,7 +61,7 @@ function listen(port) {   // raw TCP listener: held, and NOT our studio
 function listenStudio(port) {   // answers /api/health with the studio signature
   return new Promise((resolve, reject) => {
     const s = httpServer((req, res) => {
-      if (req.url === '/api/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"app":"AstraForge","ok":true}'); return; }
+      if (req.url === '/api/health') { res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"app":"Imaginarium","ok":true}'); return; }
       res.writeHead(404); res.end();
     });
     s.on('error', reject);
@@ -140,5 +140,5 @@ test('the server records the live port, and stop.sh / forge.mjs / ai/mcp follow 
   assert.doesNotMatch(forge, /process\.env\.PORT \|\| 3210`;/, 'no leftover hardcoded 3210 default in the CLI base');
   const mcp = readFileSync(path.join(ROOT, 'ai', 'mcp', 'server.mjs'), 'utf8');
   assert.match(mcp, /runtime.{1,4}port\.json/, 'the MCP server knocks on the recorded port');
-  assert.match(mcp, /ASTRA_URL \|\| `http:\/\/127\.0\.0\.1:\$\{studioPort\(\) \|\| 3210\}`/, 'ASTRA_URL still wins for MCP');
+  assert.match(mcp, /IMAGINARIUM_URL \|\| `http:\/\/127\.0\.0\.1:\$\{studioPort\(\) \|\| 3210\}`/, 'IMAGINARIUM_URL still wins for MCP');
 });

@@ -36,10 +36,10 @@ except ImportError:  # pragma: no cover - imported as a plain module by tests
 
 # ----------------------------------------------------------------------------------------------- constants
 
-CACHE_PROP = "af_cloth_cache"           # on a garment: JSON {armature action name: shape-key action name}
-CLOTH_ROLE = "af_cloth_role"            # custom property on created objects: proxy | render | collider | glb
-PIN_GROUP = "af_cloth_pin"
-FREE_GROUP = "af_cloth_free"
+CACHE_PROP = "imaginarium_cloth_cache"           # on a garment: JSON {armature action name: shape-key action name}
+CLOTH_ROLE = "imaginarium_cloth_role"            # custom property on created objects: proxy | render | collider | glb
+PIN_GROUP = "imaginarium_cloth_pin"
+FREE_GROUP = "imaginarium_cloth_free"
 REGION_KINDS = ("robe", "skirt", "tabard", "back_panel", "cape", "hood", "sleeve", "banner")
 
 # anthropometric capsule radii, fraction of the standing height (head, tail of the bone) - a 1.8 m body:
@@ -1041,11 +1041,11 @@ def split_garments(body, seg, names, groups, caps="delete"):
     """Separate the faces of every garment group into an object Body_cloth_<group> (a copy of the body with the
     other faces deleted: UVs, material, vertex groups and the Armature modifier stay); delete them from the body.
     A face belongs to a group when all its vertices do. Seam vertices exist in both objects. Integer attribute
-    af_src_index = the body vertex the vertex came from; vertex groups af_cloth_pin / af_cloth_free (1 - pin)
-    and attribute af_cap (rides along, not simulated). Returns {group: object}."""
+    imaginarium_src_index = the body vertex the vertex came from; vertex groups imaginarium_cloth_pin / imaginarium_cloth_free (1 - pin)
+    and attribute imaginarium_cap (rides along, not simulated). Returns {group: object}."""
     me = body.data
     nv = len(me.vertices)
-    att = me.attributes.get("af_src_index") or me.attributes.new("af_src_index", "INT", "POINT")
+    att = me.attributes.get("imaginarium_src_index") or me.attributes.new("imaginarium_src_index", "INT", "POINT")
     att.data.foreach_set("value", np.arange(nv, dtype=np.int32))
     ls, lt, lv = _poly_vertices(me)
     face_group = np.array([None] * len(ls), dtype=object)
@@ -1069,7 +1069,7 @@ def split_garments(body, seg, names, groups, caps="delete"):
             ob.shape_key_clear()
         _delete_faces(ob, ~fm)
         src = np.empty(len(ob.data.vertices), dtype=np.int32)
-        ob.data.attributes["af_src_index"].data.foreach_get("value", src)
+        ob.data.attributes["imaginarium_src_index"].data.foreach_get("value", src)
         pin = seg["pin"][src]
         cap = seg["cap"][src]
         pg = ob.vertex_groups.get(PIN_GROUP) or ob.vertex_groups.new(name=PIN_GROUP)
@@ -1077,7 +1077,7 @@ def split_garments(body, seg, names, groups, caps="delete"):
         for i in range(len(src)):
             pg.add([i], float(pin[i]), "REPLACE")
             fg.add([i], float(1.0 - pin[i]), "REPLACE")
-        ca = ob.data.attributes.new("af_cap", "INT", "POINT")
+        ca = ob.data.attributes.new("imaginarium_cap", "INT", "POINT")
         ca.data.foreach_set("value", cap.astype(np.int32))
         if caps == "delete" and cap.any():
             # the generator closes a robe's hem with a disc / underside: under simulation the hem moves and that disc
@@ -1088,7 +1088,7 @@ def split_garments(body, seg, names, groups, caps="delete"):
             if fm_.any():
                 _delete_faces(ob, fm_)
         ob[CLOTH_ROLE] = "render"
-        ob["af_cloth_group"] = g
+        ob["imaginarium_cloth_group"] = g
         out[g] = ob
     whole = np.isin(face_group, list(out.keys()))
     _delete_faces(body, whole)
@@ -1155,15 +1155,15 @@ def build_proxy(render_ob, edge_m=0.045, min_faces=300, max_faces=4000, hand=Non
     of about edge_m by QuadriFlow (boundaries kept) and triangulated, the skin / pin weights interpolated from the
     render cloth (banners: 100 % on the holding hand). Falls back to collapse decimation when QuadriFlow fails.
     remesh False (default): the simulation mesh is the garment itself without its riding caps (integer attribute
-    af_render_index maps every proxy vertex to its garment vertex: the garment takes the simulated positions
+    imaginarium_render_index maps every proxy vertex to its garment vertex: the garment takes the simulated positions
     exactly and only the caps are carried by bind_embedded). True: a QuadriFlow proxy (lighter, but a remeshed
     surface smooths flaps and layers, and the garment carried through it tears where they were).
     Returns the proxy object (same parent and transform as the render cloth)."""
     px = render_ob.copy()
     px.data = render_ob.data.copy()
-    ria = px.data.attributes.new("af_render_index", "INT", "POINT")
+    ria = px.data.attributes.new("imaginarium_render_index", "INT", "POINT")
     ria.data.foreach_set("value", np.arange(len(px.data.vertices), dtype=np.int32))
-    px.name = render_ob.name.replace("Body_cloth_", "AF_cloth_proxy_")
+    px.name = render_ob.name.replace("Body_cloth_", "Imaginarium_cloth_proxy_")
     px.data.name = px.name
     for c in render_ob.users_collection:
         c.objects.link(px)
@@ -1172,9 +1172,9 @@ def build_proxy(render_ob, edge_m=0.045, min_faces=300, max_faces=4000, hand=Non
     for uv in list(me.uv_layers):
         me.uv_layers.remove(uv)
     cap = np.zeros(len(me.vertices), dtype=np.int32)
-    if "af_cap" in me.attributes:
-        me.attributes["af_cap"].data.foreach_get("value", cap)
-    for nm in ("af_cap", "af_src_index") + (("af_render_index",) if remesh else ()):
+    if "imaginarium_cap" in me.attributes:
+        me.attributes["imaginarium_cap"].data.foreach_get("value", cap)
+    for nm in ("imaginarium_cap", "imaginarium_src_index") + (("imaginarium_render_index",) if remesh else ()):
         if nm in me.attributes:
             me.attributes.remove(me.attributes[nm])
     for ca in list(me.color_attributes):
@@ -1214,8 +1214,8 @@ def build_proxy(render_ob, edge_m=0.045, min_faces=300, max_faces=4000, hand=Non
             hg = px.vertex_groups.new(name=hand)
             hg.add(list(range(nvp)), 1.0, "REPLACE")
         px[CLOTH_ROLE] = "proxy"
-        px["af_cloth_group"] = render_ob.get("af_cloth_group", "")
-        px["af_proxy_method"] = "garment"
+        px["imaginarium_cloth_group"] = render_ob.get("imaginarium_cloth_group", "")
+        px["imaginarium_proxy_method"] = "garment"
         px.hide_render = True
         px.display_type = "WIRE"
         return px
@@ -1276,8 +1276,8 @@ def build_proxy(render_ob, edge_m=0.045, min_faces=300, max_faces=4000, hand=Non
         hg = px.vertex_groups.new(name=hand)
         hg.add(list(range(nvp)), 1.0, "REPLACE")
     px[CLOTH_ROLE] = "proxy"
-    px["af_cloth_group"] = render_ob.get("af_cloth_group", "")
-    px["af_proxy_method"] = method
+    px["imaginarium_cloth_group"] = render_ob.get("imaginarium_cloth_group", "")
+    px["imaginarium_proxy_method"] = method
     px.hide_render = True
     px.display_type = "WIRE"
     return px
@@ -1337,8 +1337,8 @@ def _collider(ob, thickness=0.01, friction=1.0):
 def build_colliders(sk, rig, leg_k=None, inflate=0.006, poles=(), floor=True, skip=(), caps=None, friction=1.0):
     """Bone-parented capsules of the body (anthropometric radii, legs scaled by their measured bulk, + inflate),
     capsules along held poles (parented to the holding hand) and a floor plane. Returns {name: object}; every
-    collider is in collection AF_CLOTH_COLLIDERS."""
-    coll = bpy.data.collections.get("AF_CLOTH_COLLIDERS") or bpy.data.collections.new("AF_CLOTH_COLLIDERS")
+    collider is in collection Imaginarium_CLOTH_COLLIDERS."""
+    coll = bpy.data.collections.get("Imaginarium_CLOTH_COLLIDERS") or bpy.data.collections.new("Imaginarium_CLOTH_COLLIDERS")
     if coll.name not in bpy.context.scene.collection.children:
         bpy.context.scene.collection.children.link(coll)
     out = {}
@@ -1356,8 +1356,8 @@ def build_colliders(sk, rig, leg_k=None, inflate=0.006, poles=(), floor=True, sk
         M = W @ bone.matrix_local                       # bone head frame (rest), +Y along the bone
         local_b = M.inverted() @ Vector(b.tolist())     # the next joint in bone-local coordinates
         L = local_b.length
-        me = capsule_mesh("AF_col_" + c, L, ra, rb)
-        ob = bpy.data.objects.new("AF_col_" + c, me)
+        me = capsule_mesh("Imaginarium_col_" + c, L, ra, rb)
+        ob = bpy.data.objects.new("Imaginarium_col_" + c, me)
         coll.objects.link(ob)
         ob.parent = rig
         ob.parent_type = "BONE"
@@ -1371,8 +1371,8 @@ def build_colliders(sk, rig, leg_k=None, inflate=0.006, poles=(), floor=True, sk
         hand = pole["hand"]
         c0, d = Vector(pole["a"]), Vector(pole["b"])
         L = (d - c0).length
-        me = capsule_mesh("AF_col_pole_%d" % i, L, pole["r"] + inflate, pole["r"] + inflate, seg=8, rings=2)
-        ob = bpy.data.objects.new("AF_col_pole_%d" % i, me)
+        me = capsule_mesh("Imaginarium_col_pole_%d" % i, L, pole["r"] + inflate, pole["r"] + inflate, seg=8, rings=2)
+        ob = bpy.data.objects.new("Imaginarium_col_pole_%d" % i, me)
         coll.objects.link(ob)
         ob.parent = rig
         ob.parent_type = "BONE"
@@ -1380,15 +1380,15 @@ def build_colliders(sk, rig, leg_k=None, inflate=0.006, poles=(), floor=True, sk
         q = Vector((0.0, 1.0, 0.0)).rotation_difference((d - c0).normalized())
         bpy.context.view_layer.update()
         ob.matrix_world = Matrix.Translation(c0) @ q.to_matrix().to_4x4()
-        ob["af_pole_side"] = pole.get("side", "")
+        ob["imaginarium_pole_side"] = pole.get("side", "")
         _collider(ob, thickness=0.008)
         out[ob.name] = ob
     if floor:
-        me = bpy.data.meshes.new("AF_col_floor")
+        me = bpy.data.meshes.new("Imaginarium_col_floor")
         s = 5.0
         z = -0.003
         me.from_pydata([(-s, -s, z), (s, -s, z), (s, s, z), (-s, s, z)], [], [(0, 1, 2, 3)])
-        ob = bpy.data.objects.new("AF_col_floor", me)
+        ob = bpy.data.objects.new("Imaginarium_col_floor", me)
         coll.objects.link(ob)
         _collider(ob, thickness=0.004, friction=3.0)
         ob.collision.thickness_inner = 0.5          # cloth pulled under the floor is still pushed back up
@@ -1409,11 +1409,11 @@ def collider_collection(name, objects):
 # ----------------------------------------------------------------------------------------------- cloth setup
 
 def setup_cloth(px, rig, settings, coll, fps=30.0, internal=False):
-    """Armature + Cloth modifiers on a proxy (pin group af_cloth_pin, colliders only from `coll`)."""
+    """Armature + Cloth modifiers on a proxy (pin group imaginarium_cloth_pin, colliders only from `coll`)."""
     am = px.modifiers.get("Armature") or px.modifiers.new("Armature", "ARMATURE")
     am.object = rig
     am.use_vertex_groups = True
-    m = px.modifiers.new("AF_Cloth", "CLOTH")
+    m = px.modifiers.new("Imaginarium_Cloth", "CLOTH")
     s = m.settings
     s.quality = int(settings["quality"])
     s.mass = float(settings["mass"])
@@ -1525,10 +1525,10 @@ def simulate(rig, proxies, action, timeline, tag="clip"):
     import time as _time
     scene = bpy.context.scene
     F = len(timeline["times"])
-    act = timeline_action(rig, action, timeline, "AF_SIM_" + tag)
+    act = timeline_action(rig, action, timeline, "Imaginarium_SIM_" + tag)
     A.assign_action(rig, act)
     for px in proxies:
-        m = px.modifiers["AF_Cloth"]
+        m = px.modifiers["Imaginarium_Cloth"]
         m.show_viewport = True
         m.point_cache.frame_start = 1
         m.point_cache.frame_end = F + 1      # any change of the cache range frees it: a fresh simulation
@@ -1551,7 +1551,7 @@ def skinned(rig, proxies, action, frames):
     """Proxy positions under pure skinning (cloth off) at the given clip frames: {name: (len(frames), N, 3)}."""
     scene = bpy.context.scene
     A.assign_action(rig, action)
-    mods = [px.modifiers["AF_Cloth"] for px in proxies]
+    mods = [px.modifiers["Imaginarium_Cloth"] for px in proxies]
     for m in mods:
         m.show_viewport = False
     out = {px.name: np.empty((len(frames), len(px.data.vertices), 3), dtype=np.float32) for px in proxies}
@@ -1643,19 +1643,19 @@ def render_frames(path, objects, shots, size=300, view="three_quarter", color="T
     cx, cy = P @ R, P @ U
     centre = Vector(((cx.min() + cx.max()) / 2 * R + (cy.min() + cy.max()) / 2 * U + P.mean(0) @ np.array(d) * np.array(d)).tolist())
     extent = max(cx.max() - cx.min(), cy.max() - cy.min()) * 1.06
-    cam_data = bpy.data.cameras.new("af_cloth_cam")
+    cam_data = bpy.data.cameras.new("imaginarium_cloth_cam")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = extent
     cam_data.clip_end = 100
-    cam = bpy.data.objects.new("af_cloth_cam", cam_data)
+    cam = bpy.data.objects.new("imaginarium_cloth_cam", cam_data)
     scene.collection.objects.link(cam)
     cam.location = centre + d * 10.0
     cam.rotation_euler = (-d).to_track_quat("-Z", "Y").to_euler()
     prev = scene.camera
     scene.camera = cam
     r = scene.render
-    af_engine = "BLENDER_WORKBENCH"
-    r.engine = af_engine
+    imaginarium_engine = "BLENDER_WORKBENCH"
+    r.engine = imaginarium_engine
     r.resolution_x = r.resolution_y = int(size)
     r.resolution_percentage = 100
     r.film_transparent = True
@@ -2140,7 +2140,7 @@ def anchor_islands(px, pin, follow=0.6, min_pin=0.5):
 def render_qa(rig, caps, ob, frames, after, before, depth_tol=0.01, stretch_tol=1.3):
     """Before / after on the visible garment (a render cloth object): `after` = positions with the cloth cache,
     `before` = the same mesh under the original skinning, both (len(frames), N, 3) object space at those clip
-    frames. Free cloth = af_cloth_free >= 0.8 and not a riding cap. Per side: share of free points deeper than
+    frames. Free cloth = imaginarium_cloth_free >= 0.8 and not a riding cap. Per side: share of free points deeper than
     depth_tol inside the posed body capsules (worst frame) and the deepest entry; edge stretch of free edges (99th
     percentile, share over stretch_tol); torn share (free triangles whose area grew > 3x - the tear measure of
     motion_style's clip QA - and the same over the whole garment, pinned band included); lowest free point."""
@@ -2158,8 +2158,8 @@ def render_qa(rig, caps, ob, frames, after, before, depth_tol=0.01, stretch_tol=
                 if g.group == fg.index:
                     fw[v.index] = g.weight
     cap = np.zeros(nv, dtype=np.int32)
-    if "af_cap" in me.attributes:
-        me.attributes["af_cap"].data.foreach_get("value", cap)
+    if "imaginarium_cap" in me.attributes:
+        me.attributes["imaginarium_cap"].data.foreach_get("value", cap)
     free = (fw >= 0.8) & (cap == 0)
     E = mesh_edges(me)
     fe = free[E[:, 0]] & free[E[:, 1]]
@@ -2254,11 +2254,11 @@ def free_weights(ob):
 
 def bake_render_cache(ob, clips):
     """Per-clip shape-key caches of the final garment on a render cloth object (absolute positions in its object
-    space: the simulated cloth transferred from the proxy, blended into the original skinning by af_cloth_free so
+    space: the simulated cloth transferred from the proxy, blended into the original skinning by imaginarium_cloth_free so
     the seam stays welded). clips = [(armature action name, positions (n, N, 3))]. Every clip frame is a key block
     'c<clip>_f<frame>', every clip a shape-key action '<action>|cloth|<object>' keyed 0/1 (in-between times
     interpolate linearly). The object keeps its Armature modifier for clips without a cache; render_sprites
-    switches (_export_lib.bind_cloth_cache): cache on = Armature off. Custom property af_cloth_cache maps armature
+    switches (_export_lib.bind_cloth_cache): cache on = Armature off. Custom property imaginarium_cloth_cache maps armature
     action -> shape-key action."""
     if ob.data.shape_keys is None:
         ob.shape_key_add(name="Basis", from_mix=False)
@@ -2292,7 +2292,7 @@ def bake_render_cache(ob, clips):
             fc.update()
         act.use_frame_range = True
         act.frame_start, act.frame_end = 0, max(1, n - 1)
-        act["af_cloth_clip"] = aname
+        act["imaginarium_cloth_clip"] = aname
         mapping[aname] = act.name
     ob[CACHE_PROP] = json.dumps(mapping, ensure_ascii=False)
     assign_key_action(key, None)
@@ -2371,7 +2371,7 @@ def transfer_embedded(bind, Vt):
 
 
 def blend_merge_weights(ob, target, sources):
-    """Leg weights of a garment moved onto the pelvis in proportion to its freedom (1 - af_cloth_pin): the seam keeps
+    """Leg weights of a garment moved onto the pelvis in proportion to its freedom (1 - imaginarium_cloth_pin): the seam keeps
     the body's weights exactly, the free part hangs from the pelvis like its simulation proxy."""
     pg = ob.vertex_groups.get(PIN_GROUP)
     if pg is None:
@@ -2401,7 +2401,7 @@ def blend_merge_weights(ob, target, sources):
 
 
 def set_pins(px, pin):
-    """Write the pin group (af_cloth_pin) of a proxy (read by the cloth modifier when its cache starts)."""
+    """Write the pin group (imaginarium_cloth_pin) of a proxy (read by the cloth modifier when its cache starts)."""
     pg = px.vertex_groups.get(PIN_GROUP) or px.vertex_groups.new(name=PIN_GROUP)
     for i, w in enumerate(np.asarray(pin, dtype=np.float64).tolist()):
         pg.add([i], float(w), "REPLACE")
@@ -2508,7 +2508,7 @@ def fit_weights(rig, ob, vidx, samples, max_influences=4, n_cand=5, reg=0.02):
             "err_after_p90_cm": round(100 * float(np.percentile(e1, 90)), 2)}
 
 
-SETTLE_PROP = "af_cloth_settle"
+SETTLE_PROP = "imaginarium_cloth_settle"
 
 
 def _prop_curve(action, path, frames_values):

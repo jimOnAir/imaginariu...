@@ -20,7 +20,7 @@ export function ThemeSwitch() {
 /**
  * The interface-language switch (ticket 27): EN / RU buttons in the header, next to the theme
  * control, and the same component reused as the Settings → Appearance chooser. It speaks the
- * branch's i18n layer directly (astra.lang persists through setLang), so both places always show
+ * branch's i18n layer directly (imaginarium.lang persists through setLang), so both places always show
  * the same truth; the OS default (ticket 26) only ever decides the very first start.
  */
 export function LangSwitch() {

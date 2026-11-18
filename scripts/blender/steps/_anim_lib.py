@@ -1,4 +1,4 @@
-"""_anim_lib - Mixamo clip library and retargeting core (AstraForge Forge, module "mixamo").
+"""_anim_lib - Mixamo clip library and retargeting core (Imaginarium Forge, module "mixamo").
 
 Ported from earlier in-house rig scripts (generalised):
   * retargeting - per-bone swing rest correction, character frame C, hip-height scale k, analytic
@@ -6,7 +6,7 @@ Ported from earlier in-house rig scripts (generalised):
   * scene helpers - assign_action, lock_root_xy, fcurves_of, sample_times;
   * retime_action.
 All project path assumptions are removed. Bone names on both sides go through a canonical
-(Mixamo short-name) map, so Mixamo (mixamorig:/mixamorig1:/bare), AstraForge browser template,
+(Mixamo short-name) map, so Mixamo (mixamorig:/mixamorig1:/bare), Imaginarium browser template,
 Rigify DEF-/ORG-/metarig and UE-style skeletons can be mixed freely.
 
 Differences from the original (each one fixes something it solved with per-unit hacks):
@@ -31,18 +31,18 @@ import time
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-import af_common as af
+import imaginarium_common as ima
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(HERE)))
 def _default_library():
-    """Clip library: ASTRA_FORGE_LIBRARY/animations (set by the server), else C:/AstraForge/library on
+    """Clip library: IMAGINARIUM_LIBRARY/animations (set by the server), else C:/Imaginarium/library on
     Windows (short paths, the forge default since 11.10.2026), else <project>/data/library/animations."""
-    env = os.environ.get("ASTRA_FORGE_LIBRARY")
+    env = os.environ.get("IMAGINARIUM_LIBRARY")
     if env:
         return os.path.join(env, "animations")
-    if os.name == "nt" and os.path.isdir("C:/AstraForge/library"):
-        return os.path.join("C:/AstraForge/library", "animations")
+    if os.name == "nt" and os.path.isdir("C:/Imaginarium/library"):
+        return os.path.join("C:/Imaginarium/library", "animations")
     return os.path.join(PROJECT_ROOT, "data", "library", "animations")
 
 
@@ -104,8 +104,8 @@ def mirror_name(canon):
     return canon
 
 
-def _astra_table(names):
-    """AstraForge browser humanoid template (src/rig-core.js createSkeleton); also VRM-like names."""
+def _imaginarium_table(names):
+    """Imaginarium browser humanoid template (src/rig-core.js createSkeleton); also VRM-like names."""
     t = {"Hips": "Hips", "Spine": "Spine", "Chest": "Spine2", "Neck": "Neck", "Head": "Head",
          "HeadEnd": "HeadTop_End"}
     if "UpperChest" in names:  # VRM: Spine, Chest, UpperChest
@@ -169,9 +169,9 @@ def map_bone_names(names):
         if c:
             m[n] = c
     per["mixamo"] = m
-    astra = _astra_table(nameset)
-    per["astraforge"] = {n: astra[re.sub(r"\.\d{3}$", "", n)] for n in names
-                         if re.sub(r"\.\d{3}$", "", n) in astra}
+    imaginarium = _imaginarium_table(nameset)
+    per["imaginarium"] = {n: imaginarium[re.sub(r"\.\d{3}$", "", n)] for n in names
+                         if re.sub(r"\.\d{3}$", "", n) in imaginarium}
     lc = {re.sub(r"\.\d{3}$", "", n).lower(): n for n in names}
     ue = _ue_table(set(lc))
     per["ue"] = {orig: ue[k] for k, orig in lc.items() if k in ue}
@@ -406,7 +406,7 @@ def rest_heads(arm, amap):
 def rest_height(arm, amap):
     """Hip height at rest (world): mean height of the hip joints (UpLeg heads; the Hips head when
     there are no legs) over the lowest foot/toe head. The hip joints, not the Hips head, decide
-    how far the legs reach (the AstraForge template puts them 5 cm below the Hips head, Mixamo
+    how far the legs reach (the Imaginarium template puts them 5 cm below the Hips head, Mixamo
     2 cm). Tails are not used: Mixamo leaf tails point anywhere (37 cm below the
     floor was measured on one model)."""
     heads = rest_heads(arm, amap)
@@ -1298,7 +1298,7 @@ def apply_rig_transforms(rig, meshes):
             o, k = o.parent, k + 1
         return k
     keep = sorted(((o, o.matrix_world.copy()) for o in rest), key=lambda it: depth(it[0]))
-    af.select_only(objs)
+    ima.select_only(objs)
     bpy.ops.object.transform_apply(location=False, rotation=True, scale=True)
     bpy.context.view_layer.update()
     for o, m in keep:  # parents before children
@@ -1343,7 +1343,7 @@ def prepare_rig(rig, hips_name, want_root=False):
             W_inv = rig.matrix_world.inverted()
             head = W_inv @ Vector((0.0, 0.0, 0.0))
             up = (W_inv.to_3x3() @ Vector((0.0, 0.0, 0.15)))
-            name = "root" if "root" not in eb else "af_root"
+            name = "root" if "root" not in eb else "imaginarium_root"
             r = eb.new(name)
             r.head = head
             r.tail = head + up
@@ -1840,7 +1840,7 @@ def joint_world(arm, amap, frame_times):
 
 def fbx_metadata(path, samples=12):
     """Import one clip FBX into an empty scene and describe it (no files written)."""
-    af.reset_scene()
+    ima.reset_scene()
     src, act, fps, has_skin = import_fbx_clip(path)
     scheme, amap = map_armature(src)
     f0, f1 = int(math.floor(act.frame_range[0])), int(math.ceil(act.frame_range[1]))
@@ -1934,7 +1934,7 @@ def _load_rgba(path):
 
 
 def _save_rgba(path, arr):
-    out = bpy.data.images.new("af_grid", width=arr.shape[1], height=arr.shape[0], alpha=True)
+    out = bpy.data.images.new("imaginarium_grid", width=arr.shape[1], height=arr.shape[0], alpha=True)
     out.pixels = arr.ravel()
     out.filepath_raw = os.path.abspath(path)
     out.file_format = "PNG"
@@ -1981,14 +1981,14 @@ def _box_object(name, lo, hi, material=None, hide_render=True):
 
 def render_clip_grid(path, tr, meshes, clips, cols=5, tile=256):
     """One row per clip (top to bottom in `clips` order), `cols` sampled frames per row,
-    three-quarter view (af_common.render_views, Workbench), fixed framing per row, a ground
+    three-quarter view (imaginarium_common.render_views, Workbench), fixed framing per row, a ground
     plate at z=0 and an origin cross so foot contact and drift are visible."""
     import numpy as np
     tmp = os.path.join(os.path.dirname(os.path.abspath(path)), "_preview_tmp")
     os.makedirs(tmp, exist_ok=True)
-    mat = bpy.data.materials.new("af_ground")
+    mat = bpy.data.materials.new("imaginarium_ground")
     mat.diffuse_color = (0.30, 0.32, 0.36, 1.0)
-    mat_x = bpy.data.materials.new("af_origin")
+    mat_x = bpy.data.materials.new("imaginarium_origin")
     mat_x.diffuse_color = (0.85, 0.25, 0.15, 1.0)
     rows, helpers = [], []
     try:
@@ -2007,18 +2007,18 @@ def render_clip_grid(path, tr, meshes, clips, cols=5, tile=256):
             pad = max((hi - lo).length * 0.04, 0.05)
             g_lo = Vector((lo.x - pad * 3, lo.y - pad * 3, -0.012))
             g_hi = Vector((hi.x + pad * 3, hi.y + pad * 3, -0.002))
-            ground = _box_object("af_ground_plate", g_lo, g_hi, mat, hide_render=False)
+            ground = _box_object("imaginarium_ground_plate", g_lo, g_hi, mat, hide_render=False)
             w = 0.006 * max(1.0, tr.height)
-            cross = [_box_object("af_origin_x", Vector((-0.12, -w, -0.002)), Vector((0.12, w, 0.004)),
+            cross = [_box_object("imaginarium_origin_x", Vector((-0.12, -w, -0.002)), Vector((0.12, w, 0.004)),
                                  mat_x, hide_render=False),
-                     _box_object("af_origin_y", Vector((-w, -0.12, -0.002)), Vector((w, 0.12, 0.004)),
+                     _box_object("imaginarium_origin_y", Vector((-w, -0.12, -0.002)), Vector((w, 0.12, 0.004)),
                                  mat_x, hide_render=False)]
-            proxy = _box_object("af_frame_proxy", Vector((lo.x, lo.y, min(lo.z, 0.0))), hi)
+            proxy = _box_object("imaginarium_frame_proxy", Vector((lo.x, lo.y, min(lo.z, 0.0))), hi)
             helpers = [ground, proxy] + cross
             tiles = []
             for j, f in enumerate(frames):
                 p = os.path.join(tmp, "r%d_%d.png" % (len(rows), j))
-                af.render_views(p, [proxy], views=("three_quarter",), size=tile, frame=f)
+                ima.render_views(p, [proxy], views=("three_quarter",), size=tile, frame=f)
                 tiles.append(_load_rgba(p))
             rows.append(np.concatenate(tiles, axis=1))
             for h in helpers:

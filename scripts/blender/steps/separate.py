@@ -59,7 +59,7 @@ import time
 import bpy
 import mathutils
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 
@@ -75,7 +75,7 @@ def _part_stats(ob):
 
 
 def _separate_op(ob, kind):
-    af.select_only([ob])
+    ima.select_only([ob])
     with bpy.context.temp_override(object=ob, active_object=ob, selected_objects=[ob],
                                    selected_editable_objects=[ob]):
         bpy.ops.object.mode_set(mode="EDIT")
@@ -103,7 +103,7 @@ def _split_loose(ob, p, warnings):
                 ml.remove_object(o)
             warnings.append("dropped %d small pieces (< %.3g of the vertices)" % (len(small), frac))
         else:
-            joined = af.join(small, name="small")
+            joined = ima.join(small, name="small")
             out.append(joined)
     return out
 
@@ -191,12 +191,12 @@ def _split_regions(ob, p, warnings, checks, info_out, h=1.0):
             ripped = sum(i["cut"] for i in per)
             info_out[tag] = {"kind": "slit", "slits": per, "cut": ripped,
                              "rim_length_m": round(sum(i["rim_length_m"] for i in per), 4)}
-            checks.append(af.check("slit_%s_cut" % name, ripped > 0, ripped, ">0",
+            checks.append(ima.check("slit_%s_cut" % name, ripped > 0, ripped, ">0",
                                    note="edges ripped (width 0) or faces removed (slab) inside the box"))
             open_rims = sum((i.get("caps") or {}).get("open_rim_edges", 0) for i in per
                             if i.get("width_m", 0) > 0 and (i.get("caps") or {}).get("chains"))
             if any(i.get("width_m", 0) > 0 and i.get("caps") for i in per):
-                checks.append(af.check("slit_%s_capped" % name, open_rims <= 8, open_rims, 8, severity="warning",
+                checks.append(ima.check("slit_%s_capped" % name, open_rims <= 8, open_rims, 8, severity="warning",
                                        note="rim edges left open after the side caps (the two ends of a slab "
                                             "stay open by design)"))
             if not ripped:
@@ -211,23 +211,23 @@ def _split_regions(ob, p, warnings, checks, info_out, h=1.0):
             info["facing_min"] = g["facing_min"]
         info_out[tag] = info
         if kind == "delete":
-            checks.append(af.check("delete_%s_nonempty" % name, info["faces_inside"] > 0,
+            checks.append(ima.check("delete_%s_nonempty" % name, info["faces_inside"] > 0,
                                    info["faces_inside"], ">0", note="faces deleted"))
             if not info["faces_inside"]:
                 warnings.append("delete region %s caught no faces" % name)
             elif g["caps"]:
-                checks.append(af.check("delete_%s_capped" % name, info["rest_open_seam_edges"] == 0,
+                checks.append(ima.check("delete_%s_capped" % name, info["rest_open_seam_edges"] == 0,
                                        info["rest_open_seam_edges"], 0, severity="warning",
                                        note="cut edges left open (the source had a hole on the cut)"))
             continue
-        checks.append(af.check("region_%s_nonempty" % name, part is not None,
+        checks.append(ima.check("region_%s_nonempty" % name, part is not None,
                                info["faces_inside"], ">0"))
         if part is None:
             warnings.append("region %s caught no faces" % name)
             continue
         ml.triangulate_object(part)
         if g["caps"]:
-            checks.append(af.check("region_%s_capped" % name, info["open_seam_edges"] == 0,
+            checks.append(ima.check("region_%s_capped" % name, info["open_seam_edges"] == 0,
                                    info["open_seam_edges"], 0, severity="warning",
                                    note="cut edges left open (the source had a hole on the cut)"))
         parts.append(part)
@@ -245,7 +245,7 @@ def _split_regions(ob, p, warnings, checks, info_out, h=1.0):
 def _set_origin(ob, mode):
     if mode not in ("center", "bottom"):
         return
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     pivot = (lo + hi) / 2
     if mode == "bottom":
         pivot.z = lo.z
@@ -263,20 +263,20 @@ def run(req):
         raise ValueError("params.mode must be loose, material, regions or slit")
 
     src_path = ml.input_path(req)
-    af.reset_scene()
-    objs, helpers = ml.purge_import_helpers(af.import_any(src_path))
+    ima.reset_scene()
+    objs, helpers = ml.purge_import_helpers(ima.import_any(src_path))
     sock_recs = []
     objs = ml.prepare_meshes(objs, warnings, sockets=sock_recs)
     if not objs:
         raise ValueError("no mesh objects in %s" % src_path)
     source = ml.mesh_metrics(objs)
-    ob = af.join(objs, name="source")
+    ob = ima.join(objs, name="source")
     sockets = ml.restore_sockets(sock_recs)
     ml.rotate_z([ob] + sockets, float(p.get("rotate_z_deg") or 0.0))
-    af.normalize([ob] + sockets, height=p.get("height_m"), ground=p.get("ground", True),
+    ima.normalize([ob] + sockets, height=p.get("height_m"), ground=p.get("ground", True),
                  center=p.get("center", True))
     ml.sockets_unit_scale(sockets)
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     h = float(hi.z - lo.z) or 1.0
     merge = p.get("merge_distance")
     merge = 1e-5 * h if merge is None else float(merge)
@@ -299,28 +299,28 @@ def run(req):
         _set_origin(o, p.get("origin", "world"))
 
     part_stats = [_part_stats(o) for o in parts]
-    checks.append(af.check("parts_created", len(parts) >= 1, len(parts), ">=1"))
+    checks.append(ima.check("parts_created", len(parts) >= 1, len(parts), ">=1"))
     total_tris = sum(s["tris"] for s in part_stats)
     nan = sum(ml.mesh_metrics([o])["nan_verts"] for o in parts)
-    checks.append(af.check("no_nan_verts", nan == 0, nan, 0))
+    checks.append(ima.check("no_nan_verts", nan == 0, nan, 0))
 
     outputs = {}
     t0 = time.time()
-    outputs["glb"] = af.export_glb(af.out_path(req, "parts.glb"), objects=parts + sockets,
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "parts.glb"), objects=parts + sockets,
                                    animations=False, skins=False)
     timings["export_glb"] = round(time.time() - t0, 2)
     if p.get("preview", True):
         t0 = time.time()
         size = int(p.get("preview_size", 512))
         views = ("front", "three_quarter")
-        _, a = ml.render_sheet(af.out_path(req, "_assembled.png"), parts, views=views, size=size,
+        _, a = ml.render_sheet(ima.out_path(req, "_assembled.png"), parts, views=views, size=size,
                                color_type="RANDOM")
-        lo_all, hi_all = af.world_bbox(parts)
+        lo_all, hi_all = ima.world_bbox(parts)
         centre = (lo_all + hi_all) / 2
         spread = float(p.get("explode", 0.35)) * (hi_all - lo_all).length
         saved = []
         for o in parts:
-            c = (af.world_bbox([o])[0] + af.world_bbox([o])[1]) / 2
+            c = (ima.world_bbox([o])[0] + ima.world_bbox([o])[1]) / 2
             d = mathutils.Vector((c.x - centre.x, c.y - centre.y, 0.0))
             if d.length < 1e-6:
                 d = mathutils.Vector((0, 0, 0))
@@ -329,22 +329,22 @@ def run(req):
             saved.append((o, o.location.copy()))
             o.location = o.location + d
         bpy.context.view_layer.update()
-        _, b = ml.render_sheet(af.out_path(req, "_exploded.png"), parts, views=views, size=size,
+        _, b = ml.render_sheet(ima.out_path(req, "_exploded.png"), parts, views=views, size=size,
                                color_type="AUTO")
         for o, loc in saved:
             o.location = loc
         bpy.context.view_layer.update()
-        outputs["preview"] = ml.side_by_side(af.out_path(req, "preview.png"),
+        outputs["preview"] = ml.side_by_side(ima.out_path(req, "preview.png"),
                                              [ml.np.concatenate(a, axis=1),
                                               ml.np.concatenate(b, axis=1)])
         for tmp in ("_assembled.png", "_exploded.png"):
             try:
-                os.remove(af.out_path(req, tmp))
+                os.remove(ima.out_path(req, tmp))
             except OSError:
                 pass
         timings["preview"] = round(time.time() - t0, 2)
     orphans = ml.purge_orphans()
-    outputs["blend"] = af.save_blend(af.out_path(req, "parts.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "parts.blend"))
     timings["total"] = round(time.time() - t_all, 2)
     stats = {"mode": mode, "source": source, "merged_verts": merged, "merge_distance_m": merge,
              "parts": part_stats, "part_count": len(parts), "tris_total": total_tris,

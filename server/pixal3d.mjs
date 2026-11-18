@@ -11,7 +11,7 @@ import { triposgConfig, triposgInstallState, autoShape } from './triposg.mjs';
 import { gpuInfo } from './gpu-info.mjs';
 import { freeRamMiB, ramFloor } from './ram-check.mjs';
 
-export const DEFAULT_PIXAL3D_DIR = 'C:/AstraForge/ComfyUI-Pixal3D';
+export const DEFAULT_PIXAL3D_DIR = 'C:/Imaginarium/ComfyUI-Pixal3D';
 export const DEFAULT_PIXAL3D_URL = 'http://127.0.0.1:8191';
 
 /** Python of the portable install: Windows ships python_embeded, the Linux install is a uv venv. */
@@ -37,22 +37,22 @@ export const PIXAL3D_REQUIREMENTS = [
 export const PIXAL3D_ESTIMATE = { multiSeconds: 232, singleSeconds: 355, vramGb: 9.5 };
 
 /**
- * Where Pixal3D lives: ASTRA_PIXAL3D_DIR, else config/paths.json (key pixal3dDir, written by the installer;
+ * Where Pixal3D lives: IMAGINARIUM_PIXAL3D_DIR, else config/paths.json (key pixal3dDir, written by the installer;
  * a BOM from the installer used to silently lose the path - the 0.4.11 fix lives in storage.pathsConfig),
  * else the default folder.
- * The URL (ASTRA_PIXAL3D_URL) must be a local http address; port 8191 by default.
+ * The URL (IMAGINARIUM_PIXAL3D_URL) must be a local http address; port 8191 by default.
  */
 export function pixal3dConfig({ env = process.env, appRoot = root } = {}) {
   const paths = pathsConfig(appRoot);
   // the Windows default is the short folder from the README; on POSIX the app-local runtime folder mirrors it
   let dir = process.platform === 'win32' ? DEFAULT_PIXAL3D_DIR : path.join(appRoot, 'runtime', 'ComfyUI-Pixal3D'), source = 'default';
-  if (env.ASTRA_PIXAL3D_DIR) { dir = env.ASTRA_PIXAL3D_DIR; source = 'env'; }
+  if (env.IMAGINARIUM_PIXAL3D_DIR) { dir = env.IMAGINARIUM_PIXAL3D_DIR; source = 'env'; }
   else if (typeof paths.pixal3dDir === 'string' && paths.pixal3dDir.trim()) { dir = paths.pixal3dDir.trim(); source = 'paths.json'; }
   let url = DEFAULT_PIXAL3D_URL;
-  const wanted = env.ASTRA_PIXAL3D_URL || paths.pixal3dUrl;
+  const wanted = env.IMAGINARIUM_PIXAL3D_URL || paths.pixal3dUrl;
   if (wanted) {
     const parsed = localUrl.safeParse(String(wanted).replace(/\/+$/, ''));
-    if (!parsed.success) throw new Error('ASTRA_PIXAL3D_URL must be a local http address (for example, http://127.0.0.1:8191).');
+    if (!parsed.success) throw new Error('IMAGINARIUM_PIXAL3D_URL must be a local http address (for example, http://127.0.0.1:8191).');
     url = parsed.data;
   }
   const port = Number(new URL(url).port) || 80;
@@ -62,12 +62,12 @@ export function pixal3dConfig({ env = process.env, appRoot = root } = {}) {
 /** Disk check only (no network): which required files are missing. */
 export function pixal3dInstallState(cfg = pixal3dConfig(), exists = existsSync) {
   if (!exists(cfg.dir)) {
-    return { installed: false, missing: [], message: `Pixal3D is not installed: folder not found ${cfg.dir}. Set it in ASTRA_PIXAL3D_DIR or config\\paths.json (key pixal3dDir).` };
+    return { installed: false, missing: [], message: `Pixal3D is not installed: folder not found ${cfg.dir}. Set it in IMAGINARIUM_PIXAL3D_DIR or config\\paths.json (key pixal3dDir).` };
   }
   const missing = PIXAL3D_REQUIREMENTS.filter(([rel]) => !exists(path.join(cfg.dir, rel))).map(([rel, label]) => ({ path: rel, label }));
   if (missing.length) {
     const names = missing.slice(0, 3).map((m) => m.label).join('; ') + (missing.length > 3 ? ` and ${missing.length - 3} more` : '');
-    return { installed: false, missing, message: `Pixal3D is not fully installed (${cfg.dir}): missing - ${names}. See ASTRAFORGE_README.md in that folder.` };
+    return { installed: false, missing, message: `Pixal3D is not fully installed (${cfg.dir}): missing - ${names}. See IMAGINARIUM_README.md in that folder.` };
   }
   return { installed: true, missing: [], message: '' };
 }

@@ -18,23 +18,23 @@ import bpy
 import numpy as np
 from mathutils import Euler, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _bone_kit_lib as B
 from steps import bone_kit as K
 
-# the owner's reference picture for the comparison sheet (AF_BONE_KIT_REFERENCE overrides)
-REFERENCE = os.environ.get("AF_BONE_KIT_REFERENCE") or r"C:/AstraForge/test-assets/Necromancer/Reference-original.jpg"
+# the owner's reference picture for the comparison sheet (Imaginarium_BONE_KIT_REFERENCE overrides)
+REFERENCE = os.environ.get("Imaginarium_BONE_KIT_REFERENCE") or r"C:/Imaginarium/test-assets/Necromancer/Reference-original.jpg"
 # regions of the reference (x0, y0, x1, y1 in its 2752 x 1536 pixels)
 REF_CROPS = {"hand_open": (1040, 650, 1210, 900), "grip": (1740, 520, 1900, 660), "staff_head": (1790, 30, 1960, 420),
              "clasps": (1380, 370, 1560, 680), "staff_full": (1690, 30, 1990, 1520)}
 
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_bone_kit_")
+    return tempfile.mkdtemp(prefix="imaginarium_bone_kit_")
 
 
 def _build(params):
-    af.reset_scene()
+    ima.reset_scene()
     return K.build_part(params)
 
 
@@ -346,7 +346,7 @@ def test_aged_vertex_colours_export_as_color0():
     bm = g["materials"][bone["material"]]
     assert bm.get("pbrMetallicRoughness", {}).get("baseColorFactor", [1, 1, 1, 1])[:3] == [1, 1, 1]
     # the .blend keeps white vertex colours on gold (glTF multiplies COLOR_0 into every primitive)
-    af.reset_scene()
+    ima.reset_scene()
     objs, info = K.build_part({"part": "skeleton_hand", "style": "aged", "rings": ["index"]})
     ob = info["_main"]
     attr = ob.data.color_attributes["Color"]
@@ -452,13 +452,13 @@ def make_evidence(out_dir=None, img_dir=None, style="aged"):
     ev = {"parts": {}}
     bg = (0.62, 0.62, 0.64)
     # --- open right hand with rings (reference: rings on the thumb, index, middle)
-    af.reset_scene()
+    ima.reset_scene()
     objs, hi = K.build_part({"part": "skeleton_hand", "side": "r", "pose": "open", "style": style,
                              "rings": ["thumb", "index", "middle"]})
     B.eevee_shot(os.path.join(out_dir, "our_hand_open.png"), [hi["_main"]], view_dir=(1, 0.25, -0.15), size=(340, 500))
     ev["parts"]["hand_open_r"] = {k: hi[k] for k in ("tris", "dimensions_m", "chain_length_m", "overlaps")}
     # --- staff + left hand gripping it (hand socket matched onto socket_grip_main)
-    af.reset_scene()
+    ima.reset_scene()
     sobjs, si = K.build_part({"part": "bone_staff", "style": style})
     staff = si["_main"]
     hobjs, gi = K.build_part({"part": "skeleton_hand", "side": "l", "pose": "grip", "style": style,
@@ -485,7 +485,7 @@ def make_evidence(out_dir=None, img_dir=None, style="aged"):
     ev["parts"]["hand_grip_l"] = {k: gi[k] for k in ("tris", "joint_angles_deg", "grip_contact", "overlaps")}
     ev["parts"]["hand_grip_l"]["socket_match_error_m"] = round(err, 7)
     # --- clasps (plain gold rings and gold caps, like the 2 + 2 of the reference)
-    af.reset_scene()
+    ima.reset_scene()
     t1 = K.build_part({"part": "bone_toggle", "gold": "rings", "style": style})[1]
     t2 = K.build_part({"part": "bone_toggle", "gold": "caps", "style": style, "seed": 3})[1]
     t2["_main"].location = (0, 0, -0.06)
@@ -521,7 +521,7 @@ def make_evidence(out_dir=None, img_dir=None, style="aged"):
     # --- pose sheet (EEVEE shots of the five poses, right hand) + parts contact sheet
     ims = []
     for pose in K.POSES:
-        af.reset_scene()
+        ima.reset_scene()
         objs, pi = K.build_part({"part": "skeleton_hand", "pose": pose, "side": "r", "style": style})
         show = [pi["_main"]]
         if pose == "grip":
@@ -560,7 +560,7 @@ def make_evidence(out_dir=None, img_dir=None, style="aged"):
             dst = _small_png(B.load_png(src), os.path.join(img_dir, name))
             ev["doc_images"][name] = {"path": dst, "kb": round(os.path.getsize(dst) / 1024, 1)}
     with open(os.path.join(out_dir, "evidence.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(ev), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable(ev), fh, ensure_ascii=False, indent=2)
     print("EVIDENCE", os.path.join(out_dir, "evidence.json"))
     return ev
 

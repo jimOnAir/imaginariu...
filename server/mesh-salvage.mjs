@@ -9,7 +9,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { validateGeneratedMesh, maxMeshTriangles } from './mesh-validation.mjs';
 import { runBlenderStep } from './blender.mjs';
-import { afMeshConfig, runAfMesh } from './af-mesh.mjs';
+import { afMeshConfig, runAfMesh } from './imaginarium-mesh.mjs';
 import { data } from './storage.mjs';
 
 export const SALVAGE_ROOT = path.join(data, 'runtime', 'salvage');
@@ -93,13 +93,13 @@ export function makeBlenderSimplify({ runStep = runBlenderStep, root = SALVAGE_R
 }
 
 /**
- * The af-mesh-rs fast path (ticket 46, 0.7.9 performance wave): the studio's own decimator —
+ * The imaginarium-mesh-rs fast path (ticket 46, 0.7.9 performance wave): the studio's own decimator —
  * the same budget-and-halve rhythm as the Blender path, seconds instead of minutes, and the
  * carry-contract (rig weights, colors, normals, shape keys) proven by the crate's own tests.
  * Every failure shape answers `null` — binary absent (the ticket-30 posture: an installed
  * studio without cargo), a CLI refusal, a wedged run, a summary that cannot be read — so the
  * caller's fallback decides instead of failing the job. Injectable `run`/`cfg` keep the unit
- * lane af-mesh-free.
+ * lane imaginarium-mesh-free.
  */
 export function makeAfMeshSimplify({ root = SALVAGE_ROOT, passes = 3, cfg = afMeshConfig(), run = runAfMesh } = {}) {
   return async (buffer) => {
@@ -135,12 +135,12 @@ export function makeAfMeshSimplify({ root = SALVAGE_ROOT, passes = 3, cfg = afMe
 }
 
 /**
- * The salvage chain as the jobs use it (ticket 46): af-mesh-rs first, the Blender path stays the
- * fallback for anything the fast path declines or cannot finish — and `ASTRA_SALVAGE=blender`
- * forces it as the whole route, byte-identical behavior to the wave before af-mesh existed.
+ * The salvage chain as the jobs use it (ticket 46): imaginarium-mesh-rs first, the Blender path stays the
+ * fallback for anything the fast path declines or cannot finish — and `IMAGINARIUM_SALVAGE=blender`
+ * forces it as the whole route, byte-identical behavior to the wave before imaginarium-mesh existed.
  */
 export function makeSalvageSimplify({ env = process.env, makeAfMesh = makeAfMeshSimplify, makeBlender = makeBlenderSimplify } = {}) {
-  if (String(env.ASTRA_SALVAGE || '').toLowerCase() === 'blender') return makeBlender();
+  if (String(env.IMAGINARIUM_SALVAGE || '').toLowerCase() === 'blender') return makeBlender();
   const af = makeAfMesh();
   const blender = makeBlender();
   return async (buffer) => {

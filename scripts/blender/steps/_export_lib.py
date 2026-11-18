@@ -2,7 +2,7 @@
 
 Contents
 - profile constants (iso8 directions, camera/light conventions);
-- engine selection (EEVEE / Cycles GPU / Workbench) without af_common.engine_id, whose static enum
+- engine selection (EEVEE / Cycles GPU / Workbench) without imaginarium_common.engine_id, whose static enum
   lookup does not see CYCLES/WORKBENCH in background mode;
 - clip discovery on armatures (Blender 5.0 slotted actions), evaluated vertex sampling;
 - PNG I/O through bpy.data.images (lossless round trip, verified), sheet post-processing (grade,
@@ -26,8 +26,8 @@ HERE = os.path.dirname(os.path.abspath(__file__))
 BLENDER_DIR = os.path.dirname(HERE)
 GODOT_DIR = os.path.join(BLENDER_DIR, "godot")
 FX_PRESETS_PATH = os.path.join(BLENDER_DIR, "data", "fx_presets.json")
-# Godot console executable: params.godot, else env ASTRA_GODOT (no machine-specific default; None when unset)
-GODOT_DEFAULT = os.environ.get("ASTRA_GODOT") or None
+# Godot console executable: params.godot, else env IMAGINARIUM_GODOT (no machine-specific default; None when unset)
+GODOT_DEFAULT = os.environ.get("IMAGINARIUM_GODOT") or None
 ASSET_ID_RE = re.compile(r"^[a-z][a-z0-9]*(_[a-z0-9]+)*$")
 
 # --------------------------------------------------------------------------- profiles
@@ -406,11 +406,11 @@ def find_clips(arms):
     return list(clips.values())
 
 
-CLOTH_CACHE_PROP = "af_cloth_cache"     # set by cloth_sim (_cloth_lib.bake_render_cache) on its garment objects
+CLOTH_CACHE_PROP = "imaginarium_cloth_cache"     # set by cloth_sim (_cloth_lib.bake_render_cache) on its garment objects
 
 
 def cloth_proxies():
-    """Garment objects baked by cloth_sim (Body_cloth_<group>): meshes whose af_cloth_cache maps armature actions to
+    """Garment objects baked by cloth_sim (Body_cloth_<group>): meshes whose imaginarium_cloth_cache maps armature actions to
     shape-key actions holding the simulated cloth of that clip (absolute positions, one key per clip frame)."""
     return [o for o in bpy.data.objects if o.type == "MESH" and CLOTH_CACHE_PROP in o.keys()]
 
@@ -591,16 +591,16 @@ def build_camera_rig(scene, width, height, anchor, ppm, elevation_deg, extent_m=
     """
     w, h = int(width), int(height)
     ax, ay = float(anchor[0]), float(anchor[1])
-    rig = bpy.data.objects.new("AF_CAM_RIG", None)
+    rig = bpy.data.objects.new("Imaginarium_CAM_RIG", None)
     scene.collection.objects.link(rig)
-    cam_data = bpy.data.cameras.new("AF_SPRITE_CAM")
+    cam_data = bpy.data.cameras.new("Imaginarium_SPRITE_CAM")
     cam_data.type = "ORTHO"
     cam_data.ortho_scale = max(w, h) / float(ppm)
     cam_data.sensor_fit = "AUTO"
     dist = max(50.0, extent_m * 6.0)
     cam_data.clip_start = 0.05
     cam_data.clip_end = dist * 2.0 + extent_m * 4.0
-    cam = bpy.data.objects.new("AF_SPRITE_CAM", cam_data)
+    cam = bpy.data.objects.new("Imaginarium_SPRITE_CAM", cam_data)
     scene.collection.objects.link(cam)
     cam.parent = rig
     tilt = math.radians(90.0 - elevation_deg)
@@ -617,28 +617,28 @@ def build_camera_rig(scene, width, height, anchor, ppm, elevation_deg, extent_m=
     made = [rig, cam]
     rim = None
     if lights:
-        world = scene.world or bpy.data.worlds.new("AF_World")
+        world = scene.world or bpy.data.worlds.new("Imaginarium_World")
         scene.world = world
         world.use_nodes = True
         bg = world.node_tree.nodes.get("Background")
         if bg is not None:
             bg.inputs["Color"].default_value = (*SKY_COLOR, 1.0)
             bg.inputs["Strength"].default_value = SKY_STRENGTH
-        sun_data = bpy.data.lights.new("AF_Sun", "SUN")
+        sun_data = bpy.data.lights.new("Imaginarium_Sun", "SUN")
         sun_data.energy = SUN_STRENGTH
         sun_data.color = SUN_COLOR
         sun_data.angle = math.radians(4.0)
-        sun = bpy.data.objects.new("AF_Sun", sun_data)
+        sun = bpy.data.objects.new("Imaginarium_Sun", sun_data)
         scene.collection.objects.link(sun)
         sun.parent = rig
         to_light = dir_from(SUN_ELEVATION_DEG, 225.0)
         sun.rotation_euler = (-to_light).to_track_quat("-Z", "Y").to_euler()
         k = max(1.0, float(light_scale))
-        rim_data = bpy.data.lights.new("AF_Rim", "AREA")
+        rim_data = bpy.data.lights.new("Imaginarium_Rim", "AREA")
         rim_data.energy = 60.0 * k * k
         rim_data.size = 3.0 * k
         rim_data.color = (0.75, 0.85, 1.0)
-        rim = bpy.data.objects.new("AF_Rim", rim_data)
+        rim = bpy.data.objects.new("Imaginarium_Rim", rim_data)
         scene.collection.objects.link(rim)
         rim.parent = rig
         target = Vector((0, 0, 1.0 * k))
@@ -682,21 +682,21 @@ def project(points, anchor, ppm, right, up):
 
 def shadow_catcher(scene, rim, rig, size=8.0):
     """Cycles shadow catcher on z=0 with the rim light's own shadow removed."""
-    me = bpy.data.meshes.new("AF_ShadowCatcher")
+    me = bpy.data.meshes.new("Imaginarium_ShadowCatcher")
     s = size / 2.0
     me.from_pydata([(-s, -s, 0), (s, -s, 0), (s, s, 0), (-s, s, 0)], [], [(0, 1, 2, 3)])
-    plane = bpy.data.objects.new("AF_ShadowCatcher", me)
+    plane = bpy.data.objects.new("Imaginarium_ShadowCatcher", me)
     scene.collection.objects.link(plane)
     plane.is_shadow_catcher = True
     made = [plane]
     if rim is not None:
-        _link_light(rim, [plane], "EXCLUDE", "AF_RimExclude")
-        twin = bpy.data.objects.new("AF_RimCatcher", rim.data.copy())
+        _link_light(rim, [plane], "EXCLUDE", "Imaginarium_RimExclude")
+        twin = bpy.data.objects.new("Imaginarium_RimCatcher", rim.data.copy())
         twin.data.use_shadow = False
         scene.collection.objects.link(twin)
         twin.parent = rig
         twin.matrix_basis = rim.matrix_basis.copy()
-        _link_light(twin, [plane], "INCLUDE", "AF_RimCatcherOnly")
+        _link_light(twin, [plane], "INCLUDE", "Imaginarium_RimCatcherOnly")
         made.append(twin)
     return made
 
@@ -733,7 +733,7 @@ def save_png(path, arr):
     h, w = arr.shape[:2]
     path = os.path.abspath(path)
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    img = bpy.data.images.new("af_png_out", width=w, height=h, alpha=True)
+    img = bpy.data.images.new("imaginarium_png_out", width=w, height=h, alpha=True)
     try:
         img.pixels.foreach_set((arr[::-1].astype(np.float32) / 255.0).ravel())
         img.filepath_raw = path
@@ -1133,7 +1133,7 @@ def fx_scene_text(node_name, p, texture_rel):
     """GPUParticles3D + ParticleProcessMaterial + QuadMesh/StandardMaterial3D (+ optional OmniLight3D).
 
     The FX emits along its local +Y: a socket's local +Y in Godot is the Blender socket's +Z,
-    i.e. 'out' (exhaust, outward normal, blade direction) in the AstraForge convention.
+    i.e. 'out' (exhaust, outward normal, blade direction) in the Imaginarium convention.
     """
     subs = []
     ramp = p.get("color_ramp") or [[0, [1, 1, 1, 1]], [1, [1, 1, 1, 0]]]
@@ -1223,8 +1223,8 @@ def fx_scene_text(node_name, p, texture_rel):
             "visibility_aabb = AABB(%s)" % ", ".join(_f(x) for x in p.get("visibility_aabb", DEFAULT_VISIBILITY_AABB)),
             'process_material = SubResource("ParticleProcessMaterial_fx")',
             'draw_pass_1 = SubResource("QuadMesh_fx")']
-    meta = {"preset": p.get("_preset", node_name), "astraforge_fx": True}
-    node.append("metadata/astraforge_fx = %s" % json.dumps(meta["preset"]))
+    meta = {"preset": p.get("_preset", node_name), "imaginarium_fx": True}
+    node.append("metadata/imaginarium_fx = %s" % json.dumps(meta["preset"]))
     body = "\n".join(node) + "\n"
     light = p.get("light")
     if light:
@@ -1244,7 +1244,7 @@ ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 def find_godot(params=None):
     params = params or {}
-    for cand in (params.get("godot"), os.environ.get("ASTRA_GODOT"), GODOT_DEFAULT):
+    for cand in (params.get("godot"), os.environ.get("IMAGINARIUM_GODOT"), GODOT_DEFAULT):
         if cand and os.path.isfile(cand):
             return cand
     return None
@@ -1253,7 +1253,7 @@ def find_godot(params=None):
 GODOT_HOME = "_home"
 
 
-def make_check_project(root, name="af_godot_check"):
+def make_check_project(root, name="imaginarium_godot_check"):
     """Throwaway Godot 4.5 project (GL Compatibility) with the validator script.
 
     Nothing may land outside out_dir (contract §3): file logging and the shader cache are off, and
@@ -1305,7 +1305,7 @@ def run_godot(exe, proj, args, timeout=300):
 
 def godot_validate(exe, proj, config, timeout=300):
     """Import the throwaway project, run validate_package.gd, parse its AFGODOT line."""
-    with open(os.path.join(proj, "af_check.json"), "w", encoding="utf-8") as fh:
+    with open(os.path.join(proj, "imaginarium_check.json"), "w", encoding="utf-8") as fh:
         json.dump(config, fh, ensure_ascii=False, indent=2)
     code_i, out_i, sec_i = run_godot(exe, proj, ["--import"], timeout)
     code_v, out_v, sec_v = run_godot(exe, proj, ["--script", "res://validate_package.gd"], timeout)
@@ -1344,10 +1344,10 @@ def godot_fx_preview(exe, proj, scene_res, out_png, speed=0.0, frames=(14, 30, 4
     """Render a few frames of the packaged scene with Godot's Movie Maker (GL Compatibility; a short
     windowed game run, headless has no renderer) and tile them into one PNG. speed > 0 flies the
     asset along its -Z (asset sizes per second) so world-space trails stretch behind it."""
-    shutil.copy2(os.path.join(GODOT_DIR, "af_preview.gd"), os.path.join(proj, "af_preview.gd"))
+    shutil.copy2(os.path.join(GODOT_DIR, "imaginarium_preview.gd"), os.path.join(proj, "imaginarium_preview.gd"))
     scene = ('[gd_scene load_steps=4 format=3]\n\n'
              '[ext_resource type="PackedScene" path="%s" id="1_asset"]\n'
-             '[ext_resource type="Script" path="res://af_preview.gd" id="2_script"]\n\n'
+             '[ext_resource type="Script" path="res://imaginarium_preview.gd" id="2_script"]\n\n'
              '[sub_resource type="Environment" id="Environment_1"]\nbackground_mode = 1\n'
              'background_color = Color(0.05, 0.06, 0.09, 1)\nambient_light_source = 2\n'
              'ambient_light_color = Color(0.35, 0.38, 0.45, 1)\n\n'
@@ -1359,14 +1359,14 @@ def godot_fx_preview(exe, proj, scene_res, out_png, speed=0.0, frames=(14, 30, 4
              'transform = Transform3D(0.707, -0.5, 0.5, 0, 0.707, 0.707, -0.707, -0.5, 0.5, 0, 5, 0)\n\n'
              '[node name="env" type="WorldEnvironment" parent="."]\nenvironment = SubResource("Environment_1")\n'
              % (scene_res, _f(speed), _f(elevation_deg)))
-    with open(os.path.join(proj, "af_preview.tscn"), "w", encoding="utf-8", newline="\n") as fh:
+    with open(os.path.join(proj, "imaginarium_preview.tscn"), "w", encoding="utf-8", newline="\n") as fh:
         fh.write(scene)
     movie = os.path.join(proj, "_movie")
     shutil.rmtree(movie, ignore_errors=True)
     os.makedirs(movie)
     cmd = [exe, "--path", proj, "--resolution", "%dx%d" % tuple(resolution), "--fixed-fps", "30",
            "--write-movie", os.path.join(movie, "f.png"), "--quit-after", str(int(quit_after)),
-           "res://af_preview.tscn"]
+           "res://imaginarium_preview.tscn"]
     t0 = time.time()
     try:
         cp = subprocess.run(cmd, capture_output=True, timeout=timeout, cwd=proj, env=godot_env(proj))

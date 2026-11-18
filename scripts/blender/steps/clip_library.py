@@ -15,7 +15,7 @@ params.action:
   "preview" - params.ids (default: all): (re)write <id>.poses.json (~12 sampled world positions of
               the key joints for UI stick figures).
   "list"    - return the index.
-params.library: default ASTRA_FORGE_LIBRARY/animations, else C:/AstraForge/library/animations on Windows.
+params.library: default IMAGINARIUM_LIBRARY/animations, else C:/Imaginarium/library/animations on Windows.
 
 This step writes into params.library by design (the library is shared state of the forge);
 result.json and scan.json go to out_dir as usual. Licence note: index.json["licence"].
@@ -25,7 +25,7 @@ import os
 import shutil
 import time
 
-import af_common as af
+import imaginarium_common as ima
 
 try:
     from steps import _anim_lib as lib
@@ -138,7 +138,7 @@ def run(req):
         by_sha = {e.get("sha1"): e for e in idx["clips"]}
         described = []
         for f in files:
-            af.log("describe", file=f["path"])
+            ima.log("describe", file=f["path"])
             try:
                 described.append((f, *_describe(f)))
             except Exception as exc:  # a broken FBX must not stop a batch
@@ -255,9 +255,9 @@ def run(req):
             results += rows
         if action == "import":
             outputs["index"] = lib.save_index(library, idx)
-        scan_path = af.out_path(req, "%s.json" % action)
+        scan_path = ima.out_path(req, "%s.json" % action)
         with open(scan_path, "w", encoding="utf-8") as fh:
-            json.dump(af._jsonable({"library": library, "files": results}), fh,
+            json.dump(ima._jsonable({"library": library, "files": results}), fh,
                       ensure_ascii=False, indent=1)
         outputs[action] = scan_path
         new = [r for r in results if r.get("id")]
@@ -266,7 +266,7 @@ def run(req):
                  "duplicates": len(dups), "library_clips": len(idx["clips"]),
                  "by_category": _counts(idx["clips"]) if action == "import" else
                  _counts([r for r in results if not r.get("duplicate_of")])}
-        checks.append(af.check("all_described", len(described) == len(files),
+        checks.append(ima.check("all_described", len(described) == len(files),
                                len(described), len(files), severity="warning"))
         return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}
 

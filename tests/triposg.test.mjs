@@ -17,7 +17,7 @@ import { facesForLevel, triposgArgs, triposgConfig, triposgInstallState, triposg
 import { resolveEngine, PIXAL3D_REQUIREMENTS } from '../server/pixal3d.mjs';
 import { generationSchema } from '../server/schema.mjs';
 
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-triposg-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-triposg-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
 test('meshLevel parity: the face budget maps -1/0/1 and clamps', () => {
@@ -29,7 +29,7 @@ test('meshLevel parity: the face budget maps -1/0/1 and clamps', () => {
 });
 
 test('worker argv: python + script + the job parameters, level mapped to --faces', () => {
-  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const cfg = triposgConfig({ env: { IMAGINARIUM_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   const argv = triposgArgs(cfg, { image: '/tmp/c.png', out: '/tmp/o.glb', level: 1, seed: 7, steps: 50 });
   assert.ok(argv[0].endsWith(path.join('.venv', process.platform === 'win32' ? 'python.exe' : 'python')) || argv[0].includes('python'), argv[0]);
   assert.ok(argv.some((a) => a.endsWith('tripoSG_run.py') || a.endsWith('triposg_run.py')), 'our worker script');
@@ -61,16 +61,16 @@ test('status: subprocess engine - never claims a running service', () => {
 });
 
 test('resolveEngine: explicit triposg refuses honestly when uninstalled; auto behavior untouched (ticket 02)', () => {
-  process.env.ASTRA_TRIPOSG_DIR = path.join(tmp, 'nothing-here');
+  process.env.IMAGINARIUM_TRIPOSG_DIR = path.join(tmp, 'nothing-here');
   try {
     assert.throws(() => resolveEngine('triposg'), (e) => e.code === 'triposg_not_installed' && /TripoSG is not ready/.test(e.message));
     const installed = TRIPOSG_REQUIREMENTS.map(([rel]) => path.join(tmp, 'inst', rel));
     mkdirSync(tmp, { recursive: true });
     for (const f of installed) { mkdirSync(path.dirname(f), { recursive: true }); writeFileSync(f, 'x'); }
-    process.env.ASTRA_TRIPOSG_DIR = path.join(tmp, 'inst');
+    process.env.IMAGINARIUM_TRIPOSG_DIR = path.join(tmp, 'inst');
     assert.equal(resolveEngine('triposg'), 'triposg');
     assert.equal(resolveEngine('hunyuan'), 'hunyuan');
-  } finally { delete process.env.ASTRA_TRIPOSG_DIR; }
+  } finally { delete process.env.IMAGINARIUM_TRIPOSG_DIR; }
 });
 
 test('generationSchema accepts engine=triposg and still refuses unknown engines', () => {
@@ -92,9 +92,9 @@ test('autoShape: TripoSG takes the low-VRAM band when installed; never for view 
   assert.match(autoShape({ ...T, vram: 8192 }).reason, /8192/, 'the reason names the reading');
 });
 
-test('vramMiB: ASTRA_VRAM_MIB wins; a missing nvidia-smi reads null, not a crash', () => {
-  assert.equal(vramMiB({ env: { ASTRA_VRAM_MIB: '12288' } }), 12288);
-  assert.equal(vramMiB({ env: { ASTRA_VRAM_MIB: '0' }, spawnFn: () => { throw new Error('no such command'); } }), null);
+test('vramMiB: IMAGINARIUM_VRAM_MIB wins; a missing nvidia-smi reads null, not a crash', () => {
+  assert.equal(vramMiB({ env: { IMAGINARIUM_VRAM_MIB: '12288' } }), 12288);
+  assert.equal(vramMiB({ env: { IMAGINARIUM_VRAM_MIB: '0' }, spawnFn: () => { throw new Error('no such command'); } }), null);
   assert.equal(vramMiB({ env: {}, spawnFn: () => ({ stdout: '8192 MiB\n' }) }), 8192, 'nvidia-smi nounits line');
 });
 
@@ -104,7 +104,7 @@ test('resolveEngine(auto) with opts: installed TripoSG + small card wins; big ca
   const need = new Set([...TRIPOSG_REQUIREMENTS.map(([rel]) => path.join(tsDir, rel)),
     ...PIXAL3D_REQUIREMENTS.map(([rel]) => path.join(p3Dir, rel))]);
   for (const f of need) { mkdirSync(path.dirname(f), { recursive: true }); writeFileSync(f, 'x'); }
-  process.env.ASTRA_TRIPOSG_DIR = tsDir;
+  process.env.IMAGINARIUM_TRIPOSG_DIR = tsDir;
   try {
     const p3cfg = { dir: p3Dir, url: 'http://127.0.0.1:8191', port: 8191 };
     const ex = (p) => need.has(p) || p === p3Dir || p === tsDir;
@@ -113,7 +113,7 @@ test('resolveEngine(auto) with opts: installed TripoSG + small card wins; big ca
     assert.equal(resolveEngine('auto', p3cfg, ex, { vram: 8192, hasViews: true }), 'pixal3d');
     assert.equal(resolveEngine('auto', { dir: path.join(tmp, 'p3-none'), url: 'http://127.0.0.1:8191', port: 8191 }, ex, { vram: 8192 }), 'triposg',
       'no Pixal3D at all and a small card: still TripoSG, never hunyuan-on-a-tiny-card');
-  } finally { delete process.env.ASTRA_TRIPOSG_DIR; }
+  } finally { delete process.env.IMAGINARIUM_TRIPOSG_DIR; }
 });
 
 // - - - - - - - - - worker spawn contract (fake child, no python needed) - - - - - - - - - - - -
@@ -133,7 +133,7 @@ function fakeChild({ lines, exitCode = 0, onKill = null, writeOutFromArgv = null
 }
 
 test('generateTripoSG: argv, progress mapping, result bytes', async () => {
-  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const cfg = triposgConfig({ env: { IMAGINARIUM_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   let seenArgv = null;
   const spawned = (python, argv) => {
     seenArgv = [python, ...argv];
@@ -152,7 +152,7 @@ test('generateTripoSG: argv, progress mapping, result bytes', async () => {
 });
 
 test('generateTripoSG: a card from the GPU pool pins CUDA_VISIBLE_DEVICES into the worker env, none touches it', async () => {
-  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const cfg = triposgConfig({ env: { IMAGINARIUM_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   const lines = ['TRIPOSG_RESULT {"out":"p"}'];
   let seenEnv = null;
   const spawnCard = (exe, argv, opts) => { seenEnv = opts.env; writeFileSync(argv[argv.indexOf('--out') + 1], 'GLB'); return fakeChild({ lines, exitCode: 0 }); };
@@ -164,7 +164,7 @@ test('generateTripoSG: a card from the GPU pool pins CUDA_VISIBLE_DEVICES into t
 });
 
 test('generateTripoSG: progress callbacks fire in order; TRIPOSG_ERROR becomes the job message', async () => {
-  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const cfg = triposgConfig({ env: { IMAGINARIUM_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   const got = [];
   await assert.rejects(
     generateTripoSG({ cfg, image: '/tmp/c.png', spawnFn: () => fakeChild({ lines: ['PROGRESS 8 loading', 'PROGRESS 74 decoding', 'TRIPOSG_ERROR {"message":"CUDA out of memory"}'], exitCode: 1 }),
@@ -175,7 +175,7 @@ test('generateTripoSG: progress callbacks fire in order; TRIPOSG_ERROR becomes t
 });
 
 test('generateTripoSG: aborting kills the worker and rejects as cancelled', async () => {
-  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const cfg = triposgConfig({ env: { IMAGINARIUM_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   const ctrl = new AbortController();
   let killed = null;
   const p = generateTripoSG({ cfg, image: '/tmp/c.png', signal: ctrl.signal, spawnFn: () => fakeChild({ lines: [], stayAlive: true, onKill: (s) => { killed = s; } }), onProgress: () => {} });
@@ -186,7 +186,7 @@ test('generateTripoSG: aborting kills the worker and rejects as cancelled', asyn
 });
 
 test('generateTripoSG: a python that cannot start says so with the path', async () => {
-  const cfg = triposgConfig({ env: { ASTRA_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
+  const cfg = triposgConfig({ env: { IMAGINARIUM_TRIPOSG_DIR: '/opt/triposg' }, appRoot: '/app' });
   const c = new EventEmitter();
   c.stdout = new PassThrough(); c.stderr = new PassThrough(); c.kill = () => true;
   setImmediate(() => c.emit('error', new Error('ENOENT')));
@@ -204,7 +204,7 @@ async function boot() {
   if (child) return;
   child = spawn(process.execPath, ['server/index.mjs'], {
     cwd: ROOT, stdio: 'ignore',
-    env: { ...process.env, PORT: String(PORT), ASTRA_ENGINE_AUTOSTART: '0', ASTRA_TRIPOSG_DIR: path.join(tmp, 'definitely-not-installed') },
+    env: { ...process.env, PORT: String(PORT), IMAGINARIUM_ENGINE_AUTOSTART: '0', IMAGINARIUM_TRIPOSG_DIR: path.join(tmp, 'definitely-not-installed') },
   });
   for (let i = 0; i < 80; i++) { try { if ((await fetch(base + '/api/health')).ok) return; } catch {} await new Promise((r) => setTimeout(r, 250)); }
   throw new Error('studio did not boot');
@@ -224,7 +224,7 @@ test('GET /api/status carries the triposg row (installed:false with the missing 
 
 test('POST /api/jobs engine=triposg is refused before the queue with the install instruction', async () => {
   await boot();
-  const r = await fetch(base + '/api/jobs', { method: 'POST', headers: { 'x-astra-client': 'studio', 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'a knight', engine: 'triposg' }) });
+  const r = await fetch(base + '/api/jobs', { method: 'POST', headers: { 'x-imaginarium-client': 'studio', 'content-type': 'application/json' }, body: JSON.stringify({ prompt: 'a knight', engine: 'triposg' }) });
   assert.equal(r.status, 400);
   const body = await r.json();
   assert.match(body.error, /TripoSG is not ready/);

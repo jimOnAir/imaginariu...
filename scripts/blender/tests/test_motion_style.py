@@ -20,7 +20,7 @@ if ROOT not in sys.path:
 import bpy  # noqa: E402
 from mathutils import Quaternion, Vector  # noqa: E402
 
-import af_common as af  # noqa: E402
+import imaginarium_common as ima  # noqa: E402
 from steps import _anim_lib as A  # noqa: E402
 from steps import _humanoid_lib as hl  # noqa: E402
 from steps import _style_lib as SL  # noqa: E402
@@ -31,7 +31,7 @@ _CACHE = {}
 
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_style_")
+    return tempfile.mkdtemp(prefix="imaginarium_style_")
 
 
 def _run(step, req):
@@ -67,14 +67,14 @@ def _animated(staff=False, robe=False):
     if key in _CACHE and os.path.exists(_CACHE[key]):
         return _CACHE[key]
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     ob, _gt = hl.make_mannequin("A", staff=staff, robe=robe)
     glb = os.path.join(d, "mannequin.glb")
-    af.export_glb(glb, objects=[ob], animations=False, skins=False)
+    ima.export_glb(glb, objects=[ob], animations=False, skins=False)
     rig = _run("rig_humanoid", {"inputs": {"mesh": glb}, "params": {"deform_test": False, "intersections": False},
                                 "out_dir": os.path.join(d, "rig")})
     assert rig["ok"], rig["failed"]
-    af.open_blend(rig["outputs"]["blend"])
+    ima.open_blend(rig["outputs"]["blend"])
     ret = _run("retarget", {"inputs": {"blend": rig["outputs"]["blend"]}, "out_dir": os.path.join(d, "ret"), "params": {
         "root_motion": "lock", "preview": False, "library": LIB, "clips": [
             {"source": "library:" + CLIPS[0], "name": "idle", "loop": True},
@@ -86,7 +86,7 @@ def _animated(staff=False, robe=False):
 
 
 def _style(blend, params, d):
-    af.open_blend(blend)
+    ima.open_blend(blend)
     p = dict({"preview": False}, **params)
     return _run("motion_style", {"inputs": {"blend": blend}, "params": p, "out_dir": d})
 
@@ -189,11 +189,11 @@ def test_real_style_changes_motion_keeps_feet_floor_and_seams():
         assert w["floor"]["body_min_z_m"] >= -0.02, w["floor"]
         assert c["idle-loop"]["foot_skate_cm"] <= max(2.0, 1.3 * c["idle-loop"]["foot_skate_in_cm"])
         # the style really changed the pose: hips height/lean differ from the neutral run on the same frame
-        af.open_blend(res["outputs"]["blend"])
+        ima.open_blend(res["outputs"]["blend"])
         rig = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
         R = SL.Rig(rig)
         styled = SL.pose_from_basis(R, SL.read_action(R, bpy.data.actions["idle-loop"], 1)[0])
-        af.open_blend(base["outputs"]["blend"])
+        ima.open_blend(base["outputs"]["blend"])
         rig = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
         R0 = SL.Rig(rig)
         neutral = SL.pose_from_basis(R0, SL.read_action(R0, bpy.data.actions["idle-loop"], 1)[0])
@@ -241,7 +241,7 @@ def test_real_all_death_variants_end_on_the_floor_and_differ():
             assert 0.4 < info["impact_s"] < 1.8, (v, info["impact_s"])
             assert _check(res, "death_on_floor_death")["ok"], (v, _check(res, "death_on_floor_death"))
             assert c["floor"]["body_min_z_m"] >= -0.03, (v, c["floor"])
-            af.open_blend(res["outputs"]["blend"])
+            ima.open_blend(res["outputs"]["blend"])
             rig = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
             R = SL.Rig(rig)
             act = bpy.data.actions["death"]
@@ -272,7 +272,7 @@ def test_real_staff_stays_upright_in_the_walk():
         for hold in (False, True):
             res = _style(blend, {"hold_props": hold, "arm_swing": 1.8, "apply": ["walk"]}, os.path.join(d, str(hold)))
             assert res["ok"], res["failed"]
-            af.open_blend(res["outputs"]["blend"])
+            ima.open_blend(res["outputs"]["blend"])
             rig = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
             R = SL.Rig(rig)
             props = SL.held_props(R, A.skinned_meshes(rig))
@@ -333,7 +333,7 @@ def test_real_clip_deform_qa_measures_the_real_clips():
             assert _check(res, "clip_torn_" + n)["ok"] and _check(res, "clip_torn_" + n)["severity"] == "error"
         assert set(res["stats"]["deform_qa"]) == {"idle-loop", "walk-loop", "death"}
         # mutation: left hand vertices follow Spine2 instead of the hand
-        af.open_blend(blend)
+        ima.open_blend(blend)
         rig = next(o for o in bpy.context.scene.objects if o.type == "ARMATURE")
         body = A.skinned_meshes(rig)[0]
         groups = {g.index: g.name for g in body.vertex_groups}
@@ -348,7 +348,7 @@ def test_real_clip_deform_qa_measures_the_real_clips():
             g.remove(moved)
         spine.add(moved, 1.0, "REPLACE")
         bad_blend = os.path.join(d, "fused.blend")
-        af.save_blend(bad_blend)
+        ima.save_blend(bad_blend)
         bad = _style(bad_blend, {"seed": "qa_clean"}, os.path.join(d, "fused"))
         assert not bad["ok"] and any(n.startswith("clip_torn_") for n in bad["failed"]), bad["failed"]
         worst = max(v["worst_torn_frac"] for v in bad["stats"]["deform_qa"].values())
@@ -362,7 +362,7 @@ def test_real_clip_deform_qa_measures_the_real_clips():
 
 def test_real_robe_death_settles_and_exports_morph():
     """A robed body lying after a procedural death: the robe cone used to stick up like a bell (pilot lich). The
-    corrective shape key af_death_settle lowers the cloth onto the legs / floor at the end of the death; it is
+    corrective shape key imaginarium_death_settle lowers the cloth onto the legs / floor at the end of the death; it is
     driven by a Hips custom property the death ramps 0 -> 1 (other clips key 0), and the GLB carries it as
     morph-weight animation. The body still ends on the floor."""
     if not _have_library():
@@ -378,7 +378,7 @@ def test_real_robe_death_settles_and_exports_morph():
         assert st["bell_height_after_cm"] < 0.5 * st["bell_height_cm"], st
         assert _check(res, "death_on_floor_death")["ok"], _check(res, "death_on_floor_death")
         w, names = _glb_weights(res["outputs"]["glb"])
-        assert any(t and "af_death_settle" in t for t in names), names
+        assert any(t and "imaginarium_death_settle" in t for t in names), names
         assert abs(w["death"][0]) < 1e-3 and w["death"][-1] > 0.99, (w["death"][:3], w["death"][-3:])
         for n in ("idle-loop", "walk-loop"):
             assert max(abs(x) for x in w[n]) < 1e-3, (n, w[n][:4])

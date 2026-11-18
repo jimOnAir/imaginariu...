@@ -37,7 +37,7 @@ from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 from mathutils.kdtree import KDTree
 
-import af_common as af
+import imaginarium_common as ima
 
 PFX = "mixamorig:"
 SIDES = ("Left", "Right")
@@ -160,7 +160,7 @@ def sample_surface(verts, tris, n=200000, seed=7):
 
 def select_only(objs):
     bpy.context.view_layer.update()   # drop stale entries of objects removed earlier
-    af.select_only(objs if isinstance(objs, (list, tuple)) else [objs])
+    ima.select_only(objs if isinstance(objs, (list, tuple)) else [objs])
 
 
 def apply_all_transforms(ob):
@@ -202,14 +202,14 @@ def load_body(req, warnings, name="Body", sockets=None):
     inputs, params = req.get("inputs", {}), req.get("params", {})
     names = params.get("objects")
     if inputs.get("mesh"):
-        af.reset_scene()
+        ima.reset_scene()
         path = inputs["mesh"]
         if not os.path.exists(path):
             raise FileNotFoundError("inputs.mesh not found: %s" % path)
         if path.lower().endswith(".blend") and names:
             objs = append_objects(path, names)
         else:
-            objs = af.import_any(path)
+            objs = ima.import_any(path)
     elif inputs.get("blend"):
         objs = list(bpy.context.scene.objects)
     else:
@@ -2783,7 +2783,7 @@ def concat_images(paths, out, vertical=False):
         h = max(t.shape[0] for t in tiles)
         tiles = [np.pad(t, ((h - t.shape[0], 0), (0, 0), (0, 0))) for t in tiles]
         sheet = np.concatenate(tiles, axis=1)
-    img = bpy.data.images.new("af_concat", width=sheet.shape[1], height=sheet.shape[0], alpha=True)
+    img = bpy.data.images.new("imaginarium_concat", width=sheet.shape[1], height=sheet.shape[0], alpha=True)
     img.pixels = sheet.ravel()
     img.filepath_raw = out
     img.file_format = "PNG"
@@ -2792,7 +2792,7 @@ def concat_images(paths, out, vertical=False):
     return out
 
 
-MARKER_MARGIN = 1.08   # af.render_views framing margin used by markers.png (projection block)
+MARKER_MARGIN = 1.08   # ima.render_views framing margin used by markers.png (projection block)
 
 
 def render_markers(path, body, joints, conf, H, extra=None, size=640, projection=None, show=None):
@@ -2804,7 +2804,7 @@ def render_markers(path, body, joints, conf, H, extra=None, size=640, projection
       image {width, height} = the whole PNG, center [x, z] = metres at the centre of the FRONT tile,
       meters_per_px, center_px [u, v] = that point in PNG pixels (origin = top-left corner, u right,
       v down, pixel (i, j) spans [i, i+1) x [j, j+1)), so u = cu + (x - cx)/mpp, v = cv - (z - cz)/mpp.
-    The values come from the same bbox and margin af.render_views frames the front tile with.
+    The values come from the same bbox and margin ima.render_views frames the front tile with.
     show (set of joint names, optional): check render - only those spheres are visible (body and
     sticks hidden) while every object still defines the framing, so the camera is unchanged."""
     keep = list(bpy.context.scene.objects)
@@ -2853,10 +2853,10 @@ def render_markers(path, body, joints, conf, H, extra=None, size=640, projection
                 o.hide_render = o.name not in visible
         p = os.path.join(os.path.dirname(path), "_mk_%s.png" % view)
         if view == "front" and projection is not None:
-            # the framing af.render_views uses: world bbox of the passed objects, square ortho tile,
+            # the framing ima.render_views uses: world bbox of the passed objects, square ortho tile,
             # ortho_scale = |bbox diagonal| * margin, camera on -Y looking +Y (x right, z up)
             bpy.context.view_layer.update()
-            lo3, hi3 = af.world_bbox([body] + sets[view])
+            lo3, hi3 = ima.world_bbox([body] + sets[view])
             c3 = (lo3 + hi3) / 2
             ortho = max((hi3 - lo3).length, 1e-3) * MARKER_MARGIN
             projection.update({
@@ -2870,7 +2870,7 @@ def render_markers(path, body, joints, conf, H, extra=None, size=640, projection
                 "formula": "u = center_px[0] + (x - center[0]) / meters_per_px; "
                            "v = center_px[1] - (z - center[1]) / meters_per_px",
                 "margin": MARKER_MARGIN})
-        af.render_views(p, [body] + sets[view], views=(view,), size=size, margin=MARKER_MARGIN)
+        ima.render_views(p, [body] + sets[view], views=(view,), size=size, margin=MARKER_MARGIN)
         tmp.append(p)
     concat_images(tmp, path)
     for p in tmp:
@@ -3186,7 +3186,7 @@ def make_proxy(body, H, target_tris, voxel=False, drop=None):
     """Welded (and decimated / voxel-remeshed) copy of the body used for bone heat. drop: vertex
     mask of the body to leave out (small islands)."""
     me = body.data.copy()
-    proxy = bpy.data.objects.new("AF_Proxy", me)
+    proxy = bpy.data.objects.new("Imaginarium_Proxy", me)
     bpy.context.scene.collection.objects.link(proxy)
     proxy.vertex_groups.clear()
     if drop is not None and drop.any():
@@ -3199,7 +3199,7 @@ def make_proxy(body, H, target_tris, voxel=False, drop=None):
         me.update()
     weld(proxy, 1e-4 * H)
     if voxel:
-        mod = proxy.modifiers.new("AF_Remesh", "REMESH")
+        mod = proxy.modifiers.new("Imaginarium_Remesh", "REMESH")
         mod.mode = "VOXEL"
         mod.voxel_size = H / 170.0
         mod.adaptivity = 0.0
@@ -3207,11 +3207,11 @@ def make_proxy(body, H, target_tris, voxel=False, drop=None):
         bpy.ops.object.modifier_apply(modifier=mod.name)
     tris = tri_count(proxy)
     if tris > target_tris:
-        mod = proxy.modifiers.new("AF_Decimate", "DECIMATE")
+        mod = proxy.modifiers.new("Imaginarium_Decimate", "DECIMATE")
         mod.ratio = max(0.02, target_tris / tris)
         select_only(proxy)
         bpy.ops.object.modifier_apply(modifier=mod.name)
-    proxy["af_proxy_repair"] = repair_for_heat(proxy, H)
+    proxy["imaginarium_proxy_repair"] = repair_for_heat(proxy, H)
     return proxy
 
 
@@ -3259,7 +3259,7 @@ def bone_heat(proxy, rig):
 def transfer_weights(src, dst, names):
     """Data Transfer modifier (nearest face, interpolated) src -> dst vertex groups."""
     dst.vertex_groups.clear()
-    mod = dst.modifiers.new("AF_WeightXfer", "DATA_TRANSFER")
+    mod = dst.modifiers.new("Imaginarium_WeightXfer", "DATA_TRANSFER")
     mod.object = src
     mod.use_object_transform = True
     mod.use_vert_data = True
@@ -3599,7 +3599,7 @@ def skin(body, rig, H, params, warnings, log=None, radii=None):
         rep = weight_report(Wp, names)
         missing_core = [n for n in rep["empty_bones"] if n in CORE_BONES]
         rep.update({"method": label, "proxy_tris": tri_count(proxy), "proxy_verts": len(proxy.data.vertices),
-                    "repair": dict(proxy.get("af_proxy_repair") or {}),
+                    "repair": dict(proxy.get("imaginarium_proxy_repair") or {}),
                     "seconds": round(time.time() - t0, 1), "missing_core": missing_core})
         if log:
             log("bone heat", **{k: v for k, v in rep.items() if k != "empty_bones"})
@@ -4034,7 +4034,7 @@ def add_human_sockets(rig, body, names, W, H, rigid_mask=None, thumb="z", grip_d
             if gd is not None:
                 hinfo["grip_dir"] = rnd(vec(gd), 4)
         info[sname] = hinfo
-        e = af.add_socket(sname, parent=rig, bone=bn, kind="mount", size=0.04 * H / 1.8,
+        e = ima.add_socket(sname, parent=rig, bone=bn, kind="mount", size=0.04 * H / 1.8,
                           **{k: v for k, v in extra.items() if k not in ("kind", "game_socket")})
         e.rotation_mode = "QUATERNION"
         hand_emps[tag] = e
@@ -4050,7 +4050,7 @@ def add_human_sockets(rig, body, names, W, H, rigid_mask=None, thumb="z", grip_d
     yb = surf(0.0, zb)
     yb = (yb if yb is not None else j["Spine2"].y + 0.08 * H) + 0.02 * H
     Rback = Matrix(((-1, 0, 0), (0, -1, 0), (0, 0, 1))).transposed().to_4x4()
-    socks.append((af.add_socket("socket_mount_back", parent=rig, bone=b("Spine2"), kind="mount",
+    socks.append((ima.add_socket("socket_mount_back", parent=rig, bone=b("Spine2"), kind="mount",
                                 size=0.06), Matrix.Translation((0.0, yb, zb)) @ Rback))
     zh = j["Hips"].z - 0.02 * H
     for side, tag, sgn in (("Left", "l", 1.0), ("Right", "r", -1.0)):
@@ -4062,16 +4062,16 @@ def add_human_sockets(rig, body, names, W, H, rigid_mask=None, thumb="z", grip_d
         Z = Vector((0, 0, 1))
         X = Y.cross(Z)
         R = Matrix((X, Y, Z)).transposed().to_4x4()
-        socks.append((af.add_socket("socket_mount_hip_" + tag, parent=rig, bone=b("Hips"),
+        socks.append((ima.add_socket("socket_mount_hip_" + tag, parent=rig, bone=b("Hips"),
                                     kind="mount", size=0.05),
                       Matrix.Translation((sgn * (xh + 0.015 * H), j["Hips"].y, zh)) @ R))
     hc = (j["Head"] + j["HeadTop_End"]) * 0.5
-    socks.append((af.add_socket("socket_fx_head", parent=rig, bone=b("Head"), kind="fx", size=0.05),
+    socks.append((ima.add_socket("socket_fx_head", parent=rig, bone=b("Head"), kind="fx", size=0.05),
                   Matrix.Translation(hc)))
     zc = j["Spine2"].z
     yc = surf(0.0, zc, front=True)
     yc = (yc if yc is not None else j["Spine2"].y - 0.08 * H) - 0.01 * H
-    socks.append((af.add_socket("socket_fx_chest", parent=rig, bone=b("Spine2"), kind="fx", size=0.05),
+    socks.append((ima.add_socket("socket_fx_chest", parent=rig, bone=b("Spine2"), kind="fx", size=0.05),
                   Matrix.Translation((0.0, yc, zc))))
     bpy.context.view_layer.update()
     out = {}
@@ -4291,7 +4291,7 @@ def render_poses(path, body, rig, size=256):
         aim_bones(rig, targets)
         for view in rows:
             p = os.path.join(tmp_dir, "%s_%s.png" % (name, view))
-            af.render_views(p, [body], views=(view,), size=size)
+            ima.render_views(p, [body], views=(view,), size=size)
             rows[view].append(p)
     reset_pose(rig)
     a = concat_images(rows["front"], os.path.join(tmp_dir, "row_front.png"))
@@ -4319,14 +4319,14 @@ def symmetry_error(joints, X0, H, names):
 
 def write_json(path, data):
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(data), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(data), fh, ensure_ascii=False, indent=1)
     return path
 
 
 def markers_json(lm, prep, H, warnings, extra=None):
     J = lm.joints_m()
     d = {
-        "format": "astraforge.humanoid.markers/1",
+        "format": "imaginarium.humanoid.markers/1",
         "units": "m",
         "frame": "normalised: faces -Y, feet on z=0, trunk midline x=0, character left = +X, Z up",
         "height_m": H,

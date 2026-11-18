@@ -1,4 +1,4 @@
-// Scan core of the installer (installer/af_scan.mjs): the ##ITEM contract of 0.4.8, the checklist
+// Scan core of the installer (installer/imaginarium_scan.mjs): the ##ITEM contract of 0.4.8, the checklist
 // rules (presets, mandatory, dependencies, reasons), the Lite branch without an NVIDIA card and the
 // scan-failure fallback. The non-win32 sibling of the reference update.test.mjs -ScanList shape test
 // (that one drives powershell and skips here): the same field contract, checked on Linux.
@@ -11,10 +11,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   APP_ROOT, MANDATORY, ORDER, VLM, p3Scan, triposgScan, soundScan, scanComponents, scanItems, itemLines, verOf, verLess, stateLines, TRIPOSG_AUTO_MAX_VRAM_MIB, SOUND_MIN_VRAM_MIB, MIN_NVIDIA_DRIVER, EXPERIMENTAL,
-} from '../installer/af_scan.mjs';
+} from '../installer/imaginarium_scan.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const SCAN = path.join(APP_ROOT, 'installer', 'af_scan.mjs');
+const SCAN = path.join(APP_ROOT, 'installer', 'imaginarium_scan.mjs');
 
 test('verOf/verLess - the version rules of Install.ps1', () => {
   assert.equal(verOf('C:/x/blender-5.0.1-linux-x64/blender'), '5.0.1');
@@ -288,7 +288,7 @@ test('the ##ITEM lines: 13 tab-separated fields, tabs and newlines inside values
 // - - - - - - - - - TripoSG (0.6.0 wave, ticket 02) - - - - - - - - - - - - - - - - - - - - - -
 
 test('triposgScan: venv + pinned code + exact-weight snapshot is complete; a removed venv is not', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'af-ts-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'imaginarium-ts-'));
   const p = (...a) => path.join(dir, ...a);
   const w = (rel, size) => { mkdirSync(path.dirname(p(rel)), { recursive: true }); writeFileSync(p(rel), ''); truncateSync(p(rel), size); };   // sparse
   w('models/TripoSG/transformer/diffusion_pytorch_model.safetensors', 5758280104);
@@ -299,17 +299,17 @@ test('triposgScan: venv + pinned code + exact-weight snapshot is complete; a rem
   writeFileSync(p('src/TripoSG/triposg/pipelines/pipeline_triposg.py'), '');
   mkdirSync(p('.venv/bin'), { recursive: true });
   writeFileSync(p('.venv/bin/python'), '#!/bin/sh\n'); chmodSync(p('.venv/bin/python'), 0o755);
-  const r = triposgScan(mkS({ env: { ASTRA_TRIPOSG_DIR: dir } }));
+  const r = triposgScan(mkS({ env: { IMAGINARIUM_TRIPOSG_DIR: dir } }));
   assert.ok(r.complete, r.reason);
   assert.equal(r.missingBytes, 0);
   rmSync(p('.venv/bin/python'));
-  const r2 = triposgScan(mkS({ env: { ASTRA_TRIPOSG_DIR: dir } }));
+  const r2 = triposgScan(mkS({ env: { IMAGINARIUM_TRIPOSG_DIR: dir } }));
   assert.equal(r2.complete, false); assert.equal(r2.env, false); assert.equal(r2.code, true); assert.equal(r2.offer, true);
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('triposgScan offer gates: no NVIDIA card, or a card under ~4 GB, declines the row honestly', () => {
-  const absent = { env: { ASTRA_TRIPOSG_DIR: path.join(tmpdir(), 'af-ts-absent-' + Math.random()) } };
+  const absent = { env: { IMAGINARIUM_TRIPOSG_DIR: path.join(tmpdir(), 'imaginarium-ts-absent-' + Math.random()) } };
   assert.match(triposgScan(mkS({ ...absent, gpu: '' })).reason, /NVIDIA graphics card/);
   assert.match(triposgScan(mkS({ ...absent, vram: 2048 })).reason, /2 GB/);
   assert.equal(triposgScan(mkS({ ...absent, vram: 4096 })).offer, true, '4 GB is enough to offer the low-VRAM path');
@@ -357,23 +357,23 @@ function buildSound(dir) {
 }
 
 test('soundScan: venv + both checkouts + every pinned weight is complete; a cut file is not', () => {
-  const dir = mkdtempSync(path.join(tmpdir(), 'af-snd-'));
+  const dir = mkdtempSync(path.join(tmpdir(), 'imaginarium-snd-'));
   const man = buildSound(dir);
-  const r = soundScan(mkS({ env: { ASTRA_SOUND_DIR: dir } }));
+  const r = soundScan(mkS({ env: { IMAGINARIUM_SOUND_DIR: dir } }));
   assert.ok(r.complete, r.reason);
   assert.equal(r.missingBytes, 0);
   assert.equal(r.weightBytes, Object.values(man.models).flatMap((e) => e.files).reduce((n, f) => n + f.size, 0));
   assert.equal(r.codeBytes, Object.values(man.code).reduce((n, c) => n + c.size, 0));
   const big = path.join(dir, 'models', man.models.moss.dst, 'transformer', 'diffusion_pytorch_model.safetensors');
   truncateSync(big, 1024);
-  const r2 = soundScan(mkS({ env: { ASTRA_SOUND_DIR: dir } }));
+  const r2 = soundScan(mkS({ env: { IMAGINARIUM_SOUND_DIR: dir } }));
   assert.equal(r2.weights, false);
   assert.ok(r2.missingBytes > 5e9, 'the shortfall is the size of the truncated file');
   rmSync(dir, { recursive: true, force: true });
 });
 
 test('soundScan offer gates: no NVIDIA card, or a card under 8 GB, declines the row honestly', () => {
-  const absent = { env: { ASTRA_SOUND_DIR: path.join(tmpdir(), 'af-snd-absent-' + Math.random()) } };
+  const absent = { env: { IMAGINARIUM_SOUND_DIR: path.join(tmpdir(), 'imaginarium-snd-absent-' + Math.random()) } };
   assert.match(soundScan(mkS({ ...absent, gpu: '' })).reason, /NVIDIA graphics card/);
   assert.match(soundScan(mkS({ ...absent, vram: 6144 })).reason, /6 GB/);
   assert.equal(soundScan(mkS({ ...absent, vram: SOUND_MIN_VRAM_MIB })).offer, true, '8 GB is the seam');
@@ -441,13 +441,13 @@ test('the state block for install.sh: shell-safe quotes and the status strings o
   assert.equal(r.stdout, 'outdated');
 });
 
-test('the scan failure is what the frontend catches: ASTRA_INSTALL_SCAN_FAIL throws (preset-whole fallback)', () => {
-  assert.throws(() => scanComponents({ env: { ASTRA_INSTALL_SCAN_FAIL: '1' } }), /the computer check failed on purpose/);
+test('the scan failure is what the frontend catches: IMAGINARIUM_INSTALL_SCAN_FAIL throws (preset-whole fallback)', () => {
+  assert.throws(() => scanComponents({ env: { IMAGINARIUM_INSTALL_SCAN_FAIL: '1' } }), /the computer check failed on purpose/);
   assert.throws(() => scanComponents({ root: path.join(APP_ROOT, 'scripts') }), /not the application folder/);
 });
 
 test('integration: a fake app folder with a wrong-size model reads as outdated, u2net as missing', () => {
-  const tmp = mkdtempSync(path.join(tmpdir(), 'af-scan-'));
+  const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-scan-'));
   try {
     mkdirSync(path.join(tmp, 'installer'), { recursive: true });
     mkdirSync(path.join(tmp, 'data', 'models', 'checkpoints'), { recursive: true });
@@ -461,7 +461,7 @@ test('integration: a fake app folder with a wrong-size model reads as outdated, 
       },
     }));
     writeFileSync(path.join(tmp, 'data', 'models', 'checkpoints', 'h.safetensors'), 'x'.repeat(9));
-    const s = scanComponents({ root: tmp, env: { ASTRA_INSTALL_NO_GPU: '1' } });
+    const s = scanComponents({ root: tmp, env: { IMAGINARIUM_INSTALL_NO_GPU: '1' } });
     assert.equal(s.hy2.st, 'outdated', 'a found file of another size is an outdated model');
     assert.equal(s.u2net.st, 'missing');
     assert.equal(s.noGpu, true, 'the test hook keeps the probe branch deterministic');

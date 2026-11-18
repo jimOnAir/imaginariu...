@@ -1,14 +1,14 @@
 #!/usr/bin/env bash
-# AstraForge - VFX texture generators for Linux/macOS (the counterpart of scripts/vfx/Install-VfxTools.ps1).
+# Imaginarium - VFX texture generators for Linux/macOS (the counterpart of scripts/vfx/Install-VfxTools.ps1).
 # Downloads the generators from server/vfx-tools-catalog.json that are usable on this OS from their official
 # sites; tools whose vendor ships no Linux build are reported, never emulated (docs/linux.md, GLOSSARY "Linux parity").
-#   -Root <folder>  where to install; default $ASTRA_VFX_TOOLS or <app>/runtime/vfx
+#   -Root <folder>  where to install; default $IMAGINARIUM_VFX_TOOLS or <app>/runtime/vfx
 #   -Only a,b       only these tools (ids from the catalog)
 #   -DryRun         show the plan without downloading anything
 # Anything already downloaded is skipped, so the script can be run again. No administrator rights needed.
 set -uo pipefail
 APP="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-ROOT="${ASTRA_VFX_TOOLS:-$APP/runtime/vfx}"
+ROOT="${IMAGINARIUM_VFX_TOOLS:-$APP/runtime/vfx}"
 Only='' DryRun=0 prev=''
 for arg in "$@"; do
   case "$arg" in
@@ -19,8 +19,8 @@ for arg in "$@"; do
     *) [ "$prev" = Root ] && ROOT="$arg"; [ "$prev" = Only ] && Only="$arg"; ;;
   esac
 done
-CATALOG="${ASTRA_VFX_CATALOG:-$APP/server/vfx-tools-catalog.json}"   # the seam tests use; production reads the shipped catalog
-NODE_BIN="${ASTRA_NODE:-$(command -v node || true)}"
+CATALOG="${IMAGINARIUM_VFX_CATALOG:-$APP/server/vfx-tools-catalog.json}"   # the seam tests use; production reads the shipped catalog
+NODE_BIN="${IMAGINARIUM_NODE:-$(command -v node || true)}"
 [ -n "$NODE_BIN" ] || { echo 'node is required (npm for DisplacementX). Run installer/install.sh first.'; exit 1; }
 NPM_BIN="$("$NODE_BIN" -e 'const p=require("path"),d=require("path").dirname(process.execPath);console.log(p.join(d,process.platform==="win32"?"npm.cmd":"npm"))')"
 
@@ -42,9 +42,9 @@ NpmBuildTry() {
 LOG="$APP/installer/install.log"   # ticket 16: the fallback/skip/retry lines belong in the install log too
 say() { printf '%s\n' "$1"; if ! printf '%s\n' "$1" >>"$LOG" 2>/dev/null; then [ -n "${LOG_WARNED:-}" ] || { LOG_WARNED=1; printf '%s\n' 'the install log is not writable - the run continues without logging from here'; }; fi; }
 # the shared download core (reason table, resume/retry loop, checksums, mirrors)
-DL_USER_AGENT='Mozilla/5.0 AstraForge'; export DL_USER_AGENT
-# shellcheck source=../../installer/af_download.sh
-. "$APP/installer/af_download.sh"
+DL_USER_AGENT='Mozilla/5.0 Imaginarium'; export DL_USER_AGENT
+# shellcheck source=../../installer/imaginarium_download.sh
+. "$APP/installer/imaginarium_download.sh"
 Inside() { case "$1" in /*|*..*) say "Path outside the tools folder: $1"; exit 1 ;; esac; printf '%s/%s' "$ROOT" "$1"; }
 Filled() { [ -d "$1" ] && [ -n "$(ls -A "$1" 2>/dev/null)" ]; }
 Unpack() { # <archive> <dst> [strip]

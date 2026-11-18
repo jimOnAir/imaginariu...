@@ -1,7 +1,7 @@
-"""_ship_lib — shared kit of the AstraForge "ships" module (ship_gen, turret_gen, ship_from_mesh).
+"""_ship_lib — shared kit of the Imaginarium "ships" module (ship_gen, turret_gen, ship_from_mesh).
 
 Contents
-  * contract data: budgets per class, roles, AF_* material library, faction palettes.
+  * contract data: budgets per class, roles, Imaginarium_* material library, faction palettes.
   * Kit: one bmesh per build with a material index per face; primitives (box, cylinder, lathe, loft,
     airfoil loft) are created directly in it, bevelled / inset per part, mirrored across X = 0.
   * finalize: split by material into M_<part>_<material> objects, sharp edges by angle, UVs.
@@ -34,11 +34,11 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 
-GEN_SHIP = "af_ship_gen_v1"
-GEN_TURRET = "af_turret_gen_v1"
-GEN_FROM_MESH = "af_ship_from_mesh_v1"
+GEN_SHIP = "imaginarium_ship_gen_v1"
+GEN_TURRET = "imaginarium_turret_gen_v1"
+GEN_FROM_MESH = "imaginarium_ship_from_mesh_v1"
 
 # ----------------------------------------------------------------------------- budgets
 # Budget per class of the generic generators (ship_gen / ship_from_mesh / kitbash: ship_s/m/l, turret_gen: turret).
@@ -71,9 +71,9 @@ FACTIONS = ("industrial", "military", "sleek", "alien")
 
 MATS = ["armor", "graphite", "trim", "panel", "glass", "status", "drive", "marking"]
 MI = {k: i for i, k in enumerate(MATS)}
-MAT_NAME = {"armor": "AF_Armor", "graphite": "AF_Graphite", "trim": "AF_SteelTrim",
-            "panel": "AF_ServicePanel", "glass": "AF_Glass", "status": "AF_EmissiveStatus",
-            "drive": "AF_EmissiveDrive", "marking": "AF_Marking"}
+MAT_NAME = {"armor": "Imaginarium_Armor", "graphite": "Imaginarium_Graphite", "trim": "Imaginarium_SteelTrim",
+            "panel": "Imaginarium_ServicePanel", "glass": "Imaginarium_Glass", "status": "Imaginarium_EmissiveStatus",
+            "drive": "Imaginarium_EmissiveDrive", "marking": "Imaginarium_Marking"}
 SHORT = {"armor": "armor", "graphite": "graphite", "trim": "steeltrim", "panel": "servicepanel",
          "glass": "glass", "status": "emissivestatus", "drive": "emissivedrive", "marking": "marking"}
 
@@ -161,7 +161,7 @@ def palette_for(faction, variant=0, livery=None):
 
 
 def make_materials(palette, suffix=""):
-    """Create (or reuse) the AF_* materials of a palette. Returns {key: bpy.types.Material}."""
+    """Create (or reuse) the Imaginarium_* materials of a palette. Returns {key: bpy.types.Material}."""
     out = {}
     for key in MATS:
         p = palette[key]
@@ -716,7 +716,7 @@ def uv_unwrap(objs, method="smart"):
                     co = me.vertices[me.loops[li].vertex_index].co
                     uv.data[li].uv = (co[a] * s + 0.5, co[b] * s + 0.5)
             continue
-        af.select_only([ob])
+        ima.select_only([ob])
         try:
             bpy.ops.object.mode_set(mode="EDIT")
             bpy.ops.mesh.select_all(action="SELECT")
@@ -940,7 +940,7 @@ def convex_collision(objs, name="COL_SIMPLE-convcolonly", max_verts=64, parent=N
 def add_socket(name, kind, pos, z_axis=(0, 0, 1), y_hint=(0, 1, 0), parent=None, size=0.3, **extras):
     """Contract §6 socket empty with an explicit frame (see module docstring)."""
     R = frame(z_axis, y_hint)
-    emp = af.add_socket(name, parent=parent, location=tuple(pos), rotation=R.to_euler(), kind=kind,
+    emp = ima.add_socket(name, parent=parent, location=tuple(pos), rotation=R.to_euler(), kind=kind,
                         size=size, **extras)
     return emp
 
@@ -978,7 +978,7 @@ def thruster_diameter_check(thr_sockets):
     bad = [s["game_socket"] for s in thr_sockets
            if not (isinstance(s["extras"].get("mount_d_m"), (int, float)) and s["extras"]["mount_d_m"] > 0)]
     vals = {s["game_socket"]: s["extras"].get("mount_d_m") for s in thr_sockets}
-    return af.check("thruster_mount_d_m", not bad, vals if not bad else bad, "mount_d_m > 0 m on every thruster",
+    return ima.check("thruster_mount_d_m", not bad, vals if not bad else bad, "mount_d_m > 0 m on every thruster",
                     note="nozzle exit diameter in metres (contract §6), read by godot_package fx_auto_scale")
 
 
@@ -1150,43 +1150,43 @@ def glb_summary(path):
 
 
 def budget_checks(summ, cls, lod_tris=None):
-    """Contract checks (af_common.check items) of a GLB summary against the class budget."""
+    """Contract checks (imaginarium_common.check items) of a GLB summary against the class budget."""
     b = BUDGETS[cls]
     tris, surf, per = summ["triangles"], summ["surfaces_lod0"], "whole file"
     out = [
-        af.check("tris_lod0", tris <= b["tris"], tris, b["tris"], note=per),
-        af.check("surfaces_lod0", surf <= b["surfaces"], surf, b["surfaces"], note=per),
-        af.check("surfaces_target_151_2", surf <= b["t_surfaces"], surf,
+        ima.check("tris_lod0", tris <= b["tris"], tris, b["tris"], note=per),
+        ima.check("surfaces_lod0", surf <= b["surfaces"], surf, b["surfaces"], note=per),
+        ima.check("surfaces_target_151_2", surf <= b["t_surfaces"], surf,
                  b["t_surfaces"], severity="warning", note="target tier after material merge"),
-        af.check("materials", summ["materials_used"] <= b["materials"], summ["materials_used"], b["materials"]),
-        af.check("glb_mb", summ["mb"] <= b["mb"], summ["mb"], b["mb"]),
-        af.check("nodes", summ["nodes"] <= b["nodes"], summ["nodes"], b["nodes"],
+        ima.check("materials", summ["materials_used"] <= b["materials"], summ["materials_used"], b["materials"]),
+        ima.check("glb_mb", summ["mb"] <= b["mb"], summ["mb"], b["mb"]),
+        ima.check("nodes", summ["nodes"] <= b["nodes"], summ["nodes"], b["nodes"],
                  note="class node cap"),
     ]
     if b["strict_nodes"] is not None:
-        out.append(af.check("nodes_strict_row", summ["nodes"] <= b["strict_nodes"], summ["nodes"], b["strict_nodes"],
+        out.append(ima.check("nodes_strict_row", summ["nodes"] <= b["strict_nodes"], summ["nodes"], b["strict_nodes"],
                             severity="warning", note="recommended node count (hull <= 24, turret <= 12)"))
     out += [
-        af.check("bad_names", not summ["bad_names"], len(summ["bad_names"]), 0),
-        af.check("finite_positions", summ["finite"], summ["finite"], True),
-        af.check("prims_without_uv", summ["prims_without_uv"] == 0, summ["prims_without_uv"], 0),
-        af.check("prims_without_normal", summ["prims_without_normal"] == 0, summ["prims_without_normal"], 0),
-        af.check("prims_without_material", summ["prims_without_material"] == 0, summ["prims_without_material"], 0),
+        ima.check("bad_names", not summ["bad_names"], len(summ["bad_names"]), 0),
+        ima.check("finite_positions", summ["finite"], summ["finite"], True),
+        ima.check("prims_without_uv", summ["prims_without_uv"] == 0, summ["prims_without_uv"], 0),
+        ima.check("prims_without_normal", summ["prims_without_normal"] == 0, summ["prims_without_normal"], 0),
+        ima.check("prims_without_material", summ["prims_without_material"] == 0, summ["prims_without_material"], 0),
     ]
     if lod_tris:
         l0 = max(1, tris)
         for k, lim_cls, frac in (("lod1", b["lod1"], 0.35), ("lod2", b["lod2"], 0.12)):
             if k in lod_tris:
                 lim = int(frac * l0) if lim_cls is None else min(lim_cls, int(frac * l0))
-                out.append(af.check("tris_" + k, lod_tris[k] <= lim, lod_tris[k], lim))
+                out.append(ima.check("tris_" + k, lod_tris[k] <= lim, lod_tris[k], lim))
     bad_sock = [s["game_socket"] for s in summ["sockets"]
                 if not (SOCKET_RE.match(s["game_socket"]) or s["game_socket"].startswith("pivot_"))]
-    out.append(af.check("socket_names", not bad_sock, bad_sock, "socket_<kind>_<place>"))
+    out.append(ima.check("socket_names", not bad_sock, bad_sock, "socket_<kind>_<place>"))
     no_size = [s["game_socket"] for s in summ["sockets"]
                if s["extras"].get("kind") in SIZE_KINDS and s["extras"].get("size_class") not in ("S", "M", "L")]
-    out.append(af.check("socket_size_class", not no_size, no_size, "S/M/L"))
+    out.append(ima.check("socket_size_class", not no_size, no_size, "S/M/L"))
     mism = [s["node"] for s in summ["sockets"] if s["node"] != s["game_socket"]]
-    out.append(af.check("socket_node_equals_game_socket", not mism, mism, [], severity="warning"))
+    out.append(ima.check("socket_node_equals_game_socket", not mism, mism, [], severity="warning"))
     return out
 
 
@@ -1269,7 +1269,7 @@ def today():
 
 def write_json(path, data):
     with open(path, "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(data), fh, ensure_ascii=False, indent=2)
+        json.dump(ima._jsonable(data), fh, ensure_ascii=False, indent=2)
     return path
 
 
@@ -1337,7 +1337,7 @@ def render_views_custom(objs, views, sizes, margin=1.04, exposure=0.25, color_ty
     prev_cam = scene.camera
     scene.camera = cam
     r = scene.render
-    r.engine = af.engine_id("WORKBENCH")
+    r.engine = ima.engine_id("WORKBENCH")
     r.resolution_percentage = 100
     r.film_transparent = True
     r.image_settings.file_format = "PNG"
@@ -1362,7 +1362,7 @@ def render_views_custom(objs, views, sizes, margin=1.04, exposure=0.25, color_ty
     sh.show_specular_highlight = True
     sh.show_shadows = False
     sh.show_object_outline = False
-    tmp = tempfile.mkdtemp(prefix="af_ship_prev_")
+    tmp = tempfile.mkdtemp(prefix="imaginarium_ship_prev_")
     try:
         return _render_loop(scene, cam, cam_data, r, P, center, radius, views, sizes, margin, tmp)
     finally:
@@ -1594,7 +1594,7 @@ def rotary_barrels(kit, base, length, cluster_d, n=6, mat="trim", ring_mat="grap
 
 def turret_geometry(size="M", barrels=2, style="military", seed=1, lod=0, ring=None, rotary=False):
     """Build a turret as four Kits keyed by rig level: 'root' (fixed base), 'yaw' (turntable + housing),
-    'pitch' (cradle / mantlet), 'barrel' (one AF_SteelTrim mesh, animated for recoil).
+    'pitch' (cradle / mantlet), 'barrel' (one Imaginarium_SteelTrim mesh, animated for recoil).
     rotary=True: every gun is a 6-barrel rotary cluster (rotary_barrels) instead of a plain barrel.
     Local frame of the mount: +Z up (outward), +Y forward. Returns (kits, rig) where rig holds pivot
     positions and muzzle points in mount space."""
@@ -1763,9 +1763,9 @@ def purge_orphans():
 
 
 def save_blend_clean(path):
-    """orphans purge + af_common.save_blend + remove Blender's numbered backup (<name>.blend1)."""
+    """orphans purge + imaginarium_common.save_blend + remove Blender's numbered backup (<name>.blend1)."""
     purge_orphans()
-    out = af.save_blend(path)
+    out = ima.save_blend(path)
     for ext in ("1", "2"):
         bak = out + ext
         if os.path.isfile(bak):
@@ -2303,12 +2303,12 @@ def render_text_mask(lines, font_path, px_per_m, size_m, bold_px=0, align="LEFT"
     the strokes by a grey dilation of the mask (the FONT outline offset self-intersects and leaves holes).
     slashed_zero: a short slash inside every '0' (measured from prefix widths, like a stencil zero).
     Returns float32 HxW alpha (top row first)."""
-    scene = bpy.data.scenes.new("af_text_tmp")
+    scene = bpy.data.scenes.new("imaginarium_text_tmp")
     vl = scene.view_layers[0]
     font = bpy.data.fonts.load(os.path.abspath(font_path), check_existing=True)
     tmp_objs = []
 
-    def text_obj(txt, size, loc, name="af_txt"):
+    def text_obj(txt, size, loc, name="imaginarium_txt"):
         cu = bpy.data.curves.new(name, type="FONT")
         cu.body = txt
         cu.font = font
@@ -2338,7 +2338,7 @@ def render_text_mask(lines, font_path, px_per_m, size_m, bold_px=0, align="LEFT"
     scales = scales or [1.0] * len(lines)
     objs, y = [], 0.0
     for i, (txt, sc) in enumerate(zip(lines, scales)):
-        objs.append(text_obj(txt, sc, (0.0, y, 0.0), "af_txt_%d" % i))
+        objs.append(text_obj(txt, sc, (0.0, y, 0.0), "imaginarium_txt_%d" % i))
         y -= float(sc) * line_gap
     slashes = []
     if slashed_zero and align != "CENTER":
@@ -2347,9 +2347,9 @@ def render_text_mask(lines, font_path, px_per_m, size_m, bold_px=0, align="LEFT"
             for k, ch in enumerate(txt):
                 if ch != "0":
                     continue
-                pre = text_obj(txt[:k], sc, (0.0, y0 - 50.0, 0.0), "af_meas_a") if k else None
-                cur = text_obj(txt[:k + 1], sc, (0.0, y0 - 50.0, 0.0), "af_meas_b")
-                zero = text_obj("0", sc, (0.0, y0 - 50.0, 0.0), "af_meas_c")
+                pre = text_obj(txt[:k], sc, (0.0, y0 - 50.0, 0.0), "imaginarium_meas_a") if k else None
+                cur = text_obj(txt[:k + 1], sc, (0.0, y0 - 50.0, 0.0), "imaginarium_meas_b")
+                zero = text_obj("0", sc, (0.0, y0 - 50.0, 0.0), "imaginarium_meas_c")
                 b_pre = bounds([pre]) if pre is not None else None
                 b_cur, b_zero = bounds([cur]), bounds([zero])
                 for o_ in (pre, cur, zero):
@@ -2371,9 +2371,9 @@ def render_text_mask(lines, font_path, px_per_m, size_m, bold_px=0, align="LEFT"
         b = Vector((x1 - w * 0.2, zy1 - h * 0.18, 0.0))
         d = (b - a).normalized()
         nrm = Vector((-d.y, d.x, 0.0)) * (w * 0.085)
-        me = bpy.data.meshes.new("af_slash_%d" % k)
+        me = bpy.data.meshes.new("imaginarium_slash_%d" % k)
         me.from_pydata([a - nrm, b - nrm, b + nrm, a + nrm], [], [(0, 1, 2, 3)])
-        ob = bpy.data.objects.new("af_slash_%d" % k, me)
+        ob = bpy.data.objects.new("imaginarium_slash_%d" % k, me)
         scene.collection.objects.link(ob)
         tmp_objs.append(ob)
     Wpx, Hpx = max(8, int(round(size_m[0] * px_per_m))), max(8, int(round(size_m[1] * px_per_m)))
@@ -2385,18 +2385,18 @@ def render_text_mask(lines, font_path, px_per_m, size_m, bold_px=0, align="LEFT"
         tw, th = hi - lo
         pad = pad_px + bold_px
         s = min((Wpx - 2 * pad) / max(tw, 1e-6), (Hpx - 2 * pad) / max(th, 1e-6))  # px per text unit
-        cam_d = bpy.data.cameras.new("af_txt_cam")
+        cam_d = bpy.data.cameras.new("imaginarium_txt_cam")
         cam_d.type = "ORTHO"
         cam_d.sensor_fit = "AUTO"
         cam_d.ortho_scale = max(Wpx, Hpx) / s
-        cam = bpy.data.objects.new("af_txt_cam", cam_d)
+        cam = bpy.data.objects.new("imaginarium_txt_cam", cam_d)
         scene.collection.objects.link(cam)
         tmp_objs.append(cam)
         cx = (lo[0] + hi[0]) / 2 if align == "CENTER" else lo[0] - pad / s + (Wpx / s) / 2
         cam.location = (cx, (lo[1] + hi[1]) / 2, 10.0)
         scene.camera = cam
         r = scene.render
-        r.engine = af.engine_id("WORKBENCH")
+        r.engine = ima.engine_id("WORKBENCH")
         r.resolution_x, r.resolution_y = Wpx, Hpx
         r.resolution_percentage = 100
         r.film_transparent = True
@@ -2414,7 +2414,7 @@ def render_text_mask(lines, font_path, px_per_m, size_m, bold_px=0, align="LEFT"
             scene.view_settings.view_transform = "Standard"
         except TypeError:
             pass
-        tmp = tempfile.mkdtemp(prefix="af_txt_")
+        tmp = tempfile.mkdtemp(prefix="imaginarium_txt_")
         try:
             r.filepath = os.path.join(tmp, "t.png")
             bpy.ops.render.render(write_still=True, scene=scene.name)

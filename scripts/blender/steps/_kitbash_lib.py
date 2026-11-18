@@ -1,6 +1,6 @@
 """_kitbash_lib — procedural detail parts for the kitbash step (scripts/blender/steps/kitbash.py).
 
-Every builder writes into an _ship_lib.Kit (one bmesh, AF material index per face) in a local part frame set
+Every builder writes into an _ship_lib.Kit (one bmesh, Imaginarium material index per face) in a local part frame set
 through kit.pre (a 4x4 world matrix), so one call works for LOD 0 / 1 / 2 (Kit.lod drops small details and
 segments). Frames: frame_matrix(origin, y_axis, z_hint) -> columns X, Y, Z with Y = the part's main axis.
 

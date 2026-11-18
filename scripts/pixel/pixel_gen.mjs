@@ -77,7 +77,7 @@ export function buildWorkflow(o) {
       },
     },
     7: { class_type: 'VAEDecode', inputs: { samples: ['6', 0], vae: ['1', 2] } },
-    8: { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'astraforge_pixel' } },
+    8: { class_type: 'SaveImage', inputs: { images: ['7', 0], filename_prefix: 'imaginarium_pixel' } },
   };
 }
 
@@ -119,7 +119,7 @@ export async function runWorkflow(base, workflow, { timeoutS = DEFAULTS.timeoutS
     queued = await getJson(`${base}/prompt`, {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ prompt: workflow, client_id: 'astraforge-pixel' }),
+      body: JSON.stringify({ prompt: workflow, client_id: 'imaginarium-pixel' }),
     });
   } catch (e) {
     if (e instanceof TypeError) throw new Error(`ComfyUI does not answer on ${base}: start it and retry (${e.cause?.code ?? e.message})`);
@@ -191,7 +191,7 @@ export async function generate(opts) {
   const { png, file, promptId } = await runWorkflow(base, buildWorkflow(o), { timeoutS: o.timeoutS, pollMs: o.pollMs });
   const out = path.resolve(o.out);
   await mkdir(path.dirname(out), { recursive: true });
-  const tmp = await mkdtemp(path.join(tmpdir(), 'af-pixel-'));
+  const tmp = await mkdtemp(path.join(tmpdir(), 'imaginarium-pixel-'));
   try {
     const raw = path.join(tmp, 'raw.png');
     await writeFile(raw, png);

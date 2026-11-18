@@ -51,7 +51,7 @@ export default function SculptPanel({studio,snapshot,notify,active,onEdit}){
   notify(res.mode==='in-place'?(res.moved?t('sculpt.inPlace',{points:res.points}):t('sculpt.inPlaceNone')):res.mode==='replace'?t('sculpt.replaced',{name:res.name,uv:res.uvLost?t('sculpt.uvLost'):''}):t('sculpt.addedNew'));
  });
  const save=()=>run('save',async()=>{const x=await call({type:'export',format:'obj'});await download(new Blob([x.bytes],{type:'text/plain'}),safe(x.name));notify(t('sculpt.objSaved',{n:x.vertices.toLocaleString()}));});
- const detach=()=>{if(!src)return;const w=window.open(src,'astra-sculpt');if(!w){notify(t('sculpt.popupBlocked'),true);return;}popupWin.current=w;setReady(false);setInfo(null);setSession(null);setEdited(false);setPopup(true);};
+ const detach=()=>{if(!src)return;const w=window.open(src,'imaginarium-sculpt');if(!w){notify(t('sculpt.popupBlocked'),true);return;}popupWin.current=w;setReady(false);setInfo(null);setSession(null);setEdited(false);setPopup(true);};
  const noModel=!status?.available;
  const left=<div className="panel-scroll" hidden={!active}>
   <div className="section intro"><span className="step-label">{t('sculpt.step')}</span><h1>{t('sculpt.title')}</h1><p>{t('sculpt.lead1')}<br/>{t('sculpt.lead2')}</p></div>

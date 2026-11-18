@@ -17,7 +17,7 @@ import {
 import { t, useT } from '../i18n/index.js';
 import './forge-review.css';
 
-const STORE_KEY = 'astraforge.forge.review.v1';
+const STORE_KEY = 'imaginarium.forge.review.v1';
 const DEFAULT_FILTERS = { build: 'all', decision: 'all', faction: 'all', role: 'all', query: '' };
 
 function readFilters() {
@@ -686,7 +686,7 @@ function CharactersReview() {
 
 // ---------------------------------------------------------------------------- the view
 
-const MODE_KEY = 'astraforge.forge.review.mode';
+const MODE_KEY = 'imaginarium.forge.review.mode';
 
 /** Review: the characters of the batch, or the production journal with verdicts and class recipes. */
 export default function ForgeReview() {

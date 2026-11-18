@@ -98,7 +98,7 @@ test('i18n: no .js/.jsx file under src/ contains Cyrillic outside the Russian di
 // allowed in COMMENTS only (the «новое, проба» policy notes) - a display string in these
 // files is exactly the straggler this guard catches.
 const EN_DISPLAY_SURFACES = [
-  ['installer/af_scan.mjs', 'js'],
+  ['installer/imaginarium_scan.mjs', 'js'],
   ['installer/install.sh', 'sh'],
   ['server/components.mjs', 'js'],
 ];

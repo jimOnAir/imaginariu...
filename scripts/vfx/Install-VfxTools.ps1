@@ -1,7 +1,7 @@
-﻿# AstraForge - VFX texture generators (the "VFX" tab).
+﻿# Imaginarium - VFX texture generators (the "VFX" tab).
 # Downloads the free generators listed in server\vfx-tools-catalog.json from their official sites into the tools folder.
-# The programs themselves are not part of AstraForge: each has its own license (see the catalog and THIRD_PARTY_NOTICES.md).
-#   -Root <folder>  where to install; default is $env:ASTRA_VFX_TOOLS or C:\AstraForge\tools\vfx
+# The programs themselves are not part of Imaginarium: each has its own license (see the catalog and THIRD_PARTY_NOTICES.md).
+#   -Root <folder>  where to install; default is $env:IMAGINARIUM_VFX_TOOLS or C:\Imaginarium\tools\vfx
 #   -Only a,b       only these tools (ids from the catalog)
 #   -DryRun         show the plan without downloading anything
 # Installers (PixaFlux, KumoWorks, Slate) are only downloaded; the user runs them with the "Install" button in the tab.
@@ -10,7 +10,7 @@ param([string]$Root, [string[]]$Only, [switch]$DryRun)
 $ErrorActionPreference = 'Stop'
 [Console]::OutputEncoding = [Text.Encoding]::UTF8
 $App = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
-if (!$Root) { $Root = if ($env:ASTRA_VFX_TOOLS) { $env:ASTRA_VFX_TOOLS } else { 'C:\AstraForge\tools\vfx' } }
+if (!$Root) { $Root = if ($env:IMAGINARIUM_VFX_TOOLS) { $env:IMAGINARIUM_VFX_TOOLS } else { 'C:\Imaginarium\tools\vfx' } }
 # when started through -File the list "a,b" arrives as a single string
 $Only = @($Only | ForEach-Object { $_ -split ',' } | Where-Object { $_ })
 $Catalog = Get-Content -LiteralPath (Join-Path $App 'server\vfx-tools-catalog.json') -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -31,7 +31,7 @@ function Download($url, $dst) {
   New-Item -ItemType Directory -Force -Path (Split-Path $dst) | Out-Null
   if (Test-Path -LiteralPath $dst) { Say ('    already downloaded: ' + (Split-Path $dst -Leaf)); return }
   Say ('    downloading ' + $url)
-  Native { & $Curl -L --fail --retry 5 --retry-delay 3 -C - -# -A 'Mozilla/5.0 AstraForge' -o ($dst + '.part') $url }
+  Native { & $Curl -L --fail --retry 5 --retry-delay 3 -C - -# -A 'Mozilla/5.0 Imaginarium' -o ($dst + '.part') $url }
   if ($LASTEXITCODE -ne 0) { throw "Download failed: $url (code $LASTEXITCODE). Run the script again - the download will resume." }
   Move-Item -LiteralPath ($dst + '.part') -Destination $dst -Force
 }

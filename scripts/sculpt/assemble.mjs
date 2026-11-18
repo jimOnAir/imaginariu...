@@ -6,7 +6,7 @@ import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-export const MARK = '<!-- astraforge-bridge -->';
+export const MARK = '<!-- imaginarium-bridge -->';
 const here = path.dirname(fileURLToPath(import.meta.url));
 
 /** The SculptGL index.html -> the studio index.html: no Google Fonts, the app exposed as window.sculptApp, the bridge wired in. */
@@ -14,7 +14,7 @@ export function patchIndex(html) {
   if (html.includes(MARK)) return html;
   let out = html
     .replace(/[ \t]*<link[^>]*fonts\.googleapis\.com[^>]*>\r?\n?/i, '')
-    .replace(/<title>[^<]*<\/title>/i, '<title>SculptGL · AstraForge</title>');
+    .replace(/<title>[^<]*<\/title>/i, '<title>SculptGL · Imaginarium</title>');
   const start = 'app.start();';
   if (!out.includes(start)) throw new Error('SculptGL index.html has no app.start(): a build of another version, the bridge is not wired in.');
   out = out.replace(start, 'app.start();\n    window.sculptApp = app;');

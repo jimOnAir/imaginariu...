@@ -26,7 +26,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 from scipy import ndimage
 
-FORMAT = "astraforge.parts/1"
+FORMAT = "imaginarium.parts/1"
 PART_ORDER = ("head", "torso", "arm_l", "arm_r", "legs")
 CANVAS = 1536
 LONG_SIDE = 1280

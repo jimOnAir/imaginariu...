@@ -3,7 +3,7 @@
 
 Called from a Blender step (scripts/blender/steps/face_match.py and face_fix_loop.py -> run_match / run_loop)
 or by itself, without Blender, over the same forge protocol (docs/FORGE-CONTRACT.md §3: result.json plus an
-AFRESULT / AFERROR line):
+IMAGINARIUM_RESULT / IMAGINARIUM_ERROR line):
 
     python face_step.py run face_match <request.json>
     python face_step.py run face_fix_loop <request.json>
@@ -12,7 +12,7 @@ AFRESULT / AFERROR line):
 The step itself is thin: it finds the model (inputs.blend | inputs.mesh) and the face reference folder
 (params.refs_dir, otherwise face_refs/ next to the asset or the model), runs the checker face_match.py or
 the cycle face_loop.py with an interpreter that has numpy / cv2 / scikit-image / scipy (params.python ->
-ASTRA_QA_PYTHON -> the studio QA python), turns their output into AFLOG, and face_report.json /
+IMAGINARIUM_QA_PYTHON -> the studio QA python), turns their output into IMAGINARIUM_LOG, and face_report.json /
 loop_state.json into the forge outputs, stats and checks. Standard library only: the module is imported
 under the Blender Python and under a system Python alike.
 
@@ -44,8 +44,8 @@ for _stream in (sys.stdout, sys.stderr):
     except Exception:
         pass
 
-try:  # under Blender (af_run.py puts scripts/blender on sys.path) use the af_common protocol; otherwise our own minimum
-    import af_common as af
+try:  # under Blender (imaginarium_run.py puts scripts/blender on sys.path) use the imaginarium_common protocol; otherwise our own minimum
+    import imaginarium_common as ima
 except Exception:  # pragma: no cover
     af = None
 
@@ -55,11 +55,11 @@ T0 = time.time()
 # ----------------------------------------------------------------------------------------------- protocol
 def log(msg, **data):
     if af is not None:
-        af.log(msg, **data)
+        ima.log(msg, **data)
         return
     payload = {"t": round(time.time() - T0, 2), "msg": str(msg)}
     payload.update(data)
-    print("AFLOG " + json.dumps(payload, ensure_ascii=False), flush=True)
+    print("IMAGINARIUM_LOG " + json.dumps(payload, ensure_ascii=False), flush=True)
 
 
 def check(name, ok, value=None, limit=None, severity="error", note=None):
@@ -227,10 +227,10 @@ def resolve_refs(req, model):
 
 
 def resolve_python(p):
-    py = p.get("python") or os.environ.get("ASTRA_QA_PYTHON") or DEFAULT_PYTHON
+    py = p.get("python") or os.environ.get("IMAGINARIUM_QA_PYTHON") or DEFAULT_PYTHON
     if not os.path.isfile(py):
         raise RuntimeError("The face-check Python was not found (%s): an interpreter with numpy, cv2, scikit-image, scipy, "
-                           "Pillow is needed - params.python, ASTRA_QA_PYTHON or %s" % (py, DEFAULT_PYTHON))
+                           "Pillow is needed - params.python, IMAGINARIUM_QA_PYTHON or %s" % (py, DEFAULT_PYTHON))
     return py
 
 
@@ -243,7 +243,7 @@ def resolve_blender(p):
             return bpy.app.binary_path
     except Exception:
         pass
-    for key in ("ASTRA_BLENDER", "HG_BLENDER", "AF_BLENDER"):
+    for key in ("IMAGINARIUM_BLENDER", "HG_BLENDER", "Imaginarium_BLENDER"):
         if os.environ.get(key) and os.path.isfile(os.environ[key]):
             return os.environ[key]
     return DEFAULT_BLENDER
@@ -277,7 +277,7 @@ ITER_RE = re.compile(r"=== ITERATION (\d+)/(\d+)")
 
 
 def run_streaming(cmd, label):
-    """Run with live output: the checker/cycle lines go into AFLOG (the step message in the studio), the rest - into the log."""
+    """Run with live output: the checker/cycle lines go into IMAGINARIUM_LOG (the step message in the studio), the rest - into the log."""
     log("%s: %s" % (label, " ".join(os.path.basename(c) if os.sep in str(c) else str(c) for c in cmd[:2])))
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", PYTHONUNBUFFERED="1")
     p = subprocess.Popen([str(c) for c in cmd], stdout=subprocess.PIPE, stderr=subprocess.STDOUT, env=env, cwd=HERE)
@@ -426,7 +426,7 @@ def _finish(req, result, step):
     os.makedirs(req["out_dir"], exist_ok=True)
     with open(os.path.join(req["out_dir"], "result.json"), "w", encoding="utf-8") as fh:
         json.dump(res, fh, ensure_ascii=False, indent=2)
-    print("AFRESULT " + json.dumps(res, ensure_ascii=False), flush=True)
+    print("IMAGINARIUM_RESULT " + json.dumps(res, ensure_ascii=False), flush=True)
     return res
 
 
@@ -449,7 +449,7 @@ def main(argv):
                 with open(os.path.join(req["out_dir"], "result.json"), "w", encoding="utf-8") as fh:
                     json.dump(dict(payload, ok=False), fh, ensure_ascii=False, indent=2)
             finally:
-                print("AFERROR " + json.dumps(payload, ensure_ascii=False), flush=True)
+                print("IMAGINARIUM_ERROR " + json.dumps(payload, ensure_ascii=False), flush=True)
             return 1
         return 0 if res.get("ok") else 1
     if len(argv) >= 2 and argv[0] == "summary":

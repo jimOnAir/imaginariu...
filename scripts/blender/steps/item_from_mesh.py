@@ -40,7 +40,7 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _items_lib as L
 
 KIND_OF_TYPE = {"sword": "blade", "greatsword": "blade", "dagger": "blade", "axe": "axe", "battle_axe": "axe",
@@ -54,14 +54,14 @@ TYPE_T = {"spear": (0.47, 0.23), "halberd": (0.42, 0.12)}  # (main, off) of know
 
 
 def join_all(objs):
-    meshes = af.meshes(objs)
+    meshes = ima.meshes(objs)
     for o in meshes:
         mw = o.matrix_world.copy()
         o.parent = None
         o.matrix_world = mw
     bpy.context.view_layer.update()
-    af.apply_transforms(meshes)
-    ob = af.join(meshes, name="item_source")
+    ima.apply_transforms(meshes)
+    ob = ima.join(meshes, name="item_source")
     for o in list(objs):
         try:
             if o is not ob and o.type != "MESH":
@@ -70,7 +70,7 @@ def join_all(objs):
             pass
     # glTF / FBX split vertices at UV seams and hard edges: weld them so that connectivity (loose-part
     # cleanup) and decimation see one surface; UVs live on loops and survive the weld
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     bm = bmesh.new()
     bm.from_mesh(ob.data)
     n0 = len(bm.verts)
@@ -79,7 +79,7 @@ def join_all(objs):
     bm.to_mesh(ob.data)
     bm.free()
     ob.data.update()
-    ob["af_welded_vertices"] = welded
+    ob["imaginarium_welded_vertices"] = welded
     return ob
 
 
@@ -396,14 +396,14 @@ def run(req):
         prm["budget_tris"] = prm.pop("budget")
     if isinstance(prm.get("grip"), (list, tuple)) and len(prm["grip"]) == 3:
         prm["grip"] = {"point": [float(x) for x in prm["grip"]]}
-    af.reset_scene()
-    objs = af.import_any(inp["mesh"])
-    if not af.meshes(objs):
+    ima.reset_scene()
+    objs = ima.import_any(inp["mesh"])
+    if not ima.meshes(objs):
         raise ValueError("no mesh in %s" % inp["mesh"])
     ob = join_all(objs)
-    tris_in = af.tri_count([ob])
+    tris_in = ima.tri_count([ob])
     warnings, checks = [], []
-    report = {"source": inp["mesh"], "tris_source": tris_in, "welded_vertices": int(ob.get("af_welded_vertices", 0))}
+    report = {"source": inp["mesh"], "tris_source": tris_in, "welded_vertices": int(ob.get("imaginarium_welded_vertices", 0))}
     if prm.get("crop"):
         report["crop_removed_vertices"] = crop_mesh(ob, prm["crop"])
     report["cleanup"] = remove_small_islands(ob, float(prm.get("min_island", 0.005)))
@@ -529,7 +529,7 @@ def run(req):
     me.shade_smooth()
     me.set_sharp_from_angle(angle=math.radians(float(prm.get("sharp_deg", 50))))
     if not me.uv_layers:
-        af.select_only([ob])
+        ima.select_only([ob])
         bpy.ops.object.mode_set(mode="EDIT")
         bpy.ops.mesh.select_all(action="SELECT")
         bpy.ops.uv.smart_project(angle_limit=math.radians(60), island_margin=0.01)
@@ -539,12 +539,12 @@ def run(req):
         me.materials.append(L.Materials(prm.get("style", "medieval"))("metal"))
     shrunk = L.downscale_images([ob], int(prm.get("texture_max", 1024)))
     shift = L.place_on_ground(ob, prm.get("origin", "bbox"))
-    ob["af_item_type"] = prm.get("type") or kind
-    ob["af_source"] = os.path.basename(inp["mesh"])
+    ob["imaginarium_item_type"] = prm.get("type") or kind
+    ob["imaginarium_source"] = os.path.basename(inp["mesh"])
     socks = [L.add_item_socket(ob, "socket_grip_main", shift, kind="grip", size=0.04,
                                frame="grip: +Z thumb side / along shaft, -Y edge-face")]
     bpy.context.view_layer.update()
-    lo, hi = af.world_bbox([ob])
+    lo, hi = ima.world_bbox([ob])
     if two:
         if off_dz is None or not grip_auto:  # manual grip point: keep the rule's hand spacing below it
             off_dz = -(OFF_GAP if kind == "blade" else max(0.10, 0.14 * L_out))
@@ -566,7 +566,7 @@ def run(req):
         tip = sum(top, Vector()) / len(top) if top else Vector((0, 0, hi.z))
         socks.append(L.add_item_socket(ob, "socket_fx_tip", (tip.x, tip.y, hi.z - 0.02 * L_out), kind="fx", size=0.04))
     bpy.context.view_layer.update()
-    tris = af.tri_count([ob])
+    tris = ima.tri_count([ob])
     # profile chart (numpy image): radius along the main axis, grip marked
     prof_img = np.zeros((120, 480, 4), np.float32)
     prof_img[..., :3] = (0.16, 0.17, 0.19)
@@ -586,13 +586,13 @@ def run(req):
             prof_img[:, max(0, ox - 1):ox + 1] = (0.3, 1, 0.4, 1)
     L.stamp_text(prof_img, "SECTION R ALONG AXIS  BLUE ROUND  ORANGE FLAT  RED GRIP  GREEN OFF", 4, 4, 1,
                  (0.9, 0.9, 0.9, 1))
-    outputs = {"profile": L.save_png(prof_img, af.out_path(req, "profile.png"))}
+    outputs = {"profile": L.save_png(prof_img, ima.out_path(req, "profile.png"))}
     out_dir = req["out_dir"]
-    outputs["glb"] = af.export_glb(af.out_path(req, "item.glb"), objects=[ob] + socks, animations=False, skins=False)
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "item.glb"), objects=[ob] + socks, animations=False, skins=False)
     if prm.get("preview", True):
-        outputs["preview"] = af.render_views(af.out_path(req, "preview.png"), [ob],
+        outputs["preview"] = ima.render_views(ima.out_path(req, "preview.png"), [ob],
                                              views=("left", "front", "three_quarter"), size=int(prm.get("size", 384)))
-    outputs["blend"] = af.save_blend(af.out_path(req, "item.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "item.blend"))
     info = {"type": prm.get("type") or kind, "kind": kind, "source": inp["mesh"], "tris_source": tris_in,
             "tris": tris, "budget_tris": budget, "module_budget_tris": class_budget, "grip_section": grip_sec,
             "decimate": [before, after], "scale_applied": round(s, 5),
@@ -604,25 +604,25 @@ def run(req):
             "profile": [{"t": round(p["t"] * s, 4), "r": round(p["r"] * s, 4), "aspect": round(p["aspect"], 2)}
                         for p in prof],
             "axes": {"up": "+Z", "main_axis": "+Z", "edge_or_face": "-Y", "origin": prm.get("origin", "bbox")}}
-    with open(af.out_path(req, "item.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(info), fh, ensure_ascii=False, indent=2)
-    outputs["json"] = af.out_path(req, "item.json")
-    checks.append(af.check("tris_within_budget", tris <= budget, tris, budget))
-    checks.append(af.check("within_module_budget", tris <= class_budget, tris, class_budget,
+    with open(ima.out_path(req, "item.json"), "w", encoding="utf-8") as fh:
+        json.dump(ima._jsonable(info), fh, ensure_ascii=False, indent=2)
+    outputs["json"] = ima.out_path(req, "item.json")
+    checks.append(ima.check("tris_within_budget", tris <= budget, tris, budget))
+    checks.append(ima.check("within_module_budget", tris <= class_budget, tris, class_budget,
                            severity="warning" if allow_over else "error",
                            note="items brief: one-handed 2500, two-handed / staff / shield 4000"))
     summ = L.glb_summary(outputs["glb"])
     need = {"socket_grip_main"} | ({"socket_grip_off"} if two else set())
-    checks.append(af.check("sockets_in_glb", need <= set(summ["sockets"]), sorted(summ["sockets"]), sorted(need)))
+    checks.append(ima.check("sockets_in_glb", need <= set(summ["sockets"]), sorted(summ["sockets"]), sorted(need)))
     if grip_sec is not None:
-        checks.append(af.check("grip_section_holdable", grip_sec["aspect"] < 2.2 and 0.005 < grip_sec["radius_m"] < 0.045,
+        checks.append(ima.check("grip_section_holdable", grip_sec["aspect"] < 2.2 and 0.005 < grip_sec["radius_m"] < 0.045,
                                grip_sec, {"aspect": "< 2.2", "radius_m": "0.005..0.045"}, severity="warning",
                                note="section at socket_grip_main (+-1.5 cm); a flat or very thick section means the "
                                     "grip guess landed on the blade / head: set params.grip; see profile.png"))
     bad_mats = [m.name for m in me.materials if not L.principled_ok(m)]
-    checks.append(af.check("materials_principled", not bad_mats, {"slots": len(me.materials), "not_principled": bad_mats},
+    checks.append(ima.check("materials_principled", not bad_mats, {"slots": len(me.materials), "not_principled": bad_mats},
                            "every slot: Principled BSDF -> Material Output", severity="warning"))
-    checks.append(af.check("length_m", abs((hi.z - lo.z) - L_out) / L_out < 0.15 or kind == "shield",
+    checks.append(ima.check("length_m", abs((hi.z - lo.z) - L_out) / L_out < 0.15 or kind == "shield",
                            round(hi.z - lo.z, 4), L_out, severity="warning"))
     if prm.get("crop"):
         warnings.append("cropped from a fused mesh: remnants of the holder (hand, sleeve) may stay at the grip")

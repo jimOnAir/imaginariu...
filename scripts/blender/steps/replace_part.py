@@ -92,18 +92,18 @@ import bpy
 import mathutils
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _cloth_lib as CL
 from steps import _mesh_lib as ml
 from steps import _replace_lib as rl
 
 
 def _import_meshes(path, name, warnings, sockets=None, keep_armatures=False):
-    objs, helpers = ml.purge_import_helpers(af.import_any(path))
+    objs, helpers = ml.purge_import_helpers(ima.import_any(path))
     objs = ml.prepare_meshes(objs, warnings, keep_armatures=keep_armatures, sockets=sockets)
     if not objs:
         raise ValueError("no mesh objects in %s" % path)
-    ob = af.join(objs, name=name)
+    ob = ima.join(objs, name=name)
     ob.data.name = name
     return ob, helpers
 
@@ -151,9 +151,9 @@ def _weight_missing(joined, src):
         return 0
     co = np.empty(len(joined.data.vertices) * 3)
     joined.data.vertices.foreach_get("co", co)
-    me = bpy.data.meshes.new("af_weight_carrier")
+    me = bpy.data.meshes.new("imaginarium_weight_carrier")
     me.from_pydata(co.reshape(-1, 3)[un].tolist(), [], [])
-    carrier = bpy.data.objects.new("af_weight_carrier", me)
+    carrier = bpy.data.objects.new("imaginarium_weight_carrier", me)
     bpy.context.collection.objects.link(carrier)
     carrier.matrix_world = joined.matrix_world.copy()
     CL.transfer_weights(carrier, src)
@@ -244,12 +244,12 @@ def run(req):
 
     # ---------------------------------------------------------------- body
     t0 = time.time()
-    af.reset_scene()
+    ima.reset_scene()
     body_socks = []
     body, helpers = _import_meshes(body_path, "body", warnings, sockets=body_socks, keep_armatures=keep_rig)
     arm = None
     if keep_rig:
-        arms = af.armatures()
+        arms = ima.armatures()
         if not arms:
             warnings.append("keep_rig: the body has no armature - the swap is the static one")
         else:
@@ -259,18 +259,18 @@ def run(req):
             arm = arms[0]
     kept = ml.restore_sockets(body_socks)   # sockets of the body survive (they follow the normalisation)
     ml.rotate_z([body] + ([arm] if arm else []) + kept, float(p.get("rotate_z_deg") or 0.0))
-    af.normalize([body] + ([arm] if arm else []) + kept, height=p.get("height_m"), ground=p.get("ground", True),
+    ima.normalize([body] + ([arm] if arm else []) + kept, height=p.get("height_m"), ground=p.get("ground", True),
                  center=p.get("center", True))
     ml.sockets_unit_scale(kept)
     if arm is not None:
-        # keep_rig: af.normalize deliberately leaves the transforms unapplied with an armature in
+        # keep_rig: ima.normalize deliberately leaves the transforms unapplied with an armature in
         # play; bake them here with BOTH root and skinned mesh selected (measured: world positions
         # drift 0.000000 m, deform identical, bones rest-bake with the mesh) so every later step
         # sees the local == world geometry it assumes.
-        af.select_only([arm, body])
+        ima.select_only([arm, body])
         bpy.context.view_layer.objects.active = arm
         bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
-    blo, bhi = af.world_bbox([body])
+    blo, bhi = ima.world_bbox([body])
     h_body = float(bhi.z - blo.z) or 1.0
     merge = p.get("merge_distance")
     merge = 1e-5 * h_body if merge is None else float(merge)
@@ -288,7 +288,7 @@ def run(req):
     hang = 0.25 * region_h if hang is None else float(hang)
     old, rinfo = rl.remove_region(body, lo, hi, plane, min_inside=float(p.get("min_inside", 0.5)),
                                   max_hang=hang)
-    checks.append(af.check("region_removed", old is not None, rinfo["removed_faces"], ">0"))
+    checks.append(ima.check("region_removed", old is not None, rinfo["removed_faces"], ">0"))
     if old is None:
         raise ValueError("nothing of the body lies in params.region on the part side of the cut "
                          "plane: %s" % rinfo)
@@ -313,9 +313,9 @@ def run(req):
     ml.rotate_z([part], float(p.get("part_rotate_z_deg") or 0.0))
     if part_T is not None:
         part.matrix_world = part_T @ part.matrix_world
-    af.apply_transforms([part])
+    ima.apply_transforms([part])
     raw = ml.mesh_metrics([part])
-    plo, phi = af.world_bbox([part])
+    plo, phi = ima.world_bbox([part])
     ml.clear_custom_normals(part)
     welded = ml.merge_by_distance(part, 1e-6 * max((phi - plo).length, 1e-6))
     islands = ml.remove_small_islands(part, float(p.get("part_min_island", 0.0005)))
@@ -330,7 +330,7 @@ def run(req):
         det0 = rl.detect_eye_sockets(part)
         inner_removed = rl.remove_inner_islands(part, det0)
     work_metrics = ml.mesh_metrics([part])
-    checks.append(af.check("part_nonempty", work_metrics["tris"] > 0, work_metrics["tris"], ">0"))
+    checks.append(ima.check("part_nonempty", work_metrics["tris"] > 0, work_metrics["tris"], ">0"))
     timings["part_prep"] = round(time.time() - t0, 2)
 
     # ---------------------------------------------------------------- alignment
@@ -354,7 +354,7 @@ def run(req):
         rot = rl.rotation_deg(sim_icp[1])
         ratio = sim_icp[0] / init[0]
         sane = rot <= float(p.get("max_rotation_deg", 30)) and 0.75 <= ratio <= 1.33
-        checks.append(af.check("align_icp_sane", sane, {"rotation_deg": round(rot, 2),
+        checks.append(ima.check("align_icp_sane", sane, {"rotation_deg": round(rot, 2),
                                                          "scale_vs_bbox": round(ratio, 4)},
                                {"rotation_deg": p.get("max_rotation_deg", 30),
                                 "scale_vs_bbox": [0.75, 1.33]}, severity="warning",
@@ -367,7 +367,7 @@ def run(req):
     rms_final, rms_fwd, rms_bwd = rl.surface_rms(part, old, src, tgt, sim, plane)
     max_rel = float(p.get("max_rms_rel", 0.04))
     if align != "none":   # with a placed part the old surface is no target (a thin bone hand vs a paddle)
-        checks.append(af.check("align_rms", rms_final / diag <= max_rel, round(rms_final / diag, 5),
+        checks.append(ima.check("align_rms", rms_final / diag <= max_rel, round(rms_final / diag, 5),
                                max_rel, severity="warning",
                                note="symmetric point-to-surface RMS / region diagonal"))
     rl.transform_mesh(part, sim)
@@ -418,13 +418,13 @@ def run(req):
         try:
             tex_stats, mapping, ref_px, ref_mask = rl.project_texture(
                 part, img_path, crop_px=tex.get("crop_px"),
-                out_png=af.out_path(req, "part_projection.png"), uv_name=uv_name,
+                out_png=ima.out_path(req, "part_projection.png"), uv_name=uv_name,
                 facing_min=float(tex.get("facing_min", 0.12)), name="part",
                 fade_frac=float(tex.get("fade", 0.05)),
                 occlusion=bool(tex.get("occlusion", False)))
         finally:
             rl.transform_mesh(part, sim)
-        checks.append(af.check("texture_registration_iou", tex_stats["silhouette_iou"] >= 0.8,
+        checks.append(ima.check("texture_registration_iou", tex_stats["silhouette_iou"] >= 0.8,
                                tex_stats["silhouette_iou"], 0.8, severity="warning",
                                note="front silhouette of the cut part vs the crop subject"))
     elif keep_materials and any(m is not None for m in part.data.materials):
@@ -448,7 +448,7 @@ def run(req):
     spheres, sockets = [], []
     if eyes_cfg.get("auto"):
         det = rl.detect_eye_sockets(part, radius_factor=float(eyes_cfg.get("radius_factor", 0.22)))
-        checks.append(af.check("eyes_found", det.get("found", False), det.get("found", False),
+        checks.append(ima.check("eyes_found", det.get("found", False), det.get("found", False),
                                True, severity="warning"))
         if det.get("found") and mapping is not None and eyes_cfg.get("snap_to_glow", True):
             _snap_eyes_to_glow(det, tex_stats, mapping, sim, part)
@@ -464,7 +464,7 @@ def run(req):
                 e = det["left" if side == "l" else "right"]
                 spheres.append(rl.make_sphere("eye_glow_%s" % side, e["position"], e["radius"],
                                               mat, uv_name=uv_name))
-                s = af.add_socket("socket_fx_eye_%s" % side, location=tuple(e["position"]),
+                s = ima.add_socket("socket_fx_eye_%s" % side, location=tuple(e["position"]),
                                   rotation=rot, kind="fx", size=max(0.01, 2 * e["radius"]))
                 sockets.append(s)
                 eyes_stats[side] = {"position": [round(float(x), 5) for x in e["position"]],
@@ -502,13 +502,13 @@ def run(req):
     timings["eyes"] = round(time.time() - t0, 2)
 
     outputs = {}
-    outputs["part_glb"] = af.export_glb(af.out_path(req, "part_aligned.glb"),
+    outputs["part_glb"] = ima.export_glb(ima.out_path(req, "part_aligned.glb"),
                                         objects=[part] + spheres, animations=False, skins=False)
 
     # ---------------------------------------------------------------- join + seam
     t0 = time.time()
     part_lo, part_hi = rl.used_bbox(part)
-    joined = af.join([body, part] + spheres, name=name)
+    joined = ima.join([body, part] + spheres, name=name)
     joined.data.name = name
     seam = rl.bridge_seam(joined, plane, gap)
     ml.triangulate_object(joined)
@@ -518,12 +518,12 @@ def run(req):
         # weights from the removed old surface, the piece that carried the body's bones through
         n_weighted = _weight_missing(joined, old)
         unweighted = sum(1 for v in joined.data.vertices if not any(g.weight > 1e-5 for g in v.groups))
-        checks.append(af.check("rig_parented", joined.parent == arm and
+        checks.append(ima.check("rig_parented", joined.parent == arm and
                                any(m.type == "ARMATURE" and m.object == arm for m in joined.modifiers),
                                {"parent": joined.parent.name if joined.parent else None,
                                 "modifier": any(m.type == "ARMATURE" and m.object == arm
                                                 for m in joined.modifiers)}, True))
-        checks.append(af.check("rig_weights_complete", unweighted == 0, unweighted, 0,
+        checks.append(ima.check("rig_weights_complete", unweighted == 0, unweighted, 0,
                                severity="warning"))
         rig_stats = {"armature": arm.name, "bones": len(arm.data.bones),
                      "vertex_groups": sorted(vg.name for vg in joined.vertex_groups),
@@ -531,7 +531,7 @@ def run(req):
     boundary_after = rl.boundary_edge_count(joined)
     seam["boundary_edges_before"] = boundary_before
     seam["boundary_edges_after"] = boundary_after
-    checks.append(af.check("seam_closed", seam["open_seam_edges"] == 0 and
+    checks.append(ima.check("seam_closed", seam["open_seam_edges"] == 0 and
                            boundary_after <= boundary_before, {"open_seam_edges":
                            seam["open_seam_edges"], "new_boundary_edges":
                            boundary_after - boundary_before}, 0, severity="warning",
@@ -542,7 +542,7 @@ def run(req):
         s.matrix_parent_inverse = joined.matrix_world.inverted()
     after = ml.mesh_metrics([joined])
     nan = after["nan_verts"]
-    checks.append(af.check("no_nan_verts", nan == 0, nan, 0))
+    checks.append(ima.check("no_nan_verts", nan == 0, nan, 0))
     timings["join"] = round(time.time() - t0, 2)
 
     # ---------------------------------------------------------------- compare renders
@@ -566,13 +566,13 @@ def run(req):
         side = rl.rot_z(out_dir, -90 * sgn)
         clip = 0.75 * float(np.linalg.norm(fhi - flo))
         dirs = [front, tq, side]
-        old_t = rl.render_dirs(af.out_path(req, "_old.png"), [original], dirs, size, "TEXTURE",
+        old_t = rl.render_dirs(ima.out_path(req, "_old.png"), [original], dirs, size, "TEXTURE",
                                bbox, margin, clip=clip)
-        new_t = rl.render_dirs(af.out_path(req, "_new.png"), [joined], dirs, size, "TEXTURE",
+        new_t = rl.render_dirs(ima.out_path(req, "_new.png"), [joined], dirs, size, "TEXTURE",
                                bbox, margin, clip=clip)
-        old_s = rl.render_dirs(af.out_path(req, "_olds.png"), [original], dirs, size, "SINGLE",
+        old_s = rl.render_dirs(ima.out_path(req, "_olds.png"), [original], dirs, size, "SINGLE",
                                bbox, margin, clip=clip)
-        new_s = rl.render_dirs(af.out_path(req, "_news.png"), [joined], dirs, size, "SINGLE",
+        new_s = rl.render_dirs(ima.out_path(req, "_news.png"), [joined], dirs, size, "SINGLE",
                                bbox, margin, clip=clip)
         blank = np.zeros((size, size, 4), dtype=np.float32)
         compare = {"views": {"front": list(front), "three_quarter": [round(float(x), 3) for x in tq],
@@ -589,21 +589,21 @@ def run(req):
             ref = blank
         sheet = rl.grid_sheet([[ref, old_t[0], new_t[0], new_t[1], new_t[2]],
                                [blank, old_s[0], new_s[0], new_s[1], new_s[2]]])
-        outputs["compare"] = ml.save_png(af.out_path(req, "compare.png"), sheet)
+        outputs["compare"] = ml.save_png(ima.out_path(req, "compare.png"), sheet)
         sheet2 = rl.grid_sheet([[old_t[1], new_t[1], old_t[2], new_t[2]],
                                 [old_s[1], new_s[1], old_s[2], new_s[2]]])
-        outputs["compare_views"] = ml.save_png(af.out_path(req, "compare_views.png"), sheet2)
+        outputs["compare_views"] = ml.save_png(ima.out_path(req, "compare_views.png"), sheet2)
         timings["preview"] = round(time.time() - t0, 2)
 
     # ---------------------------------------------------------------- export
     t0 = time.time()
     for ob in (original, old):
         ml.remove_object(ob)
-    outputs["glb"] = af.export_glb(af.out_path(req, "replaced.glb"),
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "replaced.glb"),
                                    objects=([joined, arm] if arm is not None else [joined]) + sockets,
                                    animations=False, skins=arm is not None)
     ml.purge_orphans()
-    outputs["blend"] = af.save_blend(af.out_path(req, "replaced.blend"))
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "replaced.blend"))
     timings["export"] = round(time.time() - t0, 2)
     timings["total"] = round(time.time() - t_all, 2)
 

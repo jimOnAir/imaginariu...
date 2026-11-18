@@ -28,7 +28,7 @@ import zlib
 import bpy
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _ship_lib as sl
 
 FPS = 30
@@ -179,33 +179,33 @@ def run(req):
     # ---- LOD files (built in clean scenes so the rig node names stay canonical)
     if P["lods"]:
         for lod in (1, 2):
-            af.reset_scene()
+            ima.reset_scene()
             mats = sl.make_materials(pal)
             A = assemble(P, lod, mats, suffix="_lod%d" % lod)
             frac = 0.35 if lod == 1 else 0.12
             target = int(min(bud["lod%d" % lod], frac * tris0) * 0.95)
             sl.decimate_to(A["meshes"], target)
             sl.uv_unwrap(A["meshes"], "box")
-            path = af.out_path(req, "turret_lod%d.glb" % lod)
-            af.export_glb(path, [A["root"], A["mount"], A["yaw"], A["pitch"]] + A["muzzles"] + A["meshes"],
+            path = ima.out_path(req, "turret_lod%d.glb" % lod)
+            ima.export_glb(path, [A["root"], A["mount"], A["yaw"], A["pitch"]] + A["muzzles"] + A["meshes"],
                           animations=False, skins=False, export_tangents=False, export_image_format="AUTO",
                           export_draco_mesh_compression_enable=False)
             lod_tris["lod%d" % lod] = sl.glb_summary(path)["triangles"]
             outputs["lod%d" % lod] = path
     # ---- LOD0 with clips
-    af.reset_scene()
+    ima.reset_scene()
     mats = sl.make_materials(pal)
     A = assemble(P, 0, mats)
     sl.uv_unwrap(A["meshes"], "smart")
     # rest-pose data first: the glTF exporter samples the clips and leaves the scene on another frame
     rest_rows = sl.socket_manifest_rows([A["mount"], A["yaw"], A["pitch"]] + A["muzzles"])
     if P["preview"]:
-        outputs["preview"] = sl.render_grid(af.out_path(req, "preview.png"), A["meshes"], tile=P["preview_size"],
+        outputs["preview"] = sl.render_grid(ima.out_path(req, "preview.png"), A["meshes"], tile=P["preview_size"],
                                             views=("three_quarter", "rear_quarter", "side", "top", "front"))
     clips = add_clips(A, P) if P["clips"] else []
     objs = [A["root"], A["mount"], A["yaw"], A["pitch"]] + A["muzzles"] + A["meshes"]
-    out_glb = af.out_path(req, "turret.glb")
-    af.export_glb(out_glb, objs, animations=bool(clips), skins=False, animation_mode="NLA_TRACKS",
+    out_glb = ima.out_path(req, "turret.glb")
+    ima.export_glb(out_glb, objs, animations=bool(clips), skins=False, animation_mode="NLA_TRACKS",
                   export_tangents=False, export_image_format="AUTO", export_draco_mesh_compression_enable=False)
     bpy.context.scene.frame_set(1)
     outputs["glb"] = out_glb
@@ -214,7 +214,7 @@ def run(req):
     names = summ["node_names"]
     need = ["socket_mount", "pivot_yaw", "pivot_pitch"] + ["socket_muzzle_%02d" % (i + 1) for i in range(P["barrels"])]
     missing = [n for n in need if n not in names]
-    checks.append(af.check("rig_nodes", not missing, missing, need))
+    checks.append(ima.check("rig_nodes", not missing, missing, need))
     # hierarchy check straight from the GLB: mount -> yaw -> pitch -> muzzles
     doc, _, _ = sl.read_glb(out_glb)
     nodes = doc["nodes"]
@@ -224,32 +224,32 @@ def run(req):
         parent.get(idx.get("pivot_yaw")) == idx.get("socket_mount") and \
         parent.get(idx.get("pivot_pitch")) == idx.get("pivot_yaw") and \
         all(parent.get(idx.get(m)) == idx.get("pivot_pitch") for m in need[3:])
-    checks.append(af.check("rig_hierarchy", chain_ok, chain_ok, "socket_mount>pivot_yaw>pivot_pitch>socket_muzzle_*"))
+    checks.append(ima.check("rig_hierarchy", chain_ok, chain_ok, "socket_mount>pivot_yaw>pivot_pitch>socket_muzzle_*"))
     piv = {n.get("name"): (n.get("extras") or {}) for n in nodes if str(n.get("name", "")).startswith("pivot_")}
     piv_bad = sorted(k for k, ex in piv.items()
                      if "game_socket" in ex or not ex.get("axis") or len(ex.get("range_degrees") or []) != 2)
-    checks.append(af.check("pivots_not_sockets", len(piv) == 2 and not piv_bad,
+    checks.append(ima.check("pivots_not_sockets", len(piv) == 2 and not piv_bad,
                            {k: sorted(ex) for k, ex in piv.items()}, "pivot_yaw/pitch: axis + range_degrees, no game_socket",
                            note="contract: only socket_mount and socket_muzzle_* are sockets"))
     only = sorted(s_["game_socket"] for s_ in summ["sockets"])
-    checks.append(af.check("turret_sockets_only_mount_muzzles",
+    checks.append(ima.check("turret_sockets_only_mount_muzzles",
                            only == sorted(["socket_mount"] + need[3:]), only, sorted(["socket_mount"] + need[3:])))
     mz = [s for s in summ["sockets"] if s["extras"].get("kind") == "muzzle"]
     fwd = all(s["neg_z_gltf"][2] < -0.99 for s in mz)
-    checks.append(af.check("muzzle_frame_minus_z_forward", fwd, [s["neg_z_gltf"] for s in mz][:2], "(0,0,-1)"))
+    checks.append(ima.check("muzzle_frame_minus_z_forward", fwd, [s["neg_z_gltf"] for s in mz][:2], "(0,0,-1)"))
     anims = [a["name"] for a in summ["animations"]]
     if P["clips"]:
-        checks.append(af.check("clips", sorted(anims) == sorted(c["name"] for c in clips), anims,
+        checks.append(ima.check("clips", sorted(anims) == sorted(c["name"] for c in clips), anims,
                                [c["name"] for c in clips]))
-        checks.append(af.check("clips_max_4", len(anims) <= 4, len(anims), 4))
+        checks.append(ima.check("clips_max_4", len(anims) <= 4, len(anims), 4))
     D = A["rig"]["ring_d"]
-    checks.append(af.check("mount_ring_size_class", D <= {"S": 1.5, "M": 3.0, "L": 6.0}[P["size"]], round(D, 3),
+    checks.append(ima.check("mount_ring_size_class", D <= {"S": 1.5, "M": 3.0, "L": 6.0}[P["size"]], round(D, 3),
                            P["size"]))
-    outputs["blend"] = sl.save_blend_clean(af.out_path(req, "turret.blend"))
-    outputs["definition"] = sl.write_json(af.out_path(req, "turret.definition.json"),
+    outputs["blend"] = sl.save_blend_clean(ima.out_path(req, "turret.blend"))
+    outputs["definition"] = sl.write_json(ima.out_path(req, "turret.definition.json"),
                                           dict(P, generator_version=sl.GEN_TURRET))
     manifest = build_manifest(P, summ, lod_tris, outputs, rest_rows, clips, req)
-    outputs["manifest"] = sl.write_json(af.out_path(req, "turret.json"), manifest)
+    outputs["manifest"] = sl.write_json(ima.out_path(req, "turret.json"), manifest)
     stats = {"asset_id": P["asset_id"], "size": P["size"], "barrels": P["barrels"], "faction": P["faction"],
              "ring_d_m": round(D, 3), "height_m": round(A["rig"]["height"], 3), "tris": summ["triangles"],
              "tris_lod1": lod_tris.get("lod1"), "tris_lod2": lod_tris.get("lod2"), "surfaces": summ["surfaces_lod0"],
@@ -283,5 +283,5 @@ def build_manifest(P, summ, lod_tris, outputs, socks, clips, req):
                        "godot_import": "SKIPPED",
                        "notes": "gltf_validator / godot_import not run by the forge step (-1 = not run)"},
         "status": "prototype", "created": sl.today(),
-        "notes": "AstraForge turret_gen; aiming is code-driven, clips are demo/mechanics only",
+        "notes": "Imaginarium turret_gen; aiming is code-driven, clips are demo/mechanics only",
     }

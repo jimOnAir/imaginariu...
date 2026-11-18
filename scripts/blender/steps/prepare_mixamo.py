@@ -7,7 +7,7 @@ on Mixamo's side - use params.lite (<= 12000 tris, 256 px texture); Tripo GLBs a
 seams into ~100 pieces and Mixamo's auto-rigger fails on them ("Unknown error while generating
 motion") - the weld fixes it. The forge never goes online: the owner uploads the file by hand.
 
-inputs.mesh (any format af_common.import_any reads); inputs.rigged (optional rigged.glb/.blend from
+inputs.mesh (any format imaginarium_common.import_any reads); inputs.rigged (optional rigged.glb/.blend from
 rig_humanoid) for the pre-rigged FBX.
 params:
   height_m 1.8, front "auto" (| -Y | +Y | +X | -X), height_ref "head"
@@ -29,7 +29,7 @@ import os
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _humanoid_lib as hl
 
 UPLOAD_LIMIT = 10_000_000
@@ -59,7 +59,7 @@ def _decimate(ob, limit):
     arm_mods = [(m.name, m.object) for m in ob.modifiers if m.type == "ARMATURE"]
     for m in list(ob.modifiers):
         ob.modifiers.remove(m)
-    mod = ob.modifiers.new("AF_Decimate", "DECIMATE")
+    mod = ob.modifiers.new("Imaginarium_Decimate", "DECIMATE")
     mod.ratio = max(0.01, limit / float(tris))
     hl.select_only(ob)
     bpy.ops.object.modifier_apply(modifier=mod.name)
@@ -130,7 +130,7 @@ def run(req):
         outputs["rig_dir"] = sub["out_dir"]
         if rig_ok and blend:
             prerigged_src = blend
-            checks.append(af.check("prerigged_rig_ok", True, [], "no failed error checks"))
+            checks.append(ima.check("prerigged_rig_ok", True, [], "no failed error checks"))
         else:
             # a rig that failed QA must not reach Mixamo silently
             why = ", ".join(rig_failed) or rres.get("error") or "no rig"
@@ -141,7 +141,7 @@ def run(req):
             else:
                 warnings.append("rig_humanoid failed QA (%s); mixamo_prerigged.fbx not written%s" % (
                     why, " (params.force_prerigged=true writes it anyway)" if blend else ""))
-            checks.append(af.check("prerigged_rig_ok", False, rig_failed or rres.get("error"),
+            checks.append(ima.check("prerigged_rig_ok", False, rig_failed or rres.get("error"),
                                    "no failed error checks", severity="warning" if force else "error",
                                    note="see %s/result checks" % sub["out_dir"]))
 
@@ -151,30 +151,30 @@ def run(req):
     welded = hl.weld(body, float(params.get("weld", 0.0001))) if float(params.get("weld", 0.0001)) > 0 else 0
     tris = _decimate(body, tris_limit)
     texs = _textures(tex_limit)
-    path = af.out_path(req, "mixamo_upload.fbx")
+    path = ima.out_path(req, "mixamo_upload.fbx")
     _export(path, [body], rigged=False)
     size = os.path.getsize(path)
     outputs["fbx"] = path
-    outputs["preview"] = af.render_views(af.out_path(req, "preview.png"), [body],
+    outputs["preview"] = ima.render_views(ima.out_path(req, "preview.png"), [body],
                                          views=("front", "left", "three_quarter"), size=320)
     stats.update({"tris": tris, "bytes": size, "fits_upload": size < UPLOAD_LIMIT, "lite": lite,
                   "tris_limit": tris_limit, "texture_limit": tex_limit, "textures": texs,
                   "welded_verts": welded, "facing": prep["facing"], "scale": prep["scale"],
                   "height_m": H, "center": params.get("center", "trunk"), "center_shift_m": round(shift, 4)})
-    checks.append(af.check("fbx_size", size < UPLOAD_LIMIT, size, UPLOAD_LIMIT,
+    checks.append(ima.check("fbx_size", size < UPLOAD_LIMIT, size, UPLOAD_LIMIT,
                            note="browser upload limit"))
-    checks.append(af.check("tris", tris <= tris_limit, tris, tris_limit))
+    checks.append(ima.check("tris", tris <= tris_limit, tris, tris_limit))
 
     # ---- optional pre-rigged FBX (mixamorig skeleton + weights)
     if prerigged_src:
-        af.reset_scene()
+        ima.reset_scene()
         if prerigged_src.lower().endswith(".blend"):
-            af.open_blend(prerigged_src)
+            ima.open_blend(prerigged_src)
             objs = list(bpy.context.scene.objects)
         else:
-            objs = af.import_any(prerigged_src)
-        rigs = af.armatures(objs)
-        meshes = [o for o in af.meshes(objs) if o.find_armature() in rigs] or af.meshes(objs)
+            objs = ima.import_any(prerigged_src)
+        rigs = ima.armatures(objs)
+        meshes = [o for o in ima.meshes(objs) if o.find_armature() in rigs] or ima.meshes(objs)
         if not rigs or not meshes:
             raise ValueError("inputs.rigged has no armature/mesh: %s" % prerigged_src)
         rig = rigs[0]
@@ -192,11 +192,11 @@ def run(req):
             if o.type not in ("ARMATURE", "MESH"):
                 bpy.data.objects.remove(o, do_unlink=True)
         bpy.context.view_layer.update()
-        p2 = af.out_path(req, "mixamo_prerigged.fbx")
+        p2 = ima.out_path(req, "mixamo_prerigged.fbx")
         _export(p2, [rig] + meshes, rigged=True)
         s2 = os.path.getsize(p2)
         outputs["fbx_prerigged"] = p2
         stats["prerigged"] = {"source": prerigged_src, "bones": len(names), "tris": rt, "bytes": s2,
                               "fits_upload": s2 < UPLOAD_LIMIT}
-        checks.append(af.check("prerigged_fbx_size", s2 < UPLOAD_LIMIT, s2, UPLOAD_LIMIT))
+        checks.append(ima.check("prerigged_fbx_size", s2 < UPLOAD_LIMIT, s2, UPLOAD_LIMIT))
     return {"outputs": outputs, "stats": stats, "checks": checks, "warnings": warnings}

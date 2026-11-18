@@ -309,7 +309,7 @@ test('forge: presets and batch items', () => {
 
 test('forge: output paths become asset file references', () => {
   const id = '6f1c2b8e-1111-4222-8333-444455556666';
-  const win = `C:\\Users\\x\\AstraForge\\data\\library\\assets\\${id}\\v003\\02_rig_humanoid\\markers.png`;
+  const win = `C:\\Users\\x\\Imaginarium\\data\\library\\assets\\${id}\\v003\\02_rig_humanoid\\markers.png`;
   assert.deepEqual(relFromOutput(win, id), { assetId: id, version: 'v003', stepDir: '02_rig_humanoid', file: 'markers.png' });
   const posix = `/srv/data/library/assets/${id}/v001/01_cleanup/_views/front.png`;
   assert.deepEqual(relFromOutput(posix), { assetId: id, version: 'v001', stepDir: '01_cleanup', file: '_views/front.png' });
@@ -422,11 +422,11 @@ test('forge: logarithmic triangle budget slider', () => {
   assert.equal(niceBudget(123456), 125000);
 });
 
-test('forge: rig_humanoid markers.json (astraforge.humanoid.markers/1) without a projection block', () => {
+test('forge: rig_humanoid markers.json (imaginarium.humanoid.markers/1) without a projection block', () => {
   // Shape written by scripts/blender/steps/_humanoid_lib.py markers_json(): markers [x, z],
   // joints [x, y, z], height_m; markers.png = front + left tiles of 640 px.
   const doc = {
-    format: 'astraforge.humanoid.markers/1',
+    format: 'imaginarium.humanoid.markers/1',
     height_m: 1.8,
     markers: { chin: [0, 1.62], groin: [0, 0.86], l_wrist: [0.7, 1.4], r_wrist: [-0.7, 1.4], l_elbow: [0.45, 1.42], r_elbow: [-0.45, 1.42], l_knee: [0.1, 0.48], r_knee: [-0.1, 0.48] },
     joints: { Hips: [0, 0, 0.95], HeadTop_End: [0, 0.02, 1.8], LeftHandTip: [0.82, 0, 1.4], RightHandTip: [-0.82, 0, 1.4], LeftToe_End: [0.1, -0.2, 0], RightToe_End: [-0.1, -0.2, 0] },

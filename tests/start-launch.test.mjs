@@ -9,7 +9,7 @@ import path from 'node:path';
 import { spawnSync } from 'node:child_process';
 
 const skip = process.platform === 'win32' && 'the Linux launcher is not shipped for Windows';
-const tmp = mkdtempSync(path.join(tmpdir(), 'af-start-'));
+const tmp = mkdtempSync(path.join(tmpdir(), 'imaginarium-start-'));
 after(() => rmSync(tmp, { recursive: true, force: true }));
 
 // PATH without Node.js but with the utilities start.sh needs before the checks fail (no noise, no real studio touched)
@@ -20,7 +20,7 @@ for (const tool of ['bash', 'curl', 'grep', 'sleep', 'seq', 'dirname', 'mkdir', 
   if (src) symlinkSync(src, path.join(bin, tool));
 }
 const env = { ...process.env, PATH: bin, PORT: '39871' };
-for (const k of ['ASTRA_NODE', 'ASTRA_NODE_PATH']) delete env[k];
+for (const k of ['IMAGINARIUM_NODE', 'IMAGINARIUM_NODE_PATH']) delete env[k];
 
 function app(name) {
   const root = path.join(tmp, name);
@@ -36,11 +36,11 @@ test('no Node.js anywhere: plain reason, remedy and log pointers in RU and EN �
   const root = app('no-node');
   const { code, out } = start(root);
   assert.equal(code, 1, out);
-  assert.match(out, /AstraForge не запускается: не найден Node\.js/);
+  assert.match(out, /Imaginarium не запускается: не найден Node\.js/);
   assert.ok(out.includes(root), out);
   assert.match(out,/installer\/install\.sh/);
   assert.match(out, /install\.log/);
-  assert.match(out, /AstraForge cannot start: Node\.js was not found/);
+  assert.match(out, /Imaginarium cannot start: Node\.js was not found/);
   assert.doesNotMatch(out, /start\.sh: line \d+.*(: command not found|syntax error|unbound variable)/, out);
 });
 

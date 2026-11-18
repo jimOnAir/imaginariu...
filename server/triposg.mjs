@@ -34,11 +34,11 @@ export function facesForLevel(level) {
   return FACES_BY_LEVEL[0];
 }
 
-/** Where TripoSG lives: ASTRA_TRIPOSG_DIR, else config/paths.json (key triposgDir), else runtime/triposg. */
+/** Where TripoSG lives: IMAGINARIUM_TRIPOSG_DIR, else config/paths.json (key triposgDir), else runtime/triposg. */
 export function triposgConfig({ env = process.env, appRoot = root } = {}) {
   const paths = pathsConfig(appRoot);
   let dir = path.join(appRoot, DEFAULT_TRIPOSG_DIR), source = 'default';
-  if (env.ASTRA_TRIPOSG_DIR) { dir = env.ASTRA_TRIPOSG_DIR; source = 'env'; }
+  if (env.IMAGINARIUM_TRIPOSG_DIR) { dir = env.IMAGINARIUM_TRIPOSG_DIR; source = 'env'; }
   else if (typeof paths.triposgDir === 'string' && paths.triposgDir.trim()) { dir = paths.triposgDir.trim(); source = 'paths.json'; }
   return { dir: path.resolve(dir), source, appRoot };
 }
@@ -63,13 +63,13 @@ export function triposgStatus({ cfg = triposgConfig(), exists = existsSync } = {
  * The auto rule (ticket 02): TripoSG is the low-VRAM shape path - 'auto' prefers it on cards at
  * or under this size when it is installed. The 9216 MiB seam keeps it off big cards: an 8 GiB
  * card reports ~8192 MiB and lands inside the band, a 12 GB card stays with the richer engines.
- * ASTRA_VRAM_MIB overrides the reading (tests and odd setups).
+ * IMAGINARIUM_VRAM_MIB overrides the reading (tests and odd setups).
  */
 export const TRIPOSG_AUTO_MAX_VRAM_MIB = 9216;
 
-/** The card's VRAM in MiB: the ASTRA_VRAM_MIB seam, else nvidia-smi; null when neither answers. */
+/** The card's VRAM in MiB: the IMAGINARIUM_VRAM_MIB seam, else nvidia-smi; null when neither answers. */
 export function vramMiB({ env = process.env, spawnFn = spawnSync } = {}) {
-  const seam = Number(env.ASTRA_VRAM_MIB);
+  const seam = Number(env.IMAGINARIUM_VRAM_MIB);
   if (Number.isFinite(seam) && seam > 0) return seam;
   try {
     const out = spawnFn('nvidia-smi', ['--query-gpu=memory.total', '--format=csv,noheader,nounits'], { encoding: 'utf8', timeout: 5000 });

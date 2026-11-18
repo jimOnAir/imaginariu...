@@ -1,9 +1,9 @@
-"""Validate AstraForge Unity packages in the studio's check project (one Unity -batchmode run for all).
+"""Validate Imaginarium Unity packages in the studio's check project (one Unity -batchmode run for all).
 
     python3 scripts/unity/unity_check.py <package dir> [<package dir> ...] [--out <folder>] [--unity <Unity>]
                                          [--project <check project>] [--pipeline urp|builtin|hdrp]
 
-A package dir holds af_unity.json (the output of the unity_package step). Prints a short table and writes
+A package dir holds ima_unity.json (the output of the unity_package step). Prints a short table and writes
 <out>/_unity_check/unity_report.json, screenshots to <out>/unity_shots/ (contact_sheet.png). Exit 1 on a failed check.
 """
 import json
@@ -30,7 +30,7 @@ def main(argv):
         i += 1
     items = []
     for d in pkgs:
-        with open(os.path.join(d, "af_unity.json"), "r", encoding="utf-8") as fh:
+        with open(os.path.join(d, "ima_unity.json"), "r", encoding="utf-8") as fh:
             items.append((json.load(fh)["asset_id"], os.path.abspath(d)))
     out = os.path.abspath(out or os.path.join(os.getcwd(), "unity_check_out"))
     os.makedirs(out, exist_ok=True)

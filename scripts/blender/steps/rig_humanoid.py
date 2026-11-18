@@ -1,7 +1,7 @@
 """rig_humanoid - automatic Mixamo-compatible rig for any humanoid mesh (a local auto-rigger).
 
 inputs.mesh (.glb/.gltf/.fbx/.obj/.stl/.blend; params.objects picks objects of a .blend) or
-inputs.blend (opened by af_run; its meshes are used).
+inputs.blend (opened by imaginarium_run; its meshes are used).
 params:
   height_m 1.8            body height (head top; props above the head do not count, height_ref)
   height_ref "head"       "head" | "bbox"
@@ -69,7 +69,7 @@ import numpy as np
 
 from mathutils import Matrix
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _humanoid_lib as hl
 from steps import _items_lib as IL
 
@@ -85,19 +85,19 @@ def run(req):
     input_socks = []
     shield_kin = []
     body, P, prep = hl.prepare_body(req, warnings, sockets=input_socks)
-    # placement sockets of extract_props (socket_prop_<hand>_<n>, extras af_bone / af_hand): those hands held a
+    # placement sockets of extract_props (socket_prop_<hand>_<n>, extras imaginarium_bone / imaginarium_hand): those hands held a
     # prop that now lives in its own item file - their asymmetric pose is a held pose for the arm check
-    held = sorted({"Left" if str((r.get("props") or {}).get("af_hand")) == "l" else "Right"
-                   for r in input_socks if (r.get("props") or {}).get("af_hand") in ("l", "r")})
+    held = sorted({"Left" if str((r.get("props") or {}).get("imaginarium_hand")) == "l" else "Right"
+                   for r in input_socks if (r.get("props") or {}).get("imaginarium_hand") in ("l", "r")})
     if held:
         params = dict(params, held_hands=sorted(set(params.get("held_hands") or []) | set(held)))
         # the fist of a cut-out weapon / staff / bow / banner / shield handle: the arm is solved on its grip
         # (shield_grips false: the hand behind a shield is traced as before)
-        kin = [{"side": "Left" if (r.get("props") or {}).get("af_hand") == "l" else "Right", "matrix": r["matrix"],
-                "grip_mode": str((r.get("props") or {}).get("af_grip_mode") or "shaft")}
-               for r in input_socks if (r.get("props") or {}).get("af_hand") in ("l", "r")]
-        kin_w = [k for k, r in zip(kin, [r for r in input_socks if (r.get("props") or {}).get("af_hand") in ("l", "r")])
-                 if (r.get("props") or {}).get("af_item_kind") != "shield"]
+        kin = [{"side": "Left" if (r.get("props") or {}).get("imaginarium_hand") == "l" else "Right", "matrix": r["matrix"],
+                "grip_mode": str((r.get("props") or {}).get("imaginarium_grip_mode") or "shaft")}
+               for r in input_socks if (r.get("props") or {}).get("imaginarium_hand") in ("l", "r")]
+        kin_w = [k for k, r in zip(kin, [r for r in input_socks if (r.get("props") or {}).get("imaginarium_hand") in ("l", "r")])
+                 if (r.get("props") or {}).get("imaginarium_item_kind") != "shield"]
         shield_kin = [k for k in kin if k not in kin_w]
         if str(params.get("shield_grips", "auto")).lower() == "always":
             kin_w, shield_kin = kin_w + shield_kin, []
@@ -106,7 +106,7 @@ def run(req):
             stats["known_grips_from_sockets"] = [k["side"] for k in kin_w]
         req = dict(req, params=params)
         stats["held_hands_from_sockets"] = held
-    af.log("prepared", facing=prep["facing"]["detected"], scale=prep["scale"],
+    ima.log("prepared", facing=prep["facing"]["detected"], scale=prep["scale"],
            yaw=prep["yaw"]["residual_deg"])
     lm, P = hl.run_landmarks(body, P, H, params, warnings, prep)
     if held and lm.fail is not None and shield_kin and params.get("use_placement_grips", True):
@@ -118,7 +118,7 @@ def run(req):
         stats["shield_grip_retry"] = {"first_verdict": lm.fail, "retry_verdict": lm2.fail}
         lm, P = lm2, P2
         warnings.extend(w2)
-    af.log("landmarks", pose=lm.pose, robe=lm.robe, confidence=lm.overall, props=len(lm.props))
+    ima.log("landmarks", pose=lm.pose, robe=lm.robe, confidence=lm.overall, props=len(lm.props))
     J = lm.joints_m()
     stats.update({"pose_class": lm.pose, "robe": bool(lm.robe), "legs": lm.leg_mode,
                   "landmark_confidence": lm.overall, "facing": prep["facing"]["detected"],
@@ -128,16 +128,16 @@ def run(req):
                   "yaw": prep["yaw"], "recentred_m": prep.get("recentred_m"),
                   "arm_symmetry_max_h": lm.arm_sym_max, "shoulders": lm.info.get("shoulders")})
     min_c = float(params.get("min_confidence", 0.35))
-    checks.append(af.check("landmark_confidence", lm.fail is None and lm.overall >= min_c,
+    checks.append(ima.check("landmark_confidence", lm.fail is None and lm.overall >= min_c,
                            lm.overall, min_c, note=lm.fail))
-    checks.append(af.check("ground_support", lm.ground_ok or "groin" in lm.ov, lm.info["ground"],
+    checks.append(ima.check("ground_support", lm.ground_ok or "groin" in lm.ov, lm.info["ground"],
                            None, note=None if lm.ground_ok else "floating/legless figure"))
-    checks.append(af.check("landmark_proportions", not lm.gross, lm.ratios,
+    checks.append(ima.check("landmark_proportions", not lm.gross, lm.ratios,
                            "upper/fore %.1f..%.1f, forearm >= %.2f H, leg >= %.2f H" % (
                                hl.GROSS["upper_fore"][0], hl.GROSS["upper_fore"][1],
                                hl.GROSS["forearm_min"], hl.GROSS["leg_min"]),
                            note="; ".join(lm.gross) or None))
-    checks.append(af.check("arm_symmetry", lm.arm_sym_exempt or lm.arm_sym_max <= hl.ARM_SYM_MAX,
+    checks.append(ima.check("arm_symmetry", lm.arm_sym_exempt or lm.arm_sym_max <= hl.ARM_SYM_MAX,
                            lm.arm_sym_max, hl.ARM_SYM_MAX,
                            note="max distance (H) of mirrored ForeArm/Hand joints" +
                                 ("; exempt: a hand holds a detected prop/shield or markers were "
@@ -152,10 +152,10 @@ def run(req):
                     J[side + "Hand" + f + str(i + 1)] = np.asarray(p)
 
     projection = {}
-    outputs["markers_png"] = hl.render_markers(af.out_path(req, "markers.png"), body, J, lm.conf, H,
+    outputs["markers_png"] = hl.render_markers(ima.out_path(req, "markers.png"), body, J, lm.conf, H,
                                                projection=projection)
     mk = hl.markers_json(lm, prep, H, warnings, {"fingers": finger_info, "projection": projection})
-    outputs["markers_json"] = hl.write_json(af.out_path(req, "markers.json"), mk)
+    outputs["markers_json"] = hl.write_json(ima.out_path(req, "markers.json"), mk)
 
     if lm.fail is not None:
         stats["tris"] = hl.tri_count(body)
@@ -165,7 +165,7 @@ def run(req):
     # ---- armature and weights
     roll_hints = hl.grip_roll_hints(lm) if params.get("auto_rigid", True) else {}
     rig = hl.build_armature(J, H, fingers=fingers, roll_hints=roll_hints)
-    names, W, skin_info = hl.skin(body, rig, H, params, warnings, log=af.log, radii=hl.arm_radii(lm))
+    names, W, skin_info = hl.skin(body, rig, H, params, warnings, log=ima.log, radii=hl.arm_radii(lm))
     verts = hl.mesh_verts(body)
     rigid_sets, rigid_mask = [], np.zeros(len(verts), dtype=bool)
     if params.get("auto_rigid", True):
@@ -182,7 +182,7 @@ def run(req):
         rigid_mask |= mask
     # rigid plate armour (painted metal regions -> one bone each, smooth weights only in the joint gaps)
     W_soft = W.copy()
-    hard_info = hl.hard_surface(body, W, names, H, params, exclude=rigid_mask, log=af.log)
+    hard_info = hl.hard_surface(body, W, names, H, params, exclude=rigid_mask, log=ima.log)
     metal_region = hard_info.pop("_metal", None)
     rigid_counts = hl.apply_rigid(W, names, rigid_sets)
     maxinf = int(params.get("max_influences", 4))
@@ -260,10 +260,10 @@ def run(req):
                 bone, how = hl.b(hl.short(over[n])), "params.socket_bones"
                 if bone not in rig.data.bones:
                     raise ValueError("params.socket_bones: unknown bone %s" % over[n])
-            elif props.get("af_bone") and hl.b(hl.short(str(props["af_bone"]))) in rig.data.bones:
+            elif props.get("imaginarium_bone") and hl.b(hl.short(str(props["imaginarium_bone"]))) in rig.data.bones:
                 # an extract_props placement socket names the hand that held the item
-                bone, how = hl.b(hl.short(str(props["af_bone"]))), "socket extras af_bone"
-            e = af.add_socket(n, parent=rig, bone=bone, kind=props.get("kind"),
+                bone, how = hl.b(hl.short(str(props["imaginarium_bone"]))), "socket extras imaginarium_bone"
+            e = ima.add_socket(n, parent=rig, bone=bone, kind=props.get("kind"),
                               size=0.03, **{k: v for k, v in props.items() if k not in ("kind", "game_socket")})
             e.matrix_world = Mw
             sockets[n] = e
@@ -274,17 +274,17 @@ def run(req):
 
     # ---- QA
     nb = len(rig.data.bones)
-    checks.append(af.check("unweighted_vertices", unweighted == 0, unweighted, 0))
-    checks.append(af.check("bones", nb in (25, 65), nb, "25|65"))
+    checks.append(ima.check("unweighted_vertices", unweighted == 0, unweighted, 0))
+    checks.append(ima.check("bones", nb in (25, 65), nb, "25|65"))
     infl = int((W > 1e-4).sum(1).max())
-    checks.append(af.check("max_influences", infl <= maxinf, infl, maxinf))
+    checks.append(ima.check("max_influences", infl <= maxinf, infl, maxinf))
     X0m = lm.X0 * H
     sym, sym_per = hl.symmetry_error(J, X0m, H, ["Shoulder", "Arm", "UpLeg", "Leg", "Foot", "ToeBase"])
-    checks.append(af.check("joint_symmetry", sym <= 0.03, sym, 0.03, severity="warning",
+    checks.append(ima.check("joint_symmetry", sym <= 0.03, sym, 0.03, severity="warning",
                            note="max mirror error / height over shoulders and legs"))
     arm_sym, arm_per = hl.symmetry_error(J, X0m, H, ["ForeArm", "Hand"])
     hips_x = float(J["Hips"][0])
-    checks.append(af.check("centred", abs(hips_x) < 0.01, round(hips_x, 4), 0.01,
+    checks.append(ima.check("centred", abs(hips_x) < 0.01, round(hips_x, 4), 0.01,
                            note="Hips x (m): contract 4, x = 0 is the trunk symmetry axis"))
     ratio_issues = []
     for side, r in lm.ratios.items():
@@ -296,20 +296,20 @@ def run(req):
             ratio_issues.append("%s arm %.2f H" % (side, r["arm"]))
         if not (0.38 <= r["leg"] <= 0.56):
             ratio_issues.append("%s leg %.2f H" % (side, r["leg"]))
-    checks.append(af.check("limb_ratios", not ratio_issues, lm.ratios,
+    checks.append(ima.check("limb_ratios", not ratio_issues, lm.ratios,
                            "upper/fore 0.85-1.6, thigh/shin 0.8-1.35, arm 0.24-0.40 H, leg 0.38-0.56 H",
                            severity="warning", note="; ".join(ratio_issues) or None))
     for bone, mask, rec in rigid_sets:
         col = names.index(bone)
         if mask.any():
             leak = float(1.0 - W[mask, col].min())
-            checks.append(af.check("rigid_%s_%s" % (rec.get("kind", "rule"), hl.short(bone)), leak < 1e-3,
+            checks.append(ima.check("rigid_%s_%s" % (rec.get("kind", "rule"), hl.short(bone)), leak < 1e-3,
                                    round(leak, 5), 0.001, note="%d vertices rigid to %s" % (mask.sum(), bone)))
     auto_sets = [rec for _, _, rec in rigid_sets if rec.get("kind") in ("prop", "plate", "bow")]
     if lm.props or getattr(lm, "plate_props", None) or lm.bow_props:
         loose = [rec for rec in auto_sets if rec["vertices"] == 0]
         expected = (len(lm.props) + len(lm.plate_props) + len(lm.bow_props)) if params.get("auto_rigid", True) else 0
-        checks.append(af.check("props_rigid", not loose and len(auto_sets) >= expected,
+        checks.append(ima.check("props_rigid", not loose and len(auto_sets) >= expected,
                                len(auto_sets) - len(loose), expected,
                                note="every detected prop/shield is rigid to one bone (never left to "
                                     "bone heat)" + ("; without vertices: %s" % loose if loose else "")))
@@ -334,7 +334,7 @@ def run(req):
         if lm.robe:
             robe_zone = verts[:, 2] < (lm.crotch + 0.07) * H
         deform = hl.deformation_test(body, rig, names, W, H, robe_zone=robe_zone,
-                                     intersections=bool(params.get("intersections", True)), log=af.log,
+                                     intersections=bool(params.get("intersections", True)), log=ima.log,
                                      region=metal_region if hard_info.get("enabled") else None)
         if hard_info.get("enabled"):
             hard_info["pose_test_hard"] = {p: {"torn_pct": round(100 * deform[p]["torn_area_frac"], 2),
@@ -344,37 +344,37 @@ def run(req):
         lim = hl.TORN_LIMITS
         worst_pose = max(("arms_forward", "squat", "stride"), key=lambda p: deform[p]["torn_area_frac"])
         torn = deform[worst_pose]["torn_area_frac"]
-        checks.append(af.check("deform_torn_area", torn <= lim["main"], torn, lim["main"], severity=gate,
+        checks.append(ima.check("deform_torn_area", torn <= lim["main"], torn, lim["main"], severity=gate,
                                note="largest share of the POSED surface made of triangles that grew > 3x "
                                     "(arms forward / squat / stride; worst: %s, %.3f m2, mostly %s); "
                                     "floor caps excluded" % (
                                         worst_pose, deform[worst_pose]["torn_area_m2"],
                                         ", ".join(deform[worst_pose].get("torn_by_bone_m2") or {}) or "-")))
         tu = deform["arms_up"]["torn_area_frac"]
-        checks.append(af.check("deform_torn_area_arms_up", tu <= lim["arms_up"], tu, lim["arms_up"], severity=gate,
+        checks.append(ima.check("deform_torn_area_arms_up", tu <= lim["arms_up"], tu, lim["arms_up"], severity=gate,
                                note="arms straight up (170 deg): 2-5 %% of armpit stretch is normal for linear "
                                     "blend skinning; above %.0f %% a sleeve/robe web becomes a sheet" % (
                                         lim["arms_up"] * 100)))
         worst = max(deform[p]["max_stretch"] for p in hl.TEST_POSES)
-        checks.append(af.check("deform_max_edge_stretch", worst <= 6.0, worst, 6.0, severity="warning",
+        checks.append(ima.check("deform_max_edge_stretch", worst <= 6.0, worst, 6.0, severity="warning",
                                note="worst edge length ratio, sliver edges excluded"))
         p999 = max(deform[p]["p999_stretch"] for p in hl.TEST_POSES)
-        checks.append(af.check("deform_p999_edge_stretch", p999 <= 3.5, p999, 3.5, severity="warning"))
+        checks.append(ima.check("deform_p999_edge_stretch", p999 <= 3.5, p999, 3.5, severity="warning"))
         if lm.robe:
             rs = deform["stride"].get("robe_torn_area_frac")
-            checks.append(af.check("robe_stride_tear", rs is not None and rs <= lim["robe_stride"], rs,
+            checks.append(ima.check("robe_stride_tear", rs is not None and rs <= lim["robe_stride"], rs,
                                    lim["robe_stride"], severity=gate,
                                    note="share of the posed robe surface torn (> 3x area) in the stride pose"))
         if params.get("intersections", True):
             nsi = max(deform[p]["new_self_intersection_frac"] for p in hl.TEST_POSES)
-            checks.append(af.check("deform_new_self_intersections", nsi <= 0.02, nsi, 0.02,
+            checks.append(ima.check("deform_new_self_intersections", nsi <= 0.02, nsi, 0.02,
                                    severity="warning", note="fraction of triangles newly intersecting"))
-        outputs["poses_png"] = hl.render_poses(af.out_path(req, "poses.png"), body, rig)
+        outputs["poses_png"] = hl.render_poses(ima.out_path(req, "poses.png"), body, rig)
 
     # ---- exports
     export_objs = [rig, body] + list(sockets.values())
-    outputs["glb"] = af.export_glb(af.out_path(req, "rigged.glb"), objects=export_objs, animations=False)
-    outputs["blend"] = af.save_blend(af.out_path(req, "rigged.blend"))
+    outputs["glb"] = ima.export_glb(ima.out_path(req, "rigged.glb"), objects=export_objs, animations=False)
+    outputs["blend"] = ima.save_blend(ima.out_path(req, "rigged.blend"))
     stats.update({
         "tris": hl.tri_count(body), "verts": len(body.data.vertices), "bones": nb,
         "deform_bones": len(names), "skin": skin_info, "rigid": rigid_counts, "robe_blend": robe_info,

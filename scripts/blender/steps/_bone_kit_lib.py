@@ -18,7 +18,7 @@ import mathutils
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 
 IVORY = "#CDBE9C"
 GOLD = "#C9A04A"
@@ -344,7 +344,7 @@ class Materials:
         if key == "bone" and self.style == "aged":
             sp["vertex_color"] = "Color"
         m = principled(name, **sp)
-        m["af_role"] = key
+        m["imaginarium_role"] = key
         self.cache[key] = m
         return m
 
@@ -362,7 +362,7 @@ def principled_ok(mat):
 
 def material_record(m):
     b = next(nd for nd in m.node_tree.nodes if nd.type == "BSDF_PRINCIPLED")
-    return {"name": m.name, "role": m.get("af_role"), "principled_to_output": principled_ok(m),
+    return {"name": m.name, "role": m.get("imaginarium_role"), "principled_to_output": principled_ok(m),
             "base_color_linear": [round(x, 4) for x in b.inputs["Base Color"].default_value[:3]],
             "base_color_from_vertex_color": b.inputs["Base Color"].is_linked,
             "metallic": round(b.inputs["Metallic"].default_value, 3),
@@ -423,7 +423,7 @@ def build_mesh(name, pieces, mats, sharp_deg=55.0, uv=True):
 
 
 def unwrap(ob, margin=0.006):
-    af.select_only([ob])
+    ima.select_only([ob])
     bpy.ops.object.mode_set(mode="EDIT")
     bpy.ops.mesh.select_all(action="SELECT")
     bpy.ops.uv.smart_project(angle_limit=math.radians(66), island_margin=margin, area_weight=0.0,
@@ -619,7 +619,7 @@ def frame_errors(rec):
 
 def add_socket(name, loc, rot3, parent=None, bone=None, kind="grip", frame=None, size=0.03, **extras):
     """Contract §6 socket empty; world placement given by loc / rot3 (world), parent kept."""
-    emp = af.add_socket(name, parent=None, kind=kind, size=size, **extras)
+    emp = ima.add_socket(name, parent=None, kind=kind, size=size, **extras)
     if frame:
         emp["frame"] = frame
     emp.rotation_mode = "QUATERNION"
@@ -694,7 +694,7 @@ def load_png(path):
 
 def save_png(arr, path):
     h, w = arr.shape[:2]
-    im = bpy.data.images.new("af_bone_kit_out", width=w, height=h, alpha=True)
+    im = bpy.data.images.new("imaginarium_bone_kit_out", width=w, height=h, alpha=True)
     im.pixels = np.ascontiguousarray(arr[::-1]).ravel()
     im.filepath_raw = os.path.abspath(path)
     im.file_format = "PNG"
@@ -763,10 +763,10 @@ def contact_sheet(tiles, labels, path, cols=4, tile=256, bg=(0.16, 0.17, 0.19), 
 def eevee_shot(path, objects, view_dir, up=(0, 0, 1), size=(512, 512), margin=1.12, target=None,
                ortho_scale=None, bg=(0.62, 0.62, 0.64), samples=32):
     """Orthographic EEVEE render of `objects` (studio key + fill + rim, grey world) -> RGBA PNG.
-    Used for comparison close-ups; part previews use af.render_views (Workbench)."""
+    Used for comparison close-ups; part previews use ima.render_views (Workbench)."""
     scene = bpy.context.scene
     bpy.context.view_layer.update()
-    lo, hi = af.world_bbox(objects)
+    lo, hi = ima.world_bbox(objects)
     centre = Vector(target) if target is not None else (lo + hi) / 2
     d = Vector(view_dir).normalized()
     cam_data = bpy.data.cameras.new("bk_cam")
@@ -811,7 +811,7 @@ def eevee_shot(path, objects, view_dir, up=(0, 0, 1), size=(512, 512), margin=1.
     prev_world = scene.world
     scene.world = world
     r = scene.render
-    af.set_engine(scene, "EEVEE")
+    ima.set_engine(scene, "EEVEE")
     try:
         scene.eevee.taa_render_samples = samples
     except Exception:

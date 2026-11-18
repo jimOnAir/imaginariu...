@@ -14,25 +14,25 @@ import numpy as np
 from mathutils import Matrix, Vector
 from mathutils.bvhtree import BVHTree
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _items_lib as L
 from steps import attach_prop as A
 from steps import item_from_mesh as F
 from steps import item_kit as K
 
 # On-disk fixtures for the test_real_* / evidence cases ("skip: ..." when a file is missing).
-# Environment overrides: AF_ART_RAW, AF_NECRO_GLB.
-ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
+# Environment overrides: Imaginarium_ART_RAW, Imaginarium_NECRO_GLB.
+ART_RAW = os.environ.get("Imaginarium_ART_RAW") or r"C:/Imaginarium/test-assets/art/raw"
 ZOMBIE = ART_RAW + "/zombie/mixamo_rigged.fbx"
 ZOMBIE_ATTACK = ART_RAW + "/zombie/anims/attack.fbx"
 ANGEL = ART_RAW + "/angel/mixamo_rigged.fbx"
 ANGEL_IDLE = ART_RAW + "/angel/anims/idle.fbx"
 ANGEL_ATTACK = ART_RAW + "/angel/anims/attack.fbx"
-NECRO = os.environ.get("AF_NECRO_GLB") or r"C:/AstraForge/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
+NECRO = os.environ.get("Imaginarium_NECRO_GLB") or r"C:/Imaginarium/test-assets/ReferenceFidelity/Corrected-necromancer.glb"
 
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_items_")
+    return tempfile.mkdtemp(prefix="imaginarium_items_")
 
 
 def _req(out, params, inputs=None):
@@ -45,7 +45,7 @@ def _errors(result):
 
 
 def _kit_glb(out, params):
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item(params)
     K.export_item(item, out, info, preview=False)
     return os.path.join(out, "item.glb"), info
@@ -56,7 +56,7 @@ def _kit_glb(out, params):
 def test_kit_all_types_build_and_export():
     out = _tmp()
     for typ in K.TYPES:
-        af.reset_scene()
+        ima.reset_scene()
         item, info = K.build_item({"type": typ, "ornament": 2, "seed": 3})
         errs = [c for c in K.item_checks(item, info) if not c["ok"] and c["severity"] == "error"]
         assert not errs, (typ, errs)
@@ -65,7 +65,7 @@ def test_kit_all_types_build_and_export():
         assert info["uv_layers"] == ["UVMap"], typ
         assert info["non_manifold_edges"] == 0, (typ, info["non_manifold_edges"])
         assert len(info["materials"]) >= 2, typ
-        glb = af.export_glb(os.path.join(out, typ + ".glb"), objects=[item] + list(item.children),
+        glb = ima.export_glb(os.path.join(out, typ + ".glb"), objects=[item] + list(item.children),
                             animations=False, skins=False)
         summ = L.glb_summary(glb)
         assert "socket_grip_main" in summ["sockets"], (typ, summ["sockets"])
@@ -74,7 +74,7 @@ def test_kit_all_types_build_and_export():
 
 def test_kit_grip_frame_and_axes():
     # sword: identity grip frame, blade along +Z, edges along Y (width) and flat along X (thickness)
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item({"type": "sword", "seed": 1})
     g = next(s for s in info["sockets"] if s["name"] == "socket_grip_main")
     assert np.allclose(g["z_axis"], [0, 0, 1], atol=1e-4) and np.allclose(g["y_axis"], [0, 1, 0], atol=1e-4)
@@ -83,14 +83,14 @@ def test_kit_grip_frame_and_axes():
     assert len(blade) and np.ptp(blade[:, 1]) > 2.5 * np.ptp(blade[:, 0]), "blade width must be along Y"
     assert co[:, 2].max() - g["location"][2] > 0.6, "blade must point +Z from the grip"
     # axe: the bit is on -Y (edge = -Y)
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item({"type": "axe", "ornament": 1})
     g = next(s for s in info["sockets"] if s["name"] == "socket_grip_main")["location"]
     co, _, _ = L.mesh_arrays(item)
     head = co[co[:, 2] > co[:, 2].max() - 0.15]
     assert head[:, 1].min() - g[1] < -0.1 and head[:, 1].max() - g[1] < 0.06, "axe bit must face -Y"
     # kite shield: convex painted face toward -Y, handle (grip) behind it
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item({"type": "shield_kite", "ornament": 1})
     g = next(s for s in info["sockets"] if s["name"] == "socket_grip_main")["location"]
     co, tri, _ = L.mesh_arrays(item)
@@ -98,7 +98,7 @@ def test_kit_grip_frame_and_axes():
     front = bvh.ray_cast(Vector((g[0], -2, g[2])), Vector((0, 1, 0)), 4)[0]
     assert front is not None and front.y < g[1] - 0.02, "shield face must be on -Y in front of the grip"
     # pistol: muzzle (fx tip) toward -Y, grip axis tilted toward the muzzle
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item({"type": "blaster_pistol"})
     fx = next(s for s in info["sockets"] if s["name"] == "socket_fx_tip")
     gm = next(s for s in info["sockets"] if s["name"] == "socket_grip_main")
@@ -109,12 +109,12 @@ def test_kit_grip_frame_and_axes():
 def test_kit_seed_determinism_and_variation():
     sigs = []
     for seed in range(1, 7):
-        af.reset_scene()
+        ima.reset_scene()
         _, info = K.build_item({"type": "sword", "seed": seed})
         sigs.append((info["tris"], tuple(round(x, 4) for x in info["dimensions_m"]),
                      info["resolved"].get("guard"), info["resolved"].get("pommel")))
     assert len(set(sigs)) >= 5, sigs
-    af.reset_scene()
+    ima.reset_scene()
     _, a = K.build_item({"type": "sword", "seed": 4})
     assert (a["tris"], tuple(round(x, 4) for x in a["dimensions_m"])) == sigs[3][:2], "same seed must rebuild identically"
 
@@ -154,7 +154,7 @@ def test_kit_single_request_outputs():
 
 
 def test_kit_materials_principled_check():
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item({"type": "sword", "seed": 2})
     assert all(m["principled_to_output"] for m in info["materials"])
     chk = next(c for c in K.item_checks(item, info) if c["name"] == "materials_principled")
@@ -172,7 +172,7 @@ def test_kit_materials_principled_check():
 
 def test_kit_blaster_forward_plus_y():
     # props face +Y (contract §4): params.forward turns the item, sockets keep their frames
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item({"type": "blaster_pistol", "forward": "+Y"})
     fx = next(s for s in info["sockets"] if s["name"] == "socket_fx_tip")
     assert np.allclose(fx["z_axis"], [0, 1, 0], atol=1e-3) and fx["location"][1] > 0.1, fx
@@ -211,7 +211,7 @@ def test_server_param_shapes():
 
 def _mangled(typ, out, seed, extra=None):
     """A kit item made to look like a generator output: dense, rotated, scaled, no sockets."""
-    af.reset_scene()
+    ima.reset_scene()
     item, info = K.build_item(dict({"type": typ, "ornament": 2}, **(extra or {})))
     for ch in list(item.children):
         bpy.data.objects.remove(ch)
@@ -222,7 +222,7 @@ def _mangled(typ, out, seed, extra=None):
     axis = Vector((rng.random(), rng.random(), rng.random())).normalized()
     item.matrix_world = Matrix.Translation((0.3, -0.2, 0.5)) @ Matrix.Rotation(rng.uniform(0, 6.28), 4, axis) @ Matrix.Scale(1.7, 4)
     path = os.path.join(out, "%s_generated.glb" % typ)
-    af.export_glb(path, objects=[item], animations=False, skins=False)
+    ima.export_glb(path, objects=[item], animations=False, skins=False)
     return path, info
 
 
@@ -305,11 +305,11 @@ def test_item_from_mesh_module_budget():
 
 def _synthetic_rig(path):
     """Minimal Mixamo-named rig in an A-pose with a boxy skinned body and one clip ('swing')."""
-    af.reset_scene()
+    ima.reset_scene()
     ad = bpy.data.armatures.new("Rig")
     arm = bpy.data.objects.new("Armature", ad)
     bpy.context.scene.collection.objects.link(arm)
-    af.select_only([arm])
+    ima.select_only([arm])
     bpy.ops.object.mode_set(mode="EDIT")
     P = "mixamorig:"
     bones = {"Hips": ((0, 0, 0.95), (0, 0, 1.05), None), "Spine2": ((0, 0, 1.05), (0, 0, 1.38), "Hips")}
@@ -340,7 +340,7 @@ def _synthetic_rig(path):
         vg = ob.vertex_groups.new(name=P + name)
         vg.add(list(range(len(ob.data.vertices))), 1.0, "REPLACE")
         parts.append(ob)
-    body = af.join(parts, name="Body")
+    body = ima.join(parts, name="Body")
     body.parent = arm
     mod = body.modifiers.new("Armature", "ARMATURE")
     mod.object = arm
@@ -352,7 +352,7 @@ def _synthetic_rig(path):
         pb.keyframe_insert("rotation_quaternion", frame=fr)
     arm.animation_data.action.name = "swing"
     arm.animation_data.action.use_fake_user = True
-    af.save_blend(path)
+    ima.save_blend(path)
     return path
 
 
@@ -428,15 +428,15 @@ def test_attach_shield_mount_swap_by_socket_matching():
     assert len(nodes[idx["socket_mount_hand_l"]]["extras"]["shield_mount_matrix"]) == 16
     assert not [n for n in L.glb_summary(res["outputs"]["glb"])["sockets"] if "." in n]
     # swap by socket matching in the saved scene: the same world matrix as the attached kite
-    af.open_blend(res["outputs"]["blend"])
+    ima.open_blend(res["outputs"]["blend"])
     arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     arm.data.pose_position = "REST"
     bpy.context.view_layer.update()
-    attached = next(o for o in bpy.data.objects if o.get("af_attached_hand") == "l")
+    attached = next(o for o in bpy.data.objects if o.get("imaginarium_attached_hand") == "l")
     M_attached = attached.matrix_world.copy()
     Mount = _world_of("socket_mount_shield_l")
     for path, name in ((kite, "kite"), (rnd, "round")):
-        objs = af.import_any(path)
+        objs = ima.import_any(path)
         root = next(o for o in objs if o.type == "MESH")
         grip = next(o for o in objs if o.get("game_socket") == "socket_grip_main")
         bpy.context.view_layer.update()
@@ -460,7 +460,7 @@ def test_attach_shield_mount_swap_by_socket_matching():
     M1 = Matrix(rep["mounts"]["socket_mount_shield_l"]["socket_space_matrix"])
     M2 = Matrix(rep2["mounts"]["socket_mount_shield_l"]["socket_space_matrix"])
     assert max(abs((M1 - M2)[i][j]) for i in range(4) for j in range(4)) < 1e-4
-    assert len([o for o in bpy.data.objects if o.get("af_attached_hand") == "l"]) == 1
+    assert len([o for o in bpy.data.objects if o.get("imaginarium_attached_hand") == "l"]) == 1
 
 
 def test_attach_clip_names_and_clean_sockets():
@@ -469,10 +469,10 @@ def test_attach_clip_names_and_clean_sockets():
     out = _tmp()
     rig = _synthetic_rig(os.path.join(out, "rig.blend"))
     # a clip file named idle (armature-only FBX of the rig swing action, like a Mixamo clip) and a posed rig
-    af.open_blend(rig)
+    ima.open_blend(rig)
     arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     L.assign_action(arm, bpy.data.actions["swing"])
-    clip = af.export_fbx(os.path.join(out, "clips", "idle.fbx"), objects=[arm], object_types={"ARMATURE"},
+    clip = ima.export_fbx(os.path.join(out, "clips", "idle.fbx"), objects=[arm], object_types={"ARMATURE"},
                          bake_anim=True, bake_anim_use_all_actions=False, bake_anim_use_nla_strips=False)
     arm.data.pose_position = "REST"
     bpy.context.view_layer.update()
@@ -482,7 +482,7 @@ def test_attach_clip_names_and_clean_sockets():
     pb = arm.pose.bones["mixamorig:Spine2"]
     pb.rotation_mode = "XYZ"
     pb.rotation_euler = (math.radians(85), 0, 0)
-    posed = af.save_blend(os.path.join(out, "posed.blend"))
+    posed = ima.save_blend(os.path.join(out, "posed.blend"))
     staff, _ = _kit_glb(os.path.join(out, "staff"), {"type": "staff", "head": "orb", "seed": 1})
     wand, _ = _kit_glb(os.path.join(out, "wand"), {"type": "wand", "seed": 1})
     res = A.run(_req(os.path.join(out, "a"), {"attachments": [{"item": staff, "hand": "r"}, {"item": wand, "hand": "l"}],
@@ -509,7 +509,7 @@ def _png_rgb(src, dst, max_w=1280):
         arr = L.resize_nearest(arr, max_w, int(arr.shape[0] * k))
     arr = L.over_bg(arr)
     h, w = arr.shape[:2]
-    im = bpy.data.images.new("af_evidence", width=w, height=h, alpha=False)
+    im = bpy.data.images.new("imaginarium_evidence", width=w, height=h, alpha=False)
     im.pixels = np.ascontiguousarray(arr[::-1]).ravel()
     st = bpy.context.scene.render.image_settings
     st.file_format, st.color_mode, st.compression = "PNG", "RGB", 100
@@ -545,11 +545,11 @@ def _summarise_attach(res):
 def _grip_world(blend):
     """World matrix (rest pose, unit scale) of the attached item's grip frame and of the left hand socket
     in a saved equipped.blend."""
-    af.open_blend(blend)
+    ima.open_blend(blend)
     arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     arm.data.pose_position = "REST"
     bpy.context.view_layer.update()
-    return _world_of("socket_mount_hand_l"), next(o for o in bpy.data.objects if o.get("af_attached_hand") == "l")
+    return _world_of("socket_mount_hand_l"), next(o for o in bpy.data.objects if o.get("imaginarium_attached_hand") == "l")
 
 
 def test_attach_refit_socket_bakes_offset_for_swaps():
@@ -583,7 +583,7 @@ def test_attach_refit_socket_bakes_offset_for_swaps():
     assert max(abs(E[i][j]) for i in range(4) for j in range(4)) < 1e-4    # socket = old socket x offset
     assert "refit_offset_matrix" in bpy.data.objects["socket_mount_hand_l"].keys()
     # swap by socket matching in the refit scene: the same world matrix as the attached staff
-    objs = af.import_any(staff)
+    objs = ima.import_any(staff)
     root = next(o for o in objs if o.type == "MESH")
     grip = next(o for o in objs if o.get("game_socket") == "socket_grip_main")
     bpy.context.view_layer.update()
@@ -699,14 +699,14 @@ def make_evidence(out_root=None, img_dir=None):
 
     Writes <out_root>/evidence.json (all numbers) and, with img_dir, the four evidence PNGs."""
     import time
-    out_root = out_root or tempfile.mkdtemp(prefix="af_items_evidence_")
+    out_root = out_root or tempfile.mkdtemp(prefix="imaginarium_items_evidence_")
     ev = {"out_root": out_root}
     # 1. kit: every type (ornament 2, seed 0) + three more staff heads in one batch with a contact sheet
     batch = [{"type": t} for t in K.TYPES] + [{"type": "staff", "head": "skull", "style": "dark"},
                                               {"type": "staff", "head": "orb"}, {"type": "staff", "head": "crook"}]
     t0 = time.time()
     res = K.run(_req(os.path.join(out_root, "kit"), {"ornament": 2, "seed": 0, "batch": batch, "preview_size": 192,
-                                                     "sheet_title": "ASTRAFORGE ITEM KIT  ORNAMENT 2  SEED 0"}))
+                                                     "sheet_title": "IMAGINARIUM ITEM KIT  ORNAMENT 2  SEED 0"}))
     ev["kit_batch_seconds"] = round(time.time() - t0, 2)
     kb = json.load(open(res["outputs"]["batch_json"], encoding="utf-8"))
     ev["kit"] = [{"type": v["type"], "style": v["style"], "head": v["resolved"].get("head"), "tris": v["tris"],
@@ -721,7 +721,7 @@ def make_evidence(out_root=None, img_dir=None):
     for typ in K.TYPES:
         for style in L.STYLES:
             for seed in (1, 2):
-                af.reset_scene()
+                ima.reset_scene()
                 item, info = K.build_item({"type": typ, "style": style, "seed": seed, "ornament": 3})
                 n_sweep += 1
                 assert info["tris"] <= info["budget_tris"], (typ, style, seed, info["tris"])
@@ -823,15 +823,15 @@ def make_evidence(out_root=None, img_dir=None):
         att["zombie_sword_kite"]["seconds"] = round(time.time() - t0, 1)
         prev_zombie = res["outputs"]["preview"]
         # swap demo: the kite is replaced by a round shield purely by socket matching in the saved scene
-        af.open_blend(res["outputs"]["blend"])
+        ima.open_blend(res["outputs"]["blend"])
         arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
         arm.data.pose_position = "REST"
         bpy.context.view_layer.update()
-        for o in [o for o in bpy.data.objects if o.get("af_attached_hand") == "l"]:
+        for o in [o for o in bpy.data.objects if o.get("imaginarium_attached_hand") == "l"]:
             for ch in list(o.children):
                 bpy.data.objects.remove(ch)
             bpy.data.objects.remove(o)
-        objs = af.import_any(rnd)
+        objs = ima.import_any(rnd)
         root = next(o for o in objs if o.type == "MESH")
         grip = next(o for o in objs if o.get("game_socket") == "socket_grip_main")
         bpy.context.view_layer.update()
@@ -840,7 +840,7 @@ def make_evidence(out_root=None, img_dir=None):
         R3 = root.matrix_world.to_3x3().normalized()
         att["swap_round"] = {"up_z": round((R3 @ Vector((0, 0, 1))).z, 3), "face_x": round((R3 @ Vector((0, -1, 0))).x, 3)}
         vis = [o for o in bpy.data.objects if o.type == "MESH" and o.visible_get()]
-        swap_png = af.render_views(os.path.join(out_root, "swap", "swap.png"), vis,
+        swap_png = ima.render_views(os.path.join(out_root, "swap", "swap.png"), vis,
                                    views=("front", "left", "three_quarter"), size=256)
         prev_zombie = L.stack_rows([prev_zombie, swap_png], os.path.join(out_root, "zombie_ev.png"),
                                    labels=["SWORD R + KITE L (ATTACK CLIP)", "SWAP: ROUND SHIELD ON SOCKET_MOUNT_SHIELD_L (REST)"])
@@ -884,6 +884,6 @@ def make_evidence(out_root=None, img_dir=None):
             ims["items_staffs_and_from_mesh.png"] = _png_rgb(comp, os.path.join(img_dir, "items_staffs_and_from_mesh.png"), 1024)
         ev["images"] = ims
     with open(os.path.join(out_root, "evidence.json"), "w", encoding="utf-8") as fh:
-        json.dump(af._jsonable(ev), fh, ensure_ascii=False, indent=1)
+        json.dump(ima._jsonable(ev), fh, ensure_ascii=False, indent=1)
     print("EVIDENCE " + os.path.join(out_root, "evidence.json"), flush=True)
     return ev

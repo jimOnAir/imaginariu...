@@ -1,10 +1,10 @@
 extends SceneTree
-## AstraForge Forge — headless validator for packages made by godot_package / render_sprites.
+## Imaginarium Forge — headless validator for packages made by godot_package / render_sprites.
 ##
 ##   godot --headless --path <throwaway project> --import
 ##   godot --headless --path <throwaway project> --script res://validate_package.gd
 ##
-## Reads res://af_check.json:
+## Reads res://imaginarium_check.json:
 ##   {"scenes": [{"path": "res://packages/x/x.tscn", "sockets": ["socket_a", ...],
 ##                "fx": [{"socket": "socket_a", "name": "fx_engine_trail",
 ##                        "expect_axis": [0, 0, 1], "expect_dot": 0.9}],
@@ -26,13 +26,13 @@ var finished := false
 
 func _initialize() -> void:
 	result["godot"] = String(Engine.get_version_info().get("string", ""))
-	if not FileAccess.file_exists("res://af_check.json"):
-		_fail("missing res://af_check.json")
+	if not FileAccess.file_exists("res://imaginarium_check.json"):
+		_fail("missing res://imaginarium_check.json")
 		_finish()
 		return
-	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://af_check.json"))
+	var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string("res://imaginarium_check.json"))
 	if typeof(parsed) != TYPE_DICTIONARY:
-		_fail("af_check.json is not a JSON object")
+		_fail("imaginarium_check.json is not a JSON object")
 		_finish()
 		return
 	cfg = parsed

@@ -21,7 +21,7 @@ params:
   profile        'vrm1' (the only one; named after the VRM 1.0 specification)
   meta_name      VRM meta name (empty - the asset name, else 'model')
   meta_version   VRM meta version (empty - '0.1.0')
-  meta_author    author string for meta.authors (empty - 'AstraForge studio')
+  meta_author    author string for meta.authors (empty - 'Imaginarium studio')
   license_url    meta license URL (empty - unset; the studio's commercial terms are not a VRM
                  licence URL and this step never pretends otherwise)
   expressions    'auto' wire the presets _vrm_lib matches (direct keys first, the publisher's
@@ -42,7 +42,7 @@ import shutil
 
 import bpy
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 from steps import _vrm_lib as V
 
@@ -54,7 +54,7 @@ def _addon_dir():
     """Resolve the installed component the way convert resolves gltfpack (env, then the
     installer-written config key, then the in-repo default) - but it is a FOLDER holding
     blender_manifest.toml (the extension), not a binary."""
-    forced = (os.environ.get("ASTRA_VRM_ADDON") or "").strip()
+    forced = (os.environ.get("IMAGINARIUM_VRM_ADDON") or "").strip()
     if forced:
         return forced if os.path.isfile(os.path.join(forced, "blender_manifest.toml")) else None
     try:
@@ -90,7 +90,7 @@ def _enable_addon(ext_dir, warnings):
     name = os.path.basename(ext_dir)
     root = os.path.dirname(ext_dir)
     if not name.isidentifier():
-        alias_root = tempfile.mkdtemp(prefix="astra-vrm-")
+        alias_root = tempfile.mkdtemp(prefix="imaginarium-vrm-")
         try:
             os.symlink(ext_dir, os.path.join(alias_root, "vrm_addon"))
         except OSError as exc:  # noqa: BLE001 - reported, not hidden
@@ -109,7 +109,7 @@ def _enable_addon(ext_dir, warnings):
 def _pick_rig(objs, warnings):
     """The armature with the most VRM-mappable bones; the failure names the next click."""
     best = None
-    for a in af.armatures(objs):
+    for a in ima.armatures(objs):
         mapped, missing = V.match_human_bones([b.name for b in a.data.bones])
         if best is None or len(mapped) > len(best[1]):
             best = (a, mapped, missing)
@@ -123,7 +123,7 @@ def _pick_rig(objs, warnings):
                          "humanoid is invalid per VRMC_vrm and importers are entitled to reject "
                          "it; fix the rig (run rig_humanoid, or complete the skeleton), then "
                          "package VRM" % ", ".join(missing))
-    if len(af.armatures(objs)) > 1:
+    if len(ima.armatures(objs)) > 1:
         warnings.append("several armatures - packaged '%s' (most VRM bones mapped)" % arm.name)
     return arm, mapped
 
@@ -260,12 +260,12 @@ def run(req):
         # extension, so a .vrm input travels as a byte-identical .glb LABEL copy (never a
         # byte change). Ticket 63 gives .vrm its own route; until then this is it.
         label_copy = os.path.join(out_dir, "vrm-input.glb")
-    af.reset_scene()
+    ima.reset_scene()
     try:
         if label_copy:
             shutil.copyfile(src, label_copy)
             import_src = label_copy
-        objs = af.import_any(import_src)
+        objs = ima.import_any(import_src)
     finally:
         if label_copy:
             try:
@@ -286,7 +286,7 @@ def run(req):
     stats["addon_module"] = mod
     meta = {"name": str(p.get("meta_name") or manifest.get("name") or "model"),
             "version": str(p.get("meta_version") or "0.1.0"),
-            "author": str(p.get("meta_author") or "AstraForge studio")}
+            "author": str(p.get("meta_author") or "Imaginarium studio")}
     if p.get("license_url"):
         meta["license_url"] = str(p["license_url"])
     _apply_vrm1(arm, mapped, meta, warnings, stats)
@@ -298,7 +298,7 @@ def run(req):
     if result != {"FINISHED"}:
         raise ValueError("bpy.ops.export_scene.vrm returned %r (the addon's own failure contract)" % (result,))
     exists = os.path.isfile(vrm_path) and os.path.getsize(vrm_path) > 0
-    checks.append(af.check("vrm_written", exists, os.path.getsize(vrm_path) if exists else 0))
+    checks.append(ima.check("vrm_written", exists, os.path.getsize(vrm_path) if exists else 0))
     if not exists:
         raise ValueError("bpy.ops.export_scene.vrm did not write %s" % vrm_path)
 
@@ -311,7 +311,7 @@ def run(req):
     stats["vrm_meta_name"] = ((g or {}).get("extensions", {}).get("VRMC_vrm", {})
                               .get("meta", {}) or {}).get("name")
     for want in ("VRMC_vrm", "VRMC_materials_mtoon", "VRMC_springBone"):
-        checks.append(af.check("extension_" + want, want in used, sorted(used), severity="warning"))
+        checks.append(ima.check("extension_" + want, want in used, sorted(used), severity="warning"))
     if bool(p.get("validate", True)):
         # re-import pass: the stock glTF importer reads the rig back (its counts, not ours). The
         # bytes are handed to the importer under a .glb label because VRM 1.0 is exactly a
@@ -320,13 +320,13 @@ def run(req):
         tmp = os.path.join(out_dir, name + ".validate.glb")
         try:
             shutil.copyfile(vrm_path, tmp)
-            af.reset_scene()
-            back = af.import_any(tmp)
-            arms = af.armatures(back)
+            ima.reset_scene()
+            back = ima.import_any(tmp)
+            arms = ima.armatures(back)
             stats["reimport"] = {"objects": len(back), "armatures": len(arms),
                                  "skinned_meshes": sum(1 for o in back if o.type == "MESH"
                                                        and any(m.type == "ARMATURE" for m in o.modifiers))}
-            checks.append(af.check("reimport_rig", bool(arms), stats["reimport"]))
+            checks.append(ima.check("reimport_rig", bool(arms), stats["reimport"]))
         except Exception as exc:  # noqa: BLE001
             warnings.append("re-import validation failed: %s (the .vrm file itself passed the "
                             "container checks)" % exc)

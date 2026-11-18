@@ -11,7 +11,7 @@ Run: blender -b --factory-startup --python scripts/blender/tests/run_tests.py --
 """
 import bpy
 
-import af_common as af
+import imaginarium_common as ima
 
 
 def _plain_mesh(name="Plain"):

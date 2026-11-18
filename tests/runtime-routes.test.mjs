@@ -3,7 +3,7 @@
 // cannot drift), GET /api/runtime/nodes reports the connected ComfyUI's node classes without
 // ever raising, and POST /api/runtime/restart either restarts the owned service or answers with
 // an actionable statement - never a crash, never a detached ComfyUI. The launched server gets an
-// ASTRA_COMFY_DIR that cannot exist: even a wrong expectation cannot boot a real GPU engine here.
+// IMAGINARIUM_COMFY_DIR that cannot exist: even a wrong expectation cannot boot a real GPU engine here.
 import { test, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
@@ -13,13 +13,13 @@ const PORT = 39876;
 const base = `http://127.0.0.1:${PORT}`;
 const child = spawn(process.execPath, ['server/index.mjs'], {
   cwd: new URL('../', import.meta.url).pathname, stdio: 'ignore',
-  env: { ...process.env, PORT: String(PORT), ASTRA_ENGINE_AUTOSTART: '0', ASTRA_COMFY_DIR: '/nonexistent-astra-comfy-dir' },
+  env: { ...process.env, PORT: String(PORT), IMAGINARIUM_ENGINE_AUTOSTART: '0', IMAGINARIUM_COMFY_DIR: '/nonexistent-imaginarium-comfy-dir' },
 });
 after(() => child.kill());
 for (let i = 0; i < 80; i++) { try { if ((await fetch(`${base}/api/health`)).ok) break; } catch {} await delay(250); }
 
 const get = async (p) => { const r = await fetch(base + p); return { status: r.status, json: await r.json().catch(() => null) }; };
-const post = async (p) => { const r = await fetch(base + p, { method: 'POST', headers: { 'x-astra-client': 'studio' } }); return { status: r.status, json: await r.json().catch(() => null) }; };
+const post = async (p) => { const r = await fetch(base + p, { method: 'POST', headers: { 'x-imaginarium-client': 'studio' } }); return { status: r.status, json: await r.json().catch(() => null) }; };
 
 test('GET /api/runtime/graphs: every studio graph with its node classes, derived from the builders', async () => {
   const { status, json } = await get('/api/runtime/graphs');
@@ -33,7 +33,7 @@ test('GET /api/runtime/graphs: every studio graph with its node classes, derived
   }
   const byId = Object.fromEntries(json.graphs.map((g) => [g.id, g.classTypes]));
   assert.ok(byId['sdxl-concept'].includes('KSampler') && byId['sdxl-concept'].includes('SaveImage'));
-  assert.ok(byId['hunyuan-single-view'].includes('ImageOnlyCheckpointLoader') && byId['hunyuan-single-view'].includes('AstraMarchingCubes') && byId['hunyuan-single-view'].includes('SaveGLB'));
+  assert.ok(byId['hunyuan-single-view'].includes('ImageOnlyCheckpointLoader') && byId['hunyuan-single-view'].includes('ImagiMarchingCubes') && byId['hunyuan-single-view'].includes('SaveGLB'));
   assert.ok(byId['hunyuan-multiview'].includes('Hunyuan3Dv2ConditioningMultiView'));
   assert.ok(byId['pixal3d-single-view'].includes('Trellis2ExportMesh'));
   // the Pixal3D shape-only rule (tests/pixal3d.test.mjs) holds in the catalog too: no texturing nodes
@@ -65,7 +65,7 @@ test('POST /api/runtime/restart: owned child restarts, anything else answers act
     // nothing on the port and the configured ComfyUI folder cannot exist: a plain, useful error
     assert.equal(status, 400);
     assert.match(json.error, /ComfyUI not found/);
-    assert.match(json.error, /ASTRA_COMFY_DIR/);
+    assert.match(json.error, /IMAGINARIUM_COMFY_DIR/);
   }
   // and the studio itself is still alive after the restart attempt
   assert.ok((await fetch(`${base}/api/health`)).ok);

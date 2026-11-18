@@ -32,11 +32,11 @@ stop_owned() { # <pidfile> <marker...>
   rm -f "$file"
 }
 
-if curl -sf -m 2 "$URL/api/health" 2>/dev/null | grep -q '"app":"AstraForge"'; then
-  curl -sf -m 5 -X POST -H 'x-astra-client: studio' "$URL/api/shutdown" >/dev/null || true
+if curl -sf -m 2 "$URL/api/health" 2>/dev/null | grep -q '"app":"Imaginarium"'; then
+  curl -sf -m 5 -X POST -H 'x-imaginarium-client: studio' "$URL/api/shutdown" >/dev/null || true
   sleep 1
 fi
 [ -f "$ROOT/data/runtime/node.pid" ] && { pid="$(cat "$ROOT/data/runtime/node.pid")"; case "$pid" in (*[!0-9]*|'') : ;; (**) owned_cmdline "$pid" 'server/index.mjs' && kill_tree "$pid" ;; esac; rm -f "$ROOT/data/runtime/node.pid"; }
 stop_owned comfy.pid "$ROOT/data/runtime/input" '--port' '8190'
 stop_owned pixal3d.pid "$ROOT/data/runtime/pixal3d-temp"
-echo 'AstraForge stopped. The existing ComfyUI on 8188 and Ollama were left running.'
+echo 'Imaginarium stopped. The existing ComfyUI on 8188 and Ollama were left running.'

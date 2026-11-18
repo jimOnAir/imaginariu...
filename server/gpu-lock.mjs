@@ -1,8 +1,8 @@
 // Cross-process GPU lock: every studio job (and any other tool that opts in) serialises GPU work
 // on one system lock.
 //
-// Name: env ASTRA_GPU_LOCK_NAME (ASTRA_GPU_MUTEX is accepted as an older alias), default
-// 'Global\AF_GPU_RENDER'. Another pipeline that should take turns with the studio uses the same
+// Name: env IMAGINARIUM_GPU_LOCK_NAME (IMAGINARIUM_GPU_MUTEX is accepted as an older alias), default
+// 'Global\IMA_GPU_RENDER'. Another pipeline that should take turns with the studio uses the same
 // name (or the studio is pointed at its name). Node cannot own a Win32 mutex, so on Windows a hidden PowerShell
 // "holder" process creates/acquires the mutex, prints LOCKED and keeps it until it reads a line on
 // stdin (release) or its stdin closes (our process died). If the holder itself is killed,
@@ -13,14 +13,14 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 
-export const GPU_MUTEX_NAME = 'Global\\AF_GPU_RENDER';
+export const GPU_MUTEX_NAME = 'Global\\IMA_GPU_RENDER';
 
 const HOLDER_SCRIPT = String.raw`
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$name = $env:AF_GPU_MUTEX
-$timeoutMs = [int]$env:AF_GPU_TIMEOUT_MS
-$parentPid = [int]$env:AF_GPU_PARENT
+$name = $env:Imaginarium_GPU_MUTEX
+$timeoutMs = [int]$env:Imaginarium_GPU_TIMEOUT_MS
+$parentPid = [int]$env:Imaginarium_GPU_PARENT
 $m = New-Object System.Threading.Mutex($false, $name)
 $got = $false
 $announced = $false
@@ -49,7 +49,7 @@ const ENCODED_SCRIPT = Buffer.from(HOLDER_SCRIPT, 'utf16le').toString('base64');
 const state = { held: 0, waiting: 0, lastAbandoned: null };
 
 export function gpuLockName(env = process.env) {
-  return env.ASTRA_GPU_LOCK_NAME || env.ASTRA_GPU_MUTEX || GPU_MUTEX_NAME;
+  return env.IMAGINARIUM_GPU_LOCK_NAME || env.IMAGINARIUM_GPU_MUTEX || GPU_MUTEX_NAME;
 }
 
 /** In-process view of the lock (the mutex may also be held by other processes). */
@@ -93,7 +93,7 @@ function noopLock(name, warning) {
 /**
  * Acquire the GPU lock.
  * @param {object} [opts]
- * @param {string} [opts.name] lock name (default env ASTRA_GPU_LOCK_NAME, else Global\AF_GPU_RENDER)
+ * @param {string} [opts.name] lock name (default env IMAGINARIUM_GPU_LOCK_NAME, else Global\IMA_GPU_RENDER)
  * @param {number} [opts.timeoutMs] -1 = wait forever
  * @param {AbortSignal} [opts.signal]
  * @param {boolean} [opts.failOpen] if the holder cannot start, resolve with a no-op lock
@@ -108,26 +108,26 @@ export function acquireGpuLock(opts = {}) {
   if (process.platform === 'win32') {
     return startHolder({ name, timeoutMs, signal, failOpen, onWait, command: powershellPath(), args: [
       '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-EncodedCommand', ENCODED_SCRIPT,
-    ], env: { ...process.env, AF_GPU_MUTEX: name, AF_GPU_TIMEOUT_MS: String(timeoutMs), AF_GPU_PARENT: String(process.pid) },
+    ], env: { ...process.env, Imaginarium_GPU_MUTEX: name, Imaginarium_GPU_TIMEOUT_MS: String(timeoutMs), Imaginarium_GPU_PARENT: String(process.pid) },
     failed: (m) => `Failed to start PowerShell for the GPU lock: ${m}` });
   }
   if (process.platform === 'linux') return startHolder({ ...flockHolderSpec(name, timeoutMs), signal, failOpen, onWait });
   return Promise.resolve(noopLock(name, 'The cross-process GPU lock works on Windows and Linux only.'));
 }
 
-/** Lock file of the flock holder: ASTRA_GPU_LOCK_FILE overrides, else a name-derived file in the temp folder. */
+/** Lock file of the flock holder: IMAGINARIUM_GPU_LOCK_FILE overrides, else a name-derived file in the temp folder. */
 export function posixLockFile(name, env = process.env) {
-  return env.ASTRA_GPU_LOCK_FILE || path.join(os.tmpdir(), `astraforge-gpu-${name.replace(/[^A-Za-z0-9._-]+/g, '_')}.lock`);
+  return env.IMAGINARIUM_GPU_LOCK_FILE || path.join(os.tmpdir(), `imaginarium-gpu-${name.replace(/[^A-Za-z0-9._-]+/g, '_')}.lock`);
 }
 
 /** The PowerShell holder protocol on sh + flock(1): the kernel drops the lock even if the holder is killed. */
 function flockHolderSpec(name, timeoutMs) {
   // integer seconds only: flock parses -w with the locale's decimal separator, so a dot would be "invalid timeout" under e.g. ru_RU
   const waitCmd = timeoutMs >= 0 ? `flock -w ${Math.max(1, Math.ceil(timeoutMs / 1000))} 9` : 'flock 9';
-  const script = ['exec 9>"$AF_GPU_LOCK_FILE" || exit 2',
+  const script = ['exec 9>"$Imaginarium_GPU_LOCK_FILE" || exit 2',
     `if ! flock -n 9; then printf 'WAITING\\n'; if ! ${waitCmd}; then printf 'TIMEOUT\\n'; exit 3; fi; fi`,
     `printf 'LOCKED\\n'`, 'read _'].join('\n');
-  return { name, timeoutMs, command: 'sh', args: ['-c', script], env: { ...process.env, LC_ALL: 'C', AF_GPU_LOCK_FILE: posixLockFile(name) },
+  return { name, timeoutMs, command: 'sh', args: ['-c', script], env: { ...process.env, LC_ALL: 'C', Imaginarium_GPU_LOCK_FILE: posixLockFile(name) },
     failed: (m) => `Failed to start the flock holder for the GPU lock: ${m}`,
     exitHint: (code) => (code === 127 ? 'flock(1) is not available on this system. ' : '') };
 }

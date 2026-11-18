@@ -6,9 +6,9 @@ named test_real_* and return early when the files are missing.
 
 Run (until the shared runner exists):
   blender -b --factory-startup --python-expr "import sys;sys.path[:0]=[r'<root>/scripts/blender',
-  r'<root>/scripts/blender/tests'];import test_creatures as t;import af_common as af
+  r'<root>/scripts/blender/tests'];import test_creatures as t;import imaginarium_common as ima
   for n in sorted(dir(t)):
-      if n.startswith('test_'): af.reset_scene(); getattr(t,n)(); print('PASS',n)"
+      if n.startswith('test_'): ima.reset_scene(); getattr(t,n)(); print('PASS',n)"
 """
 import json
 import math
@@ -19,12 +19,12 @@ import bmesh
 import bpy
 from mathutils import Matrix, Quaternion, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _creature_lib as L
 from steps import anim_creature, rig_creature
 
-ART_RAW = os.environ.get("AF_ART_RAW") or r"C:/AstraForge/test-assets/art/raw"
-KEEP = os.environ.get("AF_CREATURE_TEST_OUT")       # optional: keep outputs in this folder
+ART_RAW = os.environ.get("Imaginarium_ART_RAW") or r"C:/Imaginarium/test-assets/art/raw"
+KEEP = os.environ.get("Imaginarium_CREATURE_TEST_OUT")       # optional: keep outputs in this folder
 
 
 # ----------------------------------------------------------------------------- primitives
@@ -72,7 +72,7 @@ def _finish(bm, name, path, yaw_deg):
     bm.free()
     ob = bpy.data.objects.new(name, me)
     bpy.context.scene.collection.objects.link(ob)
-    af.export_glb(path, objects=[ob], animations=False, skins=False)
+    ima.export_glb(path, objects=[ob], animations=False, skins=False)
     bpy.data.objects.remove(ob, do_unlink=True)
     return path
 
@@ -223,7 +223,7 @@ def build_dog_hierarchy(path):
             _polyleg(bm, [(x, 0.27, 0.5), (x, 0.2, 0.32), (x, 0.32, 0.15), (x, 0.3, 0.035)], 0.035),
             _ellipsoid(bm, (x, 0.27, 0.03), (0.042, 0.065, 0.03))))
     bpy.context.view_layer.update()
-    af.export_glb(path, objects=[root] + parts, animations=False, skins=False)
+    ima.export_glb(path, objects=[root] + parts, animations=False, skins=False)
     for o in parts + [root]:
         bpy.data.objects.remove(o, do_unlink=True)
     return path
@@ -236,7 +236,7 @@ def _out(name):
         d = os.path.join(KEEP, name)
         os.makedirs(d, exist_ok=True)
         return d
-    return tempfile.mkdtemp(prefix="af_creat_%s_" % name)
+    return tempfile.mkdtemp(prefix="imaginarium_creat_%s_" % name)
 
 
 def _rig(mesh, out, inputs=None, **params):
@@ -249,7 +249,7 @@ def _rig(mesh, out, inputs=None, **params):
 
 
 def _anim(blend, out, **params):
-    af.open_blend(blend)
+    ima.open_blend(blend)
     req = {"step": "anim_creature", "inputs": {"blend": blend}, "params": params, "out_dir": out}
     res = anim_creature.run(req)
     with open(os.path.join(out, "clips.json"), encoding="utf-8") as fh:

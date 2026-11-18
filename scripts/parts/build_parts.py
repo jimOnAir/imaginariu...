@@ -27,7 +27,7 @@ sys.path.insert(0, str(HERE))
 import parts_generate  # noqa: E402
 import parts_prep  # noqa: E402
 
-DEFAULT_BLENDER = os.environ.get("ASTRA_BLENDER") or "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe"
+DEFAULT_BLENDER = os.environ.get("IMAGINARIUM_BLENDER") or "C:/Program Files/Blender Foundation/Blender 5.0/blender.exe"
 
 
 def run_assemble(blender, base, front, parts_json, out_dir, params, log=print):
@@ -38,7 +38,7 @@ def run_assemble(blender, base, front, parts_json, out_dir, params, log=print):
            "params": params, "out_dir": str(out_dir.resolve())}
     req_path = out_dir / "request.json"
     req_path.write_text(json.dumps(req, indent=1), encoding="utf-8")
-    cmd = [blender, "-b", "--factory-startup", "--python", str(APP / "scripts" / "blender" / "af_run.py"), "--",
+    cmd = [blender, "-b", "--factory-startup", "--python", str(APP / "scripts" / "blender" / "imaginarium_run.py"), "--",
            "assemble_parts", str(req_path)]
     t0 = time.time()
     proc = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")

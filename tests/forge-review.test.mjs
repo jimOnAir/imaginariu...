@@ -17,7 +17,7 @@ import {
 } from '../src/forge/review-core.js';
 import { getLang, setLang } from '../src/i18n/index.js';
 
-const dir = mkdtempSync(path.join(tmpdir(), 'af-review-'));
+const dir = mkdtempSync(path.join(tmpdir(), 'imaginarium-review-'));
 const libraryDir = path.join(dir, 'library');
 const studioAssets = path.join(dir, 'studio', 'assets');
 const batchDir = path.join(dir, 'incoming', 'build');
@@ -129,7 +129,7 @@ before(async () => {
   app.use((req, res, next) => {
     const host = req.headers.host?.split(':')[0];
     if (!['127.0.0.1', 'localhost', '['].includes(host)) return res.status(403).json({ error: 'Invalid Host' });
-    if (!['GET', 'HEAD'].includes(req.method) && req.path.startsWith('/api') && req.headers['x-astra-client'] !== 'studio') return res.status(403).json({ error: 'The request must be sent from the studio.' });
+    if (!['GET', 'HEAD'].includes(req.method) && req.path.startsWith('/api') && req.headers['x-imaginarium-client'] !== 'studio') return res.status(403).json({ error: 'The request must be sent from the studio.' });
     next();
   });
   app.use(express.json({ limit: '90mb' }));
@@ -144,7 +144,7 @@ after(async () => {
   await fs.rm(dir, { recursive: true, force: true }).catch(() => {});
 });
 
-const H = { 'x-astra-client': 'studio' };
+const H = { 'x-imaginarium-client': 'studio' };
 async function api(method, url, body, headers = H) {
   const init = { method, headers: { ...headers } };
   if (body !== undefined) { init.body = JSON.stringify(body); init.headers['content-type'] = 'application/json'; }
@@ -282,10 +282,10 @@ test('review: another batch is read from <incoming>/<name>/<name>.state.json; th
   assert.equal(res.json.batch.decisionsFile, path.join(other, 'review_decisions.json'));
   assert.equal(res.json.items.length, 1);
   assert.equal((await api('GET', '/api/forge/review?batch=build')).json.items.length, 7, 'the default batch by name');
-  const viaEnv = new ForgeReview(engine, { env: { ASTRA_FORGE_REVIEW_STATE: path.join(other, 'pilot2.state.json') } });
+  const viaEnv = new ForgeReview(engine, { env: { IMAGINARIUM_REVIEW_STATE: path.join(other, 'pilot2.state.json') } });
   assert.equal((await viaEnv.list({})).items.length, 1);
   assert.equal(viaEnv.resolveBatch().decisionsFile, path.join(other, 'review_decisions.json'));
-  const envDecisions = new ForgeReview(engine, { stateFile, env: { ASTRA_FORGE_REVIEW_DECISIONS: path.join(dir, 'custom.json') } });
+  const envDecisions = new ForgeReview(engine, { stateFile, env: { IMAGINARIUM_REVIEW_DECISIONS: path.join(dir, 'custom.json') } });
   assert.equal(envDecisions.resolveBatch().decisionsFile, path.join(dir, 'custom.json'));
 });
 
@@ -302,7 +302,7 @@ test('review: a state file that is being rewritten (broken JSON) answers 503 in 
 
 test('review: a decision is stored in the manifest through PATCH qa and shows up in the next list', async () => {
   const denied = await api('PATCH', `/api/forge/assets/${ids.knight}`, { qa: { reviewed: true, decision: 'approved' } }, {});
-  assert.equal(denied.status, 403, 'mutating calls need the x-astra-client header');
+  assert.equal(denied.status, 403, 'mutating calls need the x-imaginarium-client header');
   const ok = await api('PATCH', `/api/forge/assets/${ids.knight}`, { qa: { reviewed: true, decision: 'approved', comment: '', game_unit: 'knight', at: 'ignored' } });
   assert.equal(ok.status, 200, ok.text);
   assert.equal(ok.json.qa.decision, 'approved');

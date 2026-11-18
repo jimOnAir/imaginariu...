@@ -1,4 +1,4 @@
-// Ticket 46 (0.7.9 performance wave): af-mesh-rs is the salvage fast path — the spawn helper
+// Ticket 46 (0.7.9 performance wave): imaginarium-mesh-rs is the salvage fast path — the spawn helper
 // and the chain must be provable WITHOUT the binary, exactly like the Blender lane is provable
 // without Blender. A fake spawnImpl answers runAfMesh; a fake run answers the salvage maker.
 import test from 'node:test';
@@ -9,7 +9,7 @@ import { promises as fs } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { afMeshConfig, afMeshInfo, runAfMesh } from '../server/af-mesh.mjs';
+import { afMeshConfig, afMeshInfo, runAfMesh } from '../server/imaginarium-mesh.mjs';
 import { makeAfMeshSimplify, makeSalvageSimplify } from '../server/mesh-salvage.mjs';
 import { maxMeshTriangles } from '../server/mesh-validation.mjs';
 
@@ -57,11 +57,11 @@ function fakeChild({ code = 0, stdout = '', stderr = '', error = null, hang = fa
   return child;
 }
 
-test('afMeshConfig: ASTRA_AF_MESH, then paths.json afMesh, then the in-repo build', async () => {
-  const appRoot = path.join(os.tmpdir(), 'af-mesh-lane-' + randomUUID());
+test('afMeshConfig: IMAGINARIUM_AF_MESH, then paths.json afMesh, then the in-repo build', async () => {
+  const appRoot = path.join(os.tmpdir(), 'imaginarium-mesh-lane-' + randomUUID());
   await fs.mkdir(path.join(appRoot, 'config'), { recursive: true });
   const env = { ...process.env };
-  delete env.ASTRA_AF_MESH;
+  delete env.IMAGINARIUM_AF_MESH;
   const def = afMeshConfig({ env, appRoot });
   assert.equal(def.source, 'default');
   assert.equal(def.found, false, 'a scratch appRoot has no build');
@@ -72,7 +72,7 @@ test('afMeshConfig: ASTRA_AF_MESH, then paths.json afMesh, then the in-repo buil
   assert.equal(fromCfg.exe, process.execPath);
   assert.equal(fromCfg.found, true);
 
-  const forced = afMeshConfig({ env: { ...env, ASTRA_AF_MESH: '/nowhere/af-mesh-rs' }, appRoot });
+  const forced = afMeshConfig({ env: { ...env, IMAGINARIUM_AF_MESH: '/nowhere/imaginarium-mesh-rs' }, appRoot });
   assert.equal(forced.source, 'env');
   assert.equal(forced.found, false, 'an explicit path that is not there is reported honestly');
   await fs.rm(appRoot, { recursive: true, force: true });
@@ -81,10 +81,10 @@ test('afMeshConfig: ASTRA_AF_MESH, then paths.json afMesh, then the in-repo buil
 test('runAfMesh: streams and exit code are collected, argv is passed through', async () => {
   let seen = null;
   const r = await runAfMesh({
-    exe: '/fake/af-mesh-rs', args: ['simplify', '--in', 'a.glb'], timeoutMs: 1000,
+    exe: '/fake/imaginarium-mesh-rs', args: ['simplify', '--in', 'a.glb'], timeoutMs: 1000,
     spawnImpl: (exe, args) => { seen = { exe, args }; return fakeChild({ code: 0, stdout: '{"ok":true}', stderr: 'note' }); },
   });
-  assert.equal(seen.exe, '/fake/af-mesh-rs');
+  assert.equal(seen.exe, '/fake/imaginarium-mesh-rs');
   assert.deepEqual(seen.args, ['simplify', '--in', 'a.glb']);
   assert.deepEqual(r, { code: 0, stdout: '{"ok":true}', stderr: 'note', timedOut: false });
 });
@@ -109,7 +109,7 @@ test('runAfMesh: a missing binary resolves, it never rejects', async () => {
 
 test('afMeshInfo: the --version --json handshake, name-checked', async () => {
   assert.equal(await afMeshInfo({ cfg: { found: false } }), null, 'absent binary: no spawn at all');
-  const ok = await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"af-mesh-rs","version":"0.7.9"}' }) });
+  const ok = await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"imaginarium-mesh-rs","version":"0.7.9"}' }) });
   assert.equal(ok.version, '0.7.9');
   assert.equal(await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: '{"name":"something-else"}' }) }), null);
   assert.equal(await afMeshInfo({ cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 1, stdout: '' }) }), null);
@@ -121,7 +121,7 @@ test('makeAfMeshSimplify: absent binary answers null without spawning (the ticke
 });
 
 test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving', async () => {
-  const root = path.join(os.tmpdir(), 'af-mesh-lane-' + randomUUID());
+  const root = path.join(os.tmpdir(), 'imaginarium-mesh-lane-' + randomUUID());
   const calls = [];
   const run = async ({ exe, args }) => {
     calls.push({ exe, args });
@@ -130,7 +130,7 @@ test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving'
     await fs.writeFile(dst, SMALL);
     return { code: 0, stdout: JSON.stringify({ trianglesBefore: maxMeshTriangles + 1, trianglesAfter: 100 }), stderr: '' };
   };
-  const f = makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake/af-mesh-rs' }, run });
+  const f = makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake/imaginarium-mesh-rs' }, run });
   // first pass declines (after >= before): the fast path bows out for the Blender fallback
   assert.equal(await f(OVER), null, 'a declined summary is not a success');
   calls.length = 0;
@@ -141,7 +141,7 @@ test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving'
     await fs.writeFile(dst, SMALL);
     return { code: 0, stdout: JSON.stringify({ trianglesBefore: maxMeshTriangles + 1, trianglesAfter: 100 }) };
   };
-  const g = makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake/af-mesh-rs' }, run: run2 });
+  const g = makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake/imaginarium-mesh-rs' }, run: run2 });
   const out = await g(OVER);
   assert.ok(out && out.equals(SMALL), 'the second pass (halved budget) comes back');
   assert.equal(calls.length, 2);
@@ -156,14 +156,14 @@ test('makeAfMeshSimplify: the spawn shape, the summary gate, the budget halving'
 });
 
 test('makeAfMeshSimplify: a refusal exit and unreadable summaries answer null', async () => {
-  const root = path.join(os.tmpdir(), 'af-mesh-lane-' + randomUUID());
+  const root = path.join(os.tmpdir(), 'imaginarium-mesh-lane-' + randomUUID());
   assert.equal(await makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 1, stderr: 'refused' }) })(OVER), null);
   assert.equal(await makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => ({ code: 0, stdout: 'not json' }) })(OVER), null);
   assert.equal(await makeAfMeshSimplify({ root, cfg: { found: true, exe: '/fake' }, run: async () => { throw new Error('spawn exploded'); } })(OVER), null);
   await fs.rm(root, { recursive: true, force: true });
 });
 
-test('makeSalvageSimplify: af-mesh first, Blender as the fallback, ASTRA_SALVAGE forces Blender', async () => {
+test('makeSalvageSimplify: imaginarium-mesh first, Blender as the fallback, IMAGINARIUM_SALVAGE forces Blender', async () => {
   let afCalls = 0, blCalls = 0;
   const afOk = () => async () => { afCalls++; return SMALL; };
   const afNo = () => async () => { afCalls++; return null; };
@@ -183,8 +183,8 @@ test('makeSalvageSimplify: af-mesh first, Blender as the fallback, ASTRA_SALVAGE
   assert.equal(blCalls, 2, 'reduced-but-still-oversize falls through too');
 
   let afBuilt = false;
-  const chain4 = makeSalvageSimplify({ env: { ASTRA_SALVAGE: 'blender' }, makeAfMesh: () => { afBuilt = true; throw new Error('must not build'); }, makeBlender: bl });
+  const chain4 = makeSalvageSimplify({ env: { IMAGINARIUM_SALVAGE: 'blender' }, makeAfMesh: () => { afBuilt = true; throw new Error('must not build'); }, makeBlender: bl });
   await chain4(OVER);
-  assert.equal(afBuilt, false, 'ASTRA_SALVAGE=blender is the forced route — the fast path is not even constructed');
+  assert.equal(afBuilt, false, 'IMAGINARIUM_SALVAGE=blender is the forced route — the fast path is not even constructed');
   assert.equal(blCalls, 3, 'the forced route is the Blender path');
 });

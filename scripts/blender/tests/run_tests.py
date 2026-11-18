@@ -1,10 +1,10 @@
-"""Shared test runner for AstraForge Blender steps (contract §10).
+"""Shared test runner for Imaginarium Blender steps (contract §10).
 
     blender -b --factory-startup --python scripts/blender/tests/run_tests.py -- [module ...] [-k text]
 
 Discovers test_*.py next to this file (a module filter like `core` or `test_core` keeps only
 those files), imports each with scripts/blender and scripts/blender/tests on sys.path, calls
-af_common.reset_scene() before every zero-argument test_* function and prints one line per test:
+imaginarium_common.reset_scene() before every zero-argument test_* function and prints one line per test:
 
     PASS  test_core.test_cleanup_synthetic  3.21s
     FAIL  test_core.test_x  0.40s  AssertionError: ...
@@ -73,7 +73,7 @@ def main():
     names, missing = discover(modules)
     results = []
     t_all = time.time()
-    import af_common as af  # noqa: E402  (needs bpy, so only inside Blender)
+    import imaginarium_common as ima  # noqa: E402  (needs bpy, so only inside Blender)
 
     for m in missing:
         results.append({"module": m, "test": "<module>", "status": "FAIL", "seconds": 0.0,
@@ -98,7 +98,7 @@ def main():
             status, error, trace = "PASS", None, None
             t0 = time.time()
             try:
-                af.reset_scene()
+                ima.reset_scene()
                 ret = getattr(mod, name)()
                 if isinstance(ret, str) and ret.lower().startswith("skip"):
                     status, error = "SKIP", ret

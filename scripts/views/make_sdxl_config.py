@@ -1,7 +1,7 @@
 """Build a config-only diffusers folder for SDXL base 1.0 without any network access.
 
 diffusers' `from_single_file` normally fetches the SDXL configs and tokenizers from the Hugging Face hub.
-MV-Adapter runs on the `sd_xl_base_1.0.safetensors` that AstraForge already has, so everything except the
+MV-Adapter runs on the `sd_xl_base_1.0.safetensors` that Imaginarium already has, so everything except the
 weights is rebuilt here: tokenizer files and the two CLIP text configs come from the ComfyUI checkout
 (it ships the same tokenizer), the UNet / VAE / scheduler configs are the published SDXL base values.
 
@@ -119,8 +119,8 @@ def write(path, value):
 
 def main(argv):
     out = Path(argv[1])
-    # ComfyUI install: argv[2], else env ASTRA_COMFY_DIR, else <app>/runtime/ComfyUI
-    comfy = Path(argv[2] if len(argv) > 2 else (os.environ.get("ASTRA_COMFY_DIR")
+    # ComfyUI install: argv[2], else env IMAGINARIUM_COMFY_DIR, else <app>/runtime/ComfyUI
+    comfy = Path(argv[2] if len(argv) > 2 else (os.environ.get("IMAGINARIUM_COMFY_DIR")
                                                 or Path(__file__).resolve().parents[2] / "runtime" / "ComfyUI"))
     marker = out / "model_index.json"
     if marker.exists() and (out / "tokenizer_2" / "vocab.json").exists():

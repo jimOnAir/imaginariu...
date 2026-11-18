@@ -1,6 +1,6 @@
 // Slots ("views") and the prompts that ask an image model for the missing views of a T-pose character.
 //
-// Conventions used everywhere in AstraForge:
+// Conventions used everywhere in Imaginarium:
 //   front  — the character looks at the camera.
 //   left   — camera on the CHARACTER'S left: the left side faces us, the character looks toward the LEFT edge of the image.
 //   back   — seen from behind.

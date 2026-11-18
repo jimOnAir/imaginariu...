@@ -1,7 +1,7 @@
 """Self-tests of unity_package (docs/forge/unity.md).
 
 The test builds synthetic models and exports them to GLB; the Unity batchmode check runs only with
-AF_UNITY_TESTS=1 (it needs a signed-in Unity Hub and takes 20 s ... minutes). Temporary files under tempfile.mkdtemp().
+Imaginarium_UNITY_TESTS=1 (it needs a signed-in Unity Hub and takes 20 s ... minutes). Temporary files under tempfile.mkdtemp().
 """
 import atexit
 import json
@@ -12,14 +12,14 @@ import tempfile
 import bpy
 import numpy as np
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _unity_lib as ul
 from steps import unity_package as up
 
 
 def _tmp(prefix):
     d = tempfile.mkdtemp(prefix=prefix)
-    if not os.environ.get("AF_KEEP_TEST_FILES"):
+    if not os.environ.get("Imaginarium_KEEP_TEST_FILES"):
         atexit.register(shutil.rmtree, d, True)
     return d
 
@@ -51,7 +51,7 @@ def _material(name, image=None, alpha=False):
 
 def _tree_glb(folder):
     """A trunk (cylinder, ~4k tris), a leaf card mesh 'Leaves' and an fx socket: a prop with wind and LOD."""
-    af.reset_scene()
+    ima.reset_scene()
     bpy.ops.mesh.primitive_cylinder_add(vertices=64, radius=0.2, depth=3.0, location=(0, 0, 1.5))
     trunk = bpy.context.active_object
     trunk.name = "Trunk"
@@ -63,9 +63,9 @@ def _tree_glb(folder):
     leaves = bpy.context.active_object
     leaves.name = "Leaves"
     leaves.data.materials.append(_material("Leaves", _leaf_image(), alpha=True))
-    af.add_socket("socket_fx_top", location=(0.0, 0.5, 3.0), kind="fx")
+    ima.add_socket("socket_fx_top", location=(0.0, 0.5, 3.0), kind="fx")
     path = os.path.join(folder, "tree.glb")
-    af.export_glb(path, animations=False)
+    ima.export_glb(path, animations=False)
     return path
 
 
@@ -86,7 +86,7 @@ def test_to_unity_axes():
 
 
 def test_unity_package_prop_wind_lod_collider_fx():
-    d = _tmp("af_unity_tree_")
+    d = _tmp("imaginarium_unity_tree_")
     glb = _tree_glb(d)
     res = _run({"step": "unity_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
                 "params": {"asset_id": "test_tree", "kind": "prop", "validate": False,
@@ -94,7 +94,7 @@ def test_unity_package_prop_wind_lod_collider_fx():
     failed = [c["name"] for c in res["checks"] if not c["ok"] and c.get("severity") == "error"]
     assert not failed, failed
     pkg_dir = res["outputs"]["package"]
-    for f in ("test_tree.fbx", "af_unity.json", "README.md", "fx/textures/soft.png"):
+    for f in ("test_tree.fbx", "ima_unity.json", "README.md", "fx/textures/soft.png"):
         assert os.path.isfile(os.path.join(pkg_dir, f)), f
     with open(res["outputs"]["manifest"], encoding="utf-8") as fh:
         pkg = json.load(fh)
@@ -118,8 +118,8 @@ def test_unity_package_prop_wind_lod_collider_fx():
 
 
 def test_unity_package_character_turned_and_rigged():
-    d = _tmp("af_unity_char_")
-    af.reset_scene()
+    d = _tmp("imaginarium_unity_char_")
+    ima.reset_scene()
     bpy.ops.object.armature_add(location=(0, 0, 0))
     arm = bpy.context.active_object
     arm.name = "Armature"
@@ -141,7 +141,7 @@ def test_unity_package_character_turned_and_rigged():
         pb.rotation_euler = (0, 0, z)
         pb.keyframe_insert("rotation_euler", frame=f)
     path = os.path.join(d, "char.glb")
-    af.export_glb(path)
+    ima.export_glb(path)
     res = _run({"step": "unity_package", "inputs": {"glb": path}, "out_dir": os.path.join(d, "out"),
                 "params": {"asset_id": "test_char", "kind": "creature", "validate": False}})
     with open(res["outputs"]["manifest"], encoding="utf-8") as fh:
@@ -157,14 +157,14 @@ def test_unity_package_character_turned_and_rigged():
 
 
 def test_unity_package_sprites_only():
-    d = _tmp("af_unity_spr_")
+    d = _tmp("imaginarium_unity_spr_")
     sheet = os.path.join(d, "idle.png")
     arr = np.zeros((32, 64, 4), dtype=np.uint8)
     arr[8:24, 8:24] = (200, 120, 60, 255)
     arr[8:24, 40:56] = (200, 120, 60, 255)
     from steps import _export_lib as xl
     xl.save_png(sheet, arr)
-    sp = {"format": "astraforge-sprites/1", "asset_id": "blob", "profile": "pixel", "px_per_meter": 32.0,
+    sp = {"format": "imaginarium-sprites/1", "asset_id": "blob", "profile": "pixel", "px_per_meter": 32.0,
           "cell": [32, 32], "anchor": [16.0, 28.0], "sheets": ["idle.png"],
           "clips": {"idle": {"loop": True, "fps": 8.0, "frames": 2,
                              "views": {"S": {"sheet": "idle.png", "animation": "idle_S",
@@ -182,11 +182,11 @@ def test_unity_package_sprites_only():
 
 
 def test_unity_batchmode_check():
-    if not os.environ.get("AF_UNITY_TESTS"):
-        return "skip: AF_UNITY_TESTS=1 runs Unity -batchmode (signed-in Unity Hub, 20 s ... minutes)"
+    if not os.environ.get("Imaginarium_UNITY_TESTS"):
+        return "skip: Imaginarium_UNITY_TESTS=1 runs Unity -batchmode (signed-in Unity Hub, 20 s ... minutes)"
     if ul.find_unity() is None:
         return "skip: Unity not found"
-    d = _tmp("af_unity_bm_")
+    d = _tmp("imaginarium_unity_bm_")
     glb = _tree_glb(d)
     res = _run({"step": "unity_package", "inputs": {"glb": glb}, "out_dir": os.path.join(d, "out"),
                 "params": {"asset_id": "test_tree_bm", "kind": "prop",
@@ -203,7 +203,7 @@ def _hull_glb(folder):
     'Hull-convcolonly' (a dense icosphere), 'COL_SIMPLE' (a loose plane). The fix under test:
     the sources are collider input only - UCX hulls replace them in the FBX and they never
     render, add material rows, or inflate the package bounds."""
-    af.reset_scene()
+    ima.reset_scene()
     bpy.ops.mesh.primitive_cube_add(size=1.0, location=(0, 0, 0.5))
     body = bpy.context.active_object
     body.name = "Hull"
@@ -221,7 +221,7 @@ def _hull_glb(folder):
     c3.name = "COL_SIMPLE"
     c3.data.materials.append(_material("HullMat"))
     path = os.path.join(folder, "hulls.glb")
-    af.export_glb(path, animations=False)
+    ima.export_glb(path, animations=False)
     return path
 
 
@@ -232,7 +232,7 @@ def _hull_run(d, glb, **params):
 
 
 def test_unity_colonly_hulls_never_render():
-    d = _tmp("af_unity_hulls_")
+    d = _tmp("imaginarium_unity_hulls_")
     glb = _hull_glb(d)
     res = _hull_run(d, glb)
     failed = [c["name"] for c in res["checks"] if not c["ok"] and c.get("severity") == "error"]
@@ -258,7 +258,7 @@ def test_unity_colonly_hulls_never_render():
 
 
 def test_unity_hull_collider_param_variants():
-    d = _tmp("af_unity_hulls2_")
+    d = _tmp("imaginarium_unity_hulls2_")
     glb = _hull_glb(d)
     res_box = _hull_run(d, glb, collider="box")
     with open(res_box["outputs"]["manifest"], encoding="utf-8") as fh:

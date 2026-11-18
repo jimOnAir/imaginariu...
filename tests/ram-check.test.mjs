@@ -11,18 +11,18 @@ const noMeminfo = async () => { throw new Error('no such file'); };
 test('the floor is our own tuning, env-tunable and clamped', () => {
   assert.equal(RAM_THRESHOLDS.pixal3dMinFreeMiB, 4096);
   assert.equal(ramFloor('pixal3d', {}), 4096);
-  assert.equal(ramFloor('pixal3d', { ASTRA_RAM_FLOOR_MIB: '2048' }), 2048);
-  assert.equal(ramFloor('pixal3d', { ASTRA_RAM_FLOOR_MIB: '0' }), 0, '0 disables');
-  assert.equal(ramFloor('pixal3d', { ASTRA_RAM_FLOOR_MIB: '-7' }), 0, 'clamped');
-  assert.equal(ramFloor('pixal3d', { ASTRA_RAM_FLOOR_MIB: '99999999999' }), 1024 * 1024, 'a typo cannot be a floor');
-  assert.equal(ramFloor('pixal3d', { ASTRA_RAM_FLOOR_MIB: 'nonsense' }), 4096, 'garbage keeps the table');
+  assert.equal(ramFloor('pixal3d', { IMAGINARIUM_RAM_FLOOR_MIB: '2048' }), 2048);
+  assert.equal(ramFloor('pixal3d', { IMAGINARIUM_RAM_FLOOR_MIB: '0' }), 0, '0 disables');
+  assert.equal(ramFloor('pixal3d', { IMAGINARIUM_RAM_FLOOR_MIB: '-7' }), 0, 'clamped');
+  assert.equal(ramFloor('pixal3d', { IMAGINARIUM_RAM_FLOOR_MIB: '99999999999' }), 1024 * 1024, 'a typo cannot be a floor');
+  assert.equal(ramFloor('pixal3d', { IMAGINARIUM_RAM_FLOOR_MIB: 'nonsense' }), 4096, 'garbage keeps the table');
 });
 
 test('freeRamMiB: MemAvailable in MiB, honest null when the system does not answer; seam wins', async () => {
   assert.equal(await freeRamMiB({ env: {}, readFile: meminfo(9123) }), 9123);
   assert.equal(await freeRamMiB({ env: {}, readFile: async () => 'MemTotal: 1 kB' }), null);
   assert.equal(await freeRamMiB({ env: {}, readFile: noMeminfo }), null);
-  assert.equal(await freeRamMiB({ env: { ASTRA_FREE_RAM_MIB: '123' }, readFile: noMeminfo }), 123);
+  assert.equal(await freeRamMiB({ env: { IMAGINARIUM_FREE_RAM_MIB: '123' }, readFile: noMeminfo }), 123);
 });
 
 test('ramRoomText: only a known shortfall speaks, with both numbers in it', () => {
@@ -35,7 +35,7 @@ test('ramRoomText: only a known shortfall speaks, with both numbers in it', () =
 test('enough memory up front: no engine is touched at all', async () => {
   let fetched = 0;
   const r = await ensureRamFor({
-    engine: 'pixal3d', env: { ASTRA_FREE_RAM_MIB: '16384' },
+    engine: 'pixal3d', env: { IMAGINARIUM_FREE_RAM_MIB: '16384' },
     urls: { hunyuan: 'http://8190.test' },
     fetchFn: async () => { fetched++; throw new Error('must not be called'); },
     readFile: meminfo(16384),
@@ -67,7 +67,7 @@ test('short on RAM: the idle other engine is asked to unload, and the re-read de
 test('a busy engine is never interrupted - the wait belongs to the GPU hand-over', async () => {
   const seen = [];
   const r = await ensureRamFor({
-    engine: 'pixal3d', env: { ASTRA_FREE_RAM_MIB: '1500' }, urls: { hunyuan: 'http://8190.test' },
+    engine: 'pixal3d', env: { IMAGINARIUM_FREE_RAM_MIB: '1500' }, urls: { hunyuan: 'http://8190.test' },
     readFile: meminfo(1500),
     fetchFn: async (url, o) => {
       seen.push((o?.method || 'GET') + ' ' + url);
@@ -84,7 +84,7 @@ test('a busy engine is never interrupted - the wait belongs to the GPU hand-over
 
 test('an engine that does not answer is not resident memory: skipped silently', async () => {
   const r = await ensureRamFor({
-    engine: 'pixal3d', env: { ASTRA_FREE_RAM_MIB: '1500' }, urls: { hunyuan: 'http://down.test' },
+    engine: 'pixal3d', env: { IMAGINARIUM_FREE_RAM_MIB: '1500' }, urls: { hunyuan: 'http://down.test' },
     readFile: meminfo(1500),
     fetchFn: async () => { throw new Error('ECONNREFUSED'); },
     sleepFn: async () => {},

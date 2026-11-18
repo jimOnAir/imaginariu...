@@ -4,7 +4,7 @@
 // never from the model's own judgement; plain mesh numbers (boundary/non-manifold edges, loose
 // parts) cap the seam score. Failed attempts auto-redo with new seeds (retries 0..3), the best
 // attempt is kept, every verdict is journaled to <library>/learning/autoreview.jsonl with source
-// «auto». The review model travels through ticket 14's pick (ASTRA_REVIEW_VLM > Connections
+// «auto». The review model travels through ticket 14's pick (IMAGINARIUM_REVIEW_VLM > Connections
 // choice > VRAM tier); which model answered and why is part of every journal line.
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
@@ -26,7 +26,7 @@ export const THRESHOLDS = {
   maxAttempts: 4,      // attempt 0 + retries 1..3
   seamCap: { clean: 10, looseParts: 7, boundary: 6, nonManifold: 5 },  // mesh numbers, not taste
 };
-// Tunable: ASTRA_REVIEW_TUNE='{"axisFloor":6}' (same seam style as ASTRA_VRAM_MIB) - for tuning
+// Tunable: IMAGINARIUM_REVIEW_TUNE='{"axisFloor":6}' (same seam style as IMAGINARIUM_VRAM_MIB) - for tuning
 // and demos; production runs on the table above. Guards keep the table inside sane bounds.
 export function tuneTable(base, over) {
   const o = { ...base, ...(over || {}) };
@@ -95,7 +95,7 @@ export function createAutoReviewService(o = {}) {
     pollMs = 2000, jobTimeoutMs = 45 * 60 * 1000,
   } = o;
   const rootDir = path.join(dataDir, 'autoreview');
-  let TABLE; try { TABLE = tuneTable(THRESHOLDS, env.ASTRA_REVIEW_TUNE ? JSON.parse(env.ASTRA_REVIEW_TUNE) : null); } catch { TABLE = THRESHOLDS; }
+  let TABLE; try { TABLE = tuneTable(THRESHOLDS, env.IMAGINARIUM_REVIEW_TUNE ? JSON.parse(env.IMAGINARIUM_REVIEW_TUNE) : null); } catch { TABLE = THRESHOLDS; }
   const journalFile = path.join(libraryDir, 'learning', 'autoreview.jsonl');
   const records = new Map();
   const recDir = (id) => path.join(rootDir, id);
@@ -232,7 +232,7 @@ export function createAutoReviewService(o = {}) {
   let chain = Promise.resolve();
   function start(job, { auto = false } = {}) {
     if (!job?.asset || job.asset.extension !== '.glb') return Promise.resolve(null);
-    if (auto && env.ASTRA_AUTOREVIEW === '0') return Promise.resolve(null);
+    if (auto && env.IMAGINARIUM_AUTOREVIEW === '0') return Promise.resolve(null);
     if (job.autoreviewOf) return Promise.resolve(null); // a child generation belongs to its record already
     const record = { v: 1, id: randomUUID(), jobId: job.id, engine: job.engine || 'hunyuan', prompt: job.prompt || null, createdAt: new Date().toISOString(), status: 'queued', attempts: [], best: null };
     records.set(record.id, record);

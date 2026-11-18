@@ -22,8 +22,8 @@ const jobs=new Map();const controllers=new Map();const pumping={on:false,wake:nu
 export const hooks={onCompleted:null};
 // Ticket 34 (0.6.18 wave): an over-cap but valid generation is simplified to the limit (the
 // branch's own Blender cleanup decimate path) instead of the job failing and the asset being lost.
-// Ticket 46 (0.7.9 performance wave): the chain prefers af-mesh-rs (seconds, attributes carried)
-// and keeps Blender as the fallback and the ASTRA_SALVAGE=blender forced route.
+// Ticket 46 (0.7.9 performance wave): the chain prefers imaginarium-mesh-rs (seconds, attributes carried)
+// and keeps Blender as the fallback and the IMAGINARIUM_SALVAGE=blender forced route.
 const simplifyMesh=makeSalvageSimplify();
 async function validateGlbAsset(buffer,j,file){
  const {validation,simplifiedBuffer}=await acceptOrSimplify(buffer,{meshLevel:j?.meshLevel??0,simplify:simplifyMesh});
@@ -130,7 +130,7 @@ async function jsonFetch(url,options={}){const res=await fetch(url,{...options,s
 async function waitPrompt(j,config,workflow,signal,stage){
  let nodeClass='';const clientId=randomUUID();const socket=new WebSocket(config.comfyUrl.replace('http:','ws:')+'/ws?clientId='+clientId);
  socket.on('error',()=>{});
- socket.on('message',raw=>{try{const v=JSON.parse(raw);if(j.status!=='running'||(v.data?.prompt_id&&j.promptId&&v.data.prompt_id!==j.promptId))return;if(v.type==='progress'){const ratio=v.data.value/v.data.max,meshPhase=['VAEDecodeHunyuan3D','VoxelToMesh','AstraMarchingCubes','SaveGLB'].includes(nodeClass);void update(j,{progress:meshPhase?Math.min(98,Math.round(88+ratio*10)):Math.min(87,Math.round(ratio*87)),message:(meshPhase?'Extracting the mesh':stage)+' · '+v.data.value+'/'+v.data.max}).catch(()=>{});}if(v.type==='executing'&&v.data.node){const node=workflow[v.data.node]?.class_type;nodeClass=node;const phases={VAEDecodeHunyuan3D:[88,'Extracting the volume from the latent'],VoxelToMesh:[94,'Building the polygon mesh'],AstraMarchingCubes:[94,'Extracting the surface · Marching Cubes'],SaveGLB:[97,'Saving GLB']};if(phases[node])void update(j,{progress:phases[node][0],message:phases[node][1]}).catch(()=>{});}}catch{}});
+ socket.on('message',raw=>{try{const v=JSON.parse(raw);if(j.status!=='running'||(v.data?.prompt_id&&j.promptId&&v.data.prompt_id!==j.promptId))return;if(v.type==='progress'){const ratio=v.data.value/v.data.max,meshPhase=['VAEDecodeHunyuan3D','VoxelToMesh','ImagiMarchingCubes','SaveGLB'].includes(nodeClass);void update(j,{progress:meshPhase?Math.min(98,Math.round(88+ratio*10)):Math.min(87,Math.round(ratio*87)),message:(meshPhase?'Extracting the mesh':stage)+' · '+v.data.value+'/'+v.data.max}).catch(()=>{});}if(v.type==='executing'&&v.data.node){const node=workflow[v.data.node]?.class_type;nodeClass=node;const phases={VAEDecodeHunyuan3D:[88,'Extracting the volume from the latent'],VoxelToMesh:[94,'Building the polygon mesh'],ImagiMarchingCubes:[94,'Extracting the surface · Marching Cubes'],SaveGLB:[97,'Saving GLB']};if(phases[node])void update(j,{progress:phases[node][0],message:phases[node][1]}).catch(()=>{});}}catch{}});
  const gpu=await acquireEngineGpu('hunyuan',{signal,failOpen:true,timeoutMs:60*60*1000,name:cardLockName(engineCardFor('hunyuan'))||undefined,urls:{hunyuan:config.comfyUrl},onWait:()=>void update(j,{message:'Waiting for the GPU to become free (GPU lock)'}).catch(()=>{}),onStep:text=>void update(j,{message:text}).catch(()=>{})}).catch(e=>{socket.close();throw e;});
  // the engine may have claimed its pool card only now (lazy start): record the truth at lock time
  // - but only for jobs that GENERATE on this engine; the SDXL concept stage of a Pixal3D or
@@ -150,7 +150,7 @@ async function downloadOutput(config,item,extension,name){const params=new URLSe
 // View-set images -> ComfyUI input. The names depend on the set and its revision: a retry with a different surface level hits the engine cache.
 async function uploadViews(j,config,signal){
  const set=await getViewsService().forJob(j.viewSetId,{signal}),stamp=String(set.rev||'').replace(/[^0-9]/g,'').slice(-12),uploaded={};
- for(const [slot,file] of Object.entries(set.files)){const form=new FormData();form.append('image',new Blob([await fs.readFile(file)]),'astra-vs-'+j.viewSetId.slice(0,8)+'-'+stamp+'-'+slot+'.png');form.append('overwrite','true');uploaded[slot]=(await jsonFetch(config.comfyUrl+'/upload/image',{method:'POST',body:form,signal})).name;}
+ for(const [slot,file] of Object.entries(set.files)){const form=new FormData();form.append('image',new Blob([await fs.readFile(file)]),'imaginarium-vs-'+j.viewSetId.slice(0,8)+'-'+stamp+'-'+slot+'.png');form.append('overwrite','true');uploaded[slot]=(await jsonFetch(config.comfyUrl+'/upload/image',{method:'POST',body:form,signal})).name;}
  await update(j,{viewSlots:Object.keys(uploaded)});return uploaded;
 }
 // Text -> concept image with SDXL in the Hunyuan ComfyUI (shared by both 3D engines). Returns the asset id of the concept.
@@ -164,7 +164,7 @@ async function conceptFromPrompt(j,config,signal,nodes){
    englishPrompt=tr.english;if(!tr.untranslated)await update(j,{englishPrompt});
   }
   await update(j,{message:'Creating the concept image · SDXL',progress:0});
-  const outputs=await waitPrompt(j,config,sdxlWorkflow(englishPrompt,config.imageCheckpoint,j.seed,'astra/'+j.id),signal,'Concept image');
+  const outputs=await waitPrompt(j,config,sdxlWorkflow(englishPrompt,config.imageCheckpoint,j.seed,'imaginarium/'+j.id),signal,'Concept image');
   const item=Object.values(outputs).flatMap(x=>x.images||[])[0];if(!item)throw new Error('SDXL did not return an image.');
   const img=await downloadOutput(config,item,'.png','Concept');await update(j,{concept:img});return img.id;
 }
@@ -268,16 +268,16 @@ async function run(j,config,signal,dispatch={}){
  const names=nodes.ImageOnlyCheckpointLoader?.input?.required?.ckpt_name?.[0]||[],checkpoint=j.viewSetId?MV_CHECKPOINT:pickShapeCheckpoint(j.shapeModel,{names,fallback:config.shapeCheckpoint,vramMib:currentVramMib({refresh:true})});
  if(!names.includes(checkpoint))throw new Error(j.viewSetId?'Geometry from views requires the model '+MV_CHECKPOINT+' (Hunyuan3D-2mv). It is not installed or is still downloading.':'The selected Hunyuan3D model is not installed or is still downloading. Check the connections.');
  await update(j,{modelCheckpoint:checkpoint});
- for(const node of [j.viewSetId?'Hunyuan3Dv2ConditioningMultiView':'Hunyuan3Dv2Conditioning','SaveGLB','AstraMarchingCubes'])if(!nodes[node])throw new Error('ComfyUI is missing the node '+node+'. Start the AstraForge 3D engine on port 8190.');
+ for(const node of [j.viewSetId?'Hunyuan3Dv2ConditioningMultiView':'Hunyuan3Dv2Conditioning','SaveGLB','ImagiMarchingCubes'])if(!nodes[node])throw new Error('ComfyUI is missing the node '+node+'. Start the Imaginarium 3D engine on port 8190.');
  let image=j.imageId;
  if(!image&&!j.reextractSourceId)image=await conceptFromPrompt(j,config,signal,nodes);
  let prepared,geometryImage;
- if(j.reextractSourceId){const source=jobs.get(j.reextractSourceId);if(!source?.preparedConcept||!source.promptId)throw new Error('There is no saved geometry source.');const history=await jsonFetch(config.comfyUrl+'/history/'+source.promptId,{signal}),workflow=history[source.promptId]?.prompt?.[2],geometrySourceId=source.geometrySourceId||source.id;geometryImage=source.geometryImage||workflow?.['2']?.inputs?.image||("astra-"+geometrySourceId+".png");if(typeof geometryImage!=='string'||geometryImage!=='astra-'+geometrySourceId+'.png')throw new Error('The source is missing from the cache. Repeat the generation from the image.');await fs.access(path.join(data,"runtime","input",geometryImage));prepared=source.preparedConcept;await update(j,{preparedConcept:prepared,message:'Re-extracting the mesh · saved input',geometryImage,geometrySourceId});}
- else{await update(j,{message:'Removing the background and centering the concept · CPU',progress:0});prepared=await prepareConcept(image,j.id,signal,j.backgroundMode||'auto');await update(j,{preparedConcept:prepared});const info=await assetInfo(prepared.id);const buffer=await fs.readFile(path.join(data,'assets',info.id+info.extension));const form=new FormData();form.append('image',new Blob([buffer]),'astra-'+j.id+info.extension);form.append('overwrite','true');const uploaded=await jsonFetch(config.comfyUrl+'/upload/image',{method:'POST',body:form,signal});geometryImage=uploaded.name;await update(j,{geometryImage});}
+ if(j.reextractSourceId){const source=jobs.get(j.reextractSourceId);if(!source?.preparedConcept||!source.promptId)throw new Error('There is no saved geometry source.');const history=await jsonFetch(config.comfyUrl+'/history/'+source.promptId,{signal}),workflow=history[source.promptId]?.prompt?.[2],geometrySourceId=source.geometrySourceId||source.id;geometryImage=source.geometryImage||workflow?.['2']?.inputs?.image||("imaginarium-"+geometrySourceId+".png");if(typeof geometryImage!=='string'||geometryImage!=='imaginarium-'+geometrySourceId+'.png')throw new Error('The source is missing from the cache. Repeat the generation from the image.');await fs.access(path.join(data,"runtime","input",geometryImage));prepared=source.preparedConcept;await update(j,{preparedConcept:prepared,message:'Re-extracting the mesh · saved input',geometryImage,geometrySourceId});}
+ else{await update(j,{message:'Removing the background and centering the concept · CPU',progress:0});prepared=await prepareConcept(image,j.id,signal,j.backgroundMode||'auto');await update(j,{preparedConcept:prepared});const info=await assetInfo(prepared.id);const buffer=await fs.readFile(path.join(data,'assets',info.id+info.extension));const form=new FormData();form.append('image',new Blob([buffer]),'imaginarium-'+j.id+info.extension);form.append('overwrite','true');const uploaded=await jsonFetch(config.comfyUrl+'/upload/image',{method:'POST',body:form,signal});geometryImage=uploaded.name;await update(j,{geometryImage});}
  let viewImages=null;
  if(j.viewSetId){await update(j,{message:'Preparing views for Hunyuan3D-2mv',progress:0});viewImages=await uploadViews(j,config,signal);}
  await update(j,{message:viewImages?'Creating geometry from views · Hunyuan3D-2mv ('+Object.keys(viewImages).length+' views)':'Creating geometry · Hunyuan3D',progress:0});
- const outputs=await waitPrompt(j,config,viewImages?hunyuanMultiViewWorkflow(viewImages,checkpoint,j.quality,j.seed,'astra/'+j.id,j.meshLevel??0):hunyuanWorkflow(geometryImage,checkpoint,j.quality,j.seed,'astra/'+j.id,j.meshLevel??0),signal,viewImages?'Geometry from views':'Geometry');signal.throwIfAborted();
+ const outputs=await waitPrompt(j,config,viewImages?hunyuanMultiViewWorkflow(viewImages,checkpoint,j.quality,j.seed,'imaginarium/'+j.id,j.meshLevel??0):hunyuanWorkflow(geometryImage,checkpoint,j.quality,j.seed,'imaginarium/'+j.id,j.meshLevel??0),signal,viewImages?'Geometry from views':'Geometry');signal.throwIfAborted();
  const item=Object.values(outputs).flatMap(x=>x['3d']||[])[0];if(!item)throw new Error('The engine did not return a GLB.');
  const asset=await downloadOutput(config,item,'.glb',(j.viewSetId?'Hunyuan3D-2mv · from views':'Hunyuan3D · '+j.prompt.slice(0,50)));const assetFile=path.join(data,'assets',asset.id+asset.extension);const validation=await validateGlbAsset(await fs.readFile(assetFile),j,assetFile);await update(j,{status:'completed',progress:100,message:'Geometry created'+simplifyNote(validation)+' · needs review',asset,validation});
 }

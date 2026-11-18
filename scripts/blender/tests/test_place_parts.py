@@ -17,15 +17,15 @@ import bpy
 import numpy as np
 from mathutils import Matrix, Vector
 
-import af_common as af
+import imaginarium_common as ima
 from steps import _mesh_lib as ml
 
 # Fixtures for the one real-asset case ("skip: ..." when a file is missing).
-# Environment overrides: AF_CLASP_START_GLB, AF_TOGGLE_RINGS_GLB.
-START = os.environ.get("AF_CLASP_START_GLB") or r"C:/AstraForge/test-assets/skull_roi/runs/seed1234/replaced.glb"
+# Environment overrides: Imaginarium_CLASP_START_GLB, Imaginarium_TOGGLE_RINGS_GLB.
+START = os.environ.get("Imaginarium_CLASP_START_GLB") or r"C:/Imaginarium/test-assets/skull_roi/runs/seed1234/replaced.glb"
 # bone_kit bone_toggle of the necromancer rebuild (docs/forge/necromancer.md)
-TOGGLE_RINGS = (os.environ.get("AF_TOGGLE_RINGS_GLB")
-                or r"C:/AstraForge/test-assets/NecromancerForge/parts/bone_toggle_rings.glb")
+TOGGLE_RINGS = (os.environ.get("Imaginarium_TOGGLE_RINGS_GLB")
+                or r"C:/Imaginarium/test-assets/NecromancerForge/parts/bone_toggle_rings.glb")
 # front-view clasp centres in the frame of START (reference alpha -> calibrated camera, docs/forge/necromancer.md)
 CLASPS = [[0.01987, 1.3570], [0.03209, 1.2196], [0.03820, 1.1420], [0.03331, 1.0790]]
 
@@ -33,14 +33,14 @@ CLASPS = [[0.01987, 1.3570], [0.03209, 1.2196], [0.03820, 1.1420], [0.03331, 1.0
 # --------------------------------------------------------------------------- helpers
 
 def _tmp():
-    return tempfile.mkdtemp(prefix="af_pp_")
+    return tempfile.mkdtemp(prefix="imaginarium_pp_")
 
 
 def _run(inputs, params, out_dir=None):
     mod = importlib.import_module("steps.place_parts")
     req = {"step": "place_parts", "inputs": inputs, "params": params, "out_dir": out_dir or _tmp()}
     os.makedirs(req["out_dir"], exist_ok=True)
-    return af.finish(req, mod.run(req))
+    return ima.finish(req, mod.run(req))
 
 
 def _check(res, name):
@@ -52,7 +52,7 @@ def _check(res, name):
 
 def _save(path, builds, colors=False):
     """builds: list of (name, fn(bm)); each becomes one object of the GLB."""
-    af.reset_scene()
+    ima.reset_scene()
     objs = []
     for name, build in builds:
         me = bpy.data.meshes.new(name)
@@ -77,8 +77,8 @@ def _save(path, builds, colors=False):
             nt.links.new(ca.outputs["Color"], bsdf.inputs["Base Color"])
         me.materials.append(mat)
         objs.append(ob)
-    af.export_glb(path, objects=objs, animations=False, skins=False)
-    af.reset_scene()
+    ima.export_glb(path, objects=objs, animations=False, skins=False)
+    ima.reset_scene()
     return path
 
 
@@ -105,8 +105,8 @@ def _verts(ob):
 
 
 def _load(path):
-    af.reset_scene()
-    objs = af.import_any(path)
+    ima.reset_scene()
+    objs = ima.import_any(path)
     return [o for o in objs if o.type == "MESH"]
 
 
@@ -280,7 +280,7 @@ def test_part_and_target_sockets_survive():
     """A part with its own socket (like the socket_mount_hand_l of a bone_kit hand) keeps it with every
     copy (unique names), and the target's sockets (socket_fx_eye_l of replace_part) are kept."""
     d = _tmp()
-    af.reset_scene()
+    ima.reset_scene()
     me = bpy.data.meshes.new("hand")
     bm = bmesh.new()
     _box(bm, (-0.03, -0.02, -0.1), (0.03, 0.0, 0.0))
@@ -288,10 +288,10 @@ def test_part_and_target_sockets_survive():
     bm.free()
     ob = bpy.data.objects.new("hand", me)
     bpy.context.scene.collection.objects.link(ob)
-    s = af.add_socket("socket_mount_hand_l", location=(0.0, -0.01, -0.05), rotation=(math.radians(90), 0, 0),
+    s = ima.add_socket("socket_mount_hand_l", location=(0.0, -0.01, -0.05), rotation=(math.radians(90), 0, 0),
                       kind="mount", grip_radius_m=0.02)
-    part = af.export_glb(os.path.join(d, "hand.glb"), objects=[ob, s], animations=False, skins=False)
-    af.reset_scene()
+    part = ima.export_glb(os.path.join(d, "hand.glb"), objects=[ob, s], animations=False, skins=False)
+    ima.reset_scene()
     me = bpy.data.meshes.new("body")
     bm = bmesh.new()
     _box(bm, (-0.5, 0.0, -0.5), (0.5, 0.4, 0.5))
@@ -299,8 +299,8 @@ def test_part_and_target_sockets_survive():
     bm.free()
     ob = bpy.data.objects.new("body", me)
     bpy.context.scene.collection.objects.link(ob)
-    e = af.add_socket("socket_fx_eye_l", location=(0.1, 0.05, 0.4), kind="fx")
-    target = af.export_glb(os.path.join(d, "body.glb"), objects=[ob, e], animations=False, skins=False)
+    e = ima.add_socket("socket_fx_eye_l", location=(0.1, 0.05, 0.4), kind="fx")
+    target = ima.export_glb(os.path.join(d, "body.glb"), objects=[ob, e], animations=False, skins=False)
     res = _run({"mesh": target, "part": part},
                {"preview": False, "points": [
                    {"at": [0.2, -0.1, 0.0], "snap": "none", "rot_deg": [0, 0, 90], "name": "a"},
@@ -308,8 +308,8 @@ def test_part_and_target_sockets_survive():
     assert res["ok"], res
     assert res["stats"]["sockets"] == ["socket_fx_eye_l", "socket_mount_hand_l", "socket_mount_hand_l_2"], \
         res["stats"]["sockets"]
-    af.reset_scene()
-    objs = af.import_any(res["outputs"]["glb"])
+    ima.reset_scene()
+    objs = ima.import_any(res["outputs"]["glb"])
     socks = {o.get("game_socket", o.name): o for o in objs if o.type == "EMPTY"}
     assert set(socks) == {"socket_fx_eye_l", "socket_mount_hand_l", "socket_mount_hand_l_2"}, socks.keys()
     assert (socks["socket_fx_eye_l"].matrix_world.translation - Vector((0.1, 0.05, 0.4))).length < 1e-4

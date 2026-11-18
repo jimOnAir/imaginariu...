@@ -149,13 +149,13 @@ export function installFxTools(Studio){const p=Studio.prototype;
  p.restore=async function(saved){await restore.call(this,saved);if(this.fx)this.fx.dirty=true;};
  const dispose=p.dispose;
  p.dispose=function(){this.fx?.dispose();dispose.call(this);};
- /** ZIP for Godot: fx/<name>.tscn per effect, fx/textures, fx_bindings.json, af_fx_mount.gd, README.md. */
+ /** ZIP for Godot: fx/<name>.tscn per effect, fx/textures, fx_bindings.json, ima_fx_mount.gd, README.md. */
  p.exportFxPackage=async function(){const items=[];this.content.updateMatrixWorld(true);
   this.content.traverse(o=>{if(!o.userData.fx)return;const path=[];for(let n=o;n;n=n.parent){path.unshift(n.name||'');if(n===this.content)break;}
    items.push({name:o.name,fx:o.userData.fx,node:o.name,nodePath:path.join('/'),parent:o.parent===this.content?null:o.parent?.name||null,transform:{position:o.position.toArray(),rotation:[o.rotation.x,o.rotation.y,o.rotation.z],quaternion:o.quaternion.toArray(),scale:o.scale.toArray()}});});
   if(!items.length)throw new Error(t('fx.export.noEffects'));
-  const pkg=buildFxPackage(items,{rootName:this.content.name||'AstraForge'}),zip=new JSZip();
+  const pkg=buildFxPackage(items,{rootName:this.content.name||'Imaginarium'}),zip=new JSZip();
   for(const f of pkg.files){if(f.text!==undefined)zip.file(f.path,f.text);else if(f.bytes)zip.file(f.path,f.bytes);
    else{const r=await fetch(f.url);if(!r.ok)throw new Error(t('fx.export.textureMissing',{name:f.asset?.name||f.url}));zip.file(f.path,await r.arrayBuffer());}}
-  await download(await zip.generateAsync({type:'blob',compression:'DEFLATE'}),'AstraForge-FX.zip');return pkg;};
+  await download(await zip.generateAsync({type:'blob',compression:'DEFLATE'}),'Imaginarium-FX.zip');return pkg;};
 }
