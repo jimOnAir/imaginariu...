@@ -336,7 +336,7 @@ the installer downloads it, ~20–40 GB free disk (about 52 GB more with Pixal3D
 
 | Area | Windows | Linux |
 |---|---|---|
-| Secrets (Connections tab) | DPAPI vault | environment variables only: `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TRIPO_API_KEY`; entering a key in the tab refuses with an explanation (ADR-0002) |
+| Secrets (Connections tab) | DPAPI vault | environment variables only: `CUSTOM_LLM_API_KEY`, `TRIPO_API_KEY` (persist them in the gitignored `.env` — `scripts/start.sh` exports it); entering a key in the tab refuses with an explanation (ADR-0002, key list per ADR-0005) |
 | GPU lock | named mutex via PowerShell holder | `flock(1)` lock file via an `sh` holder (`$XDG_RUNTIME_DIR`/tmp `astraforge-gpu-*.lock`), kernel-released when the holder dies; `ASTRA_GPU_LOCK_FILE` overrides the file |
 | Process launch | `taskkill /T /F` | process groups: `detached` spawn + `kill -KILL -<pid>` (already the POSIX branch) |
 | "Open folder" buttons | `explorer.exe` | `xdg-open` |

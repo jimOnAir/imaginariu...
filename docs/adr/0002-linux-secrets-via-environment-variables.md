@@ -1,5 +1,9 @@
 # Linux secrets via environment variables; the vault stays deferred
 
+> Status: the key list below is superseded by ADR-0005 (2026-11) — the OpenAI and Anthropic
+> connections gave way to one custom OpenAI-compatible endpoint, so the variables are now
+> `CUSTOM_LLM_API_KEY` and `TRIPO_API_KEY`. The vault-deferred decision itself stands.
+
 The Connections tab stores cloud API keys encrypted with Windows DPAPI, which has no
 cross-platform equivalent in reach (libsecret needs a running keyring daemon that headless and
 minimal setups lack). On Linux the vault refuses gracefully and keys are read only from

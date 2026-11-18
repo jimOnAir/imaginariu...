@@ -126,7 +126,7 @@ Then tell Claude Code: **"Install and set up AstraForge for me."** The repositor
 5. **Start the studio** with `Start.cmd` and check `http://127.0.0.1:3210/api/health`, which must answer `"app":"AstraForge"`.
 6. **Troubleshoot** from `installer\install.log`, `data\runtime\server-error.log` and `data\runtime\comfy.log`, reinstalling only the broken component with `Install.ps1 -Yes -Only <id>`.
 
-API keys for OpenAI, Anthropic and Tripo are optional. Enter them in the app's **Connections** tab, where Windows DPAPI encrypts them. Never paste keys into a chat or commit them to the repository.
+The API key for the custom OpenAI-compatible endpoint and the Tripo key are optional. Enter them in the app's **Connections** tab, where Windows DPAPI encrypts them. Never paste keys into a chat or commit them to the repository.
 
 ## Manual install
 
@@ -164,7 +164,7 @@ Do not delete `data` if you want to keep your projects, models and connections.
 - **Forge.** A Blender-based pipeline for parts, items in hands, rigs, motion styles, kitbash and procedural sci-fi ships and turrets (`docs/forge/`).
 - **Export.** GLB, OBJ, WebM, PNG, `.astra.json` projects, isometric sprite sheets (PNG + Godot SpriteFrames) and game packages: Godot, Unity and Unreal Engine 5 (an `af_unreal.json` deliverable for the Python importer plugin). Export profiles: `godot`, `space_quest`, `heroes_gates`, `iso8`, `unity`, `unreal`. Everything is also saved to `data/exports`.
 - **Tripo.** An optional tab that connects the official Tripo cloud API (generation, mesh processing, textures, auto-rig, motion, formats). It needs your own API key and credits. See `TRIPO-CAPABILITIES.md`.
-- **AI assistant.** Local Ollama by default, or OpenAI / Anthropic with your own key. The assistant only returns a limited set of validated actions (material, transform, motion, effects) that you apply with a button. It never runs arbitrary code or OS commands.
+- **AI assistant.** Local Ollama by default, or any OpenAI-compatible API endpoint: you give the base URL and the model name, the key is optional (local servers often need none). The assistant only returns a limited set of validated actions (material, transform, motion, effects) that you apply with a button. It never runs arbitrary code or OS commands.
 
 Keyboard shortcuts: W move, E rotate, R scale, F frame, Space play, Delete remove, Ctrl+D duplicate, Ctrl+S save, Ctrl+Z undo, Ctrl+Shift+Z redo.
 
@@ -190,7 +190,7 @@ Generated results depend on the licence of the model that produced them. Check i
 
 ## AI and accounts
 
-Local messages stay on your computer. If you pick a cloud provider (OpenAI or Anthropic), the message and a scene description are sent to its API, which requires your key and quota. Keys are encrypted with Windows DPAPI, stored on the server and never returned to the browser; `OPENAI_API_KEY` and `ANTHROPIC_API_KEY` are also supported. DPAPI keys are bound to your Windows user, so copying the folder to another user does not carry keys over. AI and generation share one GPU and run one after another.
+Local messages stay on your computer. If you pick the custom API, the message and a scene description are sent to the endpoint you configured, which needs that server to be reachable and, unless it runs without auth, your key and quota. Keys are encrypted with Windows DPAPI, stored on the server and never returned to the browser; `CUSTOM_LLM_API_KEY` is also supported (on Linux/macOS put it in the gitignored `.env` — `scripts/start.sh` exports it). A plain `http://` endpoint sends the key unencrypted — use `https://` with real keys. DPAPI keys are bound to your Windows user, so copying the folder to another user does not carry keys over. AI and generation share one GPU and run one after another.
 
 ## Limits
 

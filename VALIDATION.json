@@ -21,8 +21,7 @@
     "failed": 0
   },
   "cloudProviders": {
-    "openai": "Implemented, not tested live: no user API key",
-    "anthropic": "Implemented, not tested live: no user API key"
+    "custom endpoint": "Implemented per ADR-0005 (OpenAI-compatible chat completions), not tested live: no user endpoint supplied"
   },
   "finalPipeline": {
     "job": "9521059a-0d4c-4135-b81a-0705ac852bae",

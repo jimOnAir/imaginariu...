@@ -1,10 +1,26 @@
 #!/usr/bin/env bash
 # Start the studio on Linux/macOS (the counterpart of scripts/Start.ps1).
 # Reads the paths the installer wrote to config/paths.json into ASTRA_* variables, then runs the server
-# detached with logs in data/runtime/. User-set environment variables win over config/paths.json.
+# detached with logs in data/runtime/. A gitignored .env in this folder is read here (secrets such as
+# CUSTOM_LLM_API_KEY); user-set environment variables win over it and over config/paths.json.
 # A missing piece is reported in Russian and English with the remedy, not as raw shell noise (0.4.14).
 set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+
+# Local secrets and settings (ADR-0002): this launcher is the ONLY place the gitignored .env is
+# read - the server still never loads .env files itself, it just inherits exported variables.
+# Already-set environment variables win over .env (the same rule as config/paths.json above).
+# Write unquoted values: KEY=value (quotes are stripped, nested shell syntax is not expanded).
+if [ -f "$ROOT/.env" ]; then
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in ''|'#'*) continue;; esac
+    key="${line%%=*}"; val="${line#*=}"
+    case "$key" in ''|*[!A-Za-z0-9_]*) continue;; esac
+    val="${val%\"}"; val="${val#\"}"; val="${val%\'}"; val="${val#\'}"
+    [ -z "${!key:-}" ] && export "$key=$val"
+  done < "$ROOT/.env"
+fi
+
 PORT="${PORT:-3210}"
 URL="http://127.0.0.1:$PORT"
 NO_BROWSER=0

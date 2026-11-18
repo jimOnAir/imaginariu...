@@ -143,7 +143,7 @@ qwen3-vl:8b — Д, если ≥ 8 ГБ VRAM и Ollama есть или став�
 Прочие переменные: `PORT` (порт сервера, по умолчанию 3210; но `Start.ps1`/`Stop.ps1` проверяют именно 3210), `ASTRA_FORGE_URL` (адрес сервера для CLI), `ASTRA_COMFY_URL` (по умолчанию `http://127.0.0.1:8190`),
 `ASTRA_OLLAMA_URL`, `ASTRA_QA_VLM` (`qwen3-vl:8b`), `ASTRA_BLENDER_CONCURRENCY` (1), `ASTRA_FORGE_JOB_CONCURRENCY`, `ASTRA_GPU_MUTEX` (`Global\HG_GPU_RENDER`), `ASTRA_VFX_WEB_PORT` (3211),
 `ASTRA_SQ_ROOT` (`C:/Dorn/Dops media/space_quest`, только чтение), `ASTRA_FORGE_REVIEW_STATE|ROLES|DECISIONS` (вкладка «Приёмка»), `ASTRA_CODEX_CONCURRENCY` (1), `ASTRA_SDXL_CONFIG`,
-`OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `TRIPO_API_KEY` (не обязательны; `.env` приложение само **не читает** — переменные задают в среде до запуска).
+`CUSTOM_LLM_API_KEY`, `TRIPO_API_KEY` (не обязательны; `scripts/start.sh` читает gitignore-нутый `.env` рядом с собой, но приложение само `.env` **не читает** — переменные задают в среде до запуска).
 
 ## 2б. Компоненты студии (с 0.4.10)
 
@@ -158,7 +158,7 @@ qwen3-vl:8b — Д, если ≥ 8 ГБ VRAM и Ollama есть или став�
 - **Наборы Quaternius** (Universal Base Characters, Modular Outfits Fantasy) — архивы даёт владелец; кладутся в `<library>\kits\quaternius`.
 - **ChatGPT-ракурсы** — приложение Codex (Microsoft Store, `OpenAI.Codex`) с входом через ChatGPT; без него остаётся локальный MV-Adapter.
 - **VFX**: установщики PixaFlux, KumoWorks, Slate запускает пользователь кнопкой во вкладке «VFX»; Pseudo Volume Generator (itch.io) и бесплатные «заказы» Gumroad/the orange box — руками.
-- **Ключи облаков** (OpenAI, Anthropic, Tripo) — по желанию, в «Подключениях». Tripo платный: без решения владельца не запускать.
+- **Ключи** (свой OpenAI-совместимый эндпоинт, Tripo) — по желанию, в «Подключениях». Tripo платный: без решения владельца не запускать.
 - Hugging Face: мастер **не использует токены**; если репозиторий потребует вход, скачайте файл вручную в путь из `components.md`.
 
 ## 4. Проверка после установки

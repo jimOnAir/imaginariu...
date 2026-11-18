@@ -5,7 +5,7 @@ import { parseJson } from './storage.mjs';
 export const localUrl=z.string().url().refine(v=>{try {const u=new URL(v);return u.protocol==='http:'&&['127.0.0.1','localhost','[::1]'].includes(u.hostname)&&!u.username&&!u.password&&!u.search&&!u.hash;}catch{return false;}},'Use a local HTTP address (127.0.0.1 or localhost).');
 // ollamaModel/reviewModel are '' = "Auto": the studio picks from what is installed (server/ollama-run.mjs,
 // server/vlm.mjs) instead of assuming a model name the user has never pulled.
-export const configSchema=z.object({ollamaUrl:localUrl,ollamaModel:z.string().max(150).default(''),reviewModel:z.string().max(150).default(''),comfyUrl:localUrl,shapeCheckpoint:z.string().max(200),imageCheckpoint:z.string().max(200),provider:z.enum(['ollama','openai','anthropic']),openaiModel:z.string().max(100),anthropicModel:z.string().max(100)}).strict();
+export const configSchema=z.object({ollamaUrl:localUrl,ollamaModel:z.string().max(150).default(''),reviewModel:z.string().max(150).default(''),comfyUrl:localUrl,shapeCheckpoint:z.string().max(200),imageCheckpoint:z.string().max(200),provider:z.enum(['ollama','custom']),customUrl:z.string().url().max(500).or(z.literal('')),customModel:z.string().max(100)}).strict();
 export const generationSchema=z.object({imageId:z.string().uuid().optional(),prompt:z.string().max(4000).default(''),quality:z.enum(['draft','standard','high']).default('standard'),shapeModel:z.enum(['auto','default','hunyuan21','hunyuan2mini']).default('auto'),meshLevel:z.number().finite().min(-1).max(1).default(0),backgroundMode:z.enum(['auto','alpha','keep']).default('auto'),hazeFilter:z.enum(['auto','on','off']).default('auto'),seed:z.number().int().min(0).max(2147483647).default(42),
  // View set (server/views.mjs): geometry from front/left/back/right in Hunyuan3D-2mv; imageId is then the front view of the set.
  viewSetId:z.string().uuid().optional(),
@@ -16,7 +16,7 @@ export const generationSchema=z.object({imageId:z.string().uuid().optional(),pro
  // The exhaust haze filter is passed to scripts/prepare_concept.py inside backgroundMode: '<background>:haze=<on|off>' ('auto' is the Python default).
  .transform(x=>x.hazeFilter==='auto'?x:{...x,backgroundMode:`${x.backgroundMode}:haze=${x.hazeFilter}`});
 export const chatSchema=z.object({message:z.string().min(1).max(6000),context:z.string().max(15000).default(''),history:z.array(z.object({role:z.enum(['user','assistant']),content:z.string().max(6000)})).max(12).default([])});
-export const defaults={ollamaUrl:'http://127.0.0.1:11434',ollamaModel:'',reviewModel:'',comfyUrl:'http://127.0.0.1:8190',shapeCheckpoint:'hunyuan3d-dit-v2.safetensors',imageCheckpoint:'sd_xl_base_1.0.safetensors',provider:'ollama',openaiModel:'',anthropicModel:''};
+export const defaults={ollamaUrl:'http://127.0.0.1:11434',ollamaModel:'',reviewModel:'',comfyUrl:'http://127.0.0.1:8190',shapeCheckpoint:'hunyuan3d-dit-v2.safetensors',imageCheckpoint:'sd_xl_base_1.0.safetensors',provider:'ollama',customUrl:'',customModel:''};
 // Startup settings load (behavior per ADR-0004, tickets 02 and 17). data/config.json is the one
 // file users edit by hand, an older build writes, and a program this studio never had may have left
 // a key in - so boot is tolerant PER FIELD: a key this build does not know is dropped, a value that
@@ -28,7 +28,7 @@ export const defaults={ollamaUrl:'http://127.0.0.1:11434',ollamaModel:'',reviewM
 // validated: the tolerant path is only for reading what is already on disk.
 // Settings this build no longer has get one honest retirement sentence instead of the generic
 // "unknown key" - gpuIndex (0.7.10) died with the GPU card pool: the card is CHOSEN, not set.
-const RETIRED = { gpuIndex: 'the generation card is picked from the card pool automatically now (0.7.11) - the setting was dropped' };
+const RETIRED = { gpuIndex: 'the generation card is picked from the card pool automatically now (0.7.11) - the setting was dropped', openaiModel: 'the OpenAI connection gave way to a custom OpenAI-compatible endpoint (ADR-0005) - set it on the Custom API tab in Connections', anthropicModel: 'the Anthropic connection gave way to a custom OpenAI-compatible endpoint (ADR-0005) - set it on the Custom API tab in Connections' };
 export function bootConfig(saved,warn=()=>{}){
  const shape=configSchema.shape,kept={},unknown=[],retired=[],replaced=[];
  for(const[k,v]of Object.entries(saved??{})){if(k in shape)kept[k]=v;else if(k in RETIRED)retired.push(k);else unknown.push(k);}

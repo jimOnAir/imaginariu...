@@ -24,17 +24,39 @@ export async function llmChat(config,input){
   if(!model)throw new Error(NO_TEXT_MODEL_HINT);
   const res=await fetch(config.ollamaUrl+'/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({model,messages,stream:false,format:'json',think:false,keep_alive:0,options:{num_ctx:8192,num_predict:1500}}),signal});const v=await checked(res);output=v.message?.content;
  }else{
-  const key=await getKey(config.provider);if(!key)throw new Error('Add an API key in the connections section first.');
-  if(config.provider==='openai'){
-   if(!config.openaiModel)throw new Error('Set the OpenAI model in the connections.');
-   const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:'Bearer '+key},body:JSON.stringify({model:config.openaiModel,messages,response_format:{type:'json_object'},max_completion_tokens:1500}),signal});output=(await checked(res)).choices?.[0]?.message?.content;
-  }else{
-   if(!config.anthropicModel)throw new Error('Set the Anthropic model in the connections.');
-   const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01'},body:JSON.stringify({model:config.anthropicModel,max_tokens:1500,system:messages[0].content,messages:messages.slice(1)}),signal});output=(await checked(res)).content?.filter(x=>x.type==='text').map(x=>x.text).join('\n');
-  }
+  // A custom OpenAI-compatible endpoint (ADR-0005): the user names the base URL (up to the API
+  // root, e.g. https://api.example.com/v1) and the model; the key is optional - local servers
+  // often run without one. A server that does not know response_format is retried once without it.
+  if(!config.customUrl)throw new Error('Set the endpoint address in the connections.');
+  if(!config.customModel)throw new Error('Set the model in the connections.');
+  const key=await getKey('custom');
+  const base=String(config.customUrl).replace(/\/+$/,'');
+  const headers={'Content-Type':'application/json'};if(key)headers.Authorization='Bearer '+key;
+  const call=(extra)=>fetch(base+'/chat/completions',{method:'POST',headers,body:JSON.stringify({model:config.customModel,messages,max_completion_tokens:1500,...extra}),signal});
+  let res=await call({response_format:{type:'json_object'}});
+  if(!res.ok&&res.status!==401&&res.status!==403){const retried=await call({});if(retried.ok)res=retried;}
+  output=(await checked(res)).choices?.[0]?.message?.content;
  }
  if(!output)throw new Error('The model returned an empty reply.');
  const cleaned=output.replace(/<think>[\s\S]*?<\/think>/g,'').replace(/^```(?:json)?\s*|\s*```$/g,'').trim();
  try{return responseSchema.parse(JSON.parse(cleaned));}catch{return {reply:cleaned.slice(0,10000),actions:[]};}
 }
 async function checked(res){const v=await res.json();if(!res.ok)throw new Error(v.error?.message||v.error||'LLM unavailable ('+res.status+').');return v;}
+export async function customModels(config){
+ // The Custom API tab can list what the endpoint actually serves (GET {base}/models, OpenAI shape).
+ // Everything a server may do wrong comes back as an honest error line, never as a thrown request.
+ if(config.provider!=='custom'||!config.customUrl)return {models:[],error:'Set the endpoint address in the connections.'};
+ const key=await getKey('custom');
+ const base=String(config.customUrl).replace(/\/+$/,'');
+ const headers={};if(key)headers.Authorization='Bearer '+key;
+ let res;
+ try{res=await fetch(base+'/models',{headers,signal:AbortSignal.timeout(10000)});}
+ catch(e){return {models:[],error:'The endpoint did not answer: '+(e?.name==='TimeoutError'?'timeout':e?.message||String(e))};}
+ if(!res.ok)return {models:[],error:'The endpoint refused the model list ('+res.status+').'};
+ let v;
+ try{v=await res.json();}catch{return {models:[],error:'The endpoint did not return JSON for the model list.'};}
+ const list=Array.isArray(v?.data)?v.data:Array.isArray(v?.models)?v.models:[];
+ const models=[...new Set(list.map(m=>typeof m==='string'?m:String(m?.id??m?.name??'')).filter(Boolean))].sort();
+ if(!models.length)return {models:[],error:'The endpoint returned an empty model list.'};
+ return {models};
+}

@@ -124,3 +124,27 @@ test('loadConfig: a normal BOM-prefixed settings file still loads; a missing fil
   const missing = await loadConfig(path.join(dir, 'nope', 'config.json'), () => assert.fail('must not warn on first run'));
   assert.deepEqual(missing, defaults);
 });
+
+// ADR-0005: the OpenAI and Anthropic connections gave way to a custom OpenAI-compatible endpoint.
+// A config.json from an older studio must say so honestly and boot clean, not stall or guess.
+test('bootConfig retires the OpenAI/Anthropic connections in favour of the custom endpoint', () => {
+  const logs = [];
+  const cfg = bootConfig({ ...defaults, provider: 'openai', openaiModel: 'gpt-4o', anthropicModel: 'claude-sonnet-4-5', ollamaModel: 'qwen3:4b' }, (m) => logs.push(m));
+  assert.equal(cfg.provider, defaults.provider, 'a retired provider value falls back to the default');
+  assert.equal(cfg.openaiModel, undefined, 'retired fields are dropped, not carried along');
+  assert.equal(cfg.anthropicModel, undefined, 'retired fields are dropped, not carried along');
+  assert.equal(cfg.ollamaModel, 'qwen3:4b', 'unrelated settings survive');
+  assert.ok(logs.some((l) => /openaiModel/.test(l) && /custom/i.test(l)), logs.join(' | '));
+  assert.ok(logs.some((l) => /anthropicModel/.test(l) && /custom/i.test(l)), logs.join(' | '));
+  assert.ok(logs.some((l) => /provider/.test(l) && /default/.test(l)), logs.join(' | '));
+
+  // the custom provider is a first-class setting of the strict schema
+  const good = configSchema.safeParse({ ...defaults, provider: 'custom', customUrl: 'https://api.example.com/v1', customModel: 'some-model' });
+  assert.ok(good.success, JSON.stringify(good.error?.issues));
+  const empty = configSchema.safeParse({ ...defaults, provider: 'custom', customUrl: '', customModel: '' });
+  assert.ok(empty.success, JSON.stringify(empty.error?.issues));
+  assert.ok(!configSchema.safeParse({ ...defaults, provider: 'openai' }).success, 'a retired provider is refused from the UI');
+  assert.ok(!configSchema.safeParse({ ...defaults, provider: 'anthropic' }).success, 'a retired provider is refused from the UI');
+  assert.ok(!configSchema.safeParse({ ...defaults, provider: 'custom', customUrl: 'not a url' }).success, 'the endpoint address still validates as a URL');
+  assert.ok(!configSchema.safeParse({ ...defaults, provider: 'custom', customUrl: 'https://api.example.com/v1', openaiModel: 'gpt-4o' }).success, 'retired fields are not silently accepted on save');
+});

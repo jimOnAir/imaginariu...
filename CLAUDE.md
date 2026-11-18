@@ -4,7 +4,7 @@ AstraForge is a local Windows 3D asset studio (image/text to 3D, rig, animation,
 
 ## Rules
 
-- Never ask for API keys in chat and never write keys into files. OpenAI, Anthropic and Tripo keys are optional and the user enters them in the app's **Connections** tab (encrypted with Windows DPAPI).
+- Never ask for API keys in chat and never write keys into files. The custom OpenAI-compatible endpoint key (`CUSTOM_LLM_API_KEY`) and the Tripo key are optional and the user enters them in the app's **Connections** tab (encrypted with Windows DPAPI).
 - Never touch `data\` (projects, models, `vault.json`) when reinstalling.
 - No administrator rights are needed. Do not run heavy GPU jobs unless asked.
 - Use a short Latin-only install path (for example `C:\AstraForge`). If the clone is in a long or non-Latin path, tell the user and suggest moving it before installing.
