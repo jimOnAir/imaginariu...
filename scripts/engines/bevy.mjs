@@ -236,7 +236,7 @@ async function runCheck({ slug, assetsRoot, out, cargo, env, onLine }) {
     onLine,
   });
   const line = r.log.split(/\r?\n/).reverse().find((l) => l.startsWith('IMAGINARIUM_BEVY '));
-  const report = line ? safeJson(line.slice(7)) : null;
+  const report = line ? safeJson(line.slice('IMAGINARIUM_BEVY '.length)) : null;
   if (report) report.log = path.join(out, 'bevy_log.txt');
   const taskId = 'imaginarium_bevy_check';   // the pinned task id of the check verb (spec T3-Bevy)
   if (r.timedOut || r.idle) return { ok: false, taskId, skipped: null, timedOut: r.timedOut, idle: r.idle, report, code: r.code };
