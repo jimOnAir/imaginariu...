@@ -1,4 +1,4 @@
-// AstraForge MCP server tests: a fake studio on node:http + a real MCP client over stdio.
+// Imaginarium MCP server tests: a fake studio on node:http + a real MCP client over stdio.
 // Run: cd ai/mcp && npm test
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -49,9 +49,9 @@ before(async () => {
     const u = new URL(req.url, 'http://x');
     const p = u.pathname;
     // the same guards as the real studio
-    if (req.method !== 'GET' && p.startsWith('/api') && req.headers['x-astra-client'] !== 'studio') return send(res, 403, { error: 'Запрос должен быть отправлен из студии.' });
+    if (req.method !== 'GET' && p.startsWith('/api') && req.headers['x-imaginarium-client'] !== 'studio') return send(res, 403, { error: 'Запрос должен быть отправлен из студии.' });
     if (req.headers.origin) return send(res, 403, { error: 'Недопустимый источник запроса' });
-    if (p === '/api/health') return send(res, 200, { app: 'AstraForge', version: '0.3.0' });
+    if (p === '/api/health') return send(res, 200, { app: 'Imaginarium', version: '0.3.0' });
     if (p === '/api/status') return send(res, 200, { pixal3d: { installed: true, running: false, missing: [] }, ollama: { online: true, models: ['qwen3-vl'] }, comfy: { online: false, ready: false }, gpu: { name: 'RTX 4070', vram_total: 12e9 } });
     if (p === '/api/forge/status') return send(res, 200, { blender: { ok: true, version: '5.0.1' }, godot: { ok: true, version: '4.5.1' }, library: { clips: 3 }, queue: { running: 0, queued: 0 } });
     if (p === '/api/jobs' && req.method === 'GET') return send(res, 200, JOBS);
@@ -78,7 +78,7 @@ before(async () => {
     if (p === `/api/views/${UUID}/generate`) return send(res, 202, { id: UUID, task: { status: 'running', provider: JSON.parse(raw.toString()).provider } });
     if (p === `/api/views/${UUID}`) return send(res, 200, { id: UUID, canBuild: true, task: { status: 'completed' } });
     if (p === '/api/runtime/graphs') return send(res, 200, { graphs: [
-      { id: 'hunyuan-single-view', title: 'Shape from one concept picture (Hunyuan3D-2)', usedWhen: 'generate_3d with an imageId, shapeModel default', checkpointSetting: 'shapeCheckpoint', classTypes: ['AstraMarchingCubes', 'Hunyuan3Dv2Conditioning', 'ImageOnlyCheckpointLoader', 'SaveGLB'] },
+      { id: 'hunyuan-single-view', title: 'Shape from one concept picture (Hunyuan3D-2)', usedWhen: 'generate_3d with an imageId, shapeModel default', checkpointSetting: 'shapeCheckpoint', classTypes: ['ImagiMarchingCubes', 'Hunyuan3Dv2Conditioning', 'ImageOnlyCheckpointLoader', 'SaveGLB'] },
       { id: 'pixal3d-single-view', title: 'Shape from the front cut-out (Pixal3D, separate ComfyUI on :8191)', usedWhen: 'generate_3d with engine=pixal3d and one view', checkpointSetting: 'TencentARC/Pixal3D', classTypes: ['SaveGLB'] },
     ] });
     if (p === '/api/runtime/nodes') {
@@ -96,10 +96,10 @@ before(async () => {
     if (p === '/api/forge/clips' && req.method === 'POST') return send(res, 202, { jobId: 'fj1', files: ['walk.fbx'], rejected: [] });
     if (p === '/api/forge/batch' && req.method === 'POST') return send(res, 202, { batchId: 'b1', items: [{ assetId: 'a3', jobId: 'fj1' }] });
     if (p === '/api/forge/batch/b1') return send(res, 200, { id: 'b1', status: 'completed', counts: { total: 1, completed: 1 }, items: [{ name: 'Новый', assetId: 'a3', status: 'completed' }] });
-    if (p === '/api/vfx-tools') return send(res, 200, { root: 'C:/AstraForge/tools/vfx', rootExists: true, tools: [{ id: 'material-maker', name: 'Material Maker', kind: 'desktop', license: 'MIT', ru: 'Нодовый генератор' }, { id: 'tiny-noise', name: 'Tiny', kind: 'web-local' }] });
+    if (p === '/api/vfx-tools') return send(res, 200, { root: 'C:/Imaginarium/tools/vfx', rootExists: true, tools: [{ id: 'material-maker', name: 'Material Maker', kind: 'desktop', license: 'MIT', ru: 'Нодовый генератор' }, { id: 'tiny-noise', name: 'Tiny', kind: 'web-local' }] });
     if (p === '/api/vfx-tools/textures') return send(res, 200, [{ name: 'a.png', size: 10, mtime: '2026-10-20', url: '/api/vfx-tools/textures/a.png' }]);
     if (p === '/api/projects') return send(res, 200, [{ id: UUID, name: 'Риг для Godot', updatedAt: '2026-10-09', thumbnail: 'data:image/jpeg;base64,AAAA' }]);
-    if (p === `/api/projects/${UUID}`) return send(res, 200, { id: UUID, name: 'Риг', scene: { object: { type: 'Group', name: 'AstraForge', children: [{ type: 'SkinnedMesh', name: 'Тело' }, { type: 'Bone', name: 'hips', children: [{ type: 'Bone', name: 'spine' }] }, { type: 'PointLight', name: 'L' }] }, geometries: [{}], materials: [{}, {}], textures: [] }, editor: { duration: 5, preset: 'walk', tracks: [1, 2], savedClips: [{ name: 'Idle' }] } });
+    if (p === `/api/projects/${UUID}`) return send(res, 200, { id: UUID, name: 'Риг', scene: { object: { type: 'Group', name: 'Imaginarium', children: [{ type: 'SkinnedMesh', name: 'Тело' }, { type: 'Bone', name: 'hips', children: [{ type: 'Bone', name: 'spine' }] }, { type: 'PointLight', name: 'L' }] }, geometries: [{}], materials: [{}, {}], textures: [] }, editor: { duration: 5, preset: 'walk', tracks: [1, 2], savedClips: [{ name: 'Idle' }] } });
     if (p === '/api/sound/status') return send(res, 200, { installed: true, running: false, dir: '/app/runtime/sound', missing: [], message: '', busy: null, estimate: { sfxSeconds: 40, loopSeconds: 60 }, events: SOUND_EVENTS, presets: { sfx: { durations: [2, 5, 10, 20, 30], steps: 100, cfg_scale: 4 }, loop: { bpm: [80, 120], bars: [2, 4, 8], steps: 8 } } });
     if (p === '/api/sound/tasks' && req.method === 'POST') {
       const body = JSON.parse(raw.toString());
@@ -135,7 +135,7 @@ after(() => new Promise((r) => fake.close(r)));
 // ------------------------------------------------------------------ MCP client
 
 async function connect(env = {}) {
-  const transport = new StdioClientTransport({ command: process.execPath, args: [SERVER], env: { ...process.env, ASTRA_URL: fakeUrl, ...env }, stderr: 'pipe' });
+  const transport = new StdioClientTransport({ command: process.execPath, args: [SERVER], env: { ...process.env, IMAGINARIUM_URL: fakeUrl, ...env }, stderr: 'pipe' });
   const client = new Client({ name: 'test', version: '1.0.0' });
   await client.connect(transport);
   return client;
@@ -159,18 +159,18 @@ test('tool and resource listing', () => withClient(async (c) => {
   assert.ok(tools.every((t) => /^[a-z0-9_]+$/.test(t.name) && t.description.length > 20), 'snake_case names, filled descriptions');
   assert.ok(!names.includes('project_save'));
   const { resources } = await c.listResources();
-  assert.deepEqual(resources.map((r) => r.uri).sort(), ['astraforge://skill', 'astraforge://status']);
+  assert.deepEqual(resources.map((r) => r.uri).sort(), ['imaginarium://skill', 'imaginarium://status']);
 }));
 
-test('studio_status: health, engines, Blender; the x-astra-client header; no Origin', () => withClient(async (c) => {
+test('studio_status: health, engines, Blender; the x-imaginarium-client header; no Origin', () => withClient(async (c) => {
   seen.length = 0;
   const r = json(await c.callTool({ name: 'studio_status', arguments: {} }));
-  assert.equal(r.app, 'AstraForge');
+  assert.equal(r.app, 'Imaginarium');
   assert.equal(r.pixal3d.installed, true);
   assert.equal(r.gpu.name, 'RTX 4070');
   assert.equal(r.forge.blender.version, '5.0.1');
   assert.ok(seen.length >= 3);
-  for (const s of seen) { assert.equal(s.headers['x-astra-client'], 'studio'); assert.equal(s.headers.origin, undefined); }
+  for (const s of seen) { assert.equal(s.headers['x-imaginarium-client'], 'studio'); assert.equal(s.headers.origin, undefined); }
 }));
 
 test('studio_open and studio_start (already running)', () => withClient(async (c) => {
@@ -390,7 +390,7 @@ test('sound: status, generate with wait, library filters, bind, export onto the 
   const cleared = json(await c.callTool({ name: 'sound_bind', arguments: { assetId: UUID2, event: 'impact' } }));
   assert.equal(cleared.impact, undefined, 'no soundId clears the binding');
 
-  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'af-mcp-sound-'));
+  const dir = await fs.mkdtemp(path.join(os.tmpdir(), 'imaginarium-mcp-sound-'));
   try {
     const ex = json(await c.callTool({ name: 'sound_export', arguments: { assetId: UUID, out: dir, format: 'both' } }));
     assert.equal(ex.folder, dir);
@@ -422,11 +422,11 @@ test('effects: fx_presets and fx_texture_generate write a real PNG', () => withC
   } finally { await fs.rm(dir, { recursive: true, force: true }); }
 }));
 
-test('resources: astraforge://skill and astraforge://status', () => withClient(async (c) => {
-  const skill = await c.readResource({ uri: 'astraforge://skill' });
-  assert.match(skill.contents[0].text, /AstraForge/);
-  const st = JSON.parse((await c.readResource({ uri: 'astraforge://status' })).contents[0].text);
-  assert.equal(st.running, true); assert.equal(st.health.app, 'AstraForge');
+test('resources: imaginarium://skill and imaginarium://status', () => withClient(async (c) => {
+  const skill = await c.readResource({ uri: 'imaginarium://skill' });
+  assert.match(skill.contents[0].text, /Imaginarium/);
+  const st = JSON.parse((await c.readResource({ uri: 'imaginarium://status' })).contents[0].text);
+  assert.equal(st.running, true); assert.equal(st.health.app, 'Imaginarium');
 }));
 
 test('a studio error (HTTP 4xx) arrives as Russian text with the code', () => withClient(async (c) => {
@@ -451,7 +451,7 @@ test('without the studio: a clear Russian error with the Start.cmd / studio_star
     for (const [name, args] of [['studio_status', {}], ['jobs_list', {}], ['forge_steps', {}], ['vfx_tools', {}]]) {
       const r = await c.callTool({ name, arguments: args });
       assert.equal(r.isError, true, name);
-      assert.match(text(r), /Студия AstraForge не отвечает/, name);
+      assert.match(text(r), /Студия Imaginarium не отвечает/, name);
       assert.match(text(r), /Start\.cmd/, name);
       assert.match(text(r), /studio_start/, name);
     }
@@ -459,9 +459,9 @@ test('without the studio: a clear Russian error with the Start.cmd / studio_star
     const open = json(await c.callTool({ name: 'studio_open', arguments: {} }));
     assert.equal(open.running, false);
     // the status resource does not fail either
-    const st = JSON.parse((await c.readResource({ uri: 'astraforge://status' })).contents[0].text);
+    const st = JSON.parse((await c.readResource({ uri: 'imaginarium://status' })).contents[0].text);
     assert.equal(st.running, false);
-  }, { ASTRA_URL: url });
+  }, { IMAGINARIUM_URL: url });
 });
 
 test('studio_start: when the studio does not come up - a timeout error (a fake Start script)', { skip: process.platform !== 'win32' }, async () => {
@@ -474,7 +474,7 @@ test('studio_start: when the studio does not come up - a timeout error (a fake S
       const r = await c.callTool({ name: 'studio_start', arguments: { timeoutSec: 5 } });
       assert.equal(r.isError, true);
       assert.match(text(r), /не ответила на \/api\/health за 5 с/);
-    }, { ASTRA_URL: url, ASTRA_APP: app });
+    }, { IMAGINARIUM_URL: url, IMAGINARIUM_APP: app });
   } finally { await fs.rm(app, { recursive: true, force: true }); }
 });
 
@@ -483,7 +483,7 @@ test('studio_start refuses to start a non-local studio', async () => {
     const r = await c.callTool({ name: 'studio_start', arguments: {} });
     assert.equal(r.isError, true);
     assert.match(text(r), /не отвечает|только локальную/);
-  }, { ASTRA_URL: 'http://192.0.2.1:3210' });
+  }, { IMAGINARIUM_URL: 'http://192.0.2.1:3210' });
 });
 
 // - - - - - the generator_* family (ticket 06) - - - - -
@@ -493,7 +493,7 @@ test('generator_* scope: exactly the Linux subset is exposed, the deferred/exclu
   const names = tools.map((t) => t.name);
   assert.deepEqual(names.filter((n) => n.startsWith('generator_')).sort(),
     ['generator_graphs', 'generator_nodes', 'generator_restart', 'generator_run', 'generator_status']);
-  // the engine-management verbs deferred with the AstraForge Engine and the owner-gated graph edit:
+  // the engine-management verbs deferred with the Imaginarium Engine and the owner-gated graph edit:
   for (const absent of ['generator_plugins', 'generator_plugin_new', 'generator_plugin_install', 'generator_plugin_toggle',
     'generator_graph_edit', 'generator_learn_status', 'generator_learn_run', 'generator_learn_activate']) {
     assert.ok(!names.includes(absent), `must not exist on this branch: ${absent}`);

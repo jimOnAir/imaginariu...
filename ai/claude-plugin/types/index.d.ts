@@ -1,4 +1,4 @@
-// Shapes the AstraForge pane reads from the studio HTTP API (/api/health, /api/status, /api/jobs).
+// Shapes the Imaginarium pane reads from the studio HTTP API (/api/health, /api/status, /api/jobs).
 
 export type StudioJob = {
   id: string
@@ -29,6 +29,6 @@ export type Studio = {
 
 declare module 'claude-code' {
   interface PluginState {
-    astraforge: { studio: Studio }
+    imaginarium: { studio: Studio }
   }
 }

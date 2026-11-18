@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-// AstraForge MCP: a stdio server that drives the local studio over its HTTP API (Express 127.0.0.1:3210).
-// Run: node ai/mcp/server.mjs   (ASTRA_URL — studio address, ASTRA_APP — app folder; see README.md)
+// Imaginarium MCP: a stdio server that drives the local studio over its HTTP API (Express 127.0.0.1:3210).
+// Run: node ai/mcp/server.mjs   (IMAGINARIUM_URL — studio address, IMAGINARIUM_APP — app folder; see README.md)
 // The studio knows nothing about MCP: every tool is a thin wrapper over the real routes
 // (/api/jobs, /api/views, /api/forge, /api/vfx-tools, /api/projects). Blender and Godot are never called directly.
 // Agent-facing strings (tool descriptions, error texts, notes) are the shipped tool-surface contract and
@@ -15,13 +15,13 @@ import { existsSync, openAsBlob, readFileSync, promises as fs } from 'node:fs';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
-const APP = path.resolve(process.env.ASTRA_APP || path.join(HERE, '..', '..'));
-// ticket 60 item 2: ASTRA_URL wins, then the port the studio recorded when it had to take another
+const APP = path.resolve(process.env.IMAGINARIUM_APP || path.join(HERE, '..', '..'));
+// ticket 60 item 2: IMAGINARIUM_URL wins, then the port the studio recorded when it had to take another
 // one (data/runtime/port.json), then the usual 3210 - the same order as scripts/studio-port.mjs,
 // so an MCP tool can never knock on a port the studio already left.
 const STUDIO_ROOT = path.resolve(HERE, '..', '..');
 const studioPort = () => { try { return Number(JSON.parse(readFileSync(path.join(STUDIO_ROOT, 'data', 'runtime', 'port.json'), 'utf8')).port) || 0; } catch { return 0; } };
-const BASE = (process.env.ASTRA_URL || `http://127.0.0.1:${studioPort() || 3210}`).replace(/\/+$/, '');
+const BASE = (process.env.IMAGINARIUM_URL || `http://127.0.0.1:${studioPort() || 3210}`).replace(/\/+$/, '');
 const MAX_TEXT = 60000;                       // cap of one tool answer, in characters
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
@@ -32,9 +32,9 @@ class StudioError extends Error {
 }
 const DOWN_HINT = `Запустите Start.cmd в папке студии или вызовите инструмент studio_start.`;
 
-/** One studio request. Always with x-astra-client: studio and no Origin (fetch in Node does not set it). */
+/** One studio request. Always with x-imaginarium-client: studio and no Origin (fetch in Node does not set it). */
 async function call(method, url, { json, form, timeout = 60000, raw = false } = {}) {
-  const headers = { 'x-astra-client': 'studio' };
+  const headers = { 'x-imaginarium-client': 'studio' };
   let body;
   if (form) body = form;
   else if (json !== undefined) { headers['content-type'] = 'application/json'; body = JSON.stringify(json); }
@@ -43,7 +43,7 @@ async function call(method, url, { json, form, timeout = 60000, raw = false } = 
     res = await fetch(BASE + url, { method, headers, body, signal: AbortSignal.timeout(timeout) });
   } catch (err) {
     if (err?.name === 'TimeoutError') throw new StudioError(`Студия не ответила за ${Math.round(timeout / 1000)} с (${method} ${url}). Возможно, она занята видеокартой; повторите позже.`);
-    throw new StudioError(`Студия AstraForge не отвечает (${BASE}): ${err?.cause?.code || err?.message}. ${DOWN_HINT}`, { code: 'studio_down' });
+    throw new StudioError(`Студия Imaginarium не отвечает (${BASE}): ${err?.cause?.code || err?.message}. ${DOWN_HINT}`, { code: 'studio_down' });
   }
   if (raw) {
     if (!res.ok) throw await httpError(res);
@@ -75,7 +75,7 @@ function clip(value) {
 const reply = (value) => ({ content: [{ type: 'text', text: clip(value) }] });
 const failReply = (err) => ({ isError: true, content: [{ type: 'text', text: `Ошибка: ${err?.message || err}` }] });
 
-const server = new McpServer({ name: 'astraforge', version: '0.1.0' });
+const server = new McpServer({ name: 'imaginarium', version: '0.1.0' });
 /** Tool registration: thrown errors become isError replies with a Russian text. */
 function tool(name, description, shape, handler) {
   server.registerTool(name, { description, inputSchema: shape }, async (args) => {
@@ -108,7 +108,7 @@ const TIMEOUT = z.number().int().min(1).max(7200).default(120).describe('Ско�
 // ------------------------------------------------------------------ studio: status, start
 
 tool('studio_status',
-  'Состояние студии AstraForge: версия, движки (Pixal3D, ComfyUI/Hunyuan), Ollama, видеокарта, а также Blender, Godot, библиотека клипов и очередь Кузницы. Если студия выключена, вернёт ошибку с подсказкой Start.cmd / studio_start.',
+  'Состояние студии Imaginarium: версия, движки (Pixal3D, ComfyUI/Hunyuan), Ollama, видеокарта, а также Blender, Godot, библиотека клипов и очередь Кузницы. Если студия выключена, вернёт ошибку с подсказкой Start.cmd / studio_start.',
   {}, async () => {
     const health = await get('/api/health');
     const [st, forge] = await Promise.all([get('/api/status', { timeout: 15000 }).catch((e) => ({ error: e.message })), get('/api/forge/status').catch((e) => ({ error: e.message }))]);
@@ -127,15 +127,15 @@ tool('studio_start',
   'Запускает студию (Windows: scripts/Start.ps1 -NoBrowser через PowerShell; Linux: scripts/start.sh) и ждёт /api/health до timeoutSec секунд (по умолчанию 90). Если студия уже работает, ничего не делает. Только для локального адреса (127.0.0.1 / localhost).',
   { timeoutSec: z.number().int().min(5).max(300).default(90).describe('Сколько секунд ждать ответа /api/health.') },
   async ({ timeoutSec }) => {
-    const healthy = async () => { try { const h = await get('/api/health', { timeout: 2000 }); return h?.app === 'AstraForge' ? h : null; } catch { return null; } };
+    const healthy = async () => { try { const h = await get('/api/health', { timeout: 2000 }); return h?.app === 'Imaginarium' ? h : null; } catch { return null; } };
     const already = await healthy();
     if (already) return { started: false, alreadyRunning: true, url: BASE, version: already.version };
     const host = new URL(BASE).hostname;
-    if (!['127.0.0.1', 'localhost', '[::1]'].includes(host)) throw new StudioError(`ASTRA_URL указывает на ${host}: запускать можно только локальную студию.`);
+    if (!['127.0.0.1', 'localhost', '[::1]'].includes(host)) throw new StudioError(`IMAGINARIUM_URL указывает на ${host}: запускать можно только локальную студию.`);
     // platform gate (ADR-0002): the shipped launcher is Start.ps1 on Windows, start.sh on Linux
     const isWin = process.platform === 'win32';
     const script = path.join(APP, 'scripts', isWin ? 'Start.ps1' : 'start.sh');
-    if (!existsSync(script)) throw new StudioError(`Не найден ${script}. Проверьте ASTRA_APP (сейчас ${APP}).`);
+    if (!existsSync(script)) throw new StudioError(`Не найден ${script}. Проверьте IMAGINARIUM_APP (сейчас ${APP}).`);
     const child = isWin
       ? spawn('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', script, '-NoBrowser'], { cwd: APP, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] })
       : spawn('bash', [script], { cwd: APP, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -159,7 +159,7 @@ tool('studio_open',
   'Возвращает адрес интерфейса студии и подсказку, как показать его пользователю. Ничего не запускает и не открывает: откройте URL во встроенном браузере (Browser pane / preview_start с url).',
   {}, async () => {
     let running = false;
-    try { running = (await get('/api/health', { timeout: 2000 }))?.app === 'AstraForge'; } catch { /* down */ }
+    try { running = (await get('/api/health', { timeout: 2000 }))?.app === 'Imaginarium'; } catch { /* down */ }
     return { url: BASE, running, hint: running ? 'Откройте этот URL во встроенном браузере Claude Code (preview_start с параметром url) или в обычном браузере.' : 'Студия сейчас выключена: сначала вызовите studio_start.' };
   });
 
@@ -295,10 +295,10 @@ tool('job_cancel', 'Отменяет задание генерации 3D (POST 
 // Scope boundary (ADR-0004, ticket 06). This branch runs ComfyUI (plus the separate Pixal3D
 // ComfyUI on :8191) as the generation backend, so the family covers observing and driving THAT
 // service: status, nodes, graphs, run, restart. The engine-management verbs of the deferred
-// AstraForge Engine line (generator_plugins, generator_plugin_new, generator_plugin_install,
+// Imaginarium Engine line (generator_plugins, generator_plugin_new, generator_plugin_install,
 // generator_plugin_toggle, generator_learn_status, generator_learn_run, generator_learn_activate)
 // and the owner-gated generator_graph_edit are deliberately absent here - the MCP README and the
-// astraforge-integrator skill list them by name with the reason, so an agent discovers the
+// imaginarium-integrator skill list them by name with the reason, so an agent discovers the
 // boundary from docs instead of trial and error.
 
 tool('generator_status',
@@ -678,7 +678,7 @@ async function fetchExports(assetId, jobId, out, unzip) {
 }
 
 tool('forge_export',
-  'Экспорт ассета в профиль (POST /api/forge/assets/:id/export): godot / space_quest (пакет Godot: GLB + .tscn + скрипт + эффекты), heroes_gates (спрайты «Врат Героев», 8 направлений), iso8 (изометрические спрайты), unity (FBX + текстуры + af_unity.json; импортёр com.astraforge.unity собирает префаб; дальше unity_send), unreal (FBX + PASSPORT af_unreal.json; плагин unreal/AstraForge строит SM_/SK_, LOD, UCX-коллизии, сокеты и A_ blueprint; тест — на машине с Unreal Editor), bevy (GLB + паспорт af_bevy.json; пакет играет крейт astraforge_bevy — одна строка зависимости; при наличии Rust студия дополнительно прогоняет headless cargo-проверку и снимает превью-кадры), vrm1 (персонаж одним `.vrm` — VRM 1.0 через VRM-аддон (компонент студии); шаг `vrm_package`; что уже проверено, а что ждёт установки компонента — `docs/forge/vrm_package.md`). Берёт последнюю завершённую версию. Экспорт долгий (рендер): по умолчанию возвращает jobId. Если задан out — ждёт задачу (timeoutSec) и скачивает архив в папку out с распаковкой.',
+  'Экспорт ассета в профиль (POST /api/forge/assets/:id/export): godot / space_quest (пакет Godot: GLB + .tscn + скрипт + эффекты), heroes_gates (спрайты «Врат Героев», 8 направлений), iso8 (изометрические спрайты), unity (FBX + текстуры + ima_unity.json; импортёр dev.imaginarium3d.unity собирает префаб; дальше unity_send), unreal (FBX + PASSPORT ima_unreal.json; плагин unreal/Imaginarium строит SM_/SK_, LOD, UCX-коллизии, сокеты и A_ blueprint; тест — на машине с Unreal Editor), bevy (GLB + паспорт ima_bevy.json; пакет играет крейт imaginarium_bevy — одна строка зависимости; при наличии Rust студия дополнительно прогоняет headless cargo-проверку и снимает превью-кадры), vrm1 (персонаж одним `.vrm` — VRM 1.0 через VRM-аддон (компонент студии); шаг `vrm_package`; что уже проверено, а что ждёт установки компонента — `docs/forge/vrm_package.md`). Берёт последнюю завершённую версию. Экспорт долгий (рендер): по умолчанию возвращает jobId. Если задан out — ждёт задачу (timeoutSec) и скачивает архив в папку out с распаковкой.',
   {
     assetId: ID, profile: z.enum(PROFILES),
     params: z.record(z.string(), z.any()).optional().describe('Параметры шага экспорта (godot_package или render_sprites), см. forge_steps.'),
@@ -872,7 +872,7 @@ tool('sculpt_transfer',
 
 async function loadFxPresets() {
   const file = path.join(APP, 'scripts', 'blender', 'data', 'fx_presets.json');
-  if (!existsSync(file)) throw new StudioError(`Не найден ${file}. Проверьте ASTRA_APP (сейчас ${APP}).`);
+  if (!existsSync(file)) throw new StudioError(`Не найден ${file}. Проверьте IMAGINARIUM_APP (сейчас ${APP}).`);
   return JSON.parse((await fs.readFile(file, 'utf8')).replace(/^\uFEFF/, ''));
 }
 tool('fx_presets',
@@ -909,7 +909,7 @@ tool('fx_texture_generate',
   {
     preset: z.string().optional(), type: z.string().optional(),
     params: z.record(z.string(), z.any()).optional().describe('Параметры типа; поверх рецепта, если указан preset.'),
-    out: z.string().optional().describe('Папка или полный путь .png; по умолчанию — временная папка (astraforge-fx).'),
+    out: z.string().optional().describe('Папка или полный путь .png; по умолчанию — временная папка (imaginarium-fx).'),
   },
   async ({ preset, type, params, out }) => {
     const m = await loadFxTextures();
@@ -923,7 +923,7 @@ tool('fx_texture_generate',
     const tex = m.generateFxTexture(t, p);            // throws on an unknown type
     const png = await m.encodeFxPng(tex);
     const name = m.fxFileName(t, p);
-    const target = out && /\.png$/i.test(out) ? path.resolve(out) : path.join(path.resolve(out || path.join(os.tmpdir(), 'astraforge-fx')), name);
+    const target = out && /\.png$/i.test(out) ? path.resolve(out) : path.join(path.resolve(out || path.join(os.tmpdir(), 'imaginarium-fx')), name);
     await fs.mkdir(path.dirname(target), { recursive: true });
     await fs.writeFile(target, png);
     return { path: target, bytes: png.length, width: tex.width, height: tex.height, flipbook: tex.flipbook, tileable: tex.tileable, type: t, params: m.resolveFxParams(t, p) };
@@ -1044,9 +1044,9 @@ tool('sound_bind',
   });
 
 tool('sound_export',
-  'Звуковой набор ассета как файлы: скачивает все привязанные к ассету звуки (sound_bind) в папку out и возвращает {folder, files:[{event,soundId,name,file,bytes}], missing:[{event,soundId,reason}]}. Файлы — обычный WAV/OGG без служебных меток (политика ветки). Формат: wav (по умолчанию), ogg, both. Если звук лежит в корзине, вместо файла придёт причина в missing. engine=bevy — раскладка банка для движка Bevy: папка assets/astraforge/sounds/<slug>/ внутри out + манифест af_sounds.json (формат astraforge-soundbank/1, loop по kind звука) — его читает крейт astraforge_bevy (play_sound по имени события).',
+  'Звуковой набор ассета как файлы: скачивает все привязанные к ассету звуки (sound_bind) в папку out и возвращает {folder, files:[{event,soundId,name,file,bytes}], missing:[{event,soundId,reason}]}. Файлы — обычный WAV/OGG без служебных меток (политика ветки). Формат: wav (по умолчанию), ogg, both. Если звук лежит в корзине, вместо файла придёт причина в missing. engine=bevy — раскладка банка для движка Bevy: папка assets/imaginarium/sounds/<slug>/ внутри out + манифест ima_sounds.json (формат imaginarium-soundbank/1, loop по kind звука) — его читает крейт imaginarium_bevy (play_sound по имени события).',
   { assetId: ID, out: z.string().describe('Папка, куда положить файлы (создаётся).'), format: z.enum(['wav', 'ogg', 'both']).default('wav'), limit: z.number().int().min(1).max(50).default(20),
-    engine: z.enum(['files', 'bevy']).default('files').describe('files — просто файлы; bevy — банк звуков для astraforge_bevy (папка + af_sounds.json).') },
+    engine: z.enum(['files', 'bevy']).default('files').describe('files — просто файлы; bevy — банк звуков для imaginarium_bevy (папка + ima_sounds.json).') },
   async ({ assetId, out, format, limit, engine = 'files' }) => {
     if (engine === 'bevy') {
       const r = await post('/api/sound/export-bank', { assetId, engine, out: path.resolve(out) });
@@ -1077,7 +1077,7 @@ tool('sound_export',
 // ------------------------------------------------------------------ Unity
 
 const UNITY_EDITORS = 'C:/Program Files/Unity/Hub/Editor';
-const UNITY_CHECK_PROJECT = process.env.ASTRA_UNITY_PROJECT || (process.platform === 'win32' ? 'C:/AstraForge/unity/AFUnityCheck' : path.join(APP, 'data', 'unity', 'AFUnityCheck'));
+const UNITY_CHECK_PROJECT = process.env.IMAGINARIUM_UNITY_PROJECT || (process.platform === 'win32' ? 'C:/Imaginarium/unity/ImaginariumUnityCheck' : path.join(APP, 'data', 'unity', 'ImaginariumUnityCheck'));
 
 async function unityHubProjects() {
   const file = path.join(process.env.APPDATA || '', 'UnityHub', 'projects-v1.json');
@@ -1087,13 +1087,13 @@ async function unityHubProjects() {
 }
 
 tool('unity_status',
-  'Unity на этой машине: установленные редакторы (Unity Hub), проекты Hub, проверочный проект студии (AFUnityCheck, URP), лицензия (дата файла), версия импортёра com.astraforge.unity в репозитории. Ничего не запускает; вне Windows отсутствующие пути дают пустые списки.',
+  'Unity на этой машине: установленные редакторы (Unity Hub), проекты Hub, проверочный проект студии (ImaginariumUnityCheck, URP), лицензия (дата файла), версия импортёра dev.imaginarium3d.unity в репозитории. Ничего не запускает; вне Windows отсутствующие пути дают пустые списки.',
   {},
   async () => {
     const editors = existsSync(UNITY_EDITORS) ? (await fs.readdir(UNITY_EDITORS)).filter((v) => existsSync(path.join(UNITY_EDITORS, v, 'Editor', 'Unity.exe'))) : [];
     const lic = path.join(process.env.LOCALAPPDATA || '', 'Unity', 'licenses', 'UnityEntitlementLicense.xml');
-    const importer = path.join(APP, 'unity', 'com.astraforge.unity', 'package.json');
-    const marker = path.join(UNITY_CHECK_PROJECT, 'ProjectSettings', 'af_check_project.json');
+    const importer = path.join(APP, 'unity', 'dev.imaginarium3d.unity', 'package.json');
+    const marker = path.join(UNITY_CHECK_PROJECT, 'ProjectSettings', 'imaginarium_check_project.json');
     return {
       editors, default_editor: editors.includes('6000.0.64f1') ? '6000.0.64f1' : editors.sort().at(-1) || null,
       license_file: existsSync(lic) ? { path: lic, modified: (await fs.stat(lic)).mtime.toISOString(), note: 'Пакетный режим требует входа в Unity Hub; файл обновляется Hub-ом.' } : null,
@@ -1104,14 +1104,14 @@ tool('unity_status',
   });
 
 tool('unity_send',
-  'Кладёт пакеты Unity из студии в проект Unity (только по просьбе владельца: пишет в этот проект). sources — папки пакетов (с af_unity.json) или архивы экспорта профиля unity. Импортёр com.astraforge.unity копируется в Packages/ проекта (встроенный пакет), пакет — в Assets/AstraForge/<asset_id>/ поверх прежнего (.meta сохраняются). Открытый редактор соберёт префаб сам; build=true собирает сразу в batchmode (проект должен быть закрыт).',
+  'Кладёт пакеты Unity из студии в проект Unity (только по просьбе владельца: пишет в этот проект). sources — папки пакетов (с ima_unity.json) или архивы экспорта профиля unity. Импортёр dev.imaginarium3d.unity копируется в Packages/ проекта (встроенный пакет), пакет — в Assets/Imaginarium/<asset_id>/ поверх прежнего (.meta сохраняются). Открытый редактор соберёт префаб сам; build=true собирает сразу в batchmode (проект должен быть закрыт).',
   {
     project: z.string().describe('Папка проекта Unity (с Assets/ и ProjectSettings/).'),
     sources: z.array(z.string()).min(1).describe('Папки пакетов или .zip экспорта unity.'),
     build: z.boolean().default(false),
   },
   async ({ project, sources, build }) => {
-    const mod = await import(pathToFileURL(path.join(APP, 'scripts', 'unity', 'af_unity_send.mjs')).href);
+    const mod = await import(pathToFileURL(path.join(APP, 'scripts', 'unity', 'imaginarium_unity_send.mjs')).href);
     const log = [];
     const res = await mod.sendToUnity({ project, sources, build, log: (t) => log.push(t) });
     return { ...res, log };
@@ -1120,15 +1120,15 @@ tool('unity_send',
 tool('unity_check',
   'Проверка пакетов Unity в проверочном проекте студии (Unity -batchmode, один запуск на все пакеты): префаб, материалы без «розового», Avatar Humanoid/Generic, клипы и петли, анимация играет, сокеты, эффекты, LOD, коллайдер, размер как в Godot, спрайты; скриншоты и contact_sheet.png. Долго (20 с … несколько минут при первом запуске).',
   {
-    packages: z.array(z.string()).min(1).describe('Папки пакетов (с af_unity.json).'),
+    packages: z.array(z.string()).min(1).describe('Папки пакетов (с ima_unity.json).'),
     out: z.string().describe('Папка для отчёта и скриншотов.'),
     timeoutSec: z.number().int().min(30).max(3600).default(1800),
   },
   async ({ packages, out, timeoutSec }) => {
     const script = path.join(APP, 'scripts', 'unity', 'unity_check.py');
     const outAbs = path.resolve(out);
-    // platform gate: Windows ships the py launcher; Linux uses python3 (or ASTRA_PYTHON)
-    const py = process.platform === 'win32' ? 'py' : (process.env.ASTRA_PYTHON || 'python3');
+    // platform gate: Windows ships the py launcher; Linux uses python3 (or IMAGINARIUM_PYTHON)
+    const py = process.platform === 'win32' ? 'py' : (process.env.IMAGINARIUM_PYTHON || 'python3');
     const text = await new Promise((resolve) => {
       execFile(py, ['-I', script, ...packages.map((p) => path.resolve(p)), '--out', outAbs],
         { windowsHide: true, timeout: timeoutSec * 1000, maxBuffer: 16 * 1024 * 1024 },
@@ -1143,16 +1143,16 @@ tool('unity_check',
 
 // ------------------------------------------------------------------ engines: Unity and Godot projects in the background
 
-const engineLib = () => import(pathToFileURL(path.join(APP, 'scripts', 'engines', 'af_engine.mjs')).href);
+const engineLib = () => import(pathToFileURL(path.join(APP, 'scripts', 'engines', 'imaginarium_engine.mjs')).href);
 const ENGINE = z.enum(['unity', 'godot', 'bevy']);
 const withLog = async (fn) => { const log = []; const res = await fn((t) => log.push(t)); return { ...res, log }; };
 
 tool('engine_status',
-  'Движки и связка: редакторы Unity (версии, дата лицензии), Godot, Rust-тулчейн для Bevy (cargo, крейт astraforge_bevy, шаблон проекта), зарегистрированы ли MCP-серверы astraforge / UnityMCP / godot / bevy_brp_mcp в Claude Code, проекты движков в реестре (ASTRA_ENGINES_HOME; C:/AstraForge/engines на Windows) и открыт ли проект в редакторе Unity. Ничего не запускает.',
+  'Движки и связка: редакторы Unity (версии, дата лицензии), Godot, Rust-тулчейн для Bevy (cargo, крейт imaginarium_bevy, шаблон проекта), зарегистрированы ли MCP-серверы imaginarium / UnityMCP / godot / bevy_brp_mcp в Claude Code, проекты движков в реестре (IMAGINARIUM_ENGINES_HOME; C:/Imaginarium/engines на Windows) и открыт ли проект в редакторе Unity. Ничего не запускает.',
   {}, async () => (await engineLib()).status());
 
 tool('engine_project_create',
-  'Создаёт проект движка в фоне, без окон: Unity — batchmode из шаблона URP редактора + импортёр com.astraforge.unity (+ MCP for Unity при withMcp); Godot — project.godot 4.5 + первый headless-импорт; Bevy — cargo-проект из шаблона astraforge-integrator (плеер-стартер + path-зависимость на крейт astraforge_bevy; редактор здесь — сам тулчейн). Регистрирует проект в реестре под именем игры (у одной игры может быть и Unity-, и Godot-проект).',
+  'Создаёт проект движка в фоне, без окон: Unity — batchmode из шаблона URP редактора + импортёр dev.imaginarium3d.unity (+ MCP for Unity при withMcp); Godot — project.godot 4.5 + первый headless-импорт; Bevy — cargo-проект из шаблона imaginarium-integrator (плеер-стартер + path-зависимость на крейт imaginarium_bevy; редактор здесь — сам тулчейн). Регистрирует проект в реестре под именем игры (у одной игры может быть и Unity-, и Godot-проект).',
   {
     engine: ENGINE, name: z.string().min(1).describe('Имя игры/проекта.'),
     path: z.string().optional().describe('Папка проекта; по умолчанию — папка projects в каталоге движков реестра.'),
@@ -1163,12 +1163,12 @@ tool('engine_project_create',
   ({ engine, name, path: dir, pipeline, renderer, withMcp }) => withLog(async (log) => (await engineLib()).createProject({ engine, name, dir, pipeline, renderer, withMcp, log })));
 
 tool('engine_project_link',
-  'Привязывает существующий проект Unity, Godot или Bevy владельца к реестру (движок определяется по папке: project.godot / Assets+ProjectSettings / Cargo.toml с astraforge_bevy). Ничего в проекте не меняет.',
+  'Привязывает существующий проект Unity, Godot или Bevy владельца к реестру (движок определяется по папке: project.godot / Assets+ProjectSettings / Cargo.toml с imaginarium_bevy). Ничего в проекте не меняет.',
   { path: z.string(), name: z.string().optional() },
   async ({ path: dir, name }) => (await engineLib()).linkProject({ dir, name }));
 
 tool('engine_send',
-  'Кладёт пакеты студии в проект движка: Unity — пакеты профиля unity (папки с af_unity.json или zip экспорта): импортёр в Packages/, ассет в Assets/AstraForge/<id>/; Godot — пакеты профилей godot / space_quest (af_package.json): res://astraforge/<id>/ + headless-импорт; Bevy — пакеты профиля bevy (папки с af_bevy.json или zip экспорта): assets/astraforge/<id>/ (дальше одна строка add_astraforge_asset). Пишет в проект — только по просьбе владельца.',
+  'Кладёт пакеты студии в проект движка: Unity — пакеты профиля unity (папки с ima_unity.json или zip экспорта): импортёр в Packages/, ассет в Assets/Imaginarium/<id>/; Godot — пакеты профилей godot / space_quest (ima_package.json): res://imaginarium/<id>/ + headless-импорт; Bevy — пакеты профиля bevy (папки с ima_bevy.json или zip экспорта): assets/imaginarium/<id>/ (дальше одна строка add_imaginarium_asset). Пишет в проект — только по просьбе владельца.',
   {
     project: z.string().describe('Имя из реестра или папка проекта.'), engine: ENGINE.optional().describe('Если под одним именем есть оба движка.'),
     sources: z.array(z.string()).min(1), build: z.boolean().default(false).describe('Unity: собрать префабы сразу (проект закрыт).'),
@@ -1176,12 +1176,12 @@ tool('engine_send',
   ({ project, engine, sources, build }) => withLog(async (log) => (await engineLib()).sendPackages({ project, engine, sources, build, log })));
 
 tool('engine_scaffold',
-  'Логика под ассет по шаблону скилла astraforge-integrator. kind=player: управление персонажем (Unity: Assets/Game/Scripts/PlayerController.cs + asmdef, Godot: res://scripts/player_controller.gd, Bevy: src/player.rs из шаблона) и смоук-тесты (Unity EditMode, Godot res://tests/run_tests.gd). Существующие файлы не трогает без force.',
+  'Логика под ассет по шаблону скилла imaginarium-integrator. kind=player: управление персонажем (Unity: Assets/Game/Scripts/PlayerController.cs + asmdef, Godot: res://scripts/player_controller.gd, Bevy: src/player.rs из шаблона) и смоук-тесты (Unity EditMode, Godot res://tests/run_tests.gd). Существующие файлы не трогает без force.',
   { project: z.string(), engine: ENGINE.optional(), kind: z.enum(['player']).default('player'), assetId: z.string().describe('asset_id персонажа в проекте.'), force: z.boolean().default(false) },
   ({ project, engine, kind, assetId, force }) => withLog(async (log) => (await engineLib()).scaffold({ project, engine, kind, assetId, force, log })));
 
 tool('engine_test',
-  'Тесты проекта в фоне, без окон. Unity (batchmode): проверка пакетов AstraForge (префабы, материалы, Avatar, клипы, сокеты, эффекты, LOD, размер) + EditMode-тесты проекта (playMode — ещё PlayMode); если проект открыт в редакторе — подсказка про UnityMCP. Godot (headless): все сцены res://astraforge и res://scenes грузятся и работают N кадров + res://tests/run_tests.gd; shots — кадры из окна за пределами экрана; Bevy — headless cargo-проверка каждого пакета (крейт играет паспорт, сверяет обещания, снимает превью-кадры), при отсутствии Rust — честный skip. Отчёт и кадры — в папке reports каталога движков.',
+  'Тесты проекта в фоне, без окон. Unity (batchmode): проверка пакетов Imaginarium (префабы, материалы, Avatar, клипы, сокеты, эффекты, LOD, размер) + EditMode-тесты проекта (playMode — ещё PlayMode); если проект открыт в редакторе — подсказка про UnityMCP. Godot (headless): все сцены res://imaginarium и res://scenes грузятся и работают N кадров + res://tests/run_tests.gd; shots — кадры из окна за пределами экрана; Bevy — headless cargo-проверка каждого пакета (крейт играет паспорт, сверяет обещания, снимает превью-кадры), при отсутствии Rust — честный skip. Отчёт и кадры — в папке reports каталога движков.',
   {
     project: z.string(), engine: ENGINE.optional(), shots: z.boolean().default(false), playMode: z.boolean().default(false),
     scene: z.string().optional().describe('Godot: проверить одну сцену res://…'), frames: z.number().int().min(1).max(3000).default(120),
@@ -1189,14 +1189,14 @@ tool('engine_test',
   ({ project, engine, shots, playMode, scene, frames }) => withLog(async (log) => (await engineLib()).testProject({ project, engine, shots, playMode, scene, frames, log })));
 
 tool('engine_mcp_register',
-  'Регистрирует в Claude Code (scope user) серверы движков, если их нет: UnityMCP (MCP for Unity 10.3.0, stdio, телеметрия выключена), godot (Godot MCP, GODOT_PATH = найденный Godot), unreal-mcp (по ASTRA_UNREAL_MCP) и bevy_brp_mcp (если бинарь установлен; с installBevyBrp=true ставит его из .crate-файла с проверкой sha256 по закреплённой записи crates.io — никогда не cargo install из индекса вслепую). Новые инструменты появятся в следующей сессии Claude Code.',
+  'Регистрирует в Claude Code (scope user) серверы движков, если их нет: UnityMCP (MCP for Unity 10.3.0, stdio, телеметрия выключена), godot (Godot MCP, GODOT_PATH = найденный Godot), unreal-mcp (по IMAGINARIUM_UNREAL_MCP) и bevy_brp_mcp (если бинарь установлен; с installBevyBrp=true ставит его из .crate-файла с проверкой sha256 по закреплённой записи crates.io — никогда не cargo install из индекса вслепую). Новые инструменты появятся в следующей сессии Claude Code.',
   { installBevyBrp: z.boolean().default(false).describe('Bevy: установить мост bevy_brp_mcp 0.23.0 (длинная Rust-компиляция; сначала скачивание + сверка контрольной суммы).') },
   async ({ installBevyBrp }) => withLog(async (log) => (await engineLib()).registerMcp({ log, installBevyBrp })));
 
 // ------------------------------------------------------------------ MCP resources
 
-server.registerResource('astraforge-status', 'astraforge://status',
-  { title: 'Состояние студии', description: 'Текущий /api/health + /api/status студии AstraForge (JSON).', mimeType: 'application/json' },
+server.registerResource('imaginarium-status', 'imaginarium://status',
+  { title: 'Состояние студии', description: 'Текущий /api/health + /api/status студии Imaginarium (JSON).', mimeType: 'application/json' },
   async (uri) => {
     let body;
     try {
@@ -1206,11 +1206,11 @@ server.registerResource('astraforge-status', 'astraforge://status',
     return { contents: [{ uri: uri.href, mimeType: 'application/json', text: JSON.stringify(body, null, 1) }] };
   });
 
-server.registerResource('astraforge-skill', 'astraforge://skill',
-  { title: 'Руководство AstraForge', description: 'Текст скилла ai/skills/astraforge/SKILL.md: роль студии, конвейер, правила работы.', mimeType: 'text/markdown' },
+server.registerResource('imaginarium-skill', 'imaginarium://skill',
+  { title: 'Руководство Imaginarium', description: 'Текст скилла ai/skills/imaginarium/SKILL.md: роль студии, конвейер, правила работы.', mimeType: 'text/markdown' },
   async (uri) => {
-    const file = path.join(APP, 'ai', 'skills', 'astraforge', 'SKILL.md');
-    const text = existsSync(file) ? await fs.readFile(file, 'utf8') : `Файл ${file} не найден (ASTRA_APP=${APP}).`;
+    const file = path.join(APP, 'ai', 'skills', 'imaginarium', 'SKILL.md');
+    const text = existsSync(file) ? await fs.readFile(file, 'utf8') : `Файл ${file} не найден (IMAGINARIUM_APP=${APP}).`;
     return { contents: [{ uri: uri.href, mimeType: 'text/markdown', text }] };
   });
 

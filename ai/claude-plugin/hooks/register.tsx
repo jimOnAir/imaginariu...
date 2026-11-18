@@ -1,23 +1,23 @@
-// AstraForge pane inside the Claude Code window: studio state, the job queue, engine start buttons.
-// The live 3D view opens in the built-in browser (/astraforge open); this pane shows what is happening
+// Imaginarium pane inside the Claude Code window: studio state, the job queue, engine start buttons.
+// The live 3D view opens in the built-in browser (/imaginarium open); this pane shows what is happening
 // next to it and gives manual controls. Behavior derived from the shipped 0.4.16 panel (ADR-0003).
 import { atom, read, update } from 'claude-code'
 import type { EngineInterface, Register } from 'claude-code'
 
 import type { Studio, StudioJob, StudioStatus } from '../types'
 
-const PANE = 'astraforge'
-const URL = process.env.ASTRA_URL ?? 'http://127.0.0.1:3210'
-// app folder: ASTRA_APP wins (the Linux checkout); the shipped Windows install is the fallback
-const APP = process.env.ASTRA_APP ?? 'C:\\Users\\doron\\Documents\\Codex\\2026-10-09\\3\\outputs\\AstraForge'
-const HEADERS = { 'x-astra-client': 'studio', 'content-type': 'application/json' }
+const PANE = 'imaginarium'
+const URL = process.env.IMAGINARIUM_URL ?? 'http://127.0.0.1:3210'
+// app folder: IMAGINARIUM_APP wins (the Linux checkout); the shipped Windows install is the fallback
+const APP = process.env.IMAGINARIUM_APP ?? 'C:\\Users\\doron\\Documents\\Codex\\2026-10-09\\3\\outputs\\Imaginarium'
+const HEADERS = { 'x-imaginarium-client': 'studio', 'content-type': 'application/json' }
 
 const empty: Studio = {
   status: { online: false, comfy: { online: false, ready: false }, pixal3d: { installed: false, running: false }, ollama: { online: false, models: 0 } },
   jobs: [],
   checkedAt: 0,
 }
-const studio = atom({ plugin: 'astraforge', key: 'studio' } as const, empty)
+const studio = atom({ plugin: 'imaginarium', key: 'studio' } as const, empty)
 
 type Engine = EngineInterface
 
@@ -54,18 +54,18 @@ async function poll($: Engine, note?: string) {
 
 async function post($: Engine, path: string, ok: string) {
   const r = await $.http.fetch(URL + path, { method: 'POST', headers: HEADERS, body: '{}' })
-  $.ui.toast(r.ok ? ok : 'AstraForge: ' + (JSON.parse(r.text || '{}').error ?? 'ошибка ' + r.status))
+  $.ui.toast(r.ok ? ok : 'Imaginarium: ' + (JSON.parse(r.text || '{}').error ?? 'ошибка ' + r.status))
   await poll($)
 }
 
 async function startStudio($: Engine) {
-  $.ui.toast('AstraForge: запускаю студию…')
+  $.ui.toast('Imaginarium: запускаю студию…')
   // platform gate: Start.ps1 on Windows, start.sh elsewhere
   const cmd = process.platform === 'win32'
     ? ['powershell', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', APP + '\\scripts\\Start.ps1', '-NoBrowser']
     : ['bash', APP + '/scripts/start.sh']
   const r = await $.process.run(cmd, { cwd: APP, timeoutMs: 120000 })
-  $.ui.toast(r.exitCode === 0 ? 'AstraForge: студия запущена' : 'AstraForge: не запустилась: ' + (r.stderr || r.stdout).slice(0, 200))
+  $.ui.toast(r.exitCode === 0 ? 'Imaginarium: студия запущена' : 'Imaginarium: не запустилась: ' + (r.stderr || r.stdout).slice(0, 200))
   await poll($)
 }
 
@@ -73,24 +73,24 @@ export const register: Register = on => {
   let stop: { cancel: () => void } | null = null
 
   on('session.start', async ($, e, next) => {
-    await $.command.register({ name: 'astraforge', description: 'Панель AstraForge: open — открыть студию во встроенном браузере, start — запустить, status — состояние', argumentHint: '[open|start|status]' })
-    void $.ui.open({ id: PANE, title: 'AstraForge' })
+    await $.command.register({ name: 'imaginarium', description: 'Панель Imaginarium: open — открыть студию во встроенном браузере, start — запустить, status — состояние', argumentHint: '[open|start|status]' })
+    void $.ui.open({ id: PANE, title: 'Imaginarium' })
     void poll($)
     stop?.cancel()
     stop = $.clock.every(5000, () => void poll($))
     return next(e)
   })
 
-  on('command.run', { command: 'astraforge' }, async ($, e) => {
+  on('command.run', { command: 'imaginarium' }, async ($, e) => {
     const arg = (e.args || '').trim()
-    await $.ui.open({ id: PANE, title: 'AstraForge' })
-    if (arg === 'start') { await startStudio($); return { text: 'Студия AstraForge запускается.' } }
+    await $.ui.open({ id: PANE, title: 'Imaginarium' })
+    if (arg === 'start') { await startStudio($); return { text: 'Студия Imaginarium запускается.' } }
     if (arg === 'open') {
-      return { text: 'Открываю студию AstraForge во встроенном браузере.', context: [`Открой ${URL} во встроенном браузере Claude (preview_start с url).`, `Если /api/health не отвечает, сначала запусти студию (${process.platform === 'win32' ? `powershell -NoProfile -ExecutionPolicy Bypass -File "${APP}\\scripts\\Start.ps1" -NoBrowser` : `${APP}/scripts/start.sh`}).`] }
+      return { text: 'Открываю студию Imaginarium во встроенном браузере.', context: [`Открой ${URL} во встроенном браузере Claude (preview_start с url).`, `Если /api/health не отвечает, сначала запусти студию (${process.platform === 'win32' ? `powershell -NoProfile -ExecutionPolicy Bypass -File "${APP}\\scripts\\Start.ps1" -NoBrowser` : `${APP}/scripts/start.sh`}).`] }
     }
     await poll($)
     const s = await read($, studio)
-    return { text: s.status.online ? `AstraForge ${s.status.version}: движок ${s.status.comfy.ready ? 'готов' : 'выключен'}, Pixal3D ${s.status.pixal3d.running ? 'работает' : 'выключен'}, заданий ${s.jobs.length}.` : 'Студия AstraForge выключена. /astraforge start — запустить.' }
+    return { text: s.status.online ? `Imaginarium ${s.status.version}: движок ${s.status.comfy.ready ? 'готов' : 'выключен'}, Pixal3D ${s.status.pixal3d.running ? 'работает' : 'выключен'}, заданий ${s.jobs.length}.` : 'Студия Imaginarium выключена. /imaginarium start — запустить.' }
   })
 
   on('ui.render', { component: 'Pane', requestId: PANE }, async ($, e) => {
@@ -104,7 +104,7 @@ export const register: Register = on => {
     return (
       <Box flexDirection="column">
         <Box>
-          <Text bold>AstraForge </Text>
+          <Text bold>Imaginarium </Text>
           <Text color={st.online ? 'green' : 'red'}>{st.online ? `работает ${st.version ?? ''}` : 'выключена'}</Text>
           {st.gpu && <Text dimColor>  {st.gpu}</Text>}
         </Box>
@@ -122,7 +122,7 @@ export const register: Register = on => {
           {st.online && st.pixal3d.installed && !st.pixal3d.running && <Button key="pixal" hotkey="p" onPress={() => post($, '/api/runtime/pixal3d/start', 'Pixal3D запускается')}>Pixal3D</Button>}
           <Button key="refresh" hotkey="r" onPress={() => poll($, 'обновлено')}>Обновить</Button>
         </Box>
-        <Text dimColor>Живой 3D-вид: /astraforge open — студия откроется во встроенном браузере.</Text>
+        <Text dimColor>Живой 3D-вид: /imaginarium open — студия откроется во встроенном браузере.</Text>
         <Box flexDirection="column" marginTop={1}>
           <Text bold>Задания {active.length ? `· идёт ${active.length}` : ''}</Text>
           {s.jobs.length === 0 && <Text dimColor>пока нет</Text>}

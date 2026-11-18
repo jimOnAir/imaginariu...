@@ -1,9 +1,0 @@
-[package]
-name = "astraforge_bevy_template"
-version = "0.1.0"
-edition = "2024"
-rust-version = "1.97.1"
-
-[dependencies]
-bevy = "0.20.1"
-astraforge_bevy = { path = "../../../../../bevy/astraforge_bevy", version = "0.20" }

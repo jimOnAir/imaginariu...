@@ -1,9 +1,9 @@
-# AstraForge MCP
+# Imaginarium MCP
 
-MCP-сервер (stdio) для локальной 3D-студии AstraForge. Claude Code и любой другой MCP-клиент управляют студией
+MCP-сервер (stdio) для локальной 3D-студии Imaginarium. Claude Code и любой другой MCP-клиент управляют студией
 инструментами: генерация 3D, ракурсы, Кузница (риг, клипы, экспорт), спрайты, эффекты, проекты, VFX.
 Сервер ничего не делает сам: каждый инструмент — вызов настоящего HTTP API студии (`127.0.0.1:3210`) с заголовком
-`x-astra-client: studio` и без Origin. Blender и Godot напрямую не вызываются, только через студию.
+`x-imaginarium-client: studio` и без Origin. Blender и Godot напрямую не вызываются, только через студию.
 
 ## Установка и запуск
 
@@ -14,20 +14,20 @@ npm test                 # 24 теста на фейковой студии, в�
 node server.mjs          # stdio: сам по себе ничего не печатает, ждёт MCP-клиента
 ```
 
-`<APP>` = `C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\AstraForge`. Зависимости (`@modelcontextprotocol/sdk`, `zod`)
+`<APP>` = `C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\Imaginarium`. Зависимости (`@modelcontextprotocol/sdk`, `zod`)
 ставятся только в `ai/mcp`, `package.json` студии не затронут. Нужен Node 20+.
 
 Переменные окружения:
 
 | Переменная | По умолчанию | Смысл |
 |---|---|---|
-| `ASTRA_URL` | `http://127.0.0.1:3210` | адрес студии |
-| `ASTRA_APP` | две папки выше `server.mjs` | папка приложения (скилл, `Start.ps1`, пресеты эффектов, `src/fx-textures.js`) |
+| `IMAGINARIUM_URL` | `http://127.0.0.1:3210` | адрес студии |
+| `IMAGINARIUM_APP` | две папки выше `server.mjs` | папка приложения (скилл, `Start.ps1`, пресеты эффектов, `src/fx-textures.js`) |
 
 ## Регистрация в Claude Code
 
 ```
-claude mcp add astraforge -- node "C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\AstraForge\ai\mcp\server.mjs"
+claude mcp add imaginarium -- node "C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\Imaginarium\ai\mcp\server.mjs"
 ```
 
 или вручную в `~/.claude.json` (`C:\Users\doron\.claude.json`):
@@ -35,19 +35,19 @@ claude mcp add astraforge -- node "C:\Users\doron\Documents\Codex\2026-10-09\3\o
 ```json
 {
   "mcpServers": {
-    "astraforge": {
+    "imaginarium": {
       "command": "node",
-      "args": ["C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\AstraForge\ai\mcp\server.mjs"]
+      "args": ["C:\Users\doron\Documents\Codex\2026-10-09\3\outputs\Imaginarium\ai\mcp\server.mjs"]
     }
   }
 }
 ```
 
-После регистрации перезапустите сессию Claude Code; инструменты появятся как `mcp__astraforge__<имя>`.
+После регистрации перезапустите сессию Claude Code; инструменты появятся как `mcp__imaginarium__<имя>`.
 
 ## Если студия выключена
 
-Инструменты вернут ошибку: «Студия AstraForge не отвечает (…). Запустите Start.cmd в папке студии или вызовите инструмент
+Инструменты вернут ошибку: «Студия Imaginarium не отвечает (…). Запустите Start.cmd в папке студии или вызовите инструмент
 studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser` и ждёт `/api/health` до 90 с. Эффекты
 (`fx_presets`, `fx_texture_generate`, `fx_texture_types`) от студии не зависят.
 
@@ -91,7 +91,7 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | | `forge_recipe_pin`, `forge_learn_note` | закрепить рецепт класса (решение владельца); заметка класса: путь, грабли, совет |
 | | `clips_list`, `clips_import` | библиотека клипов; импорт папки FBX |
 | Unity | `unity_status` | редакторы Unity Hub, проекты Hub, проверочный проект студии, дата лицензии, версия импортёра |
-| | `unity_send` | положить пакеты профиля unity (папки или zip) в проект Unity: импортёр в `Packages/`, ассет в `Assets/AstraForge/<id>/`; `build` — собрать префабы в batchmode |
+| | `unity_send` | положить пакеты профиля unity (папки или zip) в проект Unity: импортёр в `Packages/`, ассет в `Assets/Imaginarium/<id>/`; `build` — собрать префабы в batchmode |
 | | `unity_check` | проверка пакетов в проверочном URP-проекте одним запуском Unity: отчёт, скриншоты, `contact_sheet.png` |
 | Движки | `engine_status` | Unity (версии, лицензия), Godot, MCP-серверы `UnityMCP` / `godot`, реестр проектов |
 | | `engine_project_create`, `engine_project_link` | проект Unity (batchmode, URP, импортёр, MCP) или Godot (headless) в фоне; привязка проекта владельца |
@@ -119,7 +119,7 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 
 | Глагол | Причина |
 |---|---|
-| `generator_plugins`, `generator_plugin_new`, `generator_plugin_install`, `generator_plugin_toggle` | управление самим генеративным движком относится к отложенной линии AstraForge Engine (ADR-0004); ComfyUI студии работает с зафиксированным набором узлов (`--disable-all-custom-nodes`), узлы и модели ставит `installer/install.sh`, не MCP |
+| `generator_plugins`, `generator_plugin_new`, `generator_plugin_install`, `generator_plugin_toggle` | управление самим генеративным движком относится к отложенной линии Imaginarium Engine (ADR-0004); ComfyUI студии работает с зафиксированным набором узлов (`--disable-all-custom-nodes`), узлы и модели ставит `installer/install.sh`, не MCP |
 | `generator_graph_edit` | правка сохраняемых графов завязана на owner-режим, а механизм лицензий и owner-режим в этой ветке исключены |
 | `generator_learn_status`, `generator_learn_run`, `generator_learn_activate` | самообучение и LoRA отложены вместе с линией движка |
 
@@ -135,7 +135,7 @@ studio_start». `studio_start` запускает `scripts/Start.ps1 -NoBrowser`
 | `sound_install` | веса (≈21 ГБ) и venv ставит `installer/install.sh -Only sound`, а не агент: `sound_status` честно говорит, чего не хватает |
 | `sound_play` | прослушивание — дело человека в интерфейсе; звук в библиотеке уже лежит файлами |
 
-Ресурсы MCP: `astraforge://status` (health + status студии, JSON) и `astraforge://skill` (текст `ai/skills/astraforge/SKILL.md`).
+Ресурсы MCP: `imaginarium://status` (health + status студии, JSON) и `imaginarium://skill` (текст `ai/skills/imaginarium/SKILL.md`).
 
 ## Типовой путь
 
