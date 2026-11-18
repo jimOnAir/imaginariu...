@@ -46,26 +46,26 @@
 | PyMeshLab (нужен узлам Trellis2 при загрузке) | PyPI | GPL-3.0 |
 | Остальные пакеты движка Pixal3D (список и версии: `installer/pixal3d/requirements-lock.txt`): open3d, rembg, onnxruntime-gpu, opencv-python, trimesh, transformers, timm и др. | PyPI | MIT / Apache-2.0 / BSD |
 | Python 3.12.10 (портативная сборка, заголовки из dev.msi) | python.org | PSF License |
-| **meshoptimizer 1.3** — вендоренные исходники редуктора `af-mesh-rs` (`native/af_mesh_rs/vendor/meshoptimizer`) | github.com/zeux/meshoptimizer (тег v1.3, незафиксированных правок нет) | MIT |
+| **meshoptimizer 1.3** — вендоренные исходники редуктора `imaginarium-mesh-rs` (`native/imaginarium_mesh_rs/vendor/meshoptimizer`) | github.com/zeux/meshoptimizer (тег v1.3, незафиксированных правок нет) | MIT |
 
-**af-mesh-rs (быстрый путь спасения мешей).** В отличие от прочих компонентов, meshoptimizer
+**imaginarium-mesh-rs (быстрый путь спасения мешей).** В отличие от прочих компонентов, meshoptimizer
 **не скачивается**: три неизменённых upstream-файла (заголовки и `LICENSE.md`, таблица sha256 —
-`native/af_mesh_rs/VENDORING.md`) лежат в репозитории и собираются из исходников крейтом `cc`
+`native/imaginarium_mesh_rs/VENDORING.md`) лежат в репозитории и собираются из исходников крейтом `cc`
 при установке, если в PATH есть cargo; готовый бинарник не скачивается никогда. Без cargo
-`af-mesh-rs` просто не собирается, и все потребители молча остаются на Blender-пути.
-Обёртка `native/af_mesh_rs` (Rust, MIT, код AstraForge) распространяется под MIT этой ветки.
+`imaginarium-mesh-rs` просто не собирается, и все потребители молча остаются на Blender-пути.
+Обёртка `native/imaginarium_mesh_rs` (Rust, MIT, код Imaginarium) распространяется под MIT этой ветки.
 
-Узел ComfyUI-MVAdapter (github.com/huanngzh/ComfyUI-MVAdapter, Apache-2.0) устанавливается мастером в `data/runtime/custom_nodes/ComfyUI-MVAdapter`: оригинал с GitHub на закреплённом коммите плюс небольшие правки AstraForge (файлы в `installer/mvadapter/patch`, список в `NOTICE-ASTRAFORGE.md`).
+Узел ComfyUI-MVAdapter (github.com/huanngzh/ComfyUI-MVAdapter, Apache-2.0) устанавливается мастером в `data/runtime/custom_nodes/ComfyUI-MVAdapter`: оригинал с GitHub на закреплённом коммите плюс небольшие правки Imaginarium (файлы в `installer/mvadapter/patch`, список в `NOTICE-ASTRAFORGE.md`).
 
-**Pixal3D (необязательный компонент).** Движок ставится в отдельную папку (`runtime/ComfyUI-Pixal3D` по умолчанию) и работает как отдельная программа на порту 8191. Узлы Trellis2 и их колёса (`o_voxel`, `utils3d`) импортируют при загрузке библиотеки с особыми лицензиями: `nvdiffrast` и `nvdiffrec_render` (NVIDIA, некоммерческая лицензия), `meshlib` (некоммерческое и учебное использование) и `pymeshlab` (GPL-3.0). AstraForge:
+**Pixal3D (необязательный компонент).** Движок ставится в отдельную папку (`runtime/ComfyUI-Pixal3D` по умолчанию) и работает как отдельная программа на порту 8191. Узлы Trellis2 и их колёса (`o_voxel`, `utils3d`) импортируют при загрузке библиотеки с особыми лицензиями: `nvdiffrast` и `nvdiffrec_render` (NVIDIA, некоммерческая лицензия), `meshlib` (некоммерческое и учебное использование) и `pymeshlab` (GPL-3.0). Imaginarium:
 
 - не ставит nvdiffrast и nvdiffrec_render: `installer/pixal3d/patch_trellis2.py` делает их импорт необязательным, узлы текстурирования Trellis2/Pixal3D без них не работают и студией не используются (только форма; предпросмотр рендерится в Blender);
 - не вызывает meshlib: заделка дыр в графе Pixal3D — `Trellis2FillHolesWithCuMesh` (CuMesh, MIT); пакет meshlib установщик не ставит (`installer/pixal3d/patch_trellis2.py` делает его импорт необязательным).
 
-Если вы используете результат в коммерческой работе, проверьте эти лицензии самостоятельно. Автоматическое скачивание DINOv3 со стороннего зеркала в узле отключено (правка `ASTRAFORGE PATCH` в `nodes.py`): веса берутся только из официальной копии timm.
+Если вы используете результат в коммерческой работе, проверьте эти лицензии самостоятельно. Автоматическое скачивание DINOv3 со стороннего зеркала в узле отключено (правка `IMAGINARIUM PATCH` в `nodes.py`): веса берутся только из официальной копии timm.
 
 **Генераторы VFX-текстур (вкладка «VFX», необязательный компонент `vfx`).** В архив не входят. Мастер или
-`scripts/vfx/Install-VfxTools.ps1` скачивает их с сайтов авторов в отдельную папку (`ASTRA_VFX_TOOLS`), а
+`scripts/vfx/Install-VfxTools.ps1` скачивает их с сайтов авторов в отдельную папку (`IMAGINARIUM_VFX_TOOLS`), а
 установщики PixaFlux, KumoWorks и Slate запускает сам пользователь. Полный список — `server/vfx-tools-catalog.json`.
 
 | Компонент | Откуда | Лицензия |
@@ -76,7 +76,7 @@
 | KumoWorks 1.0.1 | github.com/opentoonz/kumoworks | BSD-3-Clause |
 | Texture Generator Online, NormalMap Online | github.com/cpetry | MIT |
 | DisplacementX (Greeble), собирается из исходников | github.com/satelllte/displacementx | GPL-3.0 (исходники лежат рядом, `web/displacementx-src`) |
-| SculptGL (вкладка «Скульпт»), собирается из исходников; мост `scripts/sculpt/bridge.js` — часть AstraForge | github.com/stephomi/sculptgl | MIT (© Stéphane Ginier; текст лицензии лежит в сборке, `web/sculptgl/LICENSE.txt`) |
+| SculptGL (вкладка «Скульпт»), собирается из исходников; мост `scripts/sculpt/bridge.js` — часть Imaginarium | github.com/stephomi/sculptgl | MIT (© Stéphane Ginier; текст лицензии лежит в сборке, `web/sculptgl/LICENSE.txt`) |
 | Neon Flames | github.com/jwagner/Neonflames | лицензия не указана: только личное использование; установщик его **не скачивает**, во вкладке «VFX» — только ссылка на сайт автора |
 | PixaFlux, Slate, FlowMap Painter, Pseudo Volume Generator | pixaflux.com, facedownfx.com, teckartist.com, acetix.itch.io | бесплатные программы на условиях авторов |
 | Шрифты Inter, Oswald, JetBrains Mono — вложены в студию (`assets/fonts`, без обращений к сети во время работы) | Google Fonts (fonts.gstatic.com), github.com/google/fonts | SIL Open Font License 1.1; тексты лицензий рядом с файлами (`assets/fonts/OFL-*.txt`) |

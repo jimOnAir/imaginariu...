@@ -2,7 +2,7 @@
 
 Last updated: October 30, 2026
 
-AstraForge is operated by Artem Doronin, an individual trading as "Dops Media", based in Bali, Indonesia. This policy explains what data we process, why, and what you can ask us to do with it.
+Imaginarium is operated by Artem Doronin, an individual trading as "Dops Media", based in Bali, Indonesia. This policy explains what data we process, why, and what you can ask us to do with it.
 
 ## What we process and why
 

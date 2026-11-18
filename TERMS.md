@@ -4,18 +4,18 @@ Last updated: October 30, 2026
 
 ## Who we are
 
-AstraForge is operated by Artem Doronin, an individual trading as "Dops Media", based in Bali, Indonesia.
+Imaginarium is operated by Artem Doronin, an individual trading as "Dops Media", based in Bali, Indonesia.
 
 Contact: support@dops.media
 Website: https://snodrod.github.io/AstraForge/
 
 ## The software and licenses
 
-AstraForge is a desktop application for Windows: a local 3D asset studio for game developers (image/text to 3D model, rigging, animation, sprites, export to Godot). It runs locally on your computer and uses open-source AI models downloaded to your PC. No user content is uploaded to our servers for generation.
+Imaginarium is a desktop application for Windows: a local 3D asset studio for game developers (image/text to 3D model, rigging, animation, sprites, export to Godot). It runs locally on your computer and uses open-source AI models downloaded to your PC. No user content is uploaded to our servers for generation.
 
-**Free Base version.** AstraForge Base is free under the PolyForm Noncommercial License 1.0.0 — non-commercial use only, and it does not include updates.
+**Free Base version.** Imaginarium Base is free under the PolyForm Noncommercial License 1.0.0 — non-commercial use only, and it does not include updates.
 
-**Subscription.** For $5/month or $49/year you get a commercial-use license for AstraForge and for everything you make with it, plus all updates while your subscription is active. Assets created while your subscription was active stay licensed for commercial use forever. The full commercial license text is here: https://github.com/Snodrod/AstraForge/blob/master/COMMERCIAL-LICENSE.md
+**Subscription.** For $5/month or $49/year you get a commercial-use license for Imaginarium and for everything you make with it, plus all updates while your subscription is active. Assets created while your subscription was active stay licensed for commercial use forever. The full commercial license text is here: https://github.com/Snodrod/AstraForge/blob/master/COMMERCIAL-LICENSE.md
 
 ## Subscription and billing
 
@@ -29,7 +29,7 @@ One license key = one copy = one computer. Your key is bound to your computer th
 
 ## Acceptable use
 
-You agree not to use AstraForge to:
+You agree not to use Imaginarium to:
 
 - create or distribute illegal content;
 - process inputs you do not have the rights to use, or otherwise infringe anyone's rights;
@@ -47,7 +47,7 @@ The software is provided "as is". To the extent permitted by law, our total liab
 
 ## Termination
 
-You may stop using AstraForge and cancel your subscription at any time. We may disable a license key if these terms are breached — for example, for a chargeback raised without contacting support first, or for use that violates the Acceptable use section.
+You may stop using Imaginarium and cancel your subscription at any time. We may disable a license key if these terms are breached — for example, for a chargeback raised without contacting support first, or for use that violates the Acceptable use section.
 
 ## Governing law
 
