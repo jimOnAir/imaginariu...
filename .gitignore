@@ -42,4 +42,4 @@ data/config.json
 bevy/*/target/
 bevy/*/Cargo.lock
 native/*/target/
-ai/skills/astraforge-integrator/templates/bevy/Cargo.lock
+ai/skills/imaginarium-integrator/templates/bevy/Cargo.lock

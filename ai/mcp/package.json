@@ -1,12 +1,12 @@
 {
-  "name": "astraforge-mcp",
+  "name": "imaginarium-mcp",
   "version": "0.1.0",
-  "description": "MCP-сервер (stdio) для локальной 3D-студии AstraForge: генерация 3D, ракурсы, Кузница, спрайты, эффекты, проекты, VFX, звук.",
+  "description": "MCP-сервер (stdio) для локальной 3D-студии Imaginarium: генерация 3D, ракурсы, Кузница, спрайты, эффекты, проекты, VFX, звук.",
   "type": "module",
   "private": true,
   "main": "server.mjs",
   "bin": {
-    "astraforge-mcp": "server.mjs"
+    "imaginarium-mcp": "server.mjs"
   },
   "scripts": {
     "start": "node server.mjs",
