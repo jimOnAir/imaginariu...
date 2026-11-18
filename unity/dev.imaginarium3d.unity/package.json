@@ -1,0 +1,10 @@
+{
+  "name": "dev.imaginarium3d.unity",
+  "version": "0.1.3",
+  "displayName": "Imaginarium Importer",
+  "description": "Builds ready prefabs from Imaginarium packages (ima_unity.json): FBX with materials for URP / Built-in / HDRP, Humanoid or Generic animation, Animator Controller, colliders, LOD, sockets with Particle System effects, foliage wind, 8-direction sprite animation. Batchmode validation: Imaginarium.Editor.ImaginariumBatch.Validate.",
+  "unity": "6000.0",
+  "author": { "name": "Imaginarium (Dops Media)" },
+  "license": "MIT",
+  "keywords": ["imaginarium", "importer", "fbx", "sprites", "urp"]
+}

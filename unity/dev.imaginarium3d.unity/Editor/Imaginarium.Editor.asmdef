@@ -1,0 +1,8 @@
+{
+  "name": "Imaginarium.Editor",
+  "rootNamespace": "Imaginarium.Editor",
+  "references": ["Imaginarium.Runtime"],
+  "includePlatforms": ["Editor"],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

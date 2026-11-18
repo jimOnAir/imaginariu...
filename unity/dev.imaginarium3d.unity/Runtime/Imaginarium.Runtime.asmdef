@@ -1,0 +1,8 @@
+{
+  "name": "Imaginarium.Runtime",
+  "rootNamespace": "Imaginarium",
+  "references": [],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "autoReferenced": true
+}

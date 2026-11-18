@@ -95,7 +95,7 @@ class LdmPipelineLoader:
     def create_pipeline(self, ckpt_name, pipeline_name):
         pipeline_class = PIPELINES[pipeline_name]
 
-        # AstraForge patch: build the pipeline from a local config-only SDXL folder so nothing is
+        # Imaginarium patch: build the pipeline from a local config-only SDXL folder so nothing is
         # fetched from the Hugging Face hub (see scripts/views/make_sdxl_config.py).
         local_kwargs = {}
         local_config = local_sdxl_config()
@@ -394,7 +394,7 @@ class DiffusersMVModelMakeup:
 
         pipeline = pipeline.to(self.torch_device, self.dtype)
 
-        # AstraForge patch: diffusers >= 0.40 moved slicing/tiling from the pipeline to the VAE.
+        # Imaginarium patch: diffusers >= 0.40 moved slicing/tiling from the pipeline to the VAE.
         if enable_vae_slicing:
             if hasattr(pipeline, "enable_vae_slicing"):
                 pipeline.enable_vae_slicing()

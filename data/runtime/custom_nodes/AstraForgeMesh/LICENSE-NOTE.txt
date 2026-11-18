@@ -1,4 +1,0 @@
-This directory is licensed under the MIT License (see LICENSE-MIT in the repository root),
-as an exception to the AstraForge license, because its code runs inside GPL-licensed programs.
-Эта папка распространяется под лицензией MIT (LICENSE-MIT в корне) как исключение из лицензии AstraForge:
-её код работает внутри программ под GPL.

@@ -47,12 +47,12 @@ NODE_CACHE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cach
 
 
 def local_sdxl_config():
-    """AstraForge patch: folder with SDXL configs and tokenizers (no weights), or None.
+    """Imaginarium patch: folder with SDXL configs and tokenizers (no weights), or None.
 
     <app>/data/runtime/custom_nodes/ComfyUI-MVAdapter -> <app>/data/models/mvadapter/sdxl-config
-    (override with ASTRA_SDXL_CONFIG).
+    (override with IMAGINARIUM_SDXL_CONFIG).
     """
-    env = os.environ.get("ASTRA_SDXL_CONFIG")
+    env = os.environ.get("IMAGINARIUM_SDXL_CONFIG")
     if env and os.path.isdir(env):
         return env
     here = os.path.dirname(os.path.abspath(__file__))
