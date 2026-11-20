@@ -158,5 +158,5 @@
     watchEdits();
     post(Object.assign({ type: 'ready' }, info()));
   });
-  window.astraSculptBridge = { info: info, exportScene: exportScene, load: load };
+  window.imaginariumSculptBridge = { info: info, exportScene: exportScene, load: load };
 })();

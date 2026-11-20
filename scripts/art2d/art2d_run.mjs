@@ -210,7 +210,7 @@ export async function runSet(dir, { comfyUrl = DEFAULT_COMFY_URL, signal, onProg
       onProgress(`${shot.label}: drawing (${set.run.done + 1} of ${todo.length})`);
       const refFiles = resolveRefs(dir, set, shot, index);
       const names = [];
-      for (const [k, f] of refFiles.entries()) names.push(await uploadImage(comfyUrl, f, `astra2d_${set.id.slice(0, 8)}_${shot.key}_${k}${path.extname(f)}`));
+      for (const [k, f] of refFiles.entries()) names.push(await uploadImage(comfyUrl, f, `imaginarium2d_${set.id.slice(0, 8)}_${shot.key}_${k}${path.extname(f)}`));
       let { w, h } = shot;
       if (shot.sizeFromRef && refFiles[0]) {
         const sz = await refSize(refFiles[0]);
