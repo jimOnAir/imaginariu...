@@ -1,6 +1,6 @@
 // Jobs: forge jobs with step progress, log tail, plain-language errors and cancel.
 import React, { useEffect, useState } from 'react';
-import { RefreshCw, CircleStop, Check, X, Loader2, Circle, FolderOpen, Eye } from 'lucide-react';
+import {IconRefresh as RefreshCw,IconCircleStop as CircleStop,IconCheck as Check,IconX as X,IconLoader2 as Loader2,IconCircle as Circle,IconFolderOpen as FolderOpen,IconEye as Eye} from '@tabler/icons-react';
 import {
   isActiveStatus, jobProgress, jobError, stepTitle, statusLabel, tailLines, formatDate, humanizeError, EXPORT_PROFILES,
   findOutput,

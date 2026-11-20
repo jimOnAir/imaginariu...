@@ -1,4 +1,4 @@
-import React,{useState,useEffect,useRef} from 'react';import {Cloud,Upload,RefreshCw,Plus,Play,KeyRound,Check} from 'lucide-react';import {api,upload} from './api.js';import {t,useT} from './i18n/index.js';
+import React,{useState,useEffect,useRef} from 'react';import {IconCloud as Cloud,IconUpload as Upload,IconRefresh as RefreshCw,IconPlus as Plus,IconPlayerPlay as Play,IconKey as KeyRound,IconCheck as Check} from '@tabler/icons-react';import {api,upload} from './api.js';import {t,useT} from './i18n/index.js';
 const ops=['importModel','textToModel','imageToModel','multiviewToModel','imageToMultiview','editMultiview','textureModel','segmentMesh','completeMesh','decimateMesh','rigCheck','rigModel','retargetAnimation','convertModel','stylizeModel'];const opLabel=id=>ops.includes(id)?t('tripo.op.'+id):undefined;
 const motions=['idle','walk','run','jump','slash','shoot','hurt','fall','turn','climb','dive','quadruped:walk','hexapod:walk','octopod:walk','serpentine:march','aquatic:march'];const motionLabel=id=>t('tripo.motion.'+id.replace(':','_'));
 const views=['front','left','back','right'],viewLabel=i=>t('tripo.view.'+views[i]);

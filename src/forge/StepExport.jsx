@@ -1,6 +1,6 @@
 // Step 7 (Export): profiles, export job, result folder, download and validation rows.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Package, Loader2, Download, Copy, FolderOpen } from 'lucide-react';
+import {IconPackage as Package,IconLoader2 as Loader2,IconDownload as Download,IconCopy as Copy,IconFolderOpen as FolderOpen} from '@tabler/icons-react';
 import {
   exportProfilesFor, EXPORT_PROFILES, findOutput, dirOf, outputEntries, isActiveStatus, formatDate, fileNameOf,
   exportPlan, stepTitle,

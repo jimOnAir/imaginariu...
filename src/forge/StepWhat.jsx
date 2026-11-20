@@ -1,6 +1,6 @@
 // Step 1 "What are we making": kind cards, source and the passport.
 import React, { useEffect, useState } from 'react';
-import { User, PawPrint, Sword, Rocket, Crosshair, Box, Sparkles, Upload, SlidersHorizontal, ArrowRight, Loader2, FolderOpen } from 'lucide-react';
+import {IconUser as User,IconPaw as PawPrint,IconSword as Sword,IconRocket as Rocket,IconCrosshair as Crosshair,IconBox as Box,IconSparkles as Sparkles,IconUpload as Upload,IconAdjustmentsHorizontal as SlidersHorizontal,IconArrowRight as ArrowRight,IconLoader2 as Loader2,IconFolderOpen as FolderOpen} from '@tabler/icons-react';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { clone as cloneSkinned } from 'three/addons/utils/SkeletonUtils.js';
 import { KINDS, kindInfo, sourcesFor, extOf, formatDate, statusLabel, kindFromAsset } from './forge-core.js';

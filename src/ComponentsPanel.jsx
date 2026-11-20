@@ -3,7 +3,7 @@
 // application folder in the background while the user keeps working. The same list the installer's
 // "What to install" step shows (installer/imaginarium_scan.mjs).
 import React, { useState, useEffect, useRef } from 'react';
-import { Download, Loader2, RefreshCw, Check } from 'lucide-react';
+import {IconDownload as Download,IconLoader2 as Loader2,IconRefresh as RefreshCw,IconCheck as Check} from '@tabler/icons-react';
 import { api } from './api.js';
 import { useT, t } from './i18n/index.js';
 

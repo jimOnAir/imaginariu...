@@ -1,6 +1,6 @@
 // Step 2: cleanup for mesh sources, the generator form (ships, turrets, items) for params.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Scissors, Sparkles, Dices, Loader2, Check } from 'lucide-react';
+import {IconScissors as Scissors,IconSparkles as Sparkles,IconArrowsShuffle as Dices,IconLoader2 as Loader2,IconCheck as Check} from '@tabler/icons-react';
 import {
   paramDefs, resolveParamName, buildParams, generatorParams, shownParams, prepareSteps, kindInfo, generatorStep,
   findStepDef, sliderToBudget, budgetToSlider, formatCount, seedVariants, enumLabel, findOutput,

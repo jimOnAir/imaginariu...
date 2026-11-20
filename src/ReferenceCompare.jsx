@@ -1,5 +1,5 @@
 import React,{useState} from 'react';
-import {X,RefreshCw,Target,Check,Layers,Undo2,Plus,Trash2} from 'lucide-react';
+import {IconX as X,IconRefresh as RefreshCw,IconTarget as Target,IconCheck as Check,IconStack2 as Layers,IconArrowBackUp as Undo2,IconPlus as Plus,IconTrash as Trash2} from '@tabler/icons-react';
 import {api} from './api.js';
 import {referenceSettings} from './reference-core.js';
 import {useT} from './i18n/index.js';

@@ -4,7 +4,7 @@
 // nothing is downloaded and a removed style moves to the trash folder. The generators start
 // consuming styles in ticket 07. Details: docs/product/styles.md.
 import React, { useState, useEffect, useRef } from 'react';
-import { Loader2, Plus, Trash2, RefreshCw, Sparkles, ImageIcon, Save } from 'lucide-react';
+import {IconLoader2 as Loader2,IconPlus as Plus,IconTrash as Trash2,IconRefresh as RefreshCw,IconSparkles as Sparkles,IconPhoto as ImageIcon,IconDeviceFloppy as Save} from '@tabler/icons-react';
 import { api } from './api.js';
 import { useT } from './i18n/index.js';
 import './style-panel.css';

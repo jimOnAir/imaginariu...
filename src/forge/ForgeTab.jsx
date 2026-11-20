@@ -1,8 +1,8 @@
-// Entry of the Forge tab for App.jsx. The wizard itself (ForgePanel and everything it
+import {AnvilIcon as Anvil} from './AnvilIcon.jsx';// Entry of the Forge tab for App.jsx. The wizard itself (ForgePanel and everything it
 // imports, including forge.css and GLTFExporter) is loaded on demand as a separate chunk, so
 // it does not weigh down the studio start. Only the tab icon and the tab-strip CSS load eagerly.
 import React, { Suspense, lazy } from 'react';
-import { Anvil, Loader2 } from 'lucide-react';
+import {IconLoader2 as Loader2} from '@tabler/icons-react';
 import { useT } from '../i18n/index.js';
 import './forge-tabs.css';
 

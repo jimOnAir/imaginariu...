@@ -4,7 +4,7 @@
 // model. Failed attempts auto-redo with new seeds (retries 0..3), the best attempt is kept.
 // Every verdict is in <library>/learning/autoreview.jsonl. Details: docs/product/autoreview.md.
 import React, {useState, useEffect} from 'react';
-import {Loader2, RefreshCw, ShieldCheck, ShieldX, HelpCircle, ScanEye, Award} from 'lucide-react';
+import {IconLoader2 as Loader2,IconRefresh as RefreshCw,IconShieldCheck as ShieldCheck,IconShieldX as ShieldX,IconHelpCircle as HelpCircle,IconScanEye as ScanEye,IconAward as Award} from '@tabler/icons-react';
 import {api} from './api.js';
 import {useT} from './i18n/index.js';
 import './autoreview.css';

@@ -4,7 +4,7 @@
 // verdicts: POST /api/forge/learn/feedback. The shared community-recipe surfaces of the shipped
 // studio are intentionally absent here: this tree learns only from this computer.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import { RefreshCw, Check, Wrench, Ban, Star, MessageSquarePlus, Loader2, ImageOff, BookOpen } from 'lucide-react';
+import {IconRefresh as RefreshCw,IconCheck as Check,IconTools as Wrench,IconBan as Ban,IconStar as Star,IconMessagePlus as MessageSquarePlus,IconLoader2 as Loader2,IconPhotoOff as ImageOff,IconBook as BookOpen} from '@tabler/icons-react';
 import * as forgeApi from './forge-api.js';
 import { Notice, useForge } from './ForgeUi.jsx';
 import { t, useT } from '../i18n/index.js';

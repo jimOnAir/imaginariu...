@@ -2,7 +2,7 @@
 // a view-mode switch (Simple / Detailed). Both persist through src/shell/hooks.js and speak the
 // branch's i18n mechanism.
 import React from 'react';
-import { Moon, Sun, Monitor, AlignJustify, SlidersHorizontal } from 'lucide-react';
+import {IconMoon as Moon,IconSun as Sun,IconDeviceDesktop as Monitor,IconLayoutList as AlignJustify,IconAdjustmentsHorizontal as SlidersHorizontal} from '@tabler/icons-react';
 import { useT, useLang, setLang, LANGS } from '../i18n/index.js';
 import { useTheme, useMode } from './hooks.js';
 import './shell.css';

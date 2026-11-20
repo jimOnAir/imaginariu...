@@ -1,4 +1,4 @@
-import React,{useState,useEffect,useRef,useCallback} from 'react';import {Play,Download,FolderOpen,ExternalLink,RefreshCw,Upload,X,Globe} from 'lucide-react';import {api,upload} from './api.js';import {useT,tOr} from './i18n/index.js';import './vfx.css';
+import React,{useState,useEffect,useRef,useCallback} from 'react';import {IconPlayerPlay as Play,IconDownload as Download,IconFolderOpen as FolderOpen,IconExternalLink as ExternalLink,IconRefresh as RefreshCw,IconUpload as Upload,IconX as X,IconGlobe as Globe} from '@tabler/icons-react';import {api,upload} from './api.js';import {useT,tOr} from './i18n/index.js';import './vfx.css';
 // VFX tab: catalogue of texture generators for effects and the folder of ready-made textures.
 const FOLDED=['store','paid','guide'];
 const SLOTS=[['map','vfx.slot.map'],['emissiveMap','vfx.slot.emissiveMap'],['normalMap','vfx.slot.normalMap'],['roughnessMap','vfx.slot.roughnessMap'],['metalnessMap','vfx.slot.metalnessMap']];

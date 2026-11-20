@@ -1,6 +1,6 @@
 // Small canvas preview of a library clip drawn as a stick figure (GET /clips/:id/poses).
 import React, { useEffect, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
+import {IconLoader2 as Loader2} from '@tabler/icons-react';
 import { normalizePoses, poseBounds, projectJoint, poseAt } from './forge-core.js';
 import { getClipPoses } from './forge-api.js';
 import { useT, t as translate } from '../i18n/index.js';

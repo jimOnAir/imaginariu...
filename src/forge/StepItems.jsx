@@ -1,6 +1,6 @@
 // Step 5 "Items": item kit gallery and "Put in hand" (attach_prop).
 import React, { useEffect, useState } from 'react';
-import { Sword, Axe, Hammer, Shield, Wand, Crosshair, Gavel, Loader2, Hand, Sparkles, Flame, FlaskConical, BookOpen, Zap } from 'lucide-react';
+import {IconSword as Sword,IconAxe as Axe,IconHammer as Hammer,IconShield as Shield,IconWand as Wand,IconCrosshair as Crosshair,IconGavel as Gavel,IconLoader2 as Loader2,IconHandMove as Hand,IconSparkles as Sparkles,IconFlame as Flame,IconFlask as FlaskConical,IconBook as BookOpen,IconBolt as Zap} from '@tabler/icons-react';
 import {
   paramDefs, resolveParamName, buildParams, generatorParams, shownParams, enumLabel, findOutput, isActiveStatus, jobProgress, jobError,
   kindFromAsset, planSteps, replayNote,

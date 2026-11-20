@@ -5,7 +5,7 @@
 // The Learning switch toggles the forge's LOCAL journaling (ticket 20): on this branch nothing is
 // ever reported anywhere, so the switch pauses the journal itself, not a shipping consent.
 import React,{useEffect,useState} from 'react';
-import {Info,ScrollText,Layers,ArrowUpRight,Loader2,BookOpen,Home,GraduationCap} from 'lucide-react';
+import {IconInfoCircle as Info,IconLicense as ScrollText,IconStack2 as Layers,IconArrowUpRight as ArrowUpRight,IconLoader2 as Loader2,IconBook as BookOpen,IconHome as Home,IconSchool as GraduationCap} from '@tabler/icons-react';
 import {api} from './api.js';
 import {useT} from './i18n/index.js';
 import './about.css';

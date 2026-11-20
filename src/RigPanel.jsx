@@ -1,5 +1,5 @@
 import React,{useState,useEffect} from 'react';
-import {Bone,Plus,Check,Eye,Paintbrush,Play,Save,RotateCcw,Download,Trash2,Layers,Loader2} from 'lucide-react';
+import {IconBone as Bone,IconPlus as Plus,IconCheck as Check,IconEye as Eye,IconPaint as Paintbrush,IconPlayerPlay as Play,IconDeviceFloppy as Save,IconRotateClockwise2 as RotateCcw,IconDownload as Download,IconTrash as Trash2,IconStack2 as Layers,IconLoader2 as Loader2} from '@tabler/icons-react';
 import {useT,getLang} from './i18n/index.js';
 const types=['humanoid','quadruped','mechanical','custom'];
 const locale=()=>getLang()==='ru'?'ru-RU':'en-US';

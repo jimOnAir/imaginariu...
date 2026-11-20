@@ -3,7 +3,7 @@
 // removing a sound moves it to the trash folder, the studio never destroys one. Sounds bind to
 // per-object game events (footsteps, impact, spell...). Details: docs/product/sound.md.
 import React, {useState, useEffect, useRef} from 'react';
-import {Loader2, Play, Pause, Trash2, RefreshCw, Link2, Unlink, Volume2, Music, Ban, AlertTriangle} from 'lucide-react';
+import {IconLoader2 as Loader2,IconPlayerPlay as Play,IconPlayerPause as Pause,IconTrash as Trash2,IconRefresh as RefreshCw,IconLink as Link2,IconLinkOff as Unlink,IconVolume2 as Volume2,IconMusic as Music,IconBan as Ban,IconAlertTriangle as AlertTriangle} from '@tabler/icons-react';
 import {api} from './api.js';
 import {t, useT, hasT} from './i18n/index.js';
 import './sound.css';

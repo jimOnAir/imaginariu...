@@ -3,10 +3,7 @@
 // decision is stored in the asset manifest (PATCH /assets/:id, qa.decision).
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import {
-  RefreshCw, Eye, Maximize2, Check, Wrench, Ban, Save, X, ChevronLeft, ChevronRight, RotateCcw, Search, ImageOff,
-  ExternalLink, Loader2, Users, History,
-} from 'lucide-react';
+import {IconRefresh as RefreshCw,IconEye as Eye,IconArrowsMaximize as Maximize2,IconCheck as Check,IconTools as Wrench,IconBan as Ban,IconDeviceFloppy as Save,IconX as X,IconChevronLeft as ChevronLeft,IconChevronRight as ChevronRight,IconRotateClockwise2 as RotateCcw,IconSearch as Search,IconPhotoOff as ImageOff,IconExternalLink as ExternalLink,IconLoader2 as Loader2,IconUsers as Users,IconHistory as History} from '@tabler/icons-react';
 import * as forgeApi from './forge-api.js';
 import ForgeLearn from './ForgeLearn.jsx';
 import { Chips, Notice, ProgressBar, useForge } from './ForgeUi.jsx';

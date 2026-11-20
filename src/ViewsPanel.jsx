@@ -1,5 +1,5 @@
 import React, {useState, useEffect, useRef} from 'react';
-import {Upload, Sparkles, RefreshCw, X, Loader2, Box, Cloud, Cpu, Gem, Zap} from 'lucide-react';
+import {IconUpload as Upload,IconSparkles as Sparkles,IconRefresh as RefreshCw,IconX as X,IconLoader2 as Loader2,IconBox as Box,IconCloud as Cloud,IconCpu as Cpu,IconDiamond as Gem,IconBolt as Zap} from '@tabler/icons-react';
 import {api} from './api.js';
 import {useT} from './i18n/index.js';
 import './views.css';

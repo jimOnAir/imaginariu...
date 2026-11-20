@@ -1,4 +1,4 @@
-import React,{useState,useEffect,useRef,useMemo} from 'react';import {Dices,Download,Save,Play,Pause,Loader2,Sparkles} from 'lucide-react';import {upload,download} from './api.js';
+import React,{useState,useEffect,useRef,useMemo} from 'react';import {IconArrowsShuffle as Dices,IconDownload as Download,IconDeviceFloppy as Save,IconPlayerPlay as Play,IconPlayerPause as Pause,IconLoader2 as Loader2,IconSparkles as Sparkles} from '@tabler/icons-react';import {upload,download} from './api.js';
 import {FX_TEXTURE_TYPES,FX_TEXTURE_PRESETS,generateFxTexture,resolveFxParams,fxDefaultParams,fxParamVisible,fxFlipbookGrid,fxFileName,encodeFxPng} from './fx-textures.js';import './fx-lab.css';
 import {t,useT} from './i18n/index.js';
 // Texture generator for effects: recipes, sliders, checkerboard preview, 3×3 tiling and flipbook playback. Computation runs in a Web Worker.

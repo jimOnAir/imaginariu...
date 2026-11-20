@@ -1,6 +1,6 @@
 // Batch: many assets from one preset (seeds 1..N, a folder of GLB, generation results).
 import React, { useEffect, useRef, useState } from 'react';
-import { Boxes, Loader2, FolderOpen, FilePlus2, Trash2 } from 'lucide-react';
+import {IconPackages as Boxes,IconLoader2 as Loader2,IconFolderOpen as FolderOpen,IconFilePlus as FilePlus2,IconTrash as Trash2} from '@tabler/icons-react';
 import {
   KINDS, kindInfo, filterPresets, seedBatchItems, sourceBatchItems, defaultBatchSteps, batchCounts, batchItemsFrom,
   onlyGlb, paramDefs, buildParams, generatorStep, stepTitle, formatDate, fileBatchChunks,

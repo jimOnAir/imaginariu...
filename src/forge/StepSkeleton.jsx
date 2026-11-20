@@ -1,6 +1,6 @@
 // Step 3 "Skeleton": humanoid autorig with draggable markers, creature templates, poses.png.
 import React, { useEffect, useRef, useState } from 'react';
-import { Bone, Loader2, Download, ExternalLink } from 'lucide-react';
+import {IconBone as Bone,IconLoader2 as Loader2,IconDownload as Download,IconExternalLink as ExternalLink} from '@tabler/icons-react';
 import {
   paramDefs, resolveParamName, buildParams, findOutput, enumLabel, findStepDef, latestPipelineEntry, planSteps,
   rigSeedValues, markersForHeight, roundMarkers, replayNote,

@@ -3,7 +3,7 @@
 // Details: docs/art2d.md.
 import React, {useState, useEffect, useRef} from 'react';
 import {createPortal} from 'react-dom';
-import {Upload, X, Loader2, RefreshCw, Download, Box, UserRound, Square, Images, Clapperboard, Smile, Puzzle, PersonStanding, Brush, WandSparkles, Play, Ban} from 'lucide-react';
+import {IconUpload as Upload,IconX as X,IconLoader2 as Loader2,IconRefresh as RefreshCw,IconDownload as Download,IconBox as Box,IconUserCircle as UserRound,IconSquare as Square,IconLayoutGrid as Images,IconTimeline as Clapperboard,IconMoodSmile as Smile,IconPuzzle as Puzzle,IconStretching as PersonStanding,IconBrush as Brush,IconWand as WandSparkles,IconPlayerPlay as Play,IconBan as Ban} from '@tabler/icons-react';
 import {api, upload} from './api.js';
 import {t, useT, hasT} from './i18n/index.js';
 import './art2d.css';

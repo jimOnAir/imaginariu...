@@ -1,6 +1,6 @@
 // Step 6 "Effects": FX presets bound to sockets, stored in the passport (fx[]).
 import React, { useEffect, useState } from 'react';
-import { Trash2, Save, Plus } from 'lucide-react';
+import {IconTrash as Trash2,IconDeviceFloppy as Save,IconPlus as Plus} from '@tabler/icons-react';
 import { FX_PRESETS, fxPreset, socketsFor, suggestSocket, fxForPassport } from './forge-core.js';
 import { Section, Notice, useForge } from './ForgeUi.jsx';
 import { useT } from '../i18n/index.js';

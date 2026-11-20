@@ -1,6 +1,6 @@
 // Step 4 "Motion": Mixamo clip library + retarget for humans, procedural clips for creatures.
 import React, { useEffect, useMemo, useState } from 'react';
-import { Search, Play, Loader2, Footprints, Check, RefreshCw } from 'lucide-react';
+import {IconSearch as Search,IconPlayerPlay as Play,IconLoader2 as Loader2,IconFootsteps as Footprints,IconCheck as Check,IconRefresh as RefreshCw} from '@tabler/icons-react';
 import {
   clipList, clipCategories, filterClips, defaultClipOptions, clipsForPassport, retargetClips, categoryLabel, paramDefs,
   resolveParamName, buildParams, creatureClipOptions, creatureClipAvailable, creatureClipsForPassport,

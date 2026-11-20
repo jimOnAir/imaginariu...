@@ -1,6 +1,6 @@
 // Shared building blocks of the Forge wizard.
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { Check, X, Dices, Upload, Eye, ExternalLink, TriangleAlert, Info, Loader2, Trash2 } from 'lucide-react';
+import {IconCheck as Check,IconX as X,IconArrowsShuffle as Dices,IconUpload as Upload,IconEye as Eye,IconExternalLink as ExternalLink,IconAlertTriangle as TriangleAlert,IconInfoCircle as Info,IconLoader2 as Loader2,IconTrash as Trash2} from '@tabler/icons-react';
 import {
   paramType, coerceParam, enumLabel, normalizeChecks, checksSummary, imageOutputs, imageLabel,
   findOutput, statusLabel, isActiveStatus, jobProgress, currentJobStep, jobError, stepTitle,

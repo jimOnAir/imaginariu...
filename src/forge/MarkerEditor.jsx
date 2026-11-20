@@ -1,7 +1,7 @@
 // Mixamo-style joint markers over the front view (markers.png). Dots are draggable with the
 // mouse/touch and nudgeable with arrow keys; coordinates are kept in metres (Blender X, Z).
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { RotateCcw, Hammer, Loader2 } from 'lucide-react';
+import {IconRotateClockwise2 as RotateCcw,IconHammer as Hammer,IconLoader2 as Loader2} from '@tabler/icons-react';
 import {
   normalizeMarkers, markerProjection, metresToPx, pxToMetres, clampPx, moveMarker, roundMarkers, markerLabel, mirrorName,
   detectColorBlobs, calibrateProjection, markersSymmetric, frontTileWidth,

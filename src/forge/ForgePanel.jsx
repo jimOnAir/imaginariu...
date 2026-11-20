@@ -1,6 +1,6 @@
-// Forge: step wizard over the Blender pipeline (docs/forge/API.md, docs/forge/ui.md).
+import {AnvilIcon as Anvil} from './AnvilIcon.jsx';// Forge: step wizard over the Blender pipeline (docs/forge/API.md, docs/forge/ui.md).
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Anvil, ListChecks, Boxes, ClipboardCheck, RefreshCw, ChevronLeft, ChevronRight, Plus, Check, X, Loader2 } from 'lucide-react';
+import {IconListCheck as ListChecks,IconPackages as Boxes,IconClipboardCheck as ClipboardCheck,IconRefresh as RefreshCw,IconChevronLeft as ChevronLeft,IconChevronRight as ChevronRight,IconPlus as Plus,IconCheck as Check,IconX as X,IconLoader2 as Loader2} from '@tabler/icons-react';
 import * as forgeApi from './forge-api.js';
 import {
   wizardStepsFor, wizardProgress, kindInfo, kindFromAsset, sourceFromAsset, latestPipelineEntry,

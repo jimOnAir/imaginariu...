@@ -1,7 +1,7 @@
 // The Sculpt tab: SculptGL in an iframe over the center viewport. The page lives on another origin (the web port of
 // the generators) and the exchange goes only through postMessage with event.origin and event.source checked
 // (see scripts/sculpt/bridge.js). The panel must not unmount when the tab changes (see App.jsx), or the sculpt is lost.
-import React,{useState,useEffect,useRef,useCallback} from 'react';import {createPortal} from 'react-dom';import {Brush,Download,ExternalLink,Maximize2,Minimize2,RefreshCw,Wand2} from 'lucide-react';import {api,upload,download} from './api.js';import {useT} from './i18n/index.js';import './sculpt.css';
+import React,{useState,useEffect,useRef,useCallback} from 'react';import {createPortal} from 'react-dom';import {IconBrush as Brush,IconDownload as Download,IconExternalLink as ExternalLink,IconArrowsMaximize as Maximize2,IconArrowsMinimize as Minimize2,IconRefresh as RefreshCw,IconWand as Wand2} from '@tabler/icons-react';import {api,upload,download} from './api.js';import {useT} from './i18n/index.js';import './sculpt.css';
 const CALL_TIMEOUT=90000;
 const safe=s=>String(s||'model').replace(/[<>:"/\\|?*\x00-\x1f]/g,'_').trim().slice(0,80)||'model';
 function Section({title,children,aside}){return <section className="section"><div className="section-heading"><h3>{title}</h3>{aside}</div>{children}</section>;}

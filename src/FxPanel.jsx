@@ -1,5 +1,5 @@
 import React,{useState,useEffect,useRef} from 'react';
-import {Plus,Copy,Trash2,Eye,EyeOff,Zap,Play,Download,RotateCcw,FolderOpen,Upload,X,Film,RefreshCw} from 'lucide-react';
+import {IconPlus as Plus,IconCopy as Copy,IconTrash as Trash2,IconEye as Eye,IconEyeOff as EyeOff,IconBolt as Zap,IconPlayerPlay as Play,IconDownload as Download,IconRotateClockwise2 as RotateCcw,IconFolderOpen as FolderOpen,IconUpload as Upload,IconX as X,IconMovie as Film,IconRefresh as RefreshCw} from '@tabler/icons-react';
 import {api,upload} from './api.js';
 import {FX_PRESET_LIST,FX_TEXTURES,FX_TEXTURE_TITLES,FX_SHAPES,FX_SHAPE_TITLES,FX_BLENDS,FX_BLEND_TITLES,FX_LIMITS,presetTitle,presetDescription,presetOf,fxTexture,sampleCurve} from './fx-core.js';
 import {useT,getLang} from './i18n/index.js';
