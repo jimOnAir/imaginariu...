@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 144" role="img" aria-label="Imaginarium">
+  <title>Imaginarium</title>
+  <polygon points="64,8 118,40 64,72 10,40" fill="#14B8A6"/>
+  <polygon points="10,40 64,72 64,136 10,104" fill="#0E3B45"/>
+  <polygon points="118,40 118,104 64,136 64,72" fill="#8B5CF6"/>
+  <polyline points="64,8 64,72" stroke="#E2E8F0" stroke-width="2" fill="none" opacity=".55"/>
+  <polyline points="10,104 64,72 118,104" stroke="#E2E8F0" stroke-width="2" fill="none" opacity=".35"/>
+</svg>

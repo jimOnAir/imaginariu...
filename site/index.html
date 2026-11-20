@@ -5,12 +5,14 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Imaginarium — local 3D studio</title>
 <meta name="description" content="Imaginarium is a local-first 3D asset studio for game dev: prompt to concept to geometry, rigged, animated, exported to Godot, Unity, Unreal and Bevy — everything on your own machine.">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
 <style>
   :root{ /* one line to re-skin per chosen identity direction */
     --bg:#131719; --ink:#E2E8F0; --muted:#94A3B8; --a:#14B8A6; --b:#8B5CF6;
   }
   *{box-sizing:border-box} body{margin:0;background:var(--bg);color:var(--ink);
     font:16px/1.6 Inter,system-ui,sans-serif}
+  .mark{display:block;margin:0 0 20px}
   .wrap{max-width:880px;margin:0 auto;padding:96px 24px 64px}
   h1{font-size:clamp(44px,8vw,84px);margin:0;font-weight:800;letter-spacing:-1px}
   h1 span{background:linear-gradient(90deg,var(--a),var(--b));
@@ -27,6 +29,7 @@
 </head>
 <body>
 <div class="wrap">
+  <svg class="mark" width="64" height="72" viewBox="0 0 128 144" role="img" aria-label="Imaginarium"><polygon points="64,8 118,40 64,72 10,40" fill="#14B8A6"/><polygon points="10,40 64,72 64,136 10,104" fill="#0E3B45"/><polygon points="118,40 118,104 64,136 64,72" fill="#8B5CF6"/><polyline points="64,8 64,72" stroke="#E2E8F0" stroke-width="2" fill="none" opacity=".55"/><polyline points="10,104 64,72 118,104" stroke="#E2E8F0" stroke-width="2" fill="none" opacity=".35"/></svg>
   <h1>imagi<span>narium</span></h1>
   <p class="sub">The 3D asset studio that lives on your machine. Image or text prompt → concept →
   geometry → auto-rig → animation → VFX → export. No cloud, no seats, no upload queue.</p>
