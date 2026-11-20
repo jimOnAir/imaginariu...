@@ -26,7 +26,7 @@ export function currentVramMib(opts = {}) {
 }
 
 // Ticket 44 (views fp8 tier): the node streams the UNet as fp8 on NVIDIA cards up to
-// IMAGINARIUM_VIEWS_FP8_MAX_MIB (default 16384 — the node's own gate, astra_views._fp8_tier).
+// IMAGINARIUM_VIEWS_FP8_MAX_MIB (default 16384 — the node's own gate, imagi_views._fp8_tier).
 // gpu-info only answers for NVIDIA (null on AMD/none), so a finite number here mirrors the
 // node's vendor check; unknown VRAM keeps the fp16 semantics (ticket 33's honesty).
 export const FP8_STEP_MAX_MS = 10 * 60 * 1000;

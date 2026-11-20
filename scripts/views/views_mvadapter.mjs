@@ -95,7 +95,7 @@ export async function generateMvadapterViews(o) {
   const started = Date.now();
   const attempt = async (sz) => {
     const refName = await uploadImage(comfyUrl, refFile, 'imaginarium-mva-ref.png');
-    const wf = mvadapterWorkflow({ refName, azimuths, size: sz, steps, cfg, seed, prefix: 'astra_views/mva_' + Date.now() });
+    const wf = mvadapterWorkflow({ refName, azimuths, size: sz, steps, cfg, seed, prefix: 'imaginarium_views/mva_' + Date.now() });
     const run = await withEngineGpu('hunyuan', () => runWorkflow(comfyUrl, wf, {
       signal: o.signal,
       timeoutMs: lowVram ? MVA_MAX_WAIT_MS : undefined, // undefined = the 60-minute default of the big cards

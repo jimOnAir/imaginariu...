@@ -59,7 +59,7 @@ export async function views_3d(o) {
   const uploaded = {};
   for (const [slot, file] of Object.entries(files)) uploaded[slot] = await uploadImage(comfyUrl, file, `imaginarium-${tag}-${slot}.png`);
   if (o.swapSides) [uploaded.left, uploaded.right] = [uploaded.right, uploaded.left];
-  const workflow = hunyuanMultiViewWorkflow(uploaded, MV_CHECKPOINT, quality, seed, 'astra_views/' + tag, o.meshLevel ?? 0);
+  const workflow = hunyuanMultiViewWorkflow(uploaded, MV_CHECKPOINT, quality, seed, 'imaginarium_views/' + tag, o.meshLevel ?? 0);
   const q = await comfyQueue(comfyUrl);
   if (q && (q.queue_running?.length || q.queue_pending?.length)) o.onProgress?.('The engine queue already has jobs, waiting');
   const started = Date.now();

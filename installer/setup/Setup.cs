@@ -1,8 +1,8 @@
-﻿// AstraForge-Setup.exe - a single distributable file: unpacks the application (the embedded payload.zip) into the chosen
+﻿// Imaginarium-Setup.exe - a single distributable file: unpacks the application (the embedded payload.zip) into the chosen
 // folder and starts the "Install Imaginarium.cmd" wizard, which downloads the programs and models.
 // Built by installer\build-release.ps1 with the compiler (csc) that ships with Windows (.NET Framework 4.x, C# 5).
-//   AstraForge-Setup.exe                  folder selection window
-//   AstraForge-Setup.exe /extract <folder>  only unpack, no window and no wizard (build check)
+//   Imaginarium-Setup.exe                  folder selection window
+//   Imaginarium-Setup.exe /extract <folder>  only unpack, no window and no wizard (build check)
 using System;
 using System.Diagnostics;
 using System.Drawing;

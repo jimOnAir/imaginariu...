@@ -36,11 +36,11 @@ function mkVenv(dir, { pkg = true } = {}) {
     // ask the venv where its packages live instead of assuming the minor version
     const pure = spawnSync(py, ['-c', "import sysconfig; print(sysconfig.get_paths()['purelib'])"], { encoding: 'utf8' }).stdout.trim();
     mkdirSync(pure, { recursive: true });
-    writeFileSync(path.join(pure, 'astra_marker.py'), 'VALUE = 42\n');
+    writeFileSync(path.join(pure, 'imaginarium_marker.py'), 'VALUE = 42\n');
   }
   return py;
 }
-const markerImport = 'import astra_marker; print(astra_marker.VALUE)';
+const markerImport = 'import imaginarium_marker; print(imaginarium_marker.VALUE)';
 
 test('linkTarget: plain file, good symlink, dangling symlink - each named as itself', async () => {
   const f = path.join(tmp, 'lt');

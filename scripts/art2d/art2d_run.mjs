@@ -218,7 +218,7 @@ export async function runSet(dir, { comfyUrl = DEFAULT_COMFY_URL, signal, onProg
       }
       const prompt = finalPrompt(set, shot);
       const negative = NEGATIVE + (set.styleBible?.negative ? ' ' + set.styleBible.negative : '');
-      const wf = buildWorkflow(set.engine, { prompt, negative, refs: names, width: w, height: h, seed: shot.seed, steps: set.params.steps || undefined, prefix: `astra_2d/${set.id.slice(0, 8)}_${shot.key}` });
+      const wf = buildWorkflow(set.engine, { prompt, negative, refs: names, width: w, height: h, seed: shot.seed, steps: set.params.steps || undefined, prefix: `imaginarium_2d/${set.id.slice(0, 8)}_${shot.key}` });
       const run = await withEngineGpu('hunyuan', () => runWorkflow(comfyUrl, wf, { signal, onProgress: (t) => onProgress(`${shot.label}: ${t}`) }),
         { signal, failOpen: true, timeoutMs: 60 * 60 * 1000, urls: { hunyuan: comfyUrl }, onWait: () => onProgress('Waiting for the GPU to free up'), onStep: onProgress });
       const img = Object.values(run.outputs).flatMap((x) => x.images || [])[0];

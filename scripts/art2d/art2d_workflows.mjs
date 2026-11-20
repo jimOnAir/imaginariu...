@@ -58,7 +58,7 @@ export const REF_MEGAPIXELS = [0.6, 0.35, 0.35, 0.35];
  * Each reference is scaled to its megapixel budget, VAE-encoded and attached to BOTH positive and negative
  * conditioning (as in ComfyUI's own template).
  */
-export function flux2Workflow({ prompt, negative = '', refs = [], width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/flux2', refMegapixels = REF_MEGAPIXELS, engine = 'flux2' }) {
+export function flux2Workflow({ prompt, negative = '', refs = [], width = 1024, height = 1024, steps, cfg, seed, prefix = 'imaginarium_2d/flux2', refMegapixels = REF_MEGAPIXELS, engine = 'flux2' }) {
   const e = ENGINES[engine] || ENGINES.flux2;
   if (refs.length > e.maxRefs) throw new Error(`FLUX.2 takes at most ${e.maxRefs} references.`);
   const wf = {
@@ -102,7 +102,7 @@ export function flux2Workflow({ prompt, negative = '', refs = [], width = 1024, 
  * condition through the encoder only. The pinned lightning LoRA brings it to 4 steps at cfg 1 -
  * the wiring of ComfyUI's own 2511 template, node for node.
  */
-export function qwenEditWorkflow({ prompt, negative = '', refs = [], base = null, width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/qwenedit' }) {
+export function qwenEditWorkflow({ prompt, negative = '', refs = [], base = null, width = 1024, height = 1024, steps, cfg, seed, prefix = 'imaginarium_2d/qwenedit' }) {
   const e = ENGINES.qwenedit;
   const seen = refs.slice(0, 3);
   const wf = {
@@ -139,7 +139,7 @@ export function qwenEditWorkflow({ prompt, negative = '', refs = [], base = null
   return wf;
 }
 
-export function qwenWorkflow({ prompt, negative = '', width = 1024, height = 1024, steps, cfg, seed, prefix = 'astra_2d/qwen' }) {
+export function qwenWorkflow({ prompt, negative = '', width = 1024, height = 1024, steps, cfg, seed, prefix = 'imaginarium_2d/qwen' }) {
   const e = ENGINES.qwen;
   return {
     1: { class_type: 'UnetLoaderGGUF', inputs: { unet_name: e.unet } },
@@ -156,7 +156,7 @@ export function qwenWorkflow({ prompt, negative = '', width = 1024, height = 102
 }
 
 /** SDXL; with `init` (uploaded image name) it is image-to-image with the given denoise (0.2 keeps much, 0.8 redraws). */
-export function sdxlWorkflow({ prompt, negative = '', width = 1024, height = 1024, steps, cfg, seed, init = null, denoise = 0.55, prefix = 'astra_2d/sdxl' }) {
+export function sdxlWorkflow({ prompt, negative = '', width = 1024, height = 1024, steps, cfg, seed, init = null, denoise = 0.55, prefix = 'imaginarium_2d/sdxl' }) {
   const e = ENGINES.sdxl;
   const wf = {
     1: { class_type: 'CheckpointLoaderSimple', inputs: { ckpt_name: e.checkpoint } },

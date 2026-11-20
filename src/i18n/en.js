@@ -1833,7 +1833,7 @@ export default {
   "app.chat.suggest3": "Come up with an alien creature concept",
   "app.chat.you": "YOU",
   "app.chat.failed": "COULD NOT CONNECT",
-  "app.chat.assistant": "ASTRA / AI",
+  "app.chat.assistant": "IMAGINARIUM / AI",
   "app.chat.applied": "Applied",
   "app.chat.apply": "Apply changes",
   "app.chat.thinking": "The model is preparing a reply…",

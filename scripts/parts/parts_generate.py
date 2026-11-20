@@ -151,7 +151,7 @@ def generate(parts_dir, seeds=None, only=None, url=DEFAULT_URL, force=False, log
             if not names_up:
                 names_up["front"] = upload(url, folder / "mv_front.png", "parts_%s_%s_front.png" % (tag, name))
                 names_up["back"] = upload(url, folder / "mv_back.png", "parts_%s_%s_back.png" % (tag, name))
-            prefix = "astra_mv/parts_%s_%s_%d" % (tag, name, seed)
+            prefix = "imaginarium_mv/parts_%s_%s_%d" % (tag, name, seed)
             data, sec = run_prompt(url, workflow(names_up["front"], names_up["back"], seed, prefix))
             dst.write_bytes(data)
             part["meshes"][str(seed)] = {"file": "%s/%s" % (part["dir"], dst.name), "seconds": round(sec, 1)}

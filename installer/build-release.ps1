@@ -1,4 +1,4 @@
-﻿# Builds a single distributable file: AstraForge-Setup-<version>.exe (the application + the built interface + node_modules
+﻿# Builds a single distributable file: Imaginarium-Setup-<version>.exe (the application + the built interface + node_modules
 # without dev packages). Models, Blender, ComfyUI and the rest are not included - the installer\Install.ps1 wizard downloads them.
 #   powershell -ExecutionPolicy Bypass -File installer\build-release.ps1 [-Out <folder>]
 # By default the result goes to ..\Imaginarium-release next to the application folder.

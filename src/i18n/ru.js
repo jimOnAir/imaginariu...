@@ -1831,7 +1831,7 @@ export default {
   "app.chat.suggest3": "Придумай концепт инопланетного существа",
   "app.chat.you": "ВЫ",
   "app.chat.failed": "НЕ УДАЛОСЬ ПОДКЛЮЧИТЬСЯ",
-  "app.chat.assistant": "ASTRA / AI",
+  "app.chat.assistant": "IMAGINARIUM / AI",
   "app.chat.applied": "Применено",
   "app.chat.apply": "Применить изменения",
   "app.chat.thinking": "Модель готовит ответ…",
